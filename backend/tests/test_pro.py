@@ -159,17 +159,28 @@ def test_pro_clip_found_and_in_report():
     for i in range(0, 30 * 64, 32):
         pm.positions.append(PositionSample(round=r.num, tick=r.freeze_end_tick + i, steamid=pro_sid, side="ct",
                                            pos=Vec(x=10, y=10), place="SynthMid"))
-    pm.kills = [k for k in pm.kills if not (k.round == r.num and k.victim_steamid == pro_sid)]
+    # Gegner kommt aus SynthPalace (wie der Killer im eigenen Match) und wird vom Pro getötet
+    pm.positions = [p for p in pm.positions if not (p.round == r.num and p.steamid == ENEMIES[0])]
+    for i in range(0, 23 * 64, 32):
+        pm.positions.append(PositionSample(round=r.num, tick=r.freeze_end_tick + i, steamid=ENEMIES[0], side="t",
+                                           pos=Vec(x=600, y=10), place="SynthPalace"))
+    pm.kills = [k for k in pm.kills if not (k.round == r.num and k.victim_steamid in (pro_sid, ENEMIES[0]))]
     pm.kills.append(Kill(tick=r.freeze_end_tick + 22 * 64, round=r.num, attacker_steamid=pro_sid, attacker_name="P",
                          attacker_side="ct", victim_steamid=ENEMIES[0], victim_name="E", victim_side="t",
-                         victim_place="SynthMid"))
+                         victim_place="SynthPalace"))
 
     m = build_match()
+    death = next(k for k in m.kills if k.round == 2 and k.victim_steamid == ME)
+    death.attacker_place = "SynthRamp"  # andere Richtung -> keine Szene
+    res = analyze(m, load_rules_config())
+    assert pro_clips(m, res.findings, [pm]) == []
+    death.attacker_place = "SynthPalace"
     res = analyze(m, load_rules_config())
     clips = pro_clips(m, res.findings, [pm])
     f = next(f for f in res.findings if f.rule_id == "death_review" and f.round == 2)
     assert len(clips) == 1 and f.overlay["pro_clip"] == 0
-    assert "in SynthMid um 0:20, Runde gewonnen: überlebt, 1 Kill" in f.evidence["pro_clip"]
+    assert ("in SynthMid um 0:20, Gegner wie bei dir aus SynthPalace. Runde gewonnen: überlebt, "
+            "tötet 1 Gegner aus SynthPalace") in f.evidence["pro_clip"]
 
     d = build_payload(m, res, pro_clips=clips)
     pr = d["rounds"][-1]

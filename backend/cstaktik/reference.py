@@ -286,25 +286,32 @@ CLIP_AFTER_S = 12
 MAX_CLIPS = 12  # Obergrenze je Report (Dateigröße)
 
 
-def _clip_score(pm: MatchData, rnd, sid: str, moment: int) -> tuple[int, dict] | None:
-    """Wie hat der Pro die Situation gelöst? None, wenn er binnen 5 s stirbt (kein Vorbild)."""
+def _clip_score(pm: MatchData, rnd, sid: str, moment: int, aplace: str) -> tuple[int, dict] | None:
+    """Wie hat der Pro die Situation gelöst? None, wenn er binnen 5 s stirbt (kein Vorbild).
+
+    Am meisten zählt ein Kill gegen einen Gegner aus derselben Richtung wie bei dir (``aplace``)."""
     tr = pm.tickrate
     if any(k.round == rnd.num and k.victim_steamid == sid and k.tick <= moment + 5 * tr for k in pm.kills):
         return None
+    side = rnd.sides.get(sid)
     kills = [k for k in pm.kills if k.round == rnd.num and k.attacker_steamid == sid
-             and k.victim_side != rnd.sides.get(sid) and moment - 3 * tr <= k.tick <= moment + 10 * tr]
+             and k.victim_side != side and moment - 3 * tr <= k.tick <= moment + 10 * tr]
+    dir_kills = [k for k in kills if k.victim_place == aplace]
     nades = [g for g in pm.grenades if g.round == rnd.num and g.thrower_steamid == sid and g.points
              and g.kind in ("smoke", "flash", "molotov", "he") and moment - 15 * tr <= g.points[0][0] <= moment + 2 * tr]
-    mates = [k for k in pm.kills if k.round == rnd.num and k.attacker_side == rnd.sides.get(sid)
-             and k.attacker_steamid != sid and moment - 3 * tr <= k.tick <= moment + 10 * tr]
-    score = 1 + 2 * len(kills) + min(2, len(nades)) + min(1, len(mates))
-    return score, {"kills": len(kills), "nades": [g.kind for g in nades], "team_kills": len(mates)}
+    mates = [k for k in pm.kills if k.round == rnd.num and k.attacker_side == side and k.attacker_steamid != sid
+             and k.victim_place == aplace and moment - 3 * tr <= k.tick <= moment + 10 * tr]
+    score = 1 + 4 * len(dir_kills) + (len(kills) - len(dir_kills)) + min(2, len(nades)) + min(1, len(mates))
+    return score, {"kills": len(kills), "dir_kills": len(dir_kills), "nades": [g.kind for g in nades],
+                   "team_kills": len(mates)}
 
 
 def pro_clips(match: MatchData, findings: list[Finding], pro_matches: list[MatchData]) -> list[dict]:
-    """Sucht zu jeder Tod-Analyse eine Pro-Runde: gleiche Map und Seite, ein Pro steht zur selben
-    Rundenzeit (5-s-Raster) am selben Ort, seine Seite gewinnt die Runde und er überlebt die nächsten 5 s.
-    Unter mehreren Kandidaten gewinnt, wer dort am meisten bewirkt (Kills, Utility, Team-Kills).
+    """Sucht zu jeder Tod-Analyse eine Pro-Runde in derselben Situation:
+    gleiche Map und Seite, ein Pro steht zur selben Rundenzeit (5-s-Raster, ±5 s) am selben Ort UND ein Gegner
+    steht wie bei dir am Ort deines Killers (gleiche Angriffsrichtung). Die Pro-Seite gewinnt die Runde,
+    der Pro überlebt die nächsten 5 s. Bevorzugt: Pro tötet den Gegner aus dieser Richtung.
+    Ohne Kandidat mit gleicher Angriffsrichtung gibt es keine Szene (lieber nichts als etwas Unpassendes).
 
     Setzt ``f.overlay["pro_clip"]`` (Index in der zurückgegebenen Liste) und ``f.evidence["pro_clip"]``.
     """
@@ -321,19 +328,31 @@ def pro_clips(match: MatchData, findings: list[Finding], pro_matches: list[Match
         if rnd is None or rnd.freeze_end_tick is None:
             continue
         side = rnd.sides.get(f.steamid)
-        place = next((k.victim_place for k in match.kills if k.tick == f.tick and k.victim_steamid == f.steamid), None)
-        if not side or not place:
+        death = next((k for k in match.kills if k.tick == f.tick and k.victim_steamid == f.steamid), None)
+        place = death.victim_place if death else None
+        aplace = death.attacker_place if death else None
+        if not side or not place or not aplace:
             continue
         secs = (f.tick - rnd.freeze_end_tick) / tr
         b = _bucket(secs) // STEP_S
         best = None
         for pm, tl in tls:
+            enemy_at: dict[int, set[int]] = {}  # Runde -> Raster-Indizes, in denen ein Gegner am Killer-Ort steht
             for t in tl:
-                if t["side"] != side or not t["won"] or b >= len(t["places"]) or t["places"][b] != place:
+                if t["side"] != side:
+                    for i, pl in enumerate(t["places"]):
+                        if pl == aplace:
+                            enemy_at.setdefault(t["round"], set()).add(i)
+            for t in tl:
+                if t["side"] != side or not t["won"]:
+                    continue
+                hits = [bb for bb in (b, b - 1, b + 1) if 0 <= bb < len(t["places"]) and t["places"][bb] == place
+                        and bb in enemy_at.get(t["round"], ())]
+                if not hits:
                     continue
                 pr = pm.round_by_num(t["round"])
-                moment = pr.freeze_end_tick + int(secs * pm.tickrate)
-                res = _clip_score(pm, pr, t["sid"], moment)
+                moment = pr.freeze_end_tick + hits[0] * STEP_S * pm.tickrate
+                res = _clip_score(pm, pr, t["sid"], moment, aplace)
                 if res and (best is None or res[0] > best[0]):
                     best = (res[0], res[1], pm, pr, t["sid"], moment)
         if best is None:
@@ -347,16 +366,19 @@ def pro_clips(match: MatchData, findings: list[Finding], pro_matches: list[Match
                           "t0": max(pr.freeze_end_tick, moment - CLIP_BEFORE_S * ptr),
                           "t1": min(pr.end_tick, moment + CLIP_AFTER_S * ptr)})
         pname = next((p.name for p in pm.players if p.steamid == sid), "Pro")
-        mm, ss = divmod(int(secs), 60)
+        mm, ss = divmod(int((moment - pr.freeze_end_tick) / pm.tickrate), 60)
         did = ["überlebt"]
         if info["nades"]:
             did.append("vorher " + ", ".join(NADE_NAMES[k] for k in info["nades"]) + " geworfen")
-        if info["kills"]:
-            did.append(f"{info['kills']} Kill{'s' if info['kills'] != 1 else ''}")
+        if info["dir_kills"]:
+            did.append(f"tötet {info['dir_kills']} Gegner aus {aplace}")
+        if info["kills"] > info["dir_kills"]:
+            n = info["kills"] - info["dir_kills"]
+            did.append(f"{n} weitere{'r' if n == 1 else ''} Kill{'s' if n != 1 else ''}")
         if info["team_kills"]:
-            did.append(f"Team holt {info['team_kills']} Kill{'s' if info['team_kills'] != 1 else ''} dazu")
-        f.evidence["pro_clip"] = (f"{pname} ({side.upper()}) in {place} um {mm}:{ss:02d}, Runde gewonnen: "
-                                  + ", ".join(did) + ".")
+            did.append(f"Team tötet {info['team_kills']} aus {aplace}")
+        f.evidence["pro_clip"] = (f"{pname} ({side.upper()}) in {place} um {mm}:{ss:02d}, Gegner wie bei dir aus "
+                                  f"{aplace}. Runde gewonnen: " + ", ".join(did) + ".")
         clips[keys[key]].setdefault("desc", f.evidence["pro_clip"])
         f.overlay["pro_clip"] = keys[key]
         f.overlay["pro_tick"] = moment
