@@ -100,9 +100,10 @@ def test_cli_analyze_json(tmp_path, monkeypatch):
 def _finish(client, location):
     import time
 
+    job_id = location.rsplit("/", 1)[1]
     for _ in range(100):
-        r = client.get(location)
-        if "Auswertung" not in r.text:
+        r = client.get(f"/api/jobs/{job_id}").json()
+        if r["status"] in ("fertig", "fehler"):
             return r
         time.sleep(0.02)
     raise AssertionError("Job wurde nicht fertig")
@@ -114,7 +115,8 @@ def test_api_upload(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "DEMOS_DIR", tmp_path / "demos")
     monkeypatch.setattr(pipeline, "REPORTS_DIR", api.pipeline.REPORTS_DIR)
 
-    def fake_run(path: Path, focus=None, out_dir=None):
+    def fake_run(path: Path, focus=None, out_dir=None, progress=None):
+        progress("Demo parsen", 0.5)
         assert path.read_bytes() == b"FAKE" and path.suffix == ".dem"
         assert focus == {"1", "2"}
         target = tmp_path / "x.html"
@@ -127,8 +129,10 @@ def test_api_upload(tmp_path, monkeypatch):
     r = c.post("/analyze", files={"demo": ("../böse name.dem", b"FAKE")}, data={"steamids": "1, 2"},
                follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/jobs/")
+    page = c.get(r.headers["location"])
+    assert page.status_code == 200 and "Auswertung läuft" in page.text
     done = _finish(c, r.headers["location"])
-    assert "/reports/x.html" in done.text
+    assert done["status"] == "fertig" and done["report"] == "x.html"
     assert [p.name for p in (tmp_path / "demos").iterdir()] == ["b_se_name.dem"]
     assert c.post("/analyze", files={"demo": ("a.txt", b"x")}).status_code == 400
 
@@ -141,7 +145,7 @@ def test_api_upload_bz2(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "DEMOS_DIR", tmp_path / "demos")
     seen = {}
 
-    def fake_run(path: Path, focus=None, out_dir=None):
+    def fake_run(path: Path, focus=None, out_dir=None, progress=None):
         seen["path"], seen["data"] = path, path.read_bytes()
         target = tmp_path / "x.html"
         target.write_text("ok")
@@ -155,8 +159,10 @@ def test_api_upload_bz2(tmp_path, monkeypatch):
     assert seen["path"].name == "match_123.dem" and seen["data"] == b"DEMO"
     assert [p.name for p in (tmp_path / "demos").iterdir()] == ["match_123.dem"]  # .bz2 entfernt
     bad = c.post("/analyze", files={"demo": ("kaputt.dem.bz2", b"nicht bz2")}, follow_redirects=False)
-    assert "Fehler" in _finish(c, bad.headers["location"]).text
+    failed = _finish(c, bad.headers["location"])
+    assert failed["status"] == "fehler" and "bz2" in failed["error"]
     assert c.get("/jobs/unbekannt").status_code == 404
+    assert c.get("/api/jobs/unbekannt").status_code == 404
 
 
 def test_bz2_size_limit(tmp_path):
@@ -175,3 +181,23 @@ def test_demo_stem():
     assert pipeline.demo_stem("a.dem.bz2") == "a"
     assert pipeline.demo_stem("a.DEM") == "a"
     assert pipeline.demo_stem("a.json") == "a"
+
+
+def test_estimate_from_recorded_timings(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "TIMINGS_FILE", tmp_path / "t.json")
+    assert pipeline.estimate_seconds(100 * 1024**2) is None  # ohne Messung keine Schätzung
+    pipeline._record_timing(50 * 1024**2, 25.0)  # 0.5 s/MB
+    pipeline._record_timing(100 * 1024**2, 100.0)  # 1.0 s/MB
+    pipeline._record_timing(10 * 1024**2, 6.0)  # 0.6 s/MB
+    assert pipeline.estimate_seconds(200 * 1024**2) == 120.0  # Median 0.6 s/MB
+    assert pipeline.timing_samples() == 3
+
+
+def test_index_lists_reports_with_score(tmp_path, monkeypatch):
+    from cstaktik import api
+
+    monkeypatch.setattr(pipeline, "REPORTS_DIR", tmp_path)
+    m = build_match()
+    (tmp_path / "match.html").write_text(render_report(m, analyze(m, load_rules_config()), maps_dirs=[]))
+    html = TestClient(api.app).get("/").text
+    assert "Mirage" in html and 'href="/reports/match.html"' in html

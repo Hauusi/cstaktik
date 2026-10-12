@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+from collections.abc import Callable
 from pathlib import Path
 
 from cstaktik.model import (
@@ -75,14 +76,24 @@ def sha256_of(path: Path) -> str:
     return h.hexdigest()
 
 
-def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchData:
+def parse_demo(
+    path: Path,
+    focus_steamids: set[str],
+    parser_cfg: dict,
+    progress: Callable[[str, float], None] | None = None,
+) -> MatchData:
+    """``progress(stufe, anteil)`` meldet den Fortschritt (0..1) für die Statusanzeige."""
     from awpy import Demo  # import hier, damit Tests ohne awpy-Parsing laufen
 
+    step = progress or (lambda _stage, _frac: None)
     tickrate = int(parser_cfg["tickrate"])
+    step("Demo einlesen", 0.0)
     dem = Demo(path, tickrate=tickrate)
+    step("Demo parsen", 0.02)
     dem.parse(player_props=["yaw"])
     missing: list[str] = []
 
+    step("Runden", 0.75)
     # --- Runden ---------------------------------------------------------------
     rounds: list[Round] = []
     for r in dem.rounds.to_dicts():
@@ -99,6 +110,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
         )
     round_by_num = {r.num: r for r in rounds}
 
+    step("Positionen", 0.78)
     # --- Ticks: Spieler, Seiten, Positionen ------------------------------------
     ticks = dem.ticks
     step = max(1, tickrate // int(parser_cfg["position_samples_per_second"]))
@@ -141,6 +153,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
             )
         )
 
+    step("Kills", 0.86)
     # --- Kills -------------------------------------------------------------------
     kills: list[Kill] = []
     for row in dem.kills.to_dicts():
@@ -166,6 +179,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
             )
         )
 
+    step("Inventar", 0.88)
     # --- Inventar kurz vor dem Tod (optional) ------------------------------------
     if kills:
         try:
@@ -181,6 +195,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
         except Exception as exc:  # noqa: BLE001 - Daten optional, Fehler melden
             missing.append(f"Inventar beim Tod nicht lesbar ({type(exc).__name__})")
 
+    step("Economy", 0.92)
     # --- Economy am Sample-Tick (optional) ----------------------------------------
     offset = int(parser_cfg["economy_sample_offset_s"] * tickrate)
     sample_ticks = {}
@@ -220,6 +235,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
     else:
         missing.append("Keine Freeze-End-Ticks: Economy nicht auswertbar")
 
+    step("Granaten", 0.96)
     # --- Granaten (Würfe; erster Eintrag je Entity) -------------------------------
     grenades: list[GrenadeEvent] = []
     try:
@@ -241,6 +257,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
     except Exception as exc:  # noqa: BLE001
         missing.append(f"Granaten nicht lesbar ({type(exc).__name__})")
 
+    step("Smokes & Molotovs", 0.97)
     # --- Smokes / Molotovs (Detonation bis Ende) --------------------------------------
     utility: list[UtilityArea] = []
     for kind, attr in (("smoke", "smokes"), ("molotov", "infernos")):
@@ -262,6 +279,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
         except Exception as exc:  # noqa: BLE001
             missing.append(f"{kind} nicht lesbar ({type(exc).__name__})")
 
+    step("Bombe", 0.99)
     # --- Bombe -------------------------------------------------------------------------
     bomb: list[BombEvent] = []
     try:

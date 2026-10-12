@@ -1,36 +1,33 @@
-"""FastAPI: Demo-Upload im Browser (PC), Report-Abruf im LAN (Handy)."""
+"""FastAPI: Demo-Upload, Auswertung im Hintergrund mit Fortschritt, Report-Abruf."""
 
 from __future__ import annotations
 
-import html
 import re
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from cstaktik import pipeline
 
 app = FastAPI(title="cstaktik")
+pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/reports", StaticFiles(directory=pipeline.REPORTS_DIR, html=True), name="reports")
+_env = Environment(loader=FileSystemLoader(Path(__file__).parent / "web"), autoescape=select_autoescape(["html"]))
+
 # Auswertung läuft im Hintergrund: Der Browser muss nach dem Upload nicht offen bleiben.
 _executor = ThreadPoolExecutor(max_workers=1)
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
-pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/reports", StaticFiles(directory=pipeline.REPORTS_DIR, html=True), name="reports")
-
-_PAGE = """<!doctype html><html lang="de"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>cstaktik</title>
-<style>body{{margin:0;background:#0f1216;color:#e8ecf1;font:16px/1.5 system-ui,sans-serif}}
-main{{max-width:560px;margin:0 auto;padding:16px}}a{{color:#4fc3f7}}
-.card{{background:#1a1f26;border:1px solid #2a313b;border-radius:12px;padding:14px;margin:12px 0}}
-input,button{{font:inherit;width:100%;margin:6px 0;padding:10px;border-radius:8px;border:1px solid #2a313b;
-background:#0f1216;color:inherit}}button{{background:#4fc3f7;color:#000;font-weight:600}}
-small{{color:#8b95a3}}</style></head><body><main>{body}</main></body></html>"""
+_TITLE = re.compile(r"<title>(.*?)</title>", re.S)
+_SCORE = re.compile(r"^(.*?)\s+(\d+):(\d+)\s+–")
 
 
 def _safe_name(name: str) -> str:
@@ -38,27 +35,48 @@ def _safe_name(name: str) -> str:
     return stem[:80]
 
 
+def _report_entries() -> list[dict]:
+    """Reports für die Startseite; Map und Ergebnis kommen aus dem <title> des Reports."""
+    out = []
+    for p in sorted(pipeline.REPORTS_DIR.glob("*.html"), key=lambda p: p.stat().st_mtime, reverse=True):
+        with p.open(encoding="utf-8", errors="ignore") as fh:
+            head = fh.read(4096)
+        m = _TITLE.search(head)
+        s = _SCORE.match(m.group(1).strip()) if m else None
+        out.append(
+            {
+                "file": p.name,
+                "name": p.stem,
+                "map": s.group(1) if s else None,
+                "won": int(s.group(2)) if s else None,
+                "lost": int(s.group(3)) if s else None,
+                "date": datetime.fromtimestamp(p.stat().st_mtime).strftime("%d.%m.%Y %H:%M"),
+            }
+        )
+    return out
+
+
+def _job_view(job_id: str, job: dict) -> dict:
+    return {
+        "id": job_id,
+        "name": job["name"],
+        "status": job["status"],
+        "stage": job["stage"],
+        "frac": round(job["frac"], 3),
+        "elapsed": round(time.monotonic() - job["started"], 1) if job["started"] else 0.0,
+        "estimate": job["estimate"],
+        "samples": job["samples"],
+        "cached": job["cached"],
+        "report": job["report"],
+        "error": job["error"],
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    reports = sorted(pipeline.REPORTS_DIR.glob("*.html"), key=lambda p: p.stat().st_mtime, reverse=True)
-    items = "".join(
-        f'<li><a href="/reports/{html.escape(p.name)}">{html.escape(p.stem)}</a></li>' for p in reports
-    ) or "<li><small>Noch keine Reports.</small></li>"
     with _jobs_lock:
-        running = [(jid, j) for jid, j in _jobs.items() if j["status"] in ("wartet", "läuft")]
-    jobs_html = "".join(
-        f'<li><a href="/jobs/{jid}">{html.escape(j["name"])}</a> <small>({j["status"]})</small></li>' for jid, j in running
-    )
-    jobs_card = f'<div class="card"><b>In Arbeit</b><ul>{jobs_html}</ul></div>' if running else ""
-    body = f"""<h1>cstaktik</h1>{jobs_card}
-<form class="card" action="/analyze" method="post" enctype="multipart/form-data">
-<b>Demo hochladen (.dem oder .dem.bz2)</b>
-<input type="file" name="demo" accept=".dem,.bz2" required>
-<input type="text" name="steamids" placeholder="SteamID64, kommagetrennt (leer = players.yaml)">
-<button type="submit">Analysieren</button>
-<small>Nach dem Upload läuft die Auswertung auf dem Server weiter. Handy sperren ist dann ok.</small></form>
-<div class="card"><b>Reports</b><ul>{items}</ul></div>"""
-    return _PAGE.format(body=body)
+        jobs = [_job_view(i, j) for i, j in _jobs.items() if j["status"] in ("wartet", "läuft")]
+    return _env.get_template("index.html").render(jobs=jobs, reports=_report_entries())
 
 
 def _run_job(job_id: str, target: Path, focus: set[str] | None) -> None:
@@ -66,11 +84,14 @@ def _run_job(job_id: str, target: Path, focus: set[str] | None) -> None:
         with _jobs_lock:
             _jobs[job_id].update(kw)
 
-    update(status="läuft")
+    update(status="läuft", stage="Demo vorbereiten", started=time.monotonic())
     try:
         demo = pipeline.prepare_demo(target, remove_source=True)
-        out = pipeline.run(demo, focus)
-        update(status="fertig", report=out.name)
+        cached = pipeline.is_cached(demo)
+        estimate = None if cached else pipeline.estimate_seconds(demo.stat().st_size)
+        update(cached=cached, estimate=round(estimate, 1) if estimate else None, samples=pipeline.timing_samples())
+        out = pipeline.run(demo, focus, progress=lambda stage, frac: update(stage=stage, frac=frac))
+        update(status="fertig", stage="Fertig", frac=1.0, report=out.name)
     except ValueError as exc:
         update(status="fehler", error=str(exc))
     except Exception as exc:  # noqa: BLE001 - Parser-Fehler verständlich melden
@@ -91,27 +112,36 @@ async def analyze_upload(demo: UploadFile = File(...), steamids: str = Form(""))
     focus = {s.strip() for s in steamids.split(",") if s.strip()} or None
     job_id = uuid.uuid4().hex[:12]
     with _jobs_lock:
-        _jobs[job_id] = {"status": "wartet", "name": _safe_name(filename), "report": None, "error": None}
+        _jobs[job_id] = {
+            "status": "wartet",
+            "name": _safe_name(filename),
+            "stage": "Wartet",
+            "frac": 0.0,
+            "started": None,
+            "estimate": None,
+            "samples": 0,
+            "cached": False,
+            "report": None,
+            "error": None,
+        }
     _executor.submit(_run_job, job_id, target, focus)
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
 
 
-@app.get("/jobs/{job_id}", response_class=HTMLResponse)
-def job_status(job_id: str) -> str:
+def _get_job(job_id: str) -> dict:
     with _jobs_lock:
-        job = dict(_jobs.get(job_id) or {})
-    if not job:
-        raise HTTPException(404, "Auftrag unbekannt (Server neu gestartet?). Reports stehen auf der Startseite.")
-    name = html.escape(job["name"])
-    if job["status"] == "fertig":
-        url = f"/reports/{html.escape(job['report'])}"
-        body = f"""<div class="card"><b>{name}</b><p>Fertig.</p><a href="{url}">Report öffnen</a></div>
-<script>location.replace("{url}")</script>"""
-    elif job["status"] == "fehler":
-        body = f"""<div class="card"><b>{name}</b><p>Fehler: {html.escape(job["error"] or "")}</p>
-<a href="/">Zurück</a></div>"""
-    else:
-        body = f"""<meta http-equiv="refresh" content="3"><div class="card"><b>{name}</b>
-<p>Auswertung {job["status"]} … Seite aktualisiert sich selbst.</p>
-<small>Du kannst das Handy sperren. Der Report erscheint danach auch auf der <a href="/">Startseite</a>.</small></div>"""
-    return _PAGE.format(body=body)
+        job = _jobs.get(job_id)
+        if job is None:
+            raise HTTPException(404, "Auftrag unbekannt (Server neu gestartet?). Reports stehen auf der Startseite.")
+        return _job_view(job_id, job)
+
+
+@app.get("/api/jobs/{job_id}")
+def job_json(job_id: str) -> dict:
+    return _get_job(job_id)
+
+
+@app.get("/jobs/{job_id}", response_class=HTMLResponse)
+def job_page(job_id: str) -> str:
+    job = _get_job(job_id)
+    return _env.get_template("job.html").render(job_id=job_id, name=job["name"])

@@ -27,7 +27,7 @@ build-backend = "setuptools.build_meta"
 include = ["cstaktik*"]
 
 [tool.setuptools.package-data]
-cstaktik = ["config/*.yaml", "report/templates/*.html"]
+cstaktik = ["config/*.yaml", "report/templates/*.html", "web/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

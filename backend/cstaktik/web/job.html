@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+.big { font-size: 46px; font-weight: 800; letter-spacing: -.03em; margin: 4px 0 12px; }
+@keyframes pulse { from { box-shadow: 0 0 0 0 rgba(124,92,255,.7); } to { box-shadow: 0 0 0 9px rgba(124,92,255,0); } }
+.steps { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 6px; font-size: 13.5px; }
+.steps li { display: flex; gap: 8px; align-items: center; color: var(--faint); }
+.steps li.done { color: var(--muted); } .steps li.now { color: var(--text); font-weight: 600; }
+.steps li.now::before { background: var(--accent); animation: pulse 1.4s infinite; }
+.steps li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.done-card { text-align: center; }
+.done-card .btn { display: grid; place-items: center; margin-top: 14px; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1 id="title">Auswertung läuft</h1>
+<p class="small" style="word-break:break-all">{{ name }}</p>
+{% endblock %}
+{% block content %}
+<div class="card" id="card" style="margin-top:16px">
+  <div class="big num" id="pct">0 %</div>
+  <div class="bar" id="bar"><i id="fill"></i></div>
+  <div class="stats num"><span>vergangen <b id="elapsed">0 s</b></span><span id="eta"></span></div>
+  <ul class="steps" id="steps"></ul>
+  <p class="muted small" id="note" style="margin:14px 0 0"></p>
+</div>
+<p class="muted small" style="text-align:center;margin-top:14px">Du kannst das Handy sperren. Der Report erscheint auch auf der <a href="/" style="text-decoration:underline">Startseite</a>.</p>
+{% endblock %}
+{% block script %}
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+// Stufen mit Startwert des Gesamtfortschritts (siehe pipeline.run / awpy_adapter.parse_demo)
+const STEPS = [['Demo parsen', 0], ['Positionen', .70], ['Kills', .77], ['Economy', .82], ['Fehler suchen', .92], ['Report bauen', .96]];
+let shownStep = -2;
+const fmtT = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' min' : s + ' s'; };
+let job = null, fetchedAt = 0;
+async function poll() {
+  try {
+    const r = await fetch('/api/jobs/{{ job_id }}', { cache: 'no-store' });
+    if (r.status === 404) { showError('Auftrag unbekannt (Server neu gestartet?). Fertige Reports stehen auf der Startseite.'); return; }
+    job = await r.json(); fetchedAt = performance.now();
+    if (job.status === 'fertig') { location.replace('/reports/' + job.report); return; }
+    if (job.status === 'fehler') { showError(job.error); return; }
+  } catch (_) { /* Netz kurz weg (z. B. Handy gesperrt): einfach weiter versuchen */ }
+  setTimeout(poll, 1000);
+}
+function showError(msg) {
+  $('title').textContent = 'Auswertung fehlgeschlagen';
+  $('card').innerHTML = '';
+  const e = document.createElement('div'); e.className = 'err'; e.textContent = msg; $('card').appendChild(e);
+  const a = document.createElement('a'); a.href = '/'; a.className = 'btn'; a.style.cssText = 'display:grid;place-items:center;margin-top:14px'; a.textContent = 'Zurück'; $('card').appendChild(a);
+}
+function tick() {
+  if (job && job.status !== 'fehler') {
+    const elapsed = job.elapsed + (performance.now() - fetchedAt) / 1000;
+    let p = job.frac;
+    if (job.estimate) p = Math.max(p, Math.min(0.88, elapsed / job.estimate * 0.9));
+    const parsing = job.stage === 'Demo parsen';
+    $('bar').classList.toggle('indet', parsing && !job.estimate);
+    $('fill').style.width = (p * 100) + '%';
+    $('pct').textContent = (parsing && !job.estimate) ? '…' : Math.floor(p * 100) + ' %';
+    $('elapsed').textContent = fmtT(elapsed);
+    $('title').textContent = job.status === 'wartet' ? 'Wartet auf freien Platz' : 'Auswertung läuft';
+    if (job.estimate) {
+      const rest = job.estimate - elapsed;
+      $('eta').innerHTML = rest > 0 ? 'noch ca. <b>' + fmtT(rest) + '</b>' : '<b>dauert länger als geschätzt</b>';
+      $('note').textContent = 'Restzeit geschätzt aus ' + job.samples + ' bisherigen Auswertung(en) auf diesem Server.';
+    } else {
+      $('eta').textContent = '';
+      $('note').textContent = job.cached ? 'Demo schon geparst, geht schnell.' : 'Erste Auswertung auf diesem Server: noch keine Restzeit-Schätzung möglich.';
+    }
+    const cur = job.status === 'wartet' ? -1 : STEPS.findLastIndex(s => job.frac >= s[1]);
+    if (cur !== shownStep) {
+      shownStep = cur; $('steps').innerHTML = '';
+      STEPS.forEach((s, i) => { const li = document.createElement('li'); li.textContent = s[0]; li.className = i < cur ? 'done' : i === cur ? 'now' : ''; $('steps').appendChild(li); });
+    }
+  }
+  requestAnimationFrame(tick);
+}
+poll(); requestAnimationFrame(tick);
+})();
+</script>
+{% endblock %}
