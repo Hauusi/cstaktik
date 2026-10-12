@@ -12,7 +12,7 @@ from pathlib import Path
 
 BASE = "https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main"
 DEFAULT_MAPS = ["de_mirage", "de_dust2", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_train",
-                "de_overpass", "de_vertigo"]
+                "de_overpass", "de_vertigo", "de_cache"]
 _CAL = re.compile(r'"(pos_x|pos_y|scale)"\s+"([-\d.]+)"')
 
 
