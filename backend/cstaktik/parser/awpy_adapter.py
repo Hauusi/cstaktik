@@ -158,8 +158,11 @@ def parse_demo(
     step("Demo einlesen", 0.0)
     dem = Demo(path, tickrate=tickrate)
     step("Demo parsen", 0.02)
-    dem.parse(player_props=["yaw", "active_weapon_name"])
     missing: list[str] = []
+    try:  # "spotted" (Radar-Sichtbarkeit) ist optional: fehlt es im Parser, ohne weiterparsen
+        dem.parse(player_props=["yaw", "active_weapon_name", "spotted"])
+    except Exception:  # noqa: BLE001
+        dem.parse(player_props=["yaw", "active_weapon_name"])
 
     step("Runden", 0.75)
     # --- Runden ---------------------------------------------------------------
@@ -198,7 +201,8 @@ def parse_demo(
 
     cols = [
         c
-        for c in ("tick", "steamid", "side", "round_num", "X", "Y", "Z", "place", "health", "yaw", "active_weapon_name")
+        for c in ("tick", "steamid", "side", "round_num", "X", "Y", "Z", "place", "health", "yaw", "active_weapon_name",
+                  "spotted")
         if c in ticks.columns
     ]
     sampled = ticks.filter((ticks["tick"] % sample_every) == 0).select(cols)
@@ -219,8 +223,11 @@ def parse_demo(
                 alive=health is None or health > 0,
                 yaw=_num(row.get("yaw")),
                 weapon=row.get("active_weapon_name") or None,
+                spotted=None if row.get("spotted") is None else bool(row.get("spotted")),
             )
         )
+    if "spotted" not in ticks.columns:
+        missing.append("Sichtbarkeit (spotted) nicht in der Demo/im Parser: keine Info-Lage im Lagebild")
 
     step("Kills", 0.86)
     # --- Kills -------------------------------------------------------------------

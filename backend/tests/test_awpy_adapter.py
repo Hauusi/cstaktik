@@ -48,10 +48,10 @@ class FakeDemo:
         for t in range(200, 1000, 8):
             ticks.append({"tick": t, "steamid": A, "name": "Ich", "side": "ct", "round_num": 1,
                           "X": float(t), "Y": 0.0, "Z": 0.0, "place": "Mid", "health": 100, "yaw": 90.0,
-                          "active_weapon_name": "M4A1-S"})
+                          "active_weapon_name": "M4A1-S", "spotted": False})
             ticks.append({"tick": t, "steamid": B, "name": "Gegner", "side": "t", "round_num": 1,
                           "X": float(t), "Y": 500.0, "Z": 0.0, "place": "Top", "health": 100, "yaw": 270.0,
-                          "active_weapon_name": "AK-47"})
+                          "active_weapon_name": "AK-47", "spotted": t > 32})
         self.ticks = pl.DataFrame(ticks).with_columns(pl.col("steamid").cast(pl.UInt64))
         self.kills = pl.DataFrame([{
             "tick": 900, "round_num": 1, "attacker_steamid": B, "attacker_name": "Gegner", "attacker_side": "t",
@@ -94,6 +94,7 @@ def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
     assert {p.steamid for p in m.players if p.is_focus} == {str(A)}
     assert m.rounds[0].sides == {str(A): "ct", str(B): "t"}
     assert m.positions and all(p.tick % 16 == 0 for p in m.positions) and m.positions[0].yaw is not None
+    assert {p.spotted for p in m.positions} == {True, False}
     assert m.kills[0].victim_inventory == ["Glock-18", "Flashbang"]
     assert m.rounds[0].economy and m.rounds[0].economy[0].equip_value == 4200
     assert len(m.grenades) == 1 and m.grenades[0].kind == "smoke" and len(m.grenades[0].points) < 50

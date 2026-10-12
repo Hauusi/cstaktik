@@ -24,7 +24,7 @@ GOALS_FILE = DATA_DIR / "goals.json"
 PRO_DIR = DATA_DIR / "pro"
 PRO_DEMOS_DIR = DATA_DIR / "pro_demos"  # hochgeladene Pro-Demos, getrennt von den eigenen
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
-CACHE_SCHEMA = 7
+CACHE_SCHEMA = 8
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
 MAX_DEMO_BYTES = 2 * 1024**3
 
@@ -104,6 +104,21 @@ def timing_samples() -> int:
         return 0
 
 
+def cache_file(match_id: str | None) -> Path | None:
+    """Neuester vorhandener Cache einer Demo (auch ältere Schema-Versionen, z. B. für Pro-Szenen)."""
+    if not match_id:
+        return None
+    cur = CACHE_DIR / f"{match_id}.v{CACHE_SCHEMA}.json"
+    if cur.exists():
+        return cur
+    def version(p: Path) -> int:
+        v = p.stem.rsplit(".v", 1)[-1]
+        return int(v) if v.isdigit() else 0
+
+    old = sorted(CACHE_DIR.glob(f"{match_id}.v*.json"), key=version, reverse=True) if CACHE_DIR.exists() else []
+    return old[0] if old else None
+
+
 def is_cached(path: Path) -> bool:
     if path.suffix.lower() != ".dem":
         return False
@@ -170,8 +185,8 @@ def load_pro_matches(pro: list[dict], map_name: str | None) -> list[MatchData]:
     out = []
     for d in sorted((d for d in pro if d.get("map") == map_name), key=lambda d: d.get("analyzed_at", ""),
                     reverse=True):
-        cache = CACHE_DIR / f"{d.get('id')}.v{CACHE_SCHEMA}.json"
-        if cache.exists():
+        cache = cache_file(d.get("id"))
+        if cache is not None:
             try:
                 out.append(load_match(cache))
             except (OSError, ValueError):
@@ -237,11 +252,11 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
     focus = load_focus_steamids()
     todo = [h for h in (history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else [])
             if h.get("report_file") and (maps is None or h.get("map") in maps)
-            and (CACHE_DIR / f"{h['id']}.v{CACHE_SCHEMA}.json").exists()]
+            and cache_file(h["id"]) is not None]
     done = 0
     for i, h in enumerate(todo):
         report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
-        match = load_match(CACHE_DIR / f"{h['id']}.v{CACHE_SCHEMA}.json")
+        match = load_match(cache_file(h["id"]))
         if focus:  # wie load_any: Fokus aus der aktuellen Config, sonst aus dem Cache
             for p in match.players:
                 p.is_focus = p.steamid in focus
@@ -260,8 +275,8 @@ def upgrade_history() -> int:
 
     n = 0
     for h in history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []:
-        cache = CACHE_DIR / f"{h.get('id')}.v{CACHE_SCHEMA}.json"
-        if "states" in h or not cache.exists():
+        cache = cache_file(h.get("id"))
+        if "states" in h or cache is None:
             continue
         h["states"] = round_states(load_match(cache))
         history.save(h, HISTORY_DIR)
@@ -275,8 +290,8 @@ def upgrade_pro() -> int:
 
     n = 0
     for d in pro.load_all(PRO_DIR):
-        cache = CACHE_DIR / f"{d.get('id')}.v{CACHE_SCHEMA}.json"
-        if d.get("version", 1) >= pro.VERSION or not cache.exists():
+        cache = cache_file(d.get("id"))
+        if d.get("version", 1) >= pro.VERSION or cache is None:
             continue
         summary = pro.summarize(load_match(cache), load_rules_config()["coach"]["trade_window_s"])
         summary["analyzed_at"] = d.get("analyzed_at", summary["analyzed_at"])

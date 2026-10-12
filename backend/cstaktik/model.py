@@ -96,6 +96,7 @@ class PositionSample(BaseModel):
     alive: bool = True
     yaw: float | None = None  # Blickrichtung in Grad (Spielkoordinaten)
     weapon: str | None = None  # Waffe in der Hand (active_weapon_name)
+    spotted: bool | None = None  # für das gegnerische Team sichtbar (Radar, Demo-Feld "spotted"); None = unbekannt
 
 
 class UtilityArea(BaseModel):

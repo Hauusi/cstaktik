@@ -214,6 +214,27 @@ def snapshot(match: MatchData, idx: PositionIndex, rnd, sid: str, tick: int, cfg
     }
 
 
+def info_state(match: MatchData, idx: PositionIndex, rnd, side: str, killer: str | None, tick: int,
+               death: int) -> dict | None:
+    """Info-Lage aus dem Demo-Feld "spotted" (für das andere Team auf dem Radar sichtbar).
+
+    Liefert None, wenn die Demo das Feld nicht enthält. ``killer_seen``: Tick, ab dem der spätere Killer
+    zwischen Entscheidung (-3 s) und Tod für euer Team sichtbar war (None = nicht gesichtet)."""
+    tr = match.tickrate
+    enemies = [s for s, sd in rnd.sides.items() if sd != side]
+    samples = [p for s in enemies for p in idx.path(rnd.num, s) if p.spotted is not None]
+    if not samples:
+        return None
+    alive = alive_at(match, rnd, tick)["t" if side == "ct" else "ct"]
+    seen_now = {p.steamid for p in samples if p.steamid in alive and abs(p.tick - tick) <= tr // 4 and p.spotted}
+    killer_seen = None
+    if killer:
+        hits = [p.tick for p in idx.path(rnd.num, killer)
+                if p.spotted and tick - 3 * tr <= p.tick <= death - tr // 4]
+        killer_seen = min(hits) if hits else None
+    return {"seen_now": len(seen_now), "killer_seen": killer_seen}
+
+
 def _nades(inv: list[str] | None) -> list[str]:
     out = []
     for item in inv or []:
@@ -231,6 +252,18 @@ def _clock(s: float) -> str:
 
 def _pct(p: float) -> str:
     return f"{round(100 * p)} %"
+
+
+def info_text(info: dict | None, killer_name: str | None, rnd_freeze: int, tr: int) -> str | None:
+    if info is None:
+        return None
+    parts = [f"{info['seen_now']} Gegner auf dem Radar sichtbar" if info["seen_now"] else "kein Gegner auf dem Radar"]
+    if killer_name:
+        if info["killer_seen"] is not None:
+            parts.append(f"{killer_name} war ab {_clock((info['killer_seen'] - rnd_freeze) / tr)} sichtbar")
+        else:
+            parts.append(f"{killer_name} war vorher nicht gesichtet (Überraschung)")
+    return "Info: " + ", ".join(parts) + "."
 
 
 def lage_text(snap: dict, kind: str, nades: list[str]) -> str:
@@ -279,6 +312,11 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
                                                       if k in ("smoke", "flash", "molotov")]
             act = action(idx, rnd, f.steamid, side, tick, min(f.tick, tick + int(5 * tr)), match)
             f.evidence["entscheidung"] = lage_text(snap, kind, nades)
+            info = info_state(match, idx, rnd, side, death.attacker_steamid, tick, f.tick)
+            it = info_text(info, death.attacker_name, rnd.freeze_end_tick, tr)
+            if it:
+                f.evidence["info"] = it
+                f.evidence["entscheidung"] += " " + it
             f.evidence["situation"] = category(side, snap["own"], snap["enemy"], snap["planted"], snap["mate_d"],
                                                kind, snap["first_contact"], cfg)
             f.evidence["aktion"] = act

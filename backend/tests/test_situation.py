@@ -86,3 +86,23 @@ def test_round_states_with_plant():
     m = _match(moving_at_death=False)
     m.bomb.append(BombEvent(round=1, tick=m.rounds[0].freeze_end_tick + 15 * TR, event="plant"))
     assert round_states(m) == [{"w": "t", "s": [[5, 5, 0], [4, 5, 0], [4, 5, 1], [3, 5, 1]]}]
+
+
+def test_info_from_spotted():
+    m = _match(moving_at_death=True)
+    f0 = m.rounds[0].freeze_end_tick
+    for p in m.positions:
+        if p.steamid == ENEMIES[0]:
+            p.spotted = p.tick >= f0 + 16 * TR  # Killer ab 0:16 auf dem Radar
+        elif p.steamid in ENEMIES:
+            p.spotted = False
+    m.kills[-1].attacker_name = "Gegner1"
+    f = _finding(m)
+    enrich(m, [f], None, CFG)
+    assert f.evidence["info"] == "Info: kein Gegner auf dem Radar, Gegner1 war ab 0:16 sichtbar."
+
+    for p in m.positions:
+        p.spotted = None
+    f = _finding(m)
+    enrich(m, [f], None, CFG)
+    assert "info" not in f.evidence  # Feld fehlt in der Demo: keine Aussage

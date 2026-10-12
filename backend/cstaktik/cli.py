@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     pp = sub.add_parser("pro", help="Pro-Demo als Referenz speichern (kein Report)")
     pp.add_argument("file", type=Path)
 
+    cs = sub.add_parser("check-spotted", help="Prüfen, ob eine Demo die Radar-Sichtbarkeit (spotted) liefert")
+    cs.add_argument("file", type=Path)
     sub.add_parser("pro-update", help="Alte Pro-Daten nachrüsten und alle eigenen Reports neu bauen")
     sub.add_parser("faceit-test", help="FACEIT-Schlüssel, Hub und Downloads-API-Freigabe prüfen")
     sub.add_parser("faceit-sync", help="Pro-Demos pro Map über die FACEIT-API holen")
@@ -81,6 +83,26 @@ def main(argv: list[str] | None = None) -> int:
         info = pipeline.run_pro(args.file)
         print(f"Pro-Demo gespeichert: {info['map']}, {info['rounds']} Runden, {info['nades']} Granaten; "
               f"{info['reports']} eigene Reports aktualisiert")
+        return 0
+
+    if args.cmd == "check-spotted":
+        from demoparser2 import DemoParser
+
+        from cstaktik import pipeline
+
+        path = pipeline.prepare_demo(args.file)
+        parser = DemoParser(str(path))
+        try:
+            df = parser.parse_ticks(["spotted"], ticks=list(range(0, 200_000, 640)))
+        except Exception as exc:  # noqa: BLE001
+            print(f"spotted NICHT lesbar: {type(exc).__name__}: {exc}")
+            return 1
+        col = df["spotted"] if "spotted" in df.columns else None
+        if col is None or len(col) == 0:
+            print("spotted fehlt in dieser Demo.")
+            return 1
+        vals = col.dropna() if hasattr(col, "dropna") else col
+        print(f"spotted lesbar: {len(vals)} Werte, davon sichtbar: {int(sum(bool(v) for v in vals))}")
         return 0
 
     if args.cmd == "pro-update":
