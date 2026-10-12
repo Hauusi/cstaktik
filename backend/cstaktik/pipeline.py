@@ -182,15 +182,30 @@ def run(
     return out
 
 
-def run_pro(path: Path, progress: Progress | None = None) -> dict:
-    """Pro-Demo parsen und als Referenz speichern (kein Report, keine Fokus-Spieler)."""
+def run_pro(path: Path, progress: Progress | None = None, use_cache: bool = True) -> dict:
+    """Pro-Demo parsen und als Referenz speichern (kein Report, keine Fokus-Spieler).
+
+    ``use_cache=False`` (FACEIT-Sync): kein großer JSON-Cache, nur die kleine Zusammenfassung bleibt."""
     from cstaktik import pro
 
     report = progress or (lambda _stage, _frac: None)
     config = load_rules_config()
     path = prepare_demo(path)
-    match = load_any(path, set(), config, progress=lambda st, f: report(st, 0.95 * f))
+    if use_cache:
+        match = load_any(path, set(), config, progress=lambda st, f: report(st, 0.95 * f))
+    else:
+        from cstaktik.parser.awpy_adapter import parse_demo
+
+        match = parse_demo(path, set(), config["parser"], lambda st, f: report(st, 0.95 * f))
     summary = pro.summarize(match)
     pro.save(summary, PRO_DIR)
     report("Fertig", 1.0)
     return {"map": summary["map"], "rounds": summary["rounds"], "players": len(match.players)}
+
+
+def faceit_sync(log=print) -> dict:
+    """Pro-Demos über die FACEIT-API holen (siehe faceit.py)."""
+    from cstaktik import faceit
+
+    cfg = load_rules_config()["faceit"]
+    return faceit.sync(cfg, PRO_DIR, DATA_DIR / "faceit_tmp", lambda p: run_pro(p, use_cache=False), log=log)

@@ -36,6 +36,7 @@ backend/data/reports/
 backend/data/cache/
 backend/data/history/
 backend/data/pro/
+backend/data/faceit_tmp/
 backend/data/goals.json
 
 # Lokale Spieler-Config (SteamIDs)

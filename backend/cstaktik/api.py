@@ -116,6 +116,7 @@ def index() -> str:
         jobs=jobs, reports=_report_entries(), n_history=len(hist), goals=state["active"],
         done_count=len(state["done"]), last=hist[-1] if hist else None, briefing_maps=maps,
         pro_overview=__import__("cstaktik.pro", fromlist=["overview"]).overview(pipeline.PRO_DIR),
+        faceit_ready=bool(os.environ.get("FACEIT_API_KEY")),
     )
 
 
@@ -203,6 +204,44 @@ def progress() -> str:
     from cstaktik.report.progress import render_progress
 
     return render_progress(history.load_all(pipeline.HISTORY_DIR))
+
+
+def _run_faceit_job(job_id: str) -> None:
+    from cstaktik import faceit
+
+    def update(**kw):
+        with _jobs_lock:
+            _jobs[job_id].update(kw)
+
+    lines: list[str] = []
+
+    def log(msg: str) -> None:
+        lines.append(msg)
+        done = sum(1 for x in lines if x.startswith("ok"))
+        update(stage=f"{done} Demos geladen" + (f" · zuletzt: {msg}" if msg else ""), frac=min(0.95, 0.05 + 0.08 * len(lines)))
+
+    update(status="läuft", stage="FACEIT abfragen", started=time.monotonic())
+    try:
+        res = pipeline.faceit_sync(log=log)
+        added = ", ".join(f"{m.removeprefix('de_').capitalize()} +{n}" for m, n in res["added"].items())
+        update(status="fertig", stage="Fertig", frac=1.0, message=f"Pro-Demos geholt: {added}.")
+    except faceit.FaceitError as exc:
+        update(status="fehler", error=str(exc))
+    except Exception as exc:  # noqa: BLE001
+        update(status="fehler", error=f"FACEIT-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
+
+
+@app.post("/pro/sync")
+def pro_sync() -> RedirectResponse:
+    if not os.environ.get("FACEIT_API_KEY"):
+        raise HTTPException(400, "FACEIT_API_KEY ist auf dem Server nicht gesetzt.")
+    job_id = uuid.uuid4().hex[:12]
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "wartet", "name": "Pro-Demos von FACEIT", "stage": "Wartet", "frac": 0.0,
+                         "started": None, "estimate": None, "samples": 0, "cached": False, "report": None,
+                         "error": None}
+    _executor.submit(_run_faceit_job, job_id)
+    return RedirectResponse(f"/jobs/{job_id}", status_code=303)
 
 
 @app.get("/api/jobs/{job_id}")

@@ -58,6 +58,22 @@ Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern z
 verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,
 Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
+## Pro-Demos automatisch von FACEIT
+
+Offizielle FACEIT-API (Data API listet Hub-Matches mit `demo_url`, Downloads API tauscht sie gegen
+einen signierten Link). Pro Map werden `faceit.per_map` neue Demos geholt, geparst, als Pro-Referenz
+gespeichert und die Rohdatei gelöscht. Bereits geholte Matches werden übersprungen.
+
+1. Auf developers.faceit.com eine App anlegen und einen **Server-Side API Key** erzeugen.
+2. In `/etc/systemd/system/cstaktik.service` im `[Service]`-Block: `Environment=FACEIT_API_KEY=...`,
+   dann `systemctl daemon-reload && systemctl restart cstaktik`.
+3. Prüfen: `FACEIT_API_KEY=... cstaktik faceit-test`. Meldet es "Downloads API verweigert (403)",
+   braucht der Schlüssel die Freigabe für die Downloads API (im Developer Portal beantragen).
+4. Holen: Knopf "Pro-Demos von FACEIT holen" auf der Startseite oder `cstaktik faceit-sync`.
+
+Hub-IDs und Maps: `faceit` in rules.yaml. Die vorbelegte FPL-Hub-ID stammt aus einem
+Community-Beitrag und ist unbestätigt (die ID steht in der Hub-URL auf faceit.com).
+
 ## Coach-Funktionen
 
 - **Pro-Referenz** (`pro.py`): Pro-Demo hochladen mit Häkchen "Pro-Demo" (oder `cstaktik pro <demo>`).

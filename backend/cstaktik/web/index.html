@@ -112,9 +112,14 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
   <div class="map">↗</div><div class="meta"><b>Fortschritt</b><span class="muted small">{{ n_history }} Matches im Verlauf · Trends und Todes-Karte</span></div></a>
 {% endif %}
 
-{% if pro_overview %}
-<p class="muted small" style="margin:14px 2px 0">Pro-Referenz: {% for m, n in pro_overview.items() %}{{ m.removeprefix("de_")|capitalize }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %} Demos</p>
-{% endif %}
+<h2>Pro-Referenz</h2>
+<div class="card">
+  {% if pro_overview %}<div class="num">{% for m, n in pro_overview.items() %}<b>{{ m.removeprefix("de_")|capitalize }}</b> {{ n }}{% if not loop.last %} · {% endif %}{% endfor %} Demos</div>
+  {% else %}<div class="muted small">Noch keine Pro-Demos.</div>{% endif %}
+  {% if faceit_ready %}
+  <form action="/pro/sync" method="post" style="margin-top:10px"><button class="btn" type="submit" style="height:44px;font-size:15px">Pro-Demos von FACEIT holen</button></form>
+  {% else %}<div class="muted small" style="margin-top:6px">Automatisch holen: FACEIT_API_KEY auf dem Server setzen (siehe README).</div>{% endif %}
+</div>
 
 <h2>Reports</h2>
 {% if reports %}

@@ -25,6 +25,9 @@ def main(argv: list[str] | None = None) -> int:
     pp = sub.add_parser("pro", help="Pro-Demo als Referenz speichern (kein Report)")
     pp.add_argument("file", type=Path)
 
+    sub.add_parser("faceit-test", help="FACEIT-Schlüssel, Hub und Downloads-API-Freigabe prüfen")
+    sub.add_parser("faceit-sync", help="Pro-Demos pro Map über die FACEIT-API holen")
+
     sub.add_parser("icons", help="Waffen-Icons herunterladen (data/icons)")
 
     sub.add_parser("progress", help="Fortschritts-Seite aus dem Match-Verlauf schreiben")
@@ -76,6 +79,22 @@ def main(argv: list[str] | None = None) -> int:
 
         info = pipeline.run_pro(args.file)
         print(f"Pro-Demo gespeichert: {info['map']}, {info['rounds']} Runden, {info['players']} Spieler")
+        return 0
+
+    if args.cmd in ("faceit-test", "faceit-sync"):
+        from cstaktik import faceit, pipeline
+        from cstaktik.config import load_rules_config
+
+        try:
+            if args.cmd == "faceit-test":
+                for line in faceit.selftest(load_rules_config()["faceit"]):
+                    print(line)
+            else:
+                res = pipeline.faceit_sync()
+                print("Neu:", res["added"], "Gesamt:", res["total"])
+        except faceit.FaceitError as exc:
+            print(f"FEHLER: {exc}", file=sys.stderr)
+            return 1
         return 0
 
     if args.cmd == "icons":

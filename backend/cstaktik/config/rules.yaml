@@ -118,3 +118,13 @@ mechanics:
   # Ab diesen Werten wird ein Mechanik-Ziel vorgeschlagen (Heuristik).
   goal_moving_pct: 30
   goal_no_shot_pct: 30
+
+faceit:
+  # Hubs, aus denen Pro-Demos geholt werden. Die ID steht in der Hub-URL auf faceit.com.
+  # Vorbelegt: FPL EU laut Community-Beitrag, NICHT bestätigt -> mit "cstaktik faceit-test" prüfen.
+  hubs: ["74caad23-077b-4ef3-8b1d-c6a2254dfa75"]
+  maps: ["de_mirage", "de_dust2", "de_inferno"]
+  # Neue Demos pro Map und Lauf.
+  per_map: 3
+  # So viele vergangene Matches pro Hub höchstens durchsuchen.
+  max_scan: 300
