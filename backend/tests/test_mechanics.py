@@ -64,3 +64,11 @@ def test_report_shows_mechanics(tmp_path):
     m = _match()
     html = render_report(m, analyze(m, CFG), maps_dirs=[tmp_path])
     assert "Mechanik" in html and "Tode ohne Schuss" in html and "Spray" in html
+
+
+def test_weapon_label():
+    from cstaktik.mechanics import weapon_label
+
+    assert weapon_label("weapon_usp_silencer") == "USP-S"
+    assert weapon_label("m4a1_silencer") == "M4A1-S"
+    assert weapon_label("unbekannt_x") == "unbekannt_x"

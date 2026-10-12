@@ -12,7 +12,7 @@ Geblendet > Ohne Gegenwehr > Allein ohne Trade > Utility nicht genutzt > Wenig H
 
 from __future__ import annotations
 
-from cstaktik.mechanics import is_gun, weapon_key
+from cstaktik.mechanics import is_gun, weapon_key, weapon_label
 from cstaktik.model import Finding, MatchData
 from cstaktik.rules.base import PositionIndex, dist, round_time_s
 
@@ -156,7 +156,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             else:
                 facts.append(f"{len(my_shots)} eigene Schüsse" + (f", {dealt} Schaden" if dealt is not None else ""))
                 last = my_shots[-1]
-                if last.speed is not None and last.speed > mech.get("moving_shot_speed_units_s", 80):
+                if (last.speed is not None and mech.get("moving_shot_speed_units_s", 80) < last.speed
+                        <= cfg["max_plausible_speed_units_s"]):
                     facts.append(f"letzter Schuss im Laufen ({round(last.speed)} Units/s)")
                     issues["Im Laufen geschossen"] = (f"Letzter Schuss bei {round(last.speed)} Units/s: "
                                                       "vor dem Schuss stoppen (Counter-Strafe), dann schießen.")
@@ -221,7 +222,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             parts[0] += f" mit {hp} HP"
         if blind:
             parts[0] += ", geblendet,"
-        parts.append(f"gegen {attacker}" + (f" ({k.weapon})" if k.weapon else "")
+        parts.append(f"gegen {attacker}" + (f" ({weapon_label(k.weapon)})" if k.weapon else "")
                      + (f" aus {k.attacker_place}" if k.attacker_place else "")
                      + (f", {a_dist} Units" if a_dist is not None else ""))
         if match.shots and not my_shots:

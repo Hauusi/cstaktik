@@ -20,6 +20,25 @@ def weapon_key(name: str | None) -> str:
     return (name or "").lower().removeprefix("weapon_")
 
 
+_LABELS = {
+    "ak47": "AK-47", "m4a1": "M4A4", "m4a1_silencer": "M4A1-S", "m4a1_silencer_off": "M4A1-S", "awp": "AWP",
+    "usp_silencer": "USP-S", "usp_silencer_off": "USP-S", "hkp2000": "P2000", "glock": "Glock-18",
+    "deagle": "Desert Eagle", "p250": "P250", "fiveseven": "Five-SeveN", "tec9": "Tec-9", "cz75a": "CZ75-Auto",
+    "elite": "Dual Berettas", "revolver": "R8", "galilar": "Galil AR", "famas": "FAMAS", "sg556": "SG 553",
+    "aug": "AUG", "ssg08": "SSG 08", "g3sg1": "G3SG1", "scar20": "SCAR-20", "mac10": "MAC-10", "mp9": "MP9",
+    "mp7": "MP7", "mp5sd": "MP5-SD", "ump45": "UMP-45", "p90": "P90", "bizon": "PP-Bizon", "nova": "Nova",
+    "xm1014": "XM1014", "mag7": "MAG-7", "sawedoff": "Sawed-Off", "negev": "Negev", "m249": "M249",
+    "hegrenade": "HE", "inferno": "Molotov", "molotov": "Molotov", "incgrenade": "Brandgranate",
+    "taser": "Zeus", "knife": "Messer",
+}
+
+
+def weapon_label(name: str | None) -> str:
+    """Lesbarer Waffenname (usp_silencer -> USP-S). Unbekannte Namen bleiben wie geparst."""
+    w = weapon_key(name)
+    return _LABELS.get(w, w)
+
+
 def is_gun(name: str | None) -> bool:
     w = weapon_key(name)
     return bool(w) and not any(x in w for x in _NO_GUN)
@@ -60,7 +79,8 @@ def mechanics(match: MatchData, cfg: dict) -> list[dict]:
             bucket[0] += 1
             bucket[1] += hit_flags[i]
 
-        with_speed = [s for s in shots if s.speed is not None]
+        # Werte über max_plausible (z. B. Sprung, Fallschaden, Messfehler) gelten als unbekannt
+        with_speed = [s for s in shots if s.speed is not None and s.speed <= cfg.get("max_plausible_speed_units_s", 400)]
         moving = [s for s in with_speed if s.speed > cfg["moving_shot_speed_units_s"]]
         my_kills = [k for k in match.kills if k.attacker_steamid == sid and k.victim_side != k.attacker_side
                     and is_gun(k.weapon)]

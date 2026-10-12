@@ -78,6 +78,13 @@ def enrich(match: MatchData, findings: list[Finding], histories: list[dict] | No
         here = next((k.victim_place for k in match.kills if k.tick == f.tick and k.victim_steamid == f.steamid), None)
         mm, ss = divmod(_bucket(secs), 60)
         when = f"{mm}:{ss:02d}"
+        if n < 2 or n * 2 < len(won):
+            # kein klarer Schwerpunkt: Verteilung nennen statt "meist"
+            spread = ", ".join(f"{pl} {c}x" for pl, c in counts.most_common(3))
+            mm, ss = divmod(_bucket(secs), 60)
+            f.evidence["vorbild"] = (f"In gewonnenen {side.upper()}-Runden nach {mm}:{ss:02d} kein fester Ort "
+                                     f"({len(won)} Runden: {spread}).")
+            continue
         if here and top == here:
             text = (f"Auch in Siegrunden warst du nach {when} meist in {top} ({n} von {len(won)}). "
                     "Die Position passt, entscheidend war eher das Wie (siehe Lage).")
