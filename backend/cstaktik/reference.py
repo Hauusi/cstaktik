@@ -23,16 +23,19 @@ def _bucket(seconds: float) -> int:
     return int(round(seconds / STEP_S)) * STEP_S
 
 
-def timeline(match: MatchData) -> list[dict]:
-    """Je Runde und Fokus-Spieler: Ortsname alle STEP_S Sekunden (None = tot/keine Daten)."""
+def timeline(match: MatchData, all_players: bool = False) -> list[dict]:
+    """Je Runde und Spieler: Ortsname alle STEP_S Sekunden (None = tot/keine Daten).
+
+    Standard: nur Fokus-Spieler; ``all_players`` für Pro-Demos (alle 10)."""
     idx = PositionIndex(match.positions)
     tr = match.tickrate
     out = []
     for r in match.rounds:
-        side = match.focus_side(r.num)
-        if r.freeze_end_tick is None or side is None or r.winner is None:
+        if r.freeze_end_tick is None or r.winner is None:
             continue
-        for sid in sorted(match.focus_ids()):
+        if not all_players and match.focus_side(r.num) is None:
+            continue
+        for sid in sorted(r.sides if all_players else match.focus_ids()):
             if sid not in r.sides:
                 continue
             places = []
@@ -117,3 +120,49 @@ def winning_spots(histories: list[dict], map_name: str, at_s: int = 20, min_samp
             out.append({"name": names.get(sid, sid), "side": side.upper(), "place": place, "n": n, "total": total,
                         "at": f"0:{at_s:02d}"})
     return out
+
+
+PRO_MIN_SAMPLES = 10  # so viele Pro-Spieler-Samples braucht ein Vergleich mindestens
+
+
+def pro_spots(pro: list[dict], map_name: str | None, side: str, seconds: float, top: int = 3) -> dict | None:
+    """Verteilung der Pro-Positionen (Siegrunden ihrer Seite) zur Rundenzeit, aus data/pro."""
+    b = _bucket(seconds) // STEP_S
+    c = Counter()
+    demos = set()
+    for d in pro:
+        if d.get("map") != map_name:
+            continue
+        for t in d.get("timeline", []):
+            if t["side"] == side and t["won"] and b < len(t["places"]) and t["places"][b]:
+                c[t["places"][b]] += 1
+                demos.add(d.get("id"))
+    total = sum(c.values())
+    if total < PRO_MIN_SAMPLES:
+        return None
+    return {"spots": [{"place": p, "pct": round(100 * n / total)} for p, n in c.most_common(top)],
+            "samples": total, "demos": len(demos), "at": _bucket(seconds)}
+
+
+def pro_text(ps: dict, side: str) -> str:
+    mm, ss = divmod(ps["at"], 60)
+    spots = ", ".join(f"{s['place']} {s['pct']} %" for s in ps["spots"])
+    return (f"Pros auf {side.upper()} in Siegrunden nach {mm}:{ss:02d}: {spots} "
+            f"(Anteil der Spieler-Positionen, {ps['demos']} Demo{'s' if ps['demos'] != 1 else ''})")
+
+
+def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict]) -> None:
+    """Ergänzt Tod-Analysen um ``evidence["pro"]``, wenn genug Pro-Daten zur Map vorliegen."""
+    if not pro:
+        return
+    tr = match.tickrate
+    for f in findings:
+        if f.rule_id != "death_review" or f.tick is None or f.round is None or not f.steamid:
+            continue
+        rnd = match.round_by_num(f.round)
+        if rnd is None or rnd.freeze_end_tick is None:
+            continue
+        side = rnd.sides.get(f.steamid)
+        ps = pro_spots(pro, match.map_name, side, (f.tick - rnd.freeze_end_tick) / tr) if side else None
+        if ps:
+            f.evidence["pro"] = pro_text(ps, side)

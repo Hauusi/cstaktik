@@ -60,6 +60,13 @@ Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Coach-Funktionen
 
+- **Pro-Referenz** (`pro.py`): Pro-Demo hochladen mit Häkchen "Pro-Demo" (oder `cstaktik pro <demo>`).
+  Gespeichert wird nur, wo alle 10 Spieler alle 5 s standen und ob ihre Seite gewann
+  (`data/pro/`, kein Report, nicht im eigenen Verlauf). Danach zeigt die Tod-Analyse
+  "Pro-Vergleich: Pros auf CT in Siegrunden nach 0:20: Jungle 34 %, …" und das Briefing
+  "Pro-Standard nach 0:20". Erst ab 10 Pro-Spieler-Positionen pro Seite/Zeit. HLTV-Demos sind
+  Archive: am PC die .dem entpacken und hochladen.
+
 - **Vorbild aus euren Siegrunden** (`reference.py`): zu jedem Tod, wo derselbe Spieler auf
   derselben Seite zur selben Rundenzeit (5-s-Raster) in GEWONNENEN Runden stand, aus diesem
   Match und dem Verlauf derselben Map. Im Replay als grüner Geist "Sieg R7" mit Sprung in die

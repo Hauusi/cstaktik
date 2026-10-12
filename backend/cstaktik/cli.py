@@ -22,6 +22,9 @@ def main(argv: list[str] | None = None) -> int:
     mp = sub.add_parser("maps", help="Radarbilder + Kalibrierung herunterladen (data/maps)")
     mp.add_argument("names", nargs="*", help="Maps, z. B. de_mirage (leer = Standardliste)")
 
+    pp = sub.add_parser("pro", help="Pro-Demo als Referenz speichern (kein Report)")
+    pp.add_argument("file", type=Path)
+
     sub.add_parser("icons", help="Waffen-Icons herunterladen (data/icons)")
 
     sub.add_parser("progress", help="Fortschritts-Seite aus dem Match-Verlauf schreiben")
@@ -67,6 +70,13 @@ def main(argv: list[str] | None = None) -> int:
                 failed += 1
                 print(f"FEHLER  {name}: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1 if failed else 0
+
+    if args.cmd == "pro":
+        from cstaktik import pipeline
+
+        info = pipeline.run_pro(args.file)
+        print(f"Pro-Demo gespeichert: {info['map']}, {info['rounds']} Runden, {info['players']} Spieler")
+        return 0
 
     if args.cmd == "icons":
         from cstaktik import icons

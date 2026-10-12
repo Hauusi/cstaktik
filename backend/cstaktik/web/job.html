@@ -40,7 +40,13 @@ async function poll() {
     const r = await fetch('/api/jobs/{{ job_id }}', { cache: 'no-store' });
     if (r.status === 404) { showError('Auftrag unbekannt (Server neu gestartet?). Fertige Reports stehen auf der Startseite.'); return; }
     job = await r.json(); fetchedAt = performance.now();
-    if (job.status === 'fertig') { location.replace('/reports/' + job.report); return; }
+    if (job.status === 'fertig') {
+      if (job.report) { location.replace('/reports/' + job.report); return; }
+      $('title').textContent = 'Fertig'; $('card').innerHTML = '';
+      const m = document.createElement('p'); m.textContent = job.message || 'Fertig.'; $('card').appendChild(m);
+      const a = document.createElement('a'); a.href = '/'; a.className = 'btn'; a.style.cssText = 'display:grid;place-items:center;margin-top:10px'; a.textContent = 'Zur Startseite'; $('card').appendChild(a);
+      return;
+    }
     if (job.status === 'fehler') { showError(job.error); return; }
   } catch (_) { /* Netz kurz weg (z. B. Handy gesperrt): einfach weiter versuchen */ }
   setTimeout(poll, 1000);

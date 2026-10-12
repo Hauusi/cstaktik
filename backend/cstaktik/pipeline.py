@@ -21,6 +21,7 @@ REPORTS_DIR = DATA_DIR / "reports"
 CACHE_DIR = DATA_DIR / "cache"
 HISTORY_DIR = DATA_DIR / "history"
 GOALS_FILE = DATA_DIR / "goals.json"
+PRO_DIR = DATA_DIR / "pro"
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
 CACHE_SCHEMA = 7
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
@@ -151,6 +152,10 @@ def run(
 
     # Vorbild aus eigenen Siegrunden (dieses Match + Verlauf auf derselben Map)
     enrich(match, result.findings, _history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else [])
+    from cstaktik import pro as _pro
+    from cstaktik.reference import enrich_pro
+
+    enrich_pro(match, result.findings, _pro.load_all(PRO_DIR))
     report("Karte laden", 0.94)
     from cstaktik import goals, history, maps
     from cstaktik.report.radar import LOCAL_MAPS_DIR
@@ -175,3 +180,17 @@ def run(
     out = write_report(match, result, out_dir / f"{stem}.html", goal_check=goal_check)
     report("Fertig", 1.0)
     return out
+
+
+def run_pro(path: Path, progress: Progress | None = None) -> dict:
+    """Pro-Demo parsen und als Referenz speichern (kein Report, keine Fokus-Spieler)."""
+    from cstaktik import pro
+
+    report = progress or (lambda _stage, _frac: None)
+    config = load_rules_config()
+    path = prepare_demo(path)
+    match = load_any(path, set(), config, progress=lambda st, f: report(st, 0.95 * f))
+    summary = pro.summarize(match)
+    pro.save(summary, PRO_DIR)
+    report("Fertig", 1.0)
+    return {"map": summary["map"], "rounds": summary["rounds"], "players": len(match.players)}

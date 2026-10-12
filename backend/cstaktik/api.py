@@ -97,6 +97,7 @@ def _job_view(job_id: str, job: dict) -> dict:
         "samples": job["samples"],
         "cached": job["cached"],
         "report": job["report"],
+        "message": job.get("message"),
         "error": job["error"],
     }
 
@@ -114,6 +115,7 @@ def index() -> str:
     return _env.get_template("index.html").render(
         jobs=jobs, reports=_report_entries(), n_history=len(hist), goals=state["active"],
         done_count=len(state["done"]), last=hist[-1] if hist else None, briefing_maps=maps,
+        pro_overview=__import__("cstaktik.pro", fromlist=["overview"]).overview(pipeline.PRO_DIR),
     )
 
 
@@ -124,11 +126,13 @@ def briefing_page(map_name: str) -> str:
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
     hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
-    b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE))
+    from cstaktik import pro
+
+    b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=pro.load_all(pipeline.PRO_DIR))
     return _env.get_template("briefing.html").render(b=b)
 
 
-def _run_job(job_id: str, target: Path, focus: set[str] | None) -> None:
+def _run_job(job_id: str, target: Path, focus: set[str] | None, is_pro: bool = False) -> None:
     def update(**kw):
         with _jobs_lock:
             _jobs[job_id].update(kw)
@@ -139,8 +143,14 @@ def _run_job(job_id: str, target: Path, focus: set[str] | None) -> None:
         cached = pipeline.is_cached(demo)
         estimate = None if cached else pipeline.estimate_seconds(demo.stat().st_size)
         update(cached=cached, estimate=round(estimate, 1) if estimate else None, samples=pipeline.timing_samples())
-        out = pipeline.run(demo, focus, progress=lambda stage, frac: update(stage=stage, frac=frac))
-        update(status="fertig", stage="Fertig", frac=1.0, report=out.name)
+        if is_pro:
+            info = pipeline.run_pro(demo, progress=lambda stage, frac: update(stage=stage, frac=frac))
+            label = (info["map"] or "?").removeprefix("de_").capitalize()
+            update(status="fertig", stage="Fertig", frac=1.0,
+                   message=f"Pro-Demo gespeichert: {label}, {info['rounds']} Runden, {info['players']} Spieler.")
+        else:
+            out = pipeline.run(demo, focus, progress=lambda stage, frac: update(stage=stage, frac=frac))
+            update(status="fertig", stage="Fertig", frac=1.0, report=out.name)
     except ValueError as exc:
         update(status="fehler", error=str(exc))
     except Exception as exc:  # noqa: BLE001 - Parser-Fehler verständlich melden
@@ -148,7 +158,9 @@ def _run_job(job_id: str, target: Path, focus: set[str] | None) -> None:
 
 
 @app.post("/analyze")
-async def analyze_upload(demo: UploadFile = File(...), steamids: str = Form("")) -> RedirectResponse:
+async def analyze_upload(
+    demo: UploadFile = File(...), steamids: str = Form(""), pro: str = Form("")
+) -> RedirectResponse:
     filename = demo.filename or ""
     if not pipeline.is_demo_name(filename):
         raise HTTPException(400, "Nur .dem- oder .dem.bz2-Dateien.")
@@ -173,7 +185,7 @@ async def analyze_upload(demo: UploadFile = File(...), steamids: str = Form(""))
             "report": None,
             "error": None,
         }
-    _executor.submit(_run_job, job_id, target, focus)
+    _executor.submit(_run_job, job_id, target, focus, bool(pro))
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
 
 

@@ -8,12 +8,12 @@ from __future__ import annotations
 from collections import Counter
 
 from cstaktik.coach import CAUSES
-from cstaktik.reference import winning_spots
+from cstaktik.reference import pro_spots, winning_spots
 
 SIDE_DE = {"ct": "CT", "t": "T"}
 
 
-def build(map_name: str, histories: list[dict], goals_state: dict, min_count: int = 2) -> dict:
+def build(map_name: str, histories: list[dict], goals_state: dict, min_count: int = 2, pro: list[dict] | None = None) -> dict:
     hs = [h for h in histories if h.get("map") == map_name]
     names: dict[str, str] = {}
     for h in hs:
@@ -55,5 +55,7 @@ def build(map_name: str, histories: list[dict], goals_state: dict, min_count: in
         "notes": notes,
         "watch": watch,
         "win_spots": winning_spots(histories, map_name),
+        "pro_spots": [{"side": side.upper(), **ps} for side in ("ct", "t")
+                      if (ps := pro_spots(pro or [], map_name, side, 20))],
         "goals": [{"title": g["title"], "tip": g["tip"], "target": g["target_pct"]} for g in goals_state.get("active", [])],
     }

@@ -31,6 +31,8 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .gbody { padding: 0 14px 12px; font-size: 14px; color: #d7dce5; }
 .gbody p { margin: 0 0 8px; } .gtip { color: #cdeedd; }
 .gbody ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+.prochk { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13.5px; color: var(--muted); }
+.prochk input { width: 18px; height: 18px; accent-color: #7c5cff; }
 .maps { display: flex; flex-wrap: wrap; gap: 8px; }
 .mapbtn { padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-weight: 650; }
 .empty { text-align: center; padding: 26px 16px; color: var(--muted); }
@@ -83,6 +85,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
     <b id="fname">Datei wählen</b>
     <span class="muted small" id="fsize">.dem oder .dem.bz2</span>
   </label>
+  <label class="prochk"><input type="checkbox" name="pro" value="1"> Pro-Demo (nur als Referenz speichern, kein Report)</label>
   <details><summary>Andere Spieler als in players.yaml</summary>
     <input class="field" type="text" name="steamids" placeholder="SteamID64, kommagetrennt"></details>
   <button class="btn" id="go" type="submit" disabled>Analysieren</button>
@@ -107,6 +110,10 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 {% if n_history %}
 <a class="item" href="/progress" style="margin-top:16px;background:linear-gradient(135deg,rgba(124,92,255,.18),rgba(63,191,127,.12))">
   <div class="map">↗</div><div class="meta"><b>Fortschritt</b><span class="muted small">{{ n_history }} Matches im Verlauf · Trends und Todes-Karte</span></div></a>
+{% endif %}
+
+{% if pro_overview %}
+<p class="muted small" style="margin:14px 2px 0">Pro-Referenz: {% for m, n in pro_overview.items() %}{{ m.removeprefix("de_")|capitalize }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %} Demos</p>
 {% endif %}
 
 <h2>Reports</h2>

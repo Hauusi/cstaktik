@@ -183,6 +183,7 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .vorbild { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.07);
   border: 1px dashed rgba(63,191,127,.45); font-size: 13.5px; color: #d7f2e3; }
 .vorbild b { color: var(--win); }
+.vorbild .pro { margin-top: 6px; color: #d4c9ff; } .vorbild .pro b { color: #b9a6ff; }
 .vbtn { display: block; margin-top: 6px; color: var(--win); font-weight: 700; font-size: 13px; }
 footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </style>
@@ -860,7 +861,7 @@ function ui() {
       it.append(k, el('div', 'tt', f.title + (f.who ? ' · ' + f.who : '')));
       if (f.rule === 'death_review') it.appendChild(lageList(f));
       it.appendChild(el('div', 'tip', f.tip));
-      if (f.evidence && f.evidence.vorbild) it.appendChild(vorbild(f));
+      if (f.evidence && (f.evidence.vorbild || f.evidence.pro)) it.appendChild(vorbild(f));
       const more = f.evidence && f.evidence.weitere_punkte;
       if (more && more.length) it.appendChild(el('div', 'also', 'Außerdem: ' + more.join(', ')));
       coach.appendChild(it);
@@ -923,7 +924,7 @@ function buildFindings() {
     c.append(top, el('div', 'txt', f.text));
     if (f.rule === 'death_review') c.appendChild(lageList(f));
     c.append(tip);
-    if (f.evidence && f.evidence.vorbild) c.appendChild(vorbild(f));
+    if (f.evidence && (f.evidence.vorbild || f.evidence.pro)) c.appendChild(vorbild(f));
     c.append(act); box.appendChild(c);
   });
 }
@@ -950,7 +951,8 @@ function selectRound(i, keep) {
 // Vorbild aus eigenen Siegrunden + Sprung in die Siegrunde zur selben Rundenzeit
 function vorbild(f) {
   const box = el('div', 'vorbild');
-  box.append(el('b', null, 'Vorbild aus euren Siegrunden: '), f.evidence.vorbild);
+  if (f.evidence.vorbild) box.append(el('b', null, 'Vorbild aus euren Siegrunden: '), f.evidence.vorbild);
+  if (f.evidence.pro) { const pr = el('div', 'pro'); pr.append(el('b', null, 'Pro-Vergleich: '), f.evidence.pro); box.appendChild(pr); }
   if (f.ov && f.ov.ghost_round != null) {
     const ri = D.rounds.findIndex(r => r.n === f.ov.ghost_round);
     if (ri >= 0) {
