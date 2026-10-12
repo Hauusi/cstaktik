@@ -40,3 +40,4 @@ backend/data/goals.json
 # Lokale Spieler-Config (SteamIDs)
 backend/cstaktik/config/players.yaml
 backend/data/maps/
+backend/data/icons/

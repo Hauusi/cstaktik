@@ -13,6 +13,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from cstaktik.config import load_rules_config
+from cstaktik.icons import icon_for
 from cstaktik.mechanics import is_gun
 from cstaktik.model import AnalysisResult, MatchData
 from cstaktik.report.radar import build_radar
@@ -57,6 +58,20 @@ def _floor_and_places(match: MatchData, px) -> tuple[list, list]:
         if n >= PLACE_MIN_SAMPLES
     ]
     return floor, places
+
+
+def _icon_data(names: set[str]) -> dict[str, str]:
+    """SVG-Icons aus data/icons als data-URI (nur die im Match benutzten)."""
+    import base64
+
+    from cstaktik import icons
+
+    out = {}
+    for n in sorted(names):
+        f = icons.ICONS_DIR / f"{n}.svg"
+        if f.exists():
+            out[n] = "data:image/svg+xml;base64," + base64.b64encode(f.read_bytes()).decode()
+    return out
 
 
 def _overlay_px(ov: dict, px) -> dict:
@@ -203,6 +218,8 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     return {
         # Zeichengrößen in Radar-Pixeln (Konfiguration, reine Darstellung)
         "weapons": weapons,
+        "weaponIcon": [icon_for(w) for w in weapons],
+        "icons": _icon_data({icon_for(w) for w in weapons} - {None}),
         "upx": round(1 / radar.scale, 4),  # Radar-Pixel pro Spieleinheit
         "rSmoke": round(draw_cfg.get("smoke_draw_radius_units", 140) / radar.scale, 1),
         "rMolly": round(draw_cfg.get("molotov_draw_radius_units", 110) / radar.scale, 1),

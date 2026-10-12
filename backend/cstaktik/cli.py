@@ -22,6 +22,8 @@ def main(argv: list[str] | None = None) -> int:
     mp = sub.add_parser("maps", help="Radarbilder + Kalibrierung herunterladen (data/maps)")
     mp.add_argument("names", nargs="*", help="Maps, z. B. de_mirage (leer = Standardliste)")
 
+    sub.add_parser("icons", help="Waffen-Icons herunterladen (data/icons)")
+
     sub.add_parser("progress", help="Fortschritts-Seite aus dem Match-Verlauf schreiben")
 
     s = sub.add_parser("serve", help="Web-Upload starten")
@@ -64,6 +66,13 @@ def main(argv: list[str] | None = None) -> int:
             except Exception as exc:  # noqa: BLE001
                 failed += 1
                 print(f"FEHLER  {name}: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1 if failed else 0
+
+    if args.cmd == "icons":
+        from cstaktik import icons
+
+        failed = icons.ensure_icons(set(icons.ALL_ICONS))
+        print(f"{len(icons.ALL_ICONS) - len(failed)} Icons ok" + (f", Fehler: {', '.join(failed)}" if failed else ""))
         return 1 if failed else 0
 
     if args.cmd == "progress":

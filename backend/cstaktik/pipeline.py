@@ -158,6 +158,12 @@ def run(
     note = maps.ensure_map(match.map_name, LOCAL_MAPS_DIR)
     if note:
         match.missing.append(note)
+    from cstaktik import icons
+
+    used = {icons.icon_for(w) for w in {p.weapon for p in match.positions} | {sh.weapon for sh in match.shots}}
+    failed = icons.ensure_icons(used - {None}, icons.ICONS_DIR)
+    if failed:
+        match.missing.append(f"Waffen-Icons nicht geladen ({', '.join(failed)}): einfache Form statt Icon")
     report("Ziele prüfen", 0.95)
     stem = demo_stem(path.name)
     summary = history.summarize(match, result, f"{stem}.html")

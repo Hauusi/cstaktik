@@ -26,4 +26,8 @@ def _no_network_maps(tmp_path, monkeypatch):
         raise OSError("offline im Test")
 
     monkeypatch.setattr(maps, "_get", offline)
+    from cstaktik import icons
+
+    monkeypatch.setattr(icons, "_get", offline)
+    monkeypatch.setattr(icons, "ICONS_DIR", tmp_path / "icons")
     monkeypatch.setattr(radar, "LOCAL_MAPS_DIR", tmp_path / "maps")

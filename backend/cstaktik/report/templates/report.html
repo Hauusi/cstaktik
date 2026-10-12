@@ -424,6 +424,9 @@ const WEAPON_SHAPES = {
   grenade: join(P([[0, -3], [3, -3.8], [6, -3], [6.8, 0], [6, 3], [3, 3.8], [0, 3], [-.8, 0]]), P([[1.5, -3.6], [5, -3.6], [5, -5.2], [1.5, -5.2]])),
   bomb: P([[0, -3.5], [9, -3.5], [9, 3.5], [0, 3.5]]),
 };
+// Offizielle Icons (falls auf dem Server geladen), sonst Klassen-Form
+const ICON_IMG = {};
+for (const [k, uri] of Object.entries(D.icons || {})) { const im = new Image(); im.onload = () => draw(); im.src = uri; ICON_IMG[k] = im; }
 function weaponKind(name) {
   if (!name) return null;
   const w = name.toLowerCase().replace(/^weapon_/, '').replace(/[^a-z0-9]/g, '');
@@ -672,8 +675,18 @@ function draw() {
       ctx.arc(p.x, p.y, rad * 3.2, a - .35, a + .35); ctx.closePath(); ctx.fill();
       // Waffen-Silhouette (Klasse aus dem Waffennamen der Demo) zeigt in Blickrichtung
       const wn = p.w != null && D.weapons ? D.weapons[p.w] : null;
+      const icon = p.w != null && D.weaponIcon ? ICON_IMG[D.weaponIcon[p.w]] : null;
       const shape = WEAPON_SHAPES[weaponKind(wn)];
-      if (shape) {
+      if (icon && icon.complete && icon.naturalWidth) {
+        ctx.save();
+        ctx.translate(p.x, p.y); ctx.rotate(a);
+        if (Math.cos(a) < 0) ctx.scale(1, -1); // nach links: spiegeln, Waffe nicht kopfüber
+        const h = (f ? 12 : 9.5) * u, w = h * icon.naturalWidth / icon.naturalHeight;
+        ctx.shadowColor = 'rgba(7,9,13,.95)'; ctx.shadowBlur = 2.5 * u;
+        ctx.globalAlpha = f ? 1 : .85;
+        ctx.drawImage(icon, rad * .6, -h * .55, w, h);
+        ctx.restore();
+      } else if (shape) {
         ctx.save();
         ctx.translate(p.x, p.y); ctx.rotate(a);
         if (Math.cos(a) < 0) ctx.scale(1, -1); // nach links: spiegeln, Magazin bleibt unten
