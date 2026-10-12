@@ -63,7 +63,14 @@ class FakeDemo:
                                              "Z": pl.Float64, "round_num": pl.Int64})
         self.bomb = pl.DataFrame(schema={"tick": pl.Int64, "event": pl.Utf8, "X": pl.Float64, "Y": pl.Float64,
                                          "Z": pl.Float64, "steamid": pl.UInt64, "round_num": pl.Int64})
-        self.events = {"flashbang_detonate": pl.DataFrame([{"tick": 500, "x": 1.0, "y": 2.0, "z": 3.0, "user_steamid": A}])}
+        self.damages = pl.DataFrame([{"tick": 880, "round_num": 1, "attacker_steamid": A, "victim_steamid": B,
+                                      "dmg_health_real": 27, "weapon": "m4a1"}])
+        self.events = {
+            "flashbang_detonate": pl.DataFrame([{"tick": 500, "x": 1.0, "y": 2.0, "z": 3.0, "user_steamid": A}]),
+            # Smoke 1400 Ticks (> 20 s bei 64 Tick): awpy würde das Ende verwerfen
+            "smokegrenade_detonate": pl.DataFrame([{"entityid": 55, "tick": 400, "x": 398.0, "y": 100.0, "z": 0.0, "user_steamid": A}]),
+            "smokegrenade_expired": pl.DataFrame([{"entityid": 55, "tick": 1800}]),
+        }
 
 
 def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
@@ -82,6 +89,21 @@ def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
     assert m.rounds[0].economy and m.rounds[0].economy[0].equip_value == 4200
     assert len(m.grenades) == 1 and m.grenades[0].kind == "smoke" and len(m.grenades[0].points) < 50
     assert {u.kind for u in m.utility} == {"smoke", "flash"}
+    smoke = next(u for u in m.utility if u.kind == "smoke")
+    assert (smoke.end_tick, smoke.end_known) == (1800, True)
+    assert m.damages[0].dmg == 27 and m.damages[0].attacker_steamid == str(A)
     assert m.missing == []
     fr = [f for _, f in stages]
     assert fr == sorted(fr) and stages[-1][0] == "Bombe"
+
+
+def test_match_timed_long_missing_and_reused_entity():
+    from cstaktik.parser.awpy_adapter import match_timed
+
+    bounds = [(1, 0, 1000), (2, 1100, 3000)]
+    starts = [{"entityid": 5, "tick": 100}, {"entityid": 5, "tick": 1200}, {"entityid": 9, "tick": 200}]
+    ends = [{"entityid": 5, "tick": 900}, {"entityid": 5, "tick": 2700}]
+    res = {(row["entityid"], rnd): (end, known) for row, rnd, end, known in match_timed(starts, ends, bounds)}
+    assert res[(5, 1)] == (900, True)  # 800 Ticks, keine Obergrenze
+    assert res[(5, 2)] == (2700, True)  # gleiche entityid in neuer Runde
+    assert res[(9, 1)] == (1000, False)  # kein Ende -> Rundenende, markiert

@@ -24,6 +24,8 @@ def _top_issues(result: AnalysisResult, n: int = 3) -> list[dict]:
     counter: Counter = Counter()
     weight: dict = {}
     for f in result.findings:
+        if f.severity == "gut":
+            continue
         key = (f.title, f.player_name or "Team")
         counter[key] += 1
         weight[key] = max(weight.get(key, 0), _SEV_WEIGHT[f.severity])
@@ -56,6 +58,34 @@ def _floor_and_places(match: MatchData, px) -> tuple[list, list]:
     return floor, places
 
 
+def _overlay_px(ov: dict, px) -> dict:
+    out = {}
+    if ov.get("line"):
+        out["line"] = [list(px(x, y)) for x, y in ov["line"]]
+    if ov.get("label"):
+        out["label"] = ov["label"]
+    return out
+
+
+def _homework(result: AnalysisResult, n: int = 3) -> list[dict]:
+    """Je Fokus-Spieler die n wichtigsten Fehler-Arten (Anzahl x Schwere) mit Tipp."""
+    per: dict[str, dict] = defaultdict(dict)
+    for f in result.findings:
+        if f.severity == "gut" or not f.player_name:
+            continue
+        e = per[f.player_name].setdefault(f.title, {"title": f.title, "tip": f.tip, "count": 0, "w": 0, "rounds": set()})
+        e["count"] += max(1, len(f.rounds)) if f.round is None else 1
+        e["w"] = max(e["w"], _SEV_WEIGHT[f.severity])
+        if f.round is not None:
+            e["rounds"].add(f.round)
+        e["rounds"].update(f.rounds)
+    out = []
+    for name, items in sorted(per.items()):
+        ranked = sorted(items.values(), key=lambda e: (-(e["count"] * e["w"]), e["title"]))[:n]
+        out.append({"name": name, "items": [{**e, "rounds": sorted(e["rounds"])} for e in ranked]})
+    return out
+
+
 def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None) -> dict:
     radar = build_radar(match, maps_dirs)
     px = radar.to_px
@@ -86,11 +116,13 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
                 "tick": f.tick,
                 "sev": f.severity,
                 "who": f.player_name,
+                "sid": f.steamid,
                 "text": f.text,
                 "tip": f.tip,
                 "x": fx,
                 "y": fy,
                 "evidence": f.evidence,
+                "ov": _overlay_px(f.overlay, px),
             }
         )
 
@@ -104,7 +136,8 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         for k in match.kills:
             if k.round != r.num:
                 continue
-            d = {"t": k.tick, "a": k.attacker_steamid, "v": k.victim_steamid, "w": k.weapon, "hs": k.headshot}
+            d = {"t": k.tick, "a": k.attacker_steamid, "v": k.victim_steamid, "w": k.weapon, "hs": k.headshot,
+                 "pl": k.victim_place, "inv": k.victim_inventory}
             if k.victim_pos:
                 d["vx"], d["vy"] = px(k.victim_pos.x, k.victim_pos.y)
             if k.attacker_pos:
@@ -114,7 +147,8 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         for u in match.utility:
             if u.round == r.num:
                 x, y = px(u.pos.x, u.pos.y)
-                util.append({"k": u.kind, "s": u.start_tick, "e": u.end_tick, "x": x, "y": y, "th": u.thrower_steamid})
+                util.append({"k": u.kind, "s": u.start_tick, "e": u.end_tick, "ek": u.end_known, "x": x, "y": y,
+                             "th": u.thrower_steamid})
         nades = []
         for g in match.grenades:
             if g.round == r.num and g.points:
@@ -171,10 +205,13 @@ def build_context(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         "map_label": (match.map_name or "unbekannte Map").removeprefix("de_").capitalize(),
         "score": {"won": won, "lost": lost},
         "top": _top_issues(result),
-        "patterns": [f for f in result.findings if f.round is None],
+        "patterns": [f for f in result.findings if f.round is None and f.severity != "gut"],
         "unevaluated": [s for s in result.rule_status if not s.evaluated],
         "radar_note": radar_note,
-        "n_findings": len(result.findings),
+        "n_findings": sum(1 for f in result.findings if f.severity != "gut"),
+        "n_good": sum(1 for f in result.findings if f.severity == "gut"),
+        "stats": result.stats,
+        "homework": _homework(result),
         "data_json": data_json,
     }
 

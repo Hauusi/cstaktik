@@ -14,6 +14,7 @@ from pathlib import Path
 
 from cstaktik.model import (
     BombEvent,
+    Damage,
     GrenadeThrow,
     Kill,
     MatchData,
@@ -101,6 +102,35 @@ def thin_path(points: list[tuple[int, float, float, float]], every: int) -> list
         if out and not last and abs(p[1] - out[-1][1]) < 1 and abs(p[2] - out[-1][2]) < 1 and abs(p[3] - out[-1][3]) < 1:
             continue  # liegt still
         out.append(p)
+    return out
+
+
+def match_timed(
+    starts: list[dict], ends: list[dict], round_bounds: list[tuple[int, int, int]]
+) -> list[tuple[dict, int, int | None, bool]]:
+    """Start-Events (Smoke/Molotov) mit dem ersten späteren Ende-Event derselben entityid paaren.
+
+    Ohne Dauer-Obergrenze (awpy verwirft Enden nach 20 s). Ende nie nach Rundenende;
+    fehlt es, gilt das Rundenende und ``end_known`` ist False.
+    Rückgabe: (start_row, runde, end_tick, end_known).
+    """
+    ends_by_entity: dict = {}
+    for e in ends:
+        ends_by_entity.setdefault(e.get("entityid"), []).append(int(e["tick"]))
+    for ticks in ends_by_entity.values():
+        ticks.sort()
+    out = []
+    for st in starts:
+        t0 = int(st["tick"])
+        rnd = next(((n, a, b) for n, a, b in round_bounds if a <= t0 <= b), None)
+        if rnd is None:
+            continue
+        num, _, r_end = rnd
+        end = next((t for t in ends_by_entity.get(st.get("entityid"), []) if t > t0), None)
+        if end is not None and end <= r_end:
+            out.append((st, num, end, True))
+        else:
+            out.append((st, num, r_end, False))
     return out
 
 
@@ -307,26 +337,55 @@ def parse_demo(
         missing.append(f"Granaten nicht lesbar ({type(exc).__name__})")
 
     step("Smokes & Molotovs", 0.97)
-    # --- Smokes / Molotovs (Detonation bis Ende) --------------------------------------
+    # --- Smokes / Molotovs (Detonation bis Ende, eigene Zuordnung) ---------------------
     utility: list[UtilityArea] = []
-    for kind, attr in (("smoke", "smokes"), ("molotov", "infernos")):
+    bounds = [(r.num, r.start_tick, r.end_tick) for r in rounds]
+    for kind, start_ev, end_ev in (
+        ("smoke", "smokegrenade_detonate", "smokegrenade_expired"),
+        ("molotov", "inferno_startburn", "inferno_expire"),
+    ):
         try:
-            for row in getattr(dem, attr).to_dicts():
-                pos = _vec(row, "")
-                if pos is None or row.get("round_num") is None:
+            sdf, edf = dem.events.get(start_ev), dem.events.get(end_ev)
+            starts = sdf.to_dicts() if sdf is not None else []
+            ends = edf.to_dicts() if edf is not None else []
+            for row, rnd, end, known in match_timed(starts, ends, bounds):
+                pos = _vec({k.upper(): v for k, v in row.items() if k in ("x", "y", "z")}, "")
+                if pos is None:
                     continue
                 utility.append(
                     UtilityArea(
-                        round=int(row["round_num"]),
+                        round=rnd,
                         kind=kind,
-                        start_tick=int(row["start_tick"]),
-                        end_tick=_int_or_none(row.get("end_tick")),
-                        thrower_steamid=_sid(row.get("thrower_steamid")),
+                        start_tick=int(row["tick"]),
+                        end_tick=end,
+                        end_known=known,
+                        thrower_steamid=_sid(row.get("user_steamid")),
                         pos=pos,
                     )
                 )
         except Exception as exc:  # noqa: BLE001
             missing.append(f"{kind} nicht lesbar ({type(exc).__name__})")
+
+    # --- Schaden (für ADR und "Tod ohne Schaden") ---------------------------------------
+    damages: list[Damage] = []
+    try:
+        for row in dem.damages.to_dicts():
+            victim = _sid(row.get("victim_steamid"))
+            dmg = _int_or_none(row.get("dmg_health_real", row.get("dmg_health")))
+            if victim is None or dmg is None or row.get("round_num") is None:
+                continue
+            damages.append(
+                Damage(
+                    round=int(row["round_num"]),
+                    tick=int(row["tick"]),
+                    attacker_steamid=_sid(row.get("attacker_steamid")),
+                    victim_steamid=victim,
+                    dmg=dmg,
+                    weapon=row.get("weapon"),
+                )
+            )
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"Schadensdaten nicht lesbar ({type(exc).__name__})")
 
     step("Bombe", 0.99)
     # --- Flash / HE: Detonationszeitpunkt und -ort -----------------------------------
@@ -393,6 +452,7 @@ def parse_demo(
         grenades=grenades,
         positions=positions,
         utility=utility,
+        damages=damages,
         bomb=bomb,
         missing=missing,
     )

@@ -104,8 +104,18 @@ class UtilityArea(BaseModel):
     kind: Literal["smoke", "molotov", "flash", "he"]
     start_tick: int
     end_tick: int | None = None
+    end_known: bool = True  # False: kein Ende-Event in der Demo, Rundenende als Grenze
     thrower_steamid: str | None = None
     pos: Vec
+
+
+class Damage(BaseModel):
+    round: int
+    tick: int
+    attacker_steamid: str | None = None
+    victim_steamid: str
+    dmg: int  # tatsächlich abgezogene HP (awpy: dmg_health_real)
+    weapon: str | None = None
 
 
 class BombEvent(BaseModel):
@@ -125,6 +135,7 @@ class MatchData(BaseModel):
     players: list[Player]
     rounds: list[Round]
     kills: list[Kill] = Field(default_factory=list)
+    damages: list[Damage] = Field(default_factory=list)
     grenades: list[GrenadeThrow] = Field(default_factory=list)
     positions: list[PositionSample] = Field(default_factory=list)
     utility: list[UtilityArea] = Field(default_factory=list)
@@ -156,7 +167,7 @@ class MatchData(BaseModel):
         return None
 
 
-Severity = Literal["hoch", "mittel", "niedrig"]
+Severity = Literal["hoch", "mittel", "niedrig", "gut"]  # "gut" = Lob, kein Fehler
 
 
 class Finding(BaseModel):
@@ -171,6 +182,8 @@ class Finding(BaseModel):
     tip: str  # konkreter Tipp (ein Satz)
     evidence: dict = Field(default_factory=dict)  # Rohwerte aus den Daten
     rounds: list[int] = Field(default_factory=list)  # betroffene Runden (für Muster-Findings)
+    # Zeichenhilfe fürs Replay in Spielkoordinaten, z. B. {"line": [[x, y], [x, y]], "label": "..."}
+    overlay: dict = Field(default_factory=dict)
 
 
 class RuleStatus(BaseModel):
@@ -180,6 +193,20 @@ class RuleStatus(BaseModel):
     reason: str | None = None  # warum nicht auswertbar
 
 
+class PlayerStats(BaseModel):
+    steamid: str
+    name: str
+    rounds: int
+    kills: int
+    deaths: int
+    adr: float | None  # None ohne Schadensdaten
+    opening_kills: int
+    opening_deaths: int
+    traded_deaths: int
+    utility_thrown: dict[str, int]
+
+
 class AnalysisResult(BaseModel):
     findings: list[Finding]
     rule_status: list[RuleStatus]
+    stats: list[PlayerStats] = Field(default_factory=list)

@@ -32,10 +32,12 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             continue  # letzter Lebender: kein Trade möglich, keine Aussage
 
         mate_dists = []
+        mate_pos = {}
         for m in mates:
             sample = idx.nearest(k.round, m, k.tick, max_gap)
             if sample is not None:
                 mate_dists.append((dist(k.victim_pos, sample.pos), m))
+                mate_pos[m] = sample.pos
         if not mate_dists:
             continue  # keine Positionsdaten der Mitspieler zum Zeitpunkt -> nicht raten
 
@@ -73,6 +75,10 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                     f"{match.name_of(nearest_id)}: {round(nearest_d)} Units weg, kein Trade."
                 ),
                 tip="Nur peeken, wenn ein Mitspieler direkt nachziehen kann. Sonst Info geben und zurückfallen.",
+                overlay={
+                    "line": [[k.victim_pos.x, k.victim_pos.y], [mate_pos[nearest_id].x, mate_pos[nearest_id].y]],
+                    "label": f"{round(nearest_d)} Units zu {match.name_of(nearest_id)}",
+                },
                 evidence={
                     "tick": k.tick,
                     "ort": place,

@@ -92,3 +92,47 @@ def test_analyze_requires_focus():
 def test_only_focus_players_are_judged():
     res = analyze(build_match(focus=(BRO,)), CFG)
     assert not any(f.steamid == ME for f in res.findings)
+
+
+def test_entry_deaths_pattern():
+    from cstaktik.rules import entry_deaths
+
+    f = entry_deaths.run(build_match(), CFG["rules"]["entry_deaths"])
+    assert len(f) == 1 and f[0].rounds == [2, 3, 4] and f[0].steamid == ME
+
+
+def test_no_damage_death_needs_damage_data_and_counts():
+    from cstaktik.model import Damage
+    from cstaktik.rules import no_damage_death
+
+    m = build_match()
+    with pytest.raises(NotEvaluable):
+        no_damage_death.run(m, CFG["rules"]["no_damage_death"])
+    # Runde 3: ME hat vorher Schaden gemacht -> zählt nicht
+    k3 = next(k for k in m.kills if k.round == 3)
+    m.damages = [Damage(round=3, tick=k3.tick - 10, attacker_steamid=ME, victim_steamid=k3.attacker_steamid, dmg=40)]
+    cfg = {**CFG["rules"]["no_damage_death"], "min_count": 2}
+    f = no_damage_death.run(m, cfg)
+    assert f[0].rounds == [2, 4] and "2 von 3" in f[0].text
+
+
+def test_positives_trade_and_untraded_overlay():
+    from cstaktik.rules import positives
+
+    f = positives.run(build_match(), CFG["rules"]["positives"])
+    trade = [x for x in f if x.title == "Trade gegeben"]
+    assert len(trade) == 1 and trade[0].steamid == BRO and trade[0].round == 4 and trade[0].severity == "gut"
+    u = untraded_death.run(build_match(), rule_cfg(untraded_death))[0]
+    assert len(u.overlay["line"]) == 2 and "Units" in u.overlay["label"]
+
+
+def test_stats_and_good_findings_not_in_top_issues():
+    res = analyze(build_match(), CFG)
+    me = next(s for s in res.stats if s.steamid == ME)
+    assert (me.deaths, me.opening_deaths, me.traded_deaths) == (3, 3, 1)
+    assert me.adr is None  # keine Schadensdaten -> keine Zahl erfinden
+    from cstaktik.report.render import _homework, _top_issues
+
+    assert all(t["title"] != "Trade gegeben" for t in _top_issues(res))
+    hw = {h["name"]: h for h in _homework(res)}
+    assert hw["Ich"]["items"]

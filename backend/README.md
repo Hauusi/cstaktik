@@ -52,6 +52,21 @@ Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern z
 verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,
 Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
+## Coach-Funktionen
+
+- **Coach-Tour**: spielt alle Fehler des Matches nacheinander ab (rundenübergreifend), hält an
+  jedem an, "Weiter" springt zum nächsten.
+- **Overlays beim Fehler**: Linie zum nächsten Mitspieler mit Abstand (Tod ohne Trade),
+  frühere Tode am selben Ort als Geister-X mit Rundennummer, ungenutzte Granaten am Todesort.
+- **Lob** (grün, hält das Replay nicht an): Trade gegeben, 3+ Kills, gewonnener Clutch.
+- **Spieler-Dashboard**: K–D, ADR, Opening-Duelle, Anteil getradeter Tode, geworfene Utility.
+- **Hausaufgaben**: je Spieler die 3 wichtigsten Fehler-Arten mit Tipp und Runden-Links.
+- **Rundenzusammenfassung** und Live-Anzeige "CT 4 : 3 T" im Replay.
+
+Smoke/Molotov-Dauer: Start- und Ende-Events werden selbst über die entityid gepaart
+(awpy verwirft Enden nach 20 s). Fehlt das Ende, gilt das Rundenende und es wird keine
+Restzeit angezeigt.
+
 ## Kartenbilder
 
 Ohne Kartenbild zeichnet der Report den Kartenumriss aus den Laufwegen des Matches
@@ -75,6 +90,9 @@ Konfiguration: `cstaktik/config/rules.yaml`. Alle Schwellen sind Heuristiken (St
 | Gleicher Todesort | ≥ `min_deaths` Tode am selben Place-Namen (Fallback: Radius) | Kills |
 | Utility nicht genutzt | Granaten im Inventar 1 Tick vor dem Tod | Inventar (demoparser2) |
 | Economy | Teil-Team Full-Buy, Teil-Team Save; Force verloren und Folgerunde kein Full-Buy | Equipment/Geld am Freeze-Ende + Offset |
+| Oft erster Tod | ≥ `min_count` Runden als Erster gestorben | Kills |
+| Tod ohne Schaden | ≥ `min_count` Tode ohne vorher Schaden in der Runde | Schaden (player_hurt) |
+| Stark (Lob) | Trade gegeben, ≥ `multi_kill_min` Kills, Clutch gewonnen | Kills, Runden |
 
 Pistolrunden (1, 13) und Overtime werden bei Economy ignoriert. Kann eine Regel mangels
 Daten nicht laufen, steht sie im Report als „nicht auswertbar“.
