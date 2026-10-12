@@ -54,6 +54,17 @@ Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Coach-Funktionen
 
+- **Urteil + Ursachen** (oben im Report): Befunde werden zu wenigen Ursachen gebündelt
+  (getrennt gespielt, erste Tode, geblendet, wenig HP, Unterzahl, im Laufen, Utility,
+  Überzahl verspielt, Economy) und danach sortiert, in wie vielen **verlorenen** Runden sie
+  vorkamen, verglichen mit gewonnenen Runden. Das ist ein Zusammenhang, kein Beweis.
+- **Schlüsselmomente-Tour**: nur die teuersten Momente (je Top-Ursache einer + verspielte
+  Überzahl), das Replay hält genau dort an. "Alle Fehler" bleibt als zweite Tour.
+- **Duo**: Siegquote zusammen vs. getrennt (Ø Abstand pro Runde), Trades untereinander,
+  wer zuerst stirbt.
+- **Utility-Wirkung**: Gegner/Mitspieler geblendet (`player_blind`), Granatenschaden.
+- Schwellen unter `coach` in rules.yaml.
+
 - **Tod-Analyse (Situations-Coach)**: für jeden Tod eines Fokus-Spielers die Lage aus der Demo:
   Zahlenverhältnis, Opening-Duell, Blendung (`player_blind`), HP vor dem Duell (100 minus
   erlittener Schaden), Laufgeschwindigkeit aus den Positionen, nächster Mitspieler und deren Orte,

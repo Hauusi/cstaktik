@@ -194,7 +194,11 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
 
 
 def build_context(match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None) -> dict:
+    from cstaktik.coach import diagnose
+
+    debrief = diagnose(match, result, load_rules_config()["coach"])
     payload = build_payload(match, result, maps_dirs)
+    payload["moments"] = debrief["key_moments"]
     won = sum(1 for r in payload["rounds"] if r["out"] == "W")
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
     radar_note = None if payload["img"] else build_radar(match, maps_dirs).note
@@ -208,6 +212,7 @@ def build_context(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         "patterns": [f for f in result.findings if f.round is None and f.severity != "gut"],
         "unevaluated": [s for s in result.rule_status if not s.evaluated],
         "radar_note": radar_note,
+        "debrief": debrief,
         "n_findings": sum(1 for f in result.findings if f.severity != "gut"),
         "n_good": sum(1 for f in result.findings if f.severity == "gut"),
         "stats": result.stats,

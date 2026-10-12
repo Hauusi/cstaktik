@@ -156,6 +156,25 @@ dt { color: var(--faint); } dd { margin: 0; color: var(--text); word-break: brea
 .lage li { display: flex; gap: 7px; align-items: baseline; }
 .lage li::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); transform: translateY(-2px); }
 .also { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.verdict { margin-top: 12px; font-size: 16.5px; line-height: 1.4; font-weight: 600; }
+.linkbtn { display: block; margin: 10px auto 0; color: var(--muted); font-size: 13.5px; text-decoration: underline; }
+.cause { display: flex; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.crank { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 800;
+  background: rgba(240,86,106,.15); color: var(--loss); }
+.cbody { flex: 1; min-width: 0; }
+.ct { font-weight: 700; font-size: 16px; }
+.cmeter { height: 6px; border-radius: 3px; background: var(--surface-2); margin: 8px 0 4px; overflow: hidden; }
+.cmeter span { display: block; height: 100%; border-radius: 3px; background: var(--loss); }
+.cnum { font-size: 12.5px; color: var(--muted); }
+.cx { margin-top: 6px; color: #d7dce5; font-size: 14px; }
+.goodlist { display: grid; gap: 6px; }
+.good { padding: 10px 12px; border-radius: 12px; background: rgba(63,191,127,.08); border: 1px solid rgba(63,191,127,.25); font-size: 14px; }
+.good b { color: var(--win); }
+.good button { margin-left: 6px; padding: 2px 8px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; }
+.duo-s { font-weight: 600; }
+.kpi.bad b { color: var(--loss); }
+details.more { margin-top: 26px; }
+details.more > summary { padding: 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: center; color: var(--text); font-size: 14px; }
 footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </style>
 </head>
@@ -166,17 +185,40 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <h1>{{ map_label }}</h1>
     <div class="score num"><b class="w">{{ score.won }}</b><span class="sep">:</span><b class="l">{{ score.lost }}</b>
       <span class="pill">{{ n_findings }} Fehler</span>{% if n_good %}<span class="pill good">{{ n_good }}x stark</span>{% endif %}</div>
-    {% if top %}
-    <div class="focus-list">
-      {% for t in top %}
-      <div class="focus-item"><div class="rank">{{ loop.index }}</div>
-        <div><b>{{ t.title }}</b>{% if t.count > 1 %} <span class="num">· {{ t.count }}x</span>{% endif %}<div class="who">{{ t.who }}</div></div></div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    <button class="tour" id="tourBtn" hidden>▶ Coach-Tour starten <small id="tourN"></small></button>
+    <div class="verdict">{{ debrief.sentence }}</div>
+    <button class="tour" id="tourBtn" hidden>▶ Schlüsselmomente ansehen <small id="tourN"></small></button>
+    <button class="linkbtn" id="allTour" hidden></button>
   </header>
 
+  {% if debrief.causes %}
+  <h2>Warum verloren</h2>
+  <div class="stack">
+    {% for c in debrief.causes %}
+    <div class="cause">
+      <div class="crank">{{ loop.index }}</div>
+      <div class="cbody">
+        <div class="ct">{{ c.title }}</div>
+        <div class="cmeter num"><span style="width:{{ (100 * c.share)|round|int }}%"></span></div>
+        <div class="cnum num">in {{ c.lost_rounds|length }} von {{ debrief.lost }} verlorenen Runden
+          {%- if c.won_rounds %} · in Siegrunden nur {{ c.won_rounds|length }}x{% else %} · in keiner Siegrunde{% endif %}</div>
+        <div class="cx">{{ c.explain }}</div>
+        <div class="tip"><b>Was tun</b> · {{ c.tip }}</div>
+        <div class="rlinks">{% for r in c.lost_rounds[:10] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="quiet" style="margin:8px 2px 0">Zusammenhang aus euren Runden, kein Beweis, dass genau das die Runde gekostet hat.</p>
+  {% endif %}
+
+  {% if debrief.positives %}
+  <h2>Was gut lief</h2>
+  <div class="goodlist">
+    {% for g in debrief.positives %}<div class="good"><b>{{ g.title }}</b> · {{ g.who }}{% if g.round %} <button data-round="{{ g.round }}">R{{ g.round }}</button>{% endif %}</div>{% endfor %}
+  </div>
+  {% endif %}
+
+  <h2>Replay</h2>
   <nav class="rounds" id="rounds" aria-label="Runden"></nav>
 
   <section class="card replay" aria-label="2D-Replay">
@@ -203,6 +245,39 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <div class="ulegend"><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:#ff4d4d"></i>HE</span><span style="color:var(--faint)">Ring = Restdauer</span></div>
   </section>
 
+  {% if debrief.duo %}{% set d = debrief.duo %}
+  <h2>Ihr als Duo</h2>
+  <div class="card duo">
+    <div class="duo-s">{{ d.sentence }}</div>
+    <div class="kpis num" style="margin-top:10px">
+      <div class="kpi"><b>{{ d.avg_distance }}</b><span>Ø Abstand (Units)</span></div>
+      {% for n, v in d.trades.items() %}<div class="kpi"><b>{{ v }}</b><span>{{ n }} tradet</span></div>{% endfor %}
+      {% set fd = d.died_first.items()|list %}
+      <div class="kpi"><b>{{ fd[0][1] }}–{{ fd[1][1] }}</b><span>zuerst tot</span></div>
+    </div>
+    <div class="quiet" style="margin-top:8px">„zuerst tot“: wer von euch beiden in einer Runde zuerst gestorben ist ({{ fd[0][0] }}–{{ fd[1][0] }}).</div>
+  </div>
+  {% endif %}
+
+  {% if debrief.utility %}
+  <h2>Utility-Wirkung</h2>
+  <div class="stack">
+    {% for u in debrief.utility %}
+    <div class="card">
+      <b>{{ u.name }}</b>
+      <div class="kpis num" style="margin-top:8px">
+        <div class="kpi"><b>{{ u.thrown.flash }}</b><span>Flashes</span></div>
+        <div class="kpi"><b>{% if u.has_blind_data %}{{ u.enemies_blinded }}{% else %}–{% endif %}</b><span>Gegner geblendet</span></div>
+        <div class="kpi {% if u.team_blinded %}bad{% endif %}"><b>{% if u.has_blind_data %}{{ u.team_blinded }}{% else %}–{% endif %}</b><span>Team geblendet</span></div>
+        <div class="kpi"><b>{% if u.has_damage_data %}{{ u.he_damage + u.fire_damage }}{% else %}–{% endif %}</b><span>Granaten-Schaden</span></div>
+      </div>
+      <div class="quiet" style="margin-top:6px">Geworfen: {{ u.thrown.smoke }} Smoke · {{ u.thrown.molotov }} Molotov · {{ u.thrown.he }} HE{% if u.has_blind_data %} · Gegner {{ u.enemy_blind_s }}s geblendet{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <details class="more"><summary>Alle Details (Befunde, Statistik, Hausaufgaben)</summary>
   <h2>Befunde dieser Runde</h2>
   <div class="stack" id="rfind"></div>
 
@@ -267,6 +342,8 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </ul></div>
   {% endif %}
 
+  </details>
+
   <footer>Alle Werte aus der Demo geparst (awpy). Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
   {% if match.source_sha256 %}SHA-256 {{ match.source_sha256[:12] }}…{% endif %}
   Regel-Schwellen: config/rules.yaml (Heuristiken).</footer>
@@ -302,7 +379,13 @@ const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
 const F = D.findings;
 const isErr = f => f.sev !== 'gut';
-const TOUR = D.rounds.flatMap(r => r.f.map(id => F[id]).filter(f => f.tick != null && isErr(f)).sort((a, b) => a.tick - b.tick).map(f => f.id));
+// Touren: Schlüsselmomente (Coach-Auswahl) und alle Fehler. Jeder Halt: Runde + Tick.
+const TOURS = {
+  key: (D.moments || []).map(m => ({ ri: D.rounds.findIndex(r => r.n === m.round), tick: m.tick, title: m.title, text: m.text, f: m.finding })).filter(x => x.ri >= 0),
+  all: D.rounds.flatMap((r, ri) => r.f.map(id => F[id]).filter(f => f.tick != null && isErr(f)).sort((a, b) => a.tick - b.tick)
+    .map(f => ({ ri, tick: f.tick, title: f.title, text: f.text }))),
+};
+const stopOf = () => S.tour ? TOURS[S.tour.name][S.tour.i] : null;
 const S = { tour: null, ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, cam: null, follow: false, trailFull: false, lastF: null, coachF: null };
 const ZMIN = 1, ZMAX = 8;
 let bg = null;
@@ -613,11 +696,18 @@ function ui() {
   const active = r.f.filter(id => F[id].tick != null && t >= F[id].tick - 3 * TR && t <= F[id].tick + 3 * TR);
   const withPos = active.filter(id => F[id].x != null);
   S.coachF = withPos.length ? withPos[withPos.length - 1] : (active.length ? active[active.length - 1] : null);
-  const inTour = S.tour != null && !S.playing && active.includes(TOUR[S.tour]);
-  const coach = $('coach'), key = active.join(',') + (inTour ? 'T' + S.tour : '') || (r.f.length ? 'hint' : 'none');
+  const stop = stopOf();
+  const inTour = !!stop && !S.playing && stop.ri === S.ri && Math.abs(t - stop.tick) <= TR / 2;
+  const coach = $('coach'), key = active.join(',') + (inTour ? 'T' + S.tour.name + S.tour.i : '') || (r.f.length ? 'hint' : 'none');
   if (coach.dataset.key !== key) {
     coach.dataset.key = key; coach.textContent = '';
-    coach.classList.toggle('show', active.length > 0);
+    coach.classList.toggle('show', active.length > 0 || inTour);
+    if (inTour && S.tour.name === 'key') {
+      const it = el('div', 'item'), k = el('div', 'k', 'Schlüsselmoment'); k.style.color = '#c9bcff';
+      it.append(k, el('div', 'tt', stop.title));
+      if (stop.f == null) it.appendChild(el('div', 'tip', stop.text)); // sonst steht der Befund direkt darunter
+      coach.appendChild(it);
+    }
     if (active.length) active.forEach(id => {
       const f = F[id], it = el('div', 'item'), k = el('div', 'k', isErr(f) ? 'Coach' : 'Stark');
       k.style.color = SEV[f.sev];
@@ -629,12 +719,13 @@ function ui() {
       coach.appendChild(it);
     });
     if (inTour) {
-      const bar = el('div', 'bar2'), last = S.tour >= TOUR.length - 1;
-      const nx = el('button', 'next', last ? 'Tour beenden ✓' : 'Weiter zum nächsten Fehler ›');
-      nx.onclick = () => last ? endTour() : goTour(S.tour + 1);
+      const list = TOURS[S.tour.name], last = S.tour.i >= list.length - 1, isKey = S.tour.name === 'key';
+      const bar = el('div', 'bar2');
+      const nx = el('button', 'next', last ? 'Fertig ✓' : (isKey ? 'Nächster Schlüsselmoment ›' : 'Nächster Fehler ›'));
+      nx.onclick = () => last ? endTour() : goTour(S.tour.name, S.tour.i + 1);
       const stp = el('button', 'stop', 'Stopp'); stp.onclick = endTour;
       bar.append(nx, stp);
-      coach.prepend(el('div', 'prog', 'Coach-Tour · Fehler ' + (S.tour + 1) + ' von ' + TOUR.length));
+      coach.prepend(el('div', 'prog', (isKey ? 'Schlüsselmoment ' : 'Fehler ') + (S.tour.i + 1) + ' von ' + list.length));
       coach.appendChild(bar);
     }
     if (!active.length) coach.appendChild(el('div', 'hint', r.f.length
@@ -726,15 +817,16 @@ function story() {
   parts.push(['Ihr', `${mine} Kills, ${myDeaths} Tode`]);
   parts.forEach(([k, v], i) => { if (i) box.append(' · '); box.append(el('b', null, k + ': '), v); });
 }
-function goTour(i) {
-  S.tour = i; const f = F[TOUR[i]];
-  const ri = D.rounds.findIndex(r => r.f.includes(f.id));
-  selectRound(ri, true); S.tour = i;
-  S.lastF = null; seek(f.tick - 4 * TR); setPlaying(true);
+function goTour(name, i) {
+  const st = TOURS[name][i];
+  selectRound(st.ri, true); S.tour = { name, i };
+  S.lastF = null; seek(st.tick - 4 * TR); setPlaying(true);
   stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function endTour() { S.tour = null; $('coach').dataset.key = ''; draw(); }
-if (TOUR.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOUR.length + ' Fehler'; $('tourBtn').onclick = () => goTour(0); }
+if (TOURS.key.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.key.length + ' Momente'; $('tourBtn').onclick = () => goTour('key', 0); }
+else if (TOURS.all.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.all.length + ' Fehler'; $('tourBtn').onclick = () => goTour('all', 0); }
+if (TOURS.all.length && $('allTour')) { $('allTour').hidden = false; $('allTour').textContent = 'Oder alle ' + TOURS.all.length + ' Fehler durchgehen ›'; $('allTour').onclick = () => goTour('all', 0); }
 function jumpFinding(dir) {
   const r = R(), list = r.f.map(id => F[id]).filter(f => f.tick != null).sort((a, b) => a.tick - b.tick);
   const target = dir > 0 ? list.find(f => f.tick > S.tick + TR) : [...list].reverse().find(f => f.tick < S.tick - TR);
@@ -823,8 +915,11 @@ function loop(now) {
   const dts = Math.min(.1, (now - last) / 1000); last = now;
   if (S.playing) {
     const r = R(), prev = S.tick, next = prev + dts * TR * S.speed;
-    const hit = r.f.map(id => F[id]).find(f => isErr(f) && f.tick != null && f.tick > prev && f.tick <= next && f.id !== S.lastF);
-    if (hit) { S.tick = hit.tick; S.lastF = hit.id; const ti = TOUR.indexOf(hit.id); if (S.tour != null && ti >= 0) S.tour = ti; setPlaying(false); }
+    const stop = stopOf();
+    // In einer Tour nur am Tour-Halt stoppen, sonst bei jedem Fehler
+    const hit = stop ? (stop.ri === S.ri && stop.tick > prev && stop.tick <= next ? { tick: stop.tick } : null)
+      : r.f.map(id => F[id]).find(f => isErr(f) && f.tick != null && f.tick > prev && f.tick <= next && f.id !== S.lastF);
+    if (hit) { S.tick = hit.tick; if (hit.id != null) S.lastF = hit.id; setPlaying(false); }
     else if (next >= r.t1) { S.tick = r.t1; setPlaying(false); }
     else S.tick = next;
     draw();

@@ -84,3 +84,16 @@ rules:
     # Kill auf den Killer eines Mitspielers innerhalb dieses Fensters = Trade gegeben.
     trade_window_s: 3.0
     multi_kill_min: 3
+
+coach:
+  # Ursache erscheint im Urteil ab so vielen verlorenen Runden, in denen sie vorkam.
+  cause_min_lost_rounds: 2
+  max_causes: 3
+  max_key_moments: 5
+  # Überzahl verspielt: so viele Spieler mehr am Leben und Runde trotzdem verloren.
+  advantage_min_lead: 2
+  # Duo: Ø Abstand pro Runde darunter gilt als "zusammen gespielt" (Heuristik).
+  duo_close_units: 1000
+  trade_window_s: 3.0
+  # Flash zählt als Blendung ab dieser Dauer (s, aus player_blind).
+  blind_min_s: 0.5
