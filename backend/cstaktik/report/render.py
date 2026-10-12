@@ -12,6 +12,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from cstaktik.config import load_rules_config
 from cstaktik.model import AnalysisResult, MatchData
 from cstaktik.report.radar import build_radar
 
@@ -113,7 +114,12 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         for u in match.utility:
             if u.round == r.num:
                 x, y = px(u.pos.x, u.pos.y)
-                util.append({"k": u.kind, "s": u.start_tick, "e": u.end_tick, "x": x, "y": y})
+                util.append({"k": u.kind, "s": u.start_tick, "e": u.end_tick, "x": x, "y": y, "th": u.thrower_steamid})
+        nades = []
+        for g in match.grenades:
+            if g.round == r.num and g.points:
+                pts = [[t, *px(x, y)] for t, x, y, _z in g.points]
+                nades.append({"k": g.kind, "th": g.thrower_steamid, "pts": pts})
         bomb = []
         for b in match.bomb:
             if b.round == r.num and b.event in ("plant", "defuse", "detonate") and b.pos:
@@ -130,13 +136,18 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
                 "tracks": tracks.get(r.num, {}),
                 "kills": kills,
                 "util": util,
+                "nades": nades,
                 "bomb": bomb,
                 "f": [f["id"] for f in findings if f["round"] == r.num],
             }
         )
 
     floor, places = _floor_and_places(match, px)
+    draw_cfg = load_rules_config().get("report", {})
     return {
+        # Zeichengrößen in Radar-Pixeln (Konfiguration, reine Darstellung)
+        "rSmoke": round(draw_cfg.get("smoke_draw_radius_units", 140) / radar.scale, 1),
+        "rMolly": round(draw_cfg.get("molotov_draw_radius_units", 110) / radar.scale, 1),
         "tickrate": match.tickrate,
         "size": radar.size,
         "img": radar.image_data_uri,

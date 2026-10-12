@@ -43,7 +43,10 @@ kann auch direkt aufs Handy geschickt werden). Geparste Demos werden als JSON in
 ## Report und 2D-Replay
 
 Pro Runde: Replay aller 10 Spieler (Positionen 4x pro Sekunde aus der Demo, interpoliert),
-Blickrichtung, Smokes/Molotovs, Bombe, Killfeed. Die Timeline markiert Tode und Befunde.
+Blickrichtung, Bombe, Killfeed. Granaten mit Wurfbahn (Projektil-Positionen aus der Demo);
+Smoke/Molotov mit Ring und Sekunden für die Restdauer (Detonation bis Ablauf laut Demo-Events),
+Flash/HE als kurzer Effekt beim Zünden. Die Größe der Smoke-/Molotov-Fläche ist nur Darstellung
+(`report.*_draw_radius_units` in rules.yaml). Die Timeline markiert Tode und Befunde.
 Beim Abspielen hält das Replay an jedem Befund an und zeigt den Tipp; der Todesort pulsiert.
 Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern zoomen und
 verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,

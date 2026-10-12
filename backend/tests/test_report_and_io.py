@@ -201,3 +201,36 @@ def test_index_lists_reports_with_score(tmp_path, monkeypatch):
     (tmp_path / "match.html").write_text(render_report(m, analyze(m, load_rules_config()), maps_dirs=[]))
     html = TestClient(api.app).get("/").text
     assert "Mirage" in html and 'href="/reports/match.html"' in html
+
+
+def test_nade_kind_and_thin_path():
+    from cstaktik.parser.awpy_adapter import nade_kind, thin_path
+
+    assert nade_kind("CSmokeGrenadeProjectile") == "smoke"
+    assert nade_kind("Flashbang") == "flash"
+    assert nade_kind("Incendiary Grenade") == "molotov"
+    assert nade_kind("molotov") == "molotov"
+    assert nade_kind("hegrenade") == "he"
+    assert nade_kind("Decoy Grenade") == "decoy"
+    assert nade_kind("irgendwas") == "other"  # nicht raten
+    pts = [(t, float(t), 0.0, 0.0) for t in range(0, 20)] + [(t, 19.0, 0.0, 0.0) for t in range(20, 200)]
+    thin = thin_path(pts, 4)
+    assert thin[0][0] == 0 and thin[-1][0] == 199  # Start und Ende bleiben
+    assert len(thin) < 12  # Stillstand zusammengefasst
+
+
+def test_report_contains_grenade_paths_and_effects(tmp_path):
+    from cstaktik.model import GrenadeThrow, UtilityArea, Vec
+
+    m = build_match()
+    r2 = m.round_by_num(2)
+    t = r2.freeze_end_tick
+    m.grenades.append(GrenadeThrow(round=2, entity_id=7, thrower_steamid=m.players[0].steamid, grenade_type="smokegrenade",
+                                   kind="smoke", points=[(t, 0, 0, 0), (t + 32, 200, 100, 50), (t + 64, 300, 100, 0)]))
+    m.utility.append(UtilityArea(round=2, kind="smoke", start_tick=t + 64, end_tick=t + 64 + 18 * 64, pos=Vec(x=300, y=100)))
+    m.utility.append(UtilityArea(round=2, kind="flash", start_tick=t + 10, end_tick=t + 10, pos=Vec(x=0, y=0)))
+    data = _embedded(render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path]))
+    r = next(r for r in data["rounds"] if r["n"] == 2)
+    assert r["nades"][0]["k"] == "smoke" and len(r["nades"][0]["pts"]) == 3
+    assert {u["k"] for u in r["util"]} == {"smoke", "flash"}
+    assert data["rSmoke"] > 0 and data["rMolly"] > 0

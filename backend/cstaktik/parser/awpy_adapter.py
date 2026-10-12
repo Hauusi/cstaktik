@@ -14,7 +14,7 @@ from pathlib import Path
 
 from cstaktik.model import (
     BombEvent,
-    GrenadeEvent,
+    GrenadeThrow,
     Kill,
     MatchData,
     Player,
@@ -66,6 +66,42 @@ def _vec(row: dict, prefix: str) -> Vec | None:
 def _int_or_none(value) -> int | None:
     f = _num(value)
     return None if f is None else int(f)
+
+
+_NADE_KEYWORDS = [
+    ("smoke", "smoke"),
+    ("flash", "flash"),
+    ("molotov", "molotov"),
+    ("incend", "molotov"),
+    ("inferno", "molotov"),
+    ("incgrenade", "molotov"),
+    ("decoy", "decoy"),
+    ("hegrenade", "he"),
+    ("high explosive", "he"),
+    ("he_grenade", "he"),
+]
+
+
+def nade_kind(raw: str | None) -> str:
+    """Granatentyp aus dem Rohwert der Demo per Teilwort; Unbekanntes bleibt 'other'."""
+    low = (raw or "").lower()
+    for key, kind in _NADE_KEYWORDS:
+        if key in low:
+            return kind
+    return "other"
+
+
+def thin_path(points: list[tuple[int, float, float, float]], every: int) -> list[tuple[int, float, float, float]]:
+    """Jeden ``every``-ten Tick behalten, Stillstand zusammenfassen, letzten Punkt immer behalten."""
+    out: list[tuple[int, float, float, float]] = []
+    for i, p in enumerate(points):
+        last = i == len(points) - 1
+        if not last and out and p[0] - out[-1][0] < every:
+            continue
+        if out and not last and abs(p[1] - out[-1][1]) < 1 and abs(p[2] - out[-1][2]) < 1 and abs(p[3] - out[-1][3]) < 1:
+            continue  # liegt still
+        out.append(p)
+    return out
 
 
 def sha256_of(path: Path) -> str:
@@ -236,24 +272,37 @@ def parse_demo(
         missing.append("Keine Freeze-End-Ticks: Economy nicht auswertbar")
 
     step("Granaten", 0.96)
-    # --- Granaten (Würfe; erster Eintrag je Entity) -------------------------------
-    grenades: list[GrenadeEvent] = []
+    # --- Granaten-Flugbahnen ----------------------------------------------------------
+    grenades: list[GrenadeThrow] = []
     try:
-        gdf = dem.grenades.sort("tick").unique(subset=["entity_id"], keep="first")
-        for row in gdf.to_dicts():
-            sid = _sid(row.get("thrower_steamid"))
-            pos = _vec(row, "")
-            if sid is None or pos is None:
+        by_entity: dict[int, list[dict]] = {}
+        for row in dem.grenades.sort("tick").to_dicts():
+            if row.get("entity_id") is None or row.get("round_num") is None:
                 continue
+            by_entity.setdefault(int(row["entity_id"]), []).append(row)
+        every = int(parser_cfg.get("grenade_sample_ticks", 4))
+        for eid, rows in by_entity.items():
+            pts = [
+                (int(r["tick"]), float(r["X"]), float(r["Y"]), float(r["Z"] or 0.0))
+                for r in rows
+                if _num(r.get("X")) is not None and _num(r.get("Y")) is not None
+            ]
+            if not pts:
+                continue
+            raw = str(rows[0].get("grenade_type"))
             grenades.append(
-                GrenadeEvent(
-                    tick=int(row["tick"]),
-                    round=int(row["round_num"]),
-                    thrower_steamid=sid,
-                    grenade_type=str(row.get("grenade_type")),
-                    pos=pos,
+                GrenadeThrow(
+                    round=int(rows[0]["round_num"]),
+                    entity_id=eid,
+                    thrower_steamid=_sid(rows[0].get("thrower_steamid")),
+                    grenade_type=raw,
+                    kind=nade_kind(raw),
+                    points=thin_path(pts, every),
                 )
             )
+        unknown = sorted({g.grenade_type for g in grenades if g.kind == "other"})
+        if unknown:
+            missing.append(f"Unbekannte Granatentypen (grau dargestellt): {', '.join(unknown)}")
     except Exception as exc:  # noqa: BLE001
         missing.append(f"Granaten nicht lesbar ({type(exc).__name__})")
 
@@ -280,6 +329,36 @@ def parse_demo(
             missing.append(f"{kind} nicht lesbar ({type(exc).__name__})")
 
     step("Bombe", 0.99)
+    # --- Flash / HE: Detonationszeitpunkt und -ort -----------------------------------
+    rounds_for = sorted(rounds, key=lambda r: r.start_tick)
+
+    def round_of(tick: int) -> int | None:
+        for r in rounds_for:
+            if r.start_tick <= tick <= r.end_tick:
+                return r.num
+        return None
+
+    for kind, event in (("flash", "flashbang_detonate"), ("he", "hegrenade_detonate")):
+        try:
+            df = dem.events.get(event)
+            for row in df.to_dicts() if df is not None else []:
+                pos = _vec(row, "") or _vec({k.upper(): v for k, v in row.items() if k in ("x", "y", "z")}, "")
+                rnd = round_of(int(row["tick"]))
+                if pos is None or rnd is None:
+                    continue
+                utility.append(
+                    UtilityArea(
+                        round=rnd,
+                        kind=kind,
+                        start_tick=int(row["tick"]),
+                        end_tick=int(row["tick"]),
+                        thrower_steamid=_sid(row.get("user_steamid")),
+                        pos=pos,
+                    )
+                )
+        except Exception as exc:  # noqa: BLE001
+            missing.append(f"{event} nicht lesbar ({type(exc).__name__})")
+
     # --- Bombe -------------------------------------------------------------------------
     bomb: list[BombEvent] = []
     try:

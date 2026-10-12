@@ -9,6 +9,13 @@ parser:
   position_samples_per_second: 4
   # Economy wird am Tick (Freeze-Ende + Offset) gemessen, damit späte Käufe mitzählen.
   economy_sample_offset_s: 5
+  # Granaten-Flugbahn: jeden n-ten Tick behalten (kleinere Reports).
+  grenade_sample_ticks: 4
+
+report:
+  # Zeichengröße von Smoke/Molotov in Spieleinheiten. Nur Darstellung, keine Spielmechanik.
+  smoke_draw_radius_units: 140
+  molotov_draw_radius_units: 110
 
 rules:
   untraded_death:

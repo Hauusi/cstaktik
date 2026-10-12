@@ -72,12 +72,18 @@ class Kill(BaseModel):
     victim_inventory: list[str] | None = None  # Inventar kurz vor dem Tod
 
 
-class GrenadeEvent(BaseModel):
-    tick: int
+NadeKind = Literal["smoke", "molotov", "flash", "he", "decoy", "other"]
+
+
+class GrenadeThrow(BaseModel):
+    """Flugbahn eines Granaten-Projektils (Positionen aus der Demo, ausgedünnt)."""
+
     round: int
-    thrower_steamid: str
-    grenade_type: str
-    pos: Vec
+    entity_id: int
+    thrower_steamid: str | None = None
+    grenade_type: str  # Rohwert aus der Demo
+    kind: NadeKind
+    points: list[tuple[int, float, float, float]]  # (tick, x, y, z)
 
 
 class PositionSample(BaseModel):
@@ -92,10 +98,10 @@ class PositionSample(BaseModel):
 
 
 class UtilityArea(BaseModel):
-    """Liegende Smoke/Molotov aus den Detonations-Events der Demo."""
+    """Wirkung aus Detonations-Events der Demo: Smoke/Molotov mit Dauer, Flash/HE als Zeitpunkt."""
 
     round: int
-    kind: Literal["smoke", "molotov"]
+    kind: Literal["smoke", "molotov", "flash", "he"]
     start_tick: int
     end_tick: int | None = None
     thrower_steamid: str | None = None
@@ -119,7 +125,7 @@ class MatchData(BaseModel):
     players: list[Player]
     rounds: list[Round]
     kills: list[Kill] = Field(default_factory=list)
-    grenades: list[GrenadeEvent] = Field(default_factory=list)
+    grenades: list[GrenadeThrow] = Field(default_factory=list)
     positions: list[PositionSample] = Field(default_factory=list)
     utility: list[UtilityArea] = Field(default_factory=list)
     bomb: list[BombEvent] = Field(default_factory=list)

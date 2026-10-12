@@ -93,6 +93,9 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
   border-radius: 3px; background: var(--mittel); border: 2px solid var(--surface); pointer-events: none; }
 .timeline .fm.hoch { background: var(--hoch); }
 .timeline input { position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.ulegend { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 0 14px 14px; font-size: 12px; color: var(--muted); }
+.ulegend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+.timeline .um { position: absolute; top: 25px; width: 5px; height: 5px; margin-left: -2px; border-radius: 50%; pointer-events: none; opacity: .8; }
 .roster { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 8px 14px 14px; font-size: 12.5px; }
 .roster span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .roster .dead { color: var(--faint); text-decoration: line-through; }
@@ -161,6 +164,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       <span class="clock num" id="clock">0:00</span>
     </div>
     <div class="roster" id="roster"></div>
+    <div class="ulegend"><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:#ff4d4d"></i>HE</span><span style="color:var(--faint)">Ring = Restdauer</span></div>
   </section>
 
   <h2>Befunde dieser Runde</h2>
@@ -202,6 +206,24 @@ const D = JSON.parse(document.getElementById('data').textContent);
 const TR = D.tickrate, SIZE = D.size;
 const COL = { ct: '#4a8ae0', t: '#c47a12' };
 const SEV = { hoch: '#f0566a', mittel: '#f5a524', niedrig: '#7d8899' };
+const NADE = { smoke: '#c8ced8', molotov: '#ff6b2c', flash: '#fff3a8', he: '#ff4d4d', decoy: '#8d97a8', other: '#8d97a8' };
+const NADE_RGB = { smoke: '200,206,216', molotov: '255,107,44', flash: '255,243,168', he: '255,77,77', decoy: '141,151,168', other: '141,151,168' };
+const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+// Landezeitpunkt: ab wann sich das Projektil nicht mehr bewegt
+function landing(n) {
+  if (n.land != null) return n.land;
+  const p = n.pts, L = p[p.length - 1]; let i = p.length - 1;
+  while (i > 0 && Math.abs(p[i - 1][1] - L[1]) < 1 && Math.abs(p[i - 1][2] - L[2]) < 1) i--;
+  return (n.land = p[i][0]);
+}
+function nadeAt(n, t) {
+  const p = n.pts; if (t <= p[0][0]) return { x: p[0][1], y: p[0][2], i: 0 };
+  for (let i = 1; i < p.length; i++) if (p[i][0] >= t) {
+    const k = (t - p[i - 1][0]) / Math.max(1, p[i][0] - p[i - 1][0]);
+    return { x: p[i - 1][1] + (p[i][1] - p[i - 1][1]) * k, y: p[i - 1][2] + (p[i][2] - p[i - 1][2]) * k, i };
+  }
+  const L = p[p.length - 1]; return { x: L[1], y: L[2], i: p.length };
+}
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
 const F = D.findings;
@@ -309,12 +331,54 @@ function draw() {
     D.places.forEach(p => ctx.fillText(p.n, p.x, p.y));
   }
 
-  // Utility
-  r.util.forEach(g => {
-    if (t < g.s || (g.e != null && t > g.e)) return;
-    ctx.beginPath(); ctx.arc(g.x, g.y, 14 * u, 0, 7);
-    if (g.k === 'smoke') { ctx.fillStyle = 'rgba(200,206,216,.55)'; ctx.fill(); }
-    else { ctx.fillStyle = 'rgba(240,86,40,.35)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,120,60,.9)'; ctx.lineWidth = 1.5 * u; ctx.setLineDash([3 * u, 3 * u]); ctx.stroke(); ctx.setLineDash([]); }
+  // Utility-Flächen (Smoke/Molotov mit Restdauer, Flash/HE als Zündeffekt)
+  const now = performance.now() / 1000;
+  r.util.forEach((g, gi) => {
+    const age = (t - g.s) / TR;
+    if (age < 0) return;
+    if (g.k === 'flash' || g.k === 'he') {
+      if (age > .7) return;
+      const k = ease(age / .7), R0 = (g.k === 'he' ? D.rMolly : D.rSmoke * .8);
+      ctx.globalAlpha = 1 - k;
+      ctx.fillStyle = `rgba(${NADE_RGB[g.k]},.55)`; ctx.beginPath(); ctx.arc(g.x, g.y, R0 * (.3 + .7 * k), 0, 7); ctx.fill();
+      ctx.strokeStyle = NADE[g.k]; ctx.lineWidth = 2.5 * u; ctx.beginPath(); ctx.arc(g.x, g.y, R0 * (.5 + .8 * k), 0, 7); ctx.stroke();
+      ctx.globalAlpha = 1; return;
+    }
+    if (g.e != null && t > g.e) return;
+    const R = (g.k === 'smoke' ? D.rSmoke : D.rMolly) * (.35 + .65 * ease(age / .6));
+    const left = g.e != null ? (g.e - t) / TR : null, total = g.e != null ? (g.e - g.s) / TR : null;
+    const fade = left != null ? Math.min(1, left / 1.2) : 1;
+    ctx.globalAlpha = fade;
+    if (g.k === 'smoke') {
+      const gr = ctx.createRadialGradient(g.x, g.y, R * .1, g.x, g.y, R);
+      gr.addColorStop(0, 'rgba(214,220,230,.85)'); gr.addColorStop(.7, 'rgba(190,198,210,.6)'); gr.addColorStop(1, 'rgba(190,198,210,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.x, g.y, R, 0, 7); ctx.fill();
+      for (let b = 0; b < 5; b++) { // Wölkchen
+        const a = b * 1.256 + gi, d = R * .45, wob = Math.sin(now * .8 + b) * R * .04;
+        ctx.fillStyle = 'rgba(225,230,238,.22)'; ctx.beginPath(); ctx.arc(g.x + Math.cos(a) * d + wob, g.y + Math.sin(a) * d, R * .42, 0, 7); ctx.fill();
+      }
+    } else {
+      const fl = .75 + .25 * Math.sin(now * 9 + gi * 2.1);
+      const gr = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R);
+      gr.addColorStop(0, `rgba(255,190,80,${.75 * fl})`); gr.addColorStop(.6, `rgba(255,90,30,${.55 * fl})`); gr.addColorStop(1, 'rgba(200,40,20,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.x, g.y, R, 0, 7); ctx.fill();
+      for (let b = 0; b < 6; b++) { // Flammen
+        const a = b * 1.047 + gi + now * .6, d = R * (.35 + .15 * Math.sin(now * 5 + b));
+        ctx.fillStyle = `rgba(255,${140 + 40 * Math.sin(now * 7 + b) | 0},40,.35)`;
+        ctx.beginPath(); ctx.arc(g.x + Math.cos(a) * d, g.y + Math.sin(a) * d, R * .22, 0, 7); ctx.fill();
+      }
+    }
+    // Restdauer: Ring + Sekunden
+    if (left != null && total > 0) {
+      const rr = R + 4 * u;
+      ctx.lineWidth = 3 * u; ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(7,9,13,.55)'; ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, 7); ctx.stroke();
+      ctx.strokeStyle = NADE[g.k]; ctx.beginPath(); ctx.arc(g.x, g.y, rr, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * (left / total)); ctx.stroke();
+      ctx.font = `800 ${11 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.8)'; ctx.strokeText(Math.ceil(left) + 's', g.x, g.y);
+      ctx.fillStyle = '#fff'; ctx.fillText(Math.ceil(left) + 's', g.x, g.y);
+    }
+    ctx.globalAlpha = 1;
   });
 
   // Spuren
@@ -372,6 +436,24 @@ function draw() {
     ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(label, p.x, p.y - rad - 3 * u);
     ctx.fillStyle = f ? '#fff' : 'rgba(238,241,246,.75)'; ctx.fillText(label, p.x, p.y - rad - 3 * u);
   }
+
+  // Granaten im Flug: Wurfbahn + Projektil, nach der Landung kurz nachleuchten
+  (r.nades || []).forEach(n => {
+    const t0 = n.pts[0][0], land = landing(n);
+    if (t < t0 || t > land + 1.5 * TR) return;
+    const flying = t <= land, cur = nadeAt(n, Math.min(t, land));
+    ctx.globalAlpha = flying ? .95 : Math.max(0, 1 - (t - land) / (1.5 * TR)) * .6;
+    ctx.strokeStyle = NADE[n.k]; ctx.lineWidth = 2 * u; ctx.setLineDash([5 * u, 4 * u]); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(n.pts[0][1], n.pts[0][2]);
+    for (let i = 1; i < cur.i && i < n.pts.length; i++) ctx.lineTo(n.pts[i][1], n.pts[i][2]);
+    ctx.lineTo(cur.x, cur.y); ctx.stroke(); ctx.setLineDash([]);
+    if (flying) {
+      ctx.fillStyle = `rgba(${NADE_RGB[n.k]},.35)`; ctx.beginPath(); ctx.arc(cur.x, cur.y, 7 * u, 0, 7); ctx.fill();
+      ctx.fillStyle = NADE[n.k]; ctx.strokeStyle = '#07090d'; ctx.lineWidth = 1.5 * u;
+      ctx.beginPath(); ctx.arc(cur.x, cur.y, 3.5 * u, 0, 7); ctx.fill(); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  });
 
   // Aktiver Befund: pulsierender Ring
   const af = S.coachF != null ? F[S.coachF] : null;
@@ -438,9 +520,10 @@ function ui() {
 // ---- Timeline-Marker
 function buildTimeline() {
   const r = R(), tl = $('tl'), span = Math.max(1, r.t1 - r.t0);
-  tl.querySelectorAll('.mk,.fm').forEach(e => e.remove());
+  tl.querySelectorAll('.mk,.fm,.um').forEach(e => e.remove());
   const scrub = $('scrub'); scrub.min = r.t0; scrub.max = r.t1;
   r.kills.forEach(k => { const m = el('span', 'mk'); m.style.left = ((k.t - r.t0) / span * 100) + '%'; m.style.background = isFocus(k.v) ? '#f0566a' : (COL[r.teams[k.v]] || '#888'); m.style.opacity = isFocus(k.v) ? 1 : .55; tl.insertBefore(m, scrub); });
+  (r.nades || []).forEach(n => { if (n.k === 'decoy' || n.k === 'other') return; const m = el('span', 'um'); m.style.left = ((n.pts[0][0] - r.t0) / span * 100) + '%'; m.style.background = NADE[n.k]; tl.insertBefore(m, scrub); });
   r.f.forEach(id => { const f = F[id]; if (f.tick == null) return; const m = el('span', 'fm ' + f.sev); m.style.left = ((f.tick - r.t0) / span * 100) + '%'; tl.insertBefore(m, scrub); });
 }
 
@@ -562,6 +645,10 @@ document.querySelectorAll('[data-round]').forEach(b => b.onclick = () => {
   const i = D.rounds.findIndex(r => r.n === +b.dataset.round); if (i >= 0) { selectRound(i); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 });
 
+function utilActive() {
+  const r = R(), t = S.tick;
+  return r.util.some(g => g.s <= t && (g.e == null ? t - g.s < TR : t <= g.e) && g.k !== 'flash' && g.k !== 'he');
+}
 // ---- Loop: spielt ab und hält bei Befunden an
 let last = performance.now();
 function loop(now) {
@@ -573,7 +660,7 @@ function loop(now) {
     else if (next >= r.t1) { S.tick = r.t1; setPlaying(false); }
     else S.tick = next;
     draw();
-  } else if (S.coachF != null) draw(); // Puls-Animation
+  } else if (S.coachF != null || utilActive()) draw(); // Puls-/Utility-Animation
   requestAnimationFrame(loop);
 }
 
