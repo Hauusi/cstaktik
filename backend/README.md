@@ -45,7 +45,8 @@ kann auch direkt aufs Handy geschickt werden). Geparste Demos werden als JSON in
 Pro Runde: Replay aller 10 Spieler (Positionen 4x pro Sekunde aus der Demo, interpoliert),
 Blickrichtung, Smokes/Molotovs, Bombe, Killfeed. Die Timeline markiert Tode und Befunde.
 Beim Abspielen hält das Replay an jedem Befund an und zeigt den Tipp; der Todesort pulsiert.
-Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Zoom (folgt den Fokus-Spielern),
+Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern zoomen und
+verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,
 Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Kartenbilder

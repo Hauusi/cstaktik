@@ -62,7 +62,7 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .rhead b { font-size: 18px; }
 .res { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
 .res.W { background: rgba(63,191,127,.15); color: var(--win); } .res.L { background: rgba(240,86,106,.15); color: var(--loss); }
-.stage { position: relative; aspect-ratio: 1; background: #07090d; touch-action: manipulation; }
+.stage { position: relative; aspect-ratio: 1; background: #07090d; touch-action: none; overscroll-behavior: contain; cursor: grab; }
 .stage canvas { width: 100%; height: 100%; display: block; }
 .hud { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; }
 .hud .pill { background: rgba(7,9,13,.75); color: var(--text); }
@@ -156,7 +156,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       <button class="cbtn" id="nextF" aria-label="Nächster Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
       <button class="cbtn num" id="speed" aria-label="Geschwindigkeit">1x</button>
       <span class="spacer"></span>
-      <button class="cbtn" id="zoom" aria-label="Zoom">Zoom</button>
+      <button class="cbtn" id="zoom" aria-label="Kamera folgt Fokus-Spielern">Folgen</button>
       <button class="cbtn" id="trail" aria-label="Spuren">Spur</button>
       <span class="clock num" id="clock">0:00</span>
     </div>
@@ -205,19 +205,26 @@ const SEV = { hoch: '#f0566a', mittel: '#f5a524', niedrig: '#7d8899' };
 const $ = id => document.getElementById(id);
 const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
 const F = D.findings;
-const S = { ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, trailFull: false, lastF: null, coachF: null };
+const S = { ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, cam: null, follow: false, trailFull: false, lastF: null, coachF: null };
+const ZMIN = 1, ZMAX = 8;
 let bg = null;
 if (D.img) { bg = new Image(); bg.onload = () => draw(); bg.src = D.img; }
 else if (D.floor && D.floor.cells.length) {
-  // Kartenumriss aus den Laufwegen: begangene Zellen hell, weichgezeichnet
-  const off = document.createElement('canvas'); off.width = off.height = SIZE;
-  const o = off.getContext('2d'), c = D.floor.cell;
+  // Kartenumriss aus den Laufwegen: 1 Pixel pro Zelle, dann einmal hochskaliert + weichgezeichnet
+  const c = D.floor.cell, n = Math.ceil(SIZE / c);
+  const small = document.createElement('canvas'); small.width = small.height = n;
+  const sc = small.getContext('2d'), img = sc.createImageData(n, n);
   const max = Math.max(...D.floor.cells.map(q => q[2]));
-  o.filter = 'blur(4px)';
-  for (const [i, j, n] of D.floor.cells) {
-    const a = .18 + .32 * Math.min(1, Math.log(1 + n) / Math.log(1 + max));
-    o.fillStyle = `rgba(120,135,165,${a})`; o.fillRect(i * c - 2, j * c - 2, c + 4, c + 4);
+  for (const [i, j, k] of D.floor.cells) {
+    if (i < 0 || j < 0 || i >= n || j >= n) continue;
+    const a = .18 + .32 * Math.min(1, Math.log(1 + k) / Math.log(1 + max)), o = (j * n + i) * 4;
+    img.data[o] = 120; img.data[o + 1] = 135; img.data[o + 2] = 165; img.data[o + 3] = Math.round(a * 255);
   }
+  sc.putImageData(img, 0, 0);
+  const off = document.createElement('canvas'); off.width = off.height = SIZE;
+  const o = off.getContext('2d');
+  o.imageSmoothingEnabled = true; o.filter = 'blur(3px)';
+  o.drawImage(small, 0, 0, SIZE, SIZE);
   bg = off;
 }
 
@@ -261,14 +268,30 @@ function resize() {
   cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssW * dpr);
   draw();
 }
+// Kamera: Mittelpunkt in Radar-Pixeln. Bleibt innerhalb der Karte.
+function clampCam(c) {
+  const half = SIZE / (2 * S.zoom);
+  return { x: Math.min(SIZE - half, Math.max(half, c.x)), y: Math.min(SIZE - half, Math.max(half, c.y)) };
+}
 function center() {
-  if (S.zoom === 1) return { x: SIZE / 2, y: SIZE / 2 };
-  const r = R(), dt = deathTicks(r);
-  const focus = Object.keys(r.tracks).filter(isFocus).filter(s => !(dt[s] <= S.tick));
-  const p = focus.map(s => sampleAt(r.tracks[s], S.tick)).filter(Boolean);
-  if (!p.length) return S.cam || { x: SIZE / 2, y: SIZE / 2 };
-  S.cam = { x: p.reduce((a, q) => a + q.x, 0) / p.length, y: p.reduce((a, q) => a + q.y, 0) / p.length };
+  if (S.zoom <= 1.001) return { x: SIZE / 2, y: SIZE / 2 };
+  if (S.follow) {
+    const r = R(), dt = deathTicks(r);
+    const focus = Object.keys(r.tracks).filter(isFocus).filter(s => !(dt[s] <= S.tick));
+    const p = focus.map(s => sampleAt(r.tracks[s], S.tick)).filter(Boolean);
+    if (p.length) S.cam = { x: p.reduce((a, q) => a + q.x, 0) / p.length, y: p.reduce((a, q) => a + q.y, 0) / p.length };
+  }
+  S.cam = clampCam(S.cam || { x: SIZE / 2, y: SIZE / 2 });
   return S.cam;
+}
+// Bildschirm (CSS-Pixel im Canvas) -> Radar-Pixel
+function toWorld(sx, sy) { const c = center(), k = SIZE / (cssW * S.zoom); return { x: c.x + (sx - cssW / 2) * k, y: c.y + (sy - cssW / 2) * k }; }
+function zoomAt(sx, sy, z) {
+  const w = toWorld(sx, sy);
+  S.zoom = Math.min(ZMAX, Math.max(ZMIN, z));
+  const k = SIZE / (cssW * S.zoom);
+  S.cam = clampCam({ x: w.x - (sx - cssW / 2) * k, y: w.y - (sy - cssW / 2) * k });
+  draw();
 }
 function draw() {
   if (!cssW) return;
@@ -370,6 +393,7 @@ function ui() {
   const hud = $('hud'); hud.textContent = '';
   const planted = r.bomb.find(b => b.ev === 'plant' && b.t <= t);
   if (planted) hud.appendChild(el('span', 'pill', 'Bombe gelegt'));
+  if (S.zoom > 1.05) hud.appendChild(el('span', 'pill num', S.zoom.toFixed(1) + 'x · Doppeltipp = zurück'));
 
   const feed = $('feed'); feed.textContent = '';
   r.kills.filter(k => k.t <= t && t - k.t < 5 * TR).slice(-4).forEach(k => {
@@ -451,7 +475,7 @@ function setPlaying(p) {
 function seek(t) { const r = R(); S.tick = Math.max(r.t0, Math.min(r.t1, t)); draw(); }
 function watch(id) { S.lastF = null; seek(F[id].tick - 3 * TR); setPlaying(true); $('stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 function selectRound(i, keep) {
-  S.ri = i; setPlaying(false); S.lastF = null; S.cam = null;
+  S.ri = i; setPlaying(false); S.lastF = null;
   const r = R(); S.tick = r.t0;
   [...strip.children].forEach((b, j) => b.classList.toggle('on', j === i));
   strip.children[i].scrollIntoView({ inline: 'center', block: 'nearest' });
@@ -469,7 +493,69 @@ $('play').onclick = () => { const r = R(); if (S.tick >= r.t1) S.tick = r.t0; se
 $('prevF').onclick = () => jumpFinding(-1);
 $('nextF').onclick = () => jumpFinding(1);
 $('speed').onclick = e => { S.speed = S.speed === 1 ? 2 : S.speed === 2 ? 4 : S.speed === 4 ? 0.5 : 1; e.currentTarget.textContent = S.speed + 'x'; };
-$('zoom').onclick = e => { S.zoom = S.zoom === 1 ? 2 : 1; e.currentTarget.classList.toggle('on', S.zoom > 1); draw(); };
+function setFollow(on) {
+  S.follow = on; $('zoom').classList.toggle('on', on);
+  if (on && S.zoom < 2) S.zoom = 2;
+  draw();
+}
+$('zoom').onclick = () => setFollow(!S.follow);
+
+// ---- Karte zoomen/verschieben (nur die Karte, nicht die Seite)
+const ptrs = new Map();
+let gesture = null, lastTap = 0;
+const local = e => { const b = stage.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
+stage.addEventListener('pointerdown', e => {
+  stage.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, local(e));
+  const pts = [...ptrs.values()];
+  if (pts.length === 2) {
+    const [a, b] = pts;
+    gesture = { type: 'pinch', d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: S.zoom };
+  } else if (pts.length === 1) {
+    gesture = { type: 'pan', start: pts[0], last: pts[0], t: performance.now(), moved: false };
+  }
+});
+stage.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, local(e));
+  const pts = [...ptrs.values()];
+  if (gesture && gesture.type === 'pinch' && pts.length >= 2) {
+    const [a, b] = pts, mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    S.follow = false; $('zoom').classList.remove('on');
+    zoomAt(mid.x, mid.y, gesture.z * Math.hypot(a.x - b.x, a.y - b.y) / gesture.d);
+  } else if (gesture && gesture.type === 'pan' && pts.length === 1) {
+    const p = pts[0];
+    if (Math.hypot(p.x - gesture.start.x, p.y - gesture.start.y) > 6) gesture.moved = true;
+    if (gesture.moved && S.zoom > 1.001) {
+      const k = SIZE / (cssW * S.zoom), c = center();
+      S.follow = false; $('zoom').classList.remove('on');
+      S.cam = clampCam({ x: c.x - (p.x - gesture.last.x) * k, y: c.y - (p.y - gesture.last.y) * k });
+      draw();
+    }
+    gesture.last = p;
+  }
+});
+const endPtr = e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const p = ptrs.get(e.pointerId);
+  ptrs.delete(e.pointerId);
+  if (gesture && gesture.type === 'pan' && !gesture.moved && performance.now() - gesture.t < 300) {
+    const now = performance.now();
+    if (now - lastTap < 300) { // Doppeltipp: hinein zoomen bzw. zurücksetzen
+      lastTap = 0; S.follow = false; $('zoom').classList.remove('on');
+      if (S.zoom > 1.05) { S.zoom = 1; S.cam = null; draw(); } else zoomAt(p.x, p.y, 2.5);
+    } else lastTap = now;
+  }
+  if (ptrs.size === 1) { const q = [...ptrs.values()][0]; gesture = { type: 'pan', start: q, last: q, t: 0, moved: true }; }
+  else if (!ptrs.size) gesture = null;
+};
+stage.addEventListener('pointerup', endPtr);
+stage.addEventListener('pointercancel', endPtr);
+stage.addEventListener('wheel', e => { // Desktop: Mausrad zoomt die Karte
+  e.preventDefault(); const p = local(e);
+  S.follow = false; $('zoom').classList.remove('on');
+  zoomAt(p.x, p.y, S.zoom * Math.exp(-e.deltaY * 0.0015));
+}, { passive: false });
 $('trail').onclick = e => { S.trailFull = !S.trailFull; e.currentTarget.classList.toggle('on', S.trailFull); e.currentTarget.textContent = S.trailFull ? 'Runde' : 'Spur'; draw(); };
 $('scrub').oninput = e => { setPlaying(false); seek(+e.target.value); };
 document.querySelectorAll('[data-round]').forEach(b => b.onclick = () => {
