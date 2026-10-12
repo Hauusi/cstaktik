@@ -145,18 +145,37 @@ def test_death_review_facts_and_tip_priority():
 
     m = build_match()
     k2 = next(k for k in m.kills if k.round == 2)
-    m.damages = [Damage(round=2, tick=k2.tick - 200, attacker_steamid=k2.attacker_steamid, victim_steamid=ME, dmg=63)]
+    m.damages = [Damage(round=2, tick=k2.tick - 200, attacker_steamid=k2.attacker_steamid, victim_steamid=ME, dmg=63,
+                        weapon="inferno")]
     m.blinds = [Blind(round=2, tick=k2.tick - 32, victim_steamid=ME, attacker_steamid=k2.attacker_steamid, duration=1.8)]
     f = {x.round: x for x in death_review.run(m, CFG["rules"]["death_review"])}
     assert set(f) == {2, 3, 4}  # jeder Tod von ME
     r2 = f[2]
     lage = " | ".join(r2.evidence["lage"])
-    assert "5 gegen 5 (Opening-Duell)" in lage and "geblendet (1.8s) 0.5s vor dem Tod" in lage
-    assert "mit 37 HP" in lage and "0 Schaden davor" in lage
+    assert "5 gegen 5 (erstes Duell der Runde)" in lage and "geblendet 1.8s von Gegner1, 0.5s vor dem Tod" in lage
+    assert "37 HP vor dem Duell (vorher 63 durch Molotov von Gegner1)" in lage
     assert r2.title == "Tod: Geblendet" and r2.severity == "hoch"  # Blendung hat Vorrang
-    assert "Allein, kein Trade" in r2.evidence["weitere_punkte"] and "nicht genutzt: Flashbang, Smoke Grenade" in lage
+    assert r2.text.startswith("Ich stirbt bei 0:20 in SynthMid mit 37 HP, geblendet, gegen Gegner1 (ak47)")
+    assert "Allein, kein Trade" in r2.evidence["weitere_punkte"] and "Utility nicht genutzt" in r2.evidence["weitere_punkte"]
     assert r2.overlay["line"] and "Units zu" in r2.overlay["label"]
     # Runde 3: Bruder 200 Units daneben -> nicht allein
     assert all("Allein" not in p for p in f[3].evidence["weitere_punkte"]) and "Allein" not in f[3].title
     # Runde 4: allein, aber Bruder tradet -> kein "Allein, kein Trade"
     assert "wurde getradet" in f[4].evidence["lage"] and "Allein" not in f[4].title
+
+
+def test_death_review_concrete_tips_and_no_fake_outnumbered():
+    from synth import MATES
+
+    from cstaktik.rules import death_review
+
+    m = build_match()
+    # Team startet nur mit 4 Spielern (wie im echten Match): Opening-Tod ist KEINE "Unterzahl"
+    r2 = m.round_by_num(2)
+    del r2.sides[MATES[4]]
+    f = {x.round: x for x in death_review.run(m, CFG["rules"]["death_review"])}[2]
+    assert "Unterzahl" not in [f.title.removeprefix("Tod: ")] + f.evidence["weitere_punkte"]
+    assert "Teams 4 gegen 5 von Anfang an" in f.evidence["lage"][0]
+    # Haupttipp nennt die echte Person/Entfernung statt Standardsatz
+    assert f.title == "Tod: Allein, kein Trade" and "Units weg" in f.tip and "Bruder" in f.tip
+    assert "Utility nicht genutzt" in f.evidence["weitere_punkte"]

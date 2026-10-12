@@ -31,6 +31,8 @@ rules:
     blind_min_s: 0.5
     trade_distance_units: 800
     trade_window_s: 3.0
+    # Gegner näher als das: "nah" (Ecke vorzielen), sonst "langer Blick" (Linie nicht offen kreuzen).
+    close_units: 600
     grenade_keywords: ["grenade", "flashbang", "molotov", "incendiary"]
     ignore_keywords: ["decoy"]
 
