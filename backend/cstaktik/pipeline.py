@@ -146,6 +146,11 @@ def run(
     match = load_any(path, focus, config, progress=lambda st, f: report(st, 0.9 * f))
     report("Fehler suchen", 0.92)
     result = analyze(match, config)
+    from cstaktik import history as _history
+    from cstaktik.reference import enrich
+
+    # Vorbild aus eigenen Siegrunden (dieses Match + Verlauf auf derselben Map)
+    enrich(match, result.findings, _history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else [])
     report("Karte laden", 0.94)
     from cstaktik import goals, history, maps
     from cstaktik.report.radar import LOCAL_MAPS_DIR

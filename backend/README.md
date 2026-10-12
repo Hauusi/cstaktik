@@ -55,6 +55,12 @@ Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Coach-Funktionen
 
+- **Vorbild aus euren Siegrunden** (`reference.py`): zu jedem Tod, wo derselbe Spieler auf
+  derselben Seite zur selben Rundenzeit (5-s-Raster) in GEWONNENEN Runden stand, aus diesem
+  Match und dem Verlauf derselben Map. Im Replay als grüner Geist "Sieg R7" mit Sprung in die
+  Siegrunde an dieser Stelle. Das Briefing zeigt "So gewinnt ihr hier" (Position nach 0:20 in
+  Siegrunden). Vergleich, kein Beweis.
+
 - **Mechanik** (aus `weapon_fire` + Geschwindigkeit im Schuss-Tick, `player_hurt`, Kills):
   Anteil Schüsse im Laufen, Treffer pro Schuss, Headshot-Anteil der Kills, Tode ohne eigenen
   Schuss, Spray (Treffer Schuss 1–3 vs. ab 4). Fließt in die Tod-Analyse ein ("letzter Schuss

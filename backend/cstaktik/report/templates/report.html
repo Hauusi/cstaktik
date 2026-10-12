@@ -180,6 +180,10 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .gcheck.ok .gi { background: rgba(63,191,127,.18); color: var(--win); }
 .gcheck.no .gi { background: rgba(240,86,106,.15); color: var(--loss); }
 .gcheck .num { color: var(--muted); font-size: 13px; }
+.vorbild { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.07);
+  border: 1px dashed rgba(63,191,127,.45); font-size: 13.5px; color: #d7f2e3; }
+.vorbild b { color: var(--win); }
+.vbtn { display: block; margin-top: 6px; color: var(--win); font-weight: 700; font-size: 13px; }
 footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </style>
 </head>
@@ -709,6 +713,20 @@ function draw() {
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ovf.ov.label, mx, my);
       }
     }
+    // Vorbild: Position desselben Spielers in einer Siegrunde zur selben Rundenzeit
+    if (ovf.ov && ovf.ov.ghost) {
+      const [gx, gy] = ovf.ov.ghost;
+      ctx.setLineDash([3 * u, 3 * u]); ctx.strokeStyle = '#3fbf7f'; ctx.lineWidth = 2.5 * u;
+      ctx.beginPath(); ctx.arc(gx, gy, 9 * u, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(63,191,127,.25)'; ctx.fill();
+      if (ovf.x != null) {
+        ctx.strokeStyle = 'rgba(63,191,127,.7)'; ctx.lineWidth = 1.5 * u; ctx.setLineDash([2 * u, 4 * u]);
+        ctx.beginPath(); ctx.moveTo(ovf.x, ovf.y); ctx.lineTo(gx, gy); ctx.stroke(); ctx.setLineDash([]);
+      }
+      ctx.font = `800 ${10 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText('Sieg R' + ovf.ov.ghost_round, gx, gy + 11 * u);
+      ctx.fillStyle = '#3fbf7f'; ctx.fillText('Sieg R' + ovf.ov.ghost_round, gx, gy + 11 * u);
+    }
     // Frühere Tode desselben Spielers am selben Ort (Geister)
     const myDeath = r.kills.find(k => k.t === ovf.tick && k.v === ovf.sid);
     if (myDeath && myDeath.pl) {
@@ -789,6 +807,7 @@ function ui() {
       it.append(k, el('div', 'tt', f.title + (f.who ? ' · ' + f.who : '')));
       if (f.rule === 'death_review') it.appendChild(lageList(f));
       it.appendChild(el('div', 'tip', f.tip));
+      if (f.evidence && f.evidence.vorbild) it.appendChild(vorbild(f));
       const more = f.evidence && f.evidence.weitere_punkte;
       if (more && more.length) it.appendChild(el('div', 'also', 'Außerdem: ' + more.join(', ')));
       coach.appendChild(it);
@@ -850,7 +869,9 @@ function buildFindings() {
     act.appendChild(evidence(f));
     c.append(top, el('div', 'txt', f.text));
     if (f.rule === 'death_review') c.appendChild(lageList(f));
-    c.append(tip, act); box.appendChild(c);
+    c.append(tip);
+    if (f.evidence && f.evidence.vorbild) c.appendChild(vorbild(f));
+    c.append(act); box.appendChild(c);
   });
 }
 
@@ -872,6 +893,20 @@ function selectRound(i, keep) {
   const res = $('rres'); res.className = 'res ' + (r.out || ''); res.textContent = r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '';
   buildTimeline(); buildFindings(); story(); draw();
   if (!keep) history.replaceState(null, '', '#r' + r.n);
+}
+// Vorbild aus eigenen Siegrunden + Sprung in die Siegrunde zur selben Rundenzeit
+function vorbild(f) {
+  const box = el('div', 'vorbild');
+  box.append(el('b', null, 'Vorbild aus euren Siegrunden: '), f.evidence.vorbild);
+  if (f.ov && f.ov.ghost_round != null) {
+    const ri = D.rounds.findIndex(r => r.n === f.ov.ghost_round);
+    if (ri >= 0) {
+      const b = el('button', 'vbtn', 'Siegrunde ' + f.ov.ghost_round + ' an dieser Stelle ansehen ›');
+      b.onclick = () => { S.tour = null; selectRound(ri); seek(D.rounds[ri].t0 + f.ov.ghost_offset_s * TR); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      box.appendChild(b);
+    }
+  }
+  return box;
 }
 // Lage-Stichpunkte einer Tod-Analyse
 function lageList(f) {

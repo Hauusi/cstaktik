@@ -61,6 +61,10 @@ def _floor_and_places(match: MatchData, px) -> tuple[list, list]:
 
 def _overlay_px(ov: dict, px) -> dict:
     out = {}
+    if ov.get("ghost"):
+        out["ghost"] = list(px(*ov["ghost"]))
+        out["ghost_round"] = ov.get("ghost_round")
+        out["ghost_offset_s"] = ov.get("ghost_offset_s")
     if ov.get("line"):
         out["line"] = [list(px(x, y)) for x, y in ov["line"]]
     if ov.get("label"):

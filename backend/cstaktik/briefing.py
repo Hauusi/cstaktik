@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections import Counter
 
 from cstaktik.coach import CAUSES
+from cstaktik.reference import winning_spots
 
 SIDE_DE = {"ct": "CT", "t": "T"}
 
@@ -53,5 +54,6 @@ def build(map_name: str, histories: list[dict], goals_state: dict, min_count: in
         "last_verdict": hs[-1].get("verdict") if hs else None,
         "notes": notes,
         "watch": watch,
+        "win_spots": winning_spots(histories, map_name),
         "goals": [{"title": g["title"], "tip": g["tip"], "target": g["target_pct"]} for g in goals_state.get("active", [])],
     }
