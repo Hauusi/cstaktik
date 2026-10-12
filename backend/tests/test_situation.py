@@ -159,3 +159,11 @@ def test_pro_tip_and_situation_clip():
     assert len(clips) == 1 and clips[0]["sid"] == MATES[2]
     assert f.evidence["pro_clip"].startswith("Gleiche Lage (CT, 4 gegen 5, Bombe nicht gelegt): Mate3 hat "
                                              "Position gehalten und die Runde gewonnen.")
+
+
+def test_no_best_action_with_single_option():
+    from cstaktik.situation import compare
+
+    dec = [["ct", 4, 5, 0, "gehalten", True, 1, 0, "p"] for _ in range(10)]
+    cmp = compare([{"id": "a", "map": "m", "decisions": dec}], "m", "ct", 4, 5, False)
+    assert cmp["n"] == 10 and cmp["best"] is None

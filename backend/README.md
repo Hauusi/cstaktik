@@ -58,6 +58,26 @@ Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern z
 verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,
 Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
+## Situations-Analyse (situation.py)
+
+- **Entscheidungsmoment:** Je Tod wird der Moment davor gesucht, in dem du losgegangen bist (Beginn der
+  Bewegung) oder ab dem du gehalten hast (max. 8 s zurück, mind. 1,5 s vor dem Tod).
+- **Lagebild** dazu, alles aus der Demo: x gegen y, deine HP, Bombe, Abstand zum nächsten Mitspieler,
+  Utility im Inventar, Info-Lage (Radar-Sichtbarkeit "spotted", falls die Demo sie liefert;
+  `cstaktik check-spotted <demo>` prüft das). Restzeit nach CS2-Standardzeiten (rules.yaml).
+- **Lage-Kategorie:** Position allein halten, Retake, Post-Plant, Entry, Lurk, Clutch, ...
+- **Rundenchance:** gezählt aus euren Matches + Pro-Demos + diesem Match (CT lebend, T lebend, Bombe).
+  Kosten eines Todes = Chance vorher minus 3 s danach (Trades eingerechnet). Report-Abschnitt
+  "Die teuersten Momente", die Schlüsselmomente-Tour folgt dieser Reihenfolge.
+- **Pro-Vergleich nach Lage:** Pro-Demos speichern je Lage, was jeder Spieler in den nächsten 5 s tat
+  (gehalten / zurückgezogen / Richtung Gegner) und ob die Runde gewonnen wurde. Ab 8 Fällen:
+  "Pros in dieser Lage: gehalten 12x (67 % Siege), ..." und "Pro-Entscheidung", wenn deine Aktion deutlich
+  seltener gewinnt. Ohne Orts-Treffer wählt "So hat es ein Pro gelöst" eine Pro-Runde in derselben Lage.
+- **Training "Was machst du?":** Das Replay hält im Entscheidungsmoment, du wählst eine Option, danach
+  Auflösung mit Pro-Quoten. Trefferquote wird nur lokal im Browser gemerkt.
+- `cstaktik pro-update` rüstet Pro-Daten und Verlauf aus dem Cache nach. Eigene Demos werden wegen des
+  neuen Felds "spotted" bei der nächsten Auswertung einmal neu geparst (Cache v8).
+
 ## Pro-Demos automatisch von FACEIT
 
 Offizielle FACEIT-API (Data API listet Hub-Matches mit `demo_url`, Downloads API tauscht sie gegen

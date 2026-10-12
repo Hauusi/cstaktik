@@ -399,7 +399,9 @@ def compare(pro: list[dict], map_name: str | None, side: str, own: int, enemy: i
         xs = [r for _i, r in use if r[4] == act]
         if xs:
             by.append({"act": act, "n": len(xs), "won": sum(1 for r in xs if r[5])})
-    best = max((b for b in by if b["n"] >= 3), key=lambda b: b["won"] / b["n"], default=None)
+    # "Beste" Aktion nur, wenn mindestens zwei Aktionen mit je 3+ Fällen verglichen werden können
+    cands = [b for b in by if b["n"] >= 3]
+    best = max(cands, key=lambda b: b["won"] / b["n"]) if len(cands) >= 2 else None
     return {"n": len(use), "by": by, "coarse": coarse, "best": best["act"] if best else None,
             "demos": len({i for i, _r in use}), "rows": use}
 
@@ -430,6 +432,7 @@ def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict], min_n
         cmp = compare(pro, match.map_name, side, snap["own"], snap["enemy"], snap["planted"], min_n)
         if cmp is None:
             continue
+        f.evidence["pro_rates"] = {b["act"]: [b["won"], b["n"]] for b in cmp["by"]}
         f.evidence["pro_lage"] = compare_text(cmp, side, snap["own"], snap["enemy"], snap["planted"],
                                               f.evidence.get("aktion"))
         if cmp["best"]:

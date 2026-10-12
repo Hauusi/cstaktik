@@ -218,6 +218,19 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .cost .cnumbig { font-size: 30px; font-weight: 800; color: var(--loss); min-width: 70px; line-height: 1; }
 .cost .cnumbig small { font-size: 15px; margin-left: 2px; }
 .cost .cbody { flex: 1; min-width: 0; } .cost .protip { margin-top: 6px; font-size: 13.5px; color: #d4c9ff; } .cost .protip b { color: #b9a6ff; } .cost .costgo { margin-top: 8px; }
+.quiz { padding: 12px 14px; background: rgba(124,92,255,.1); border-bottom: 1px solid var(--line); }
+.quiz .qk { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #b9a6ff; }
+.quiz .qt { font-size: 16px; font-weight: 800; margin: 2px 0 6px; }
+.quiz .ql { font-size: 13.5px; color: #c9d4e6; line-height: 1.45; }
+.quiz .qopts { display: grid; gap: 8px; margin-top: 10px; }
+.quiz .qopt { font: inherit; font-size: 14px; font-weight: 700; text-align: left; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid rgba(185,166,255,.4); background: rgba(255,255,255,.03); color: var(--text); cursor: pointer; }
+.quiz .qopt.mine { border-color: var(--loss); } .quiz .qopt.best { border-color: var(--win); background: rgba(63,191,127,.1); }
+.quiz .qopt small { display: block; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.quiz .qres { margin-top: 10px; font-size: 13.5px; line-height: 1.45; }
+.quiz .qbar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sbtn.plain { color: var(--muted); border-color: var(--line); }
+.quizbtn { background: rgba(124,92,255,.18) !important; }
 .coach .protip { margin-top: 6px; font-size: 13.5px; color: #d4c9ff; } .coach .protip b { color: #b9a6ff; }
 .coach .lage { margin-top: 4px; font-size: 13.5px; color: #c9d4e6; background: rgba(255,255,255,.04); border-radius: 8px; padding: 6px 8px; }
 .coach .chip { font-size: 12px; font-weight: 800; color: var(--loss); background: rgba(240,86,106,.14); border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
@@ -239,6 +252,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     </div><div>
     <button class="tour" id="tourBtn" hidden>▶ Schlüsselmomente ansehen <small id="tourN"></small></button>
     <button class="linkbtn" id="allTour" hidden></button>
+    <button class="tour quizbtn" id="quizBtn" hidden>Training: Was machst du? <small id="quizN"></small></button>
   </div></div></header>
 <main>
 
@@ -320,6 +334,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       <div class="feed" id="feed"></div>
     </div>
     <div class="rside">
+    <div class="quiz" id="quiz" hidden aria-live="polite"></div>
     <div class="coach" id="coach" aria-live="polite"></div>
     <div class="timeline" id="tl"><div class="bar"></div><div class="fill" id="tlfill"></div><input type="range" id="scrub" min="0" max="1" step="1" aria-label="Zeit"></div>
     <div class="controls">
@@ -557,7 +572,7 @@ const TOURS = {
     .map(f => ({ ri, tick: f.tick, title: f.title, text: f.text }))),
 };
 const stopOf = () => S.tour ? TOURS[S.tour.name][S.tour.i] : null;
-const S = { back: null, tour: null, ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, cam: null, follow: false, trailFull: false, lastF: null, coachF: null };
+const S = { quiz: null, back: null, tour: null, ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, cam: null, follow: false, trailFull: false, lastF: null, coachF: null };
 const ZMIN = 1, ZMAX = 8;
 let bg = null;
 if (D.img) { bg = new Image(); bg.onload = () => draw(); bg.src = D.img; }
@@ -1022,6 +1037,7 @@ function ui() {
   const active = r.f.filter(id => F[id].tick != null && t >= F[id].tick - 3 * TR && t <= F[id].tick + 3 * TR);
   const withPos = active.filter(id => F[id].x != null);
   S.coachF = withPos.length ? withPos[withPos.length - 1] : (active.length ? active[active.length - 1] : null);
+  if (S.quiz && !S.quiz.done) { S.coachF = null; active.length = 0; } // Training: Auflösung nicht vorwegnehmen
   const stop = stopOf();
   const inTour = !!stop && !S.playing && stop.ri === S.ri && Math.abs(t - stop.tick) <= TR / 2;
   const coach = $('coach'), key = active.join(',') + (inTour ? 'T' + S.tour.name + S.tour.i : '') || (r.f.length ? 'hint' : 'none');
@@ -1124,6 +1140,7 @@ function seek(t) { const r = R(); S.tick = Math.max(r.t0, Math.min(r.t1, t)); dr
 function watch(id) { S.lastF = null; seek(F[id].tick - 3 * TR); setPlaying(true); $('stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 function selectRound(i, keep) {
   if (!keep) S.tour = null;
+  if (!keep && S.quiz) { S.quiz = null; $('quiz').hidden = true; }
   S.ri = i; setPlaying(false); S.lastF = null;
   const r = R(); S.tick = r.t0;
   [...strip.children].forEach((b, j) => b.classList.toggle('on', j === i));
@@ -1240,6 +1257,61 @@ document.querySelectorAll('.costgo').forEach(b => b.onclick = () => {
 });
 if (TOURS.key.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.key.length + ' Momente'; $('tourBtn').onclick = () => goTour('key', 0); }
 else if (TOURS.all.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.all.length + ' Fehler'; $('tourBtn').onclick = () => goTour('all', 0); }
+
+// ---- Training "Was machst du?": im Entscheidungsmoment anhalten, Option wählen, dann Auflösung
+const QOPTS = [['gehalten', 'Position halten'], ['zurückgezogen', 'Zurückziehen'], ['Richtung Gegner', 'Richtung Gegner gehen / peeken']];
+const QUIZ = D.findings.filter(f => f.rule === 'death_review' && f.evidence && f.evidence.snap && f.ov && f.ov.decision && f.evidence.aktion)
+  .sort((a, b) => (b.evidence.cost_pct || 0) - (a.evidence.cost_pct || 0)).slice(0, 10);
+function quizLage(f) {
+  const s = f.evidence.snap, parts = [`${s.own} gegen ${s.enemy}`];
+  if (s.hp != null) parts.push(`du ${s.hp} HP`);
+  parts.push(s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt');
+  if (s.mate_d != null) parts.push(`nächster Mitspieler ${s.mate_d} Units weg`);
+  return parts.join(' · ') + (f.evidence.info ? ' · ' + f.evidence.info.replace(/^Info: /, '') : '');
+}
+function quizShow(i) {
+  const f = QUIZ[i], q = $('quiz'); if (!f) return quizEnd();
+  S.quiz = { i, done: false }; S.tour = null;
+  const ri = D.rounds.findIndex(r => r.n === f.round); selectRound(ri, true);
+  seek(f.ov.decision[2]); setPlaying(false);
+  q.hidden = false; q.textContent = '';
+  q.append(el('div', 'qk', `Training ${i + 1} von ${QUIZ.length} · Runde ${f.round} · ${f.who}`),
+           el('div', 'qt', 'Was machst du jetzt?'), el('div', 'ql', quizLage(f)));
+  const opts = el('div', 'qopts');
+  QOPTS.forEach(([key, label]) => { const b = el('button', 'qopt', label); b.dataset.k = key; b.onclick = () => quizAnswer(f, key); opts.appendChild(b); });
+  q.appendChild(opts);
+  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function quizAnswer(f, pick) {
+  const q = $('quiz'), ev = f.evidence, rates = ev.pro_rates || {}, best = ev.pro_best, mine = ev.aktion;
+  S.quiz.done = true;
+  q.querySelectorAll('.qopt').forEach(b => {
+    const k = b.dataset.k, r = rates[k];
+    b.disabled = true;
+    if (k === mine) b.classList.add('mine');
+    if (k === best) b.classList.add('best');
+    if (r) b.appendChild(el('small', null, `Pros: ${r[1]}x, ${Math.round(100 * r[0] / r[1])} % Siege`));
+    if (k === mine) b.appendChild(el('small', null, 'Das hast du gemacht: Tod' + (ev.cost_pct > 0 ? `, -${ev.cost_pct} % Rundenchance` : '')));
+  });
+  let verdict;
+  if (best) verdict = pick === best ? 'Wie die Pros: Diese Option gewinnt in dieser Lage am häufigsten.'
+                                     : 'Die Pros gewinnen in dieser Lage am häufigsten mit: ' + QOPTS.find(o => o[0] === best)[1] + '.';
+  else verdict = 'Zu wenige Pro-Daten, um Optionen in dieser Lage zu vergleichen. Sieh dir an, was passiert ist.';
+  const res = el('div', 'qres'); res.append(el('b', null, verdict));
+  if (ev.pro_lage) res.append(el('div', 'quiet', ev.pro_lage));
+  q.appendChild(res);
+  if (best) { const sc = quizScore(); sc.n++; if (pick === best) sc.ok++; quizSave(sc); res.appendChild(el('div', 'quiet', `Bisher ${sc.ok} von ${sc.n} wie die Pros.`)); }
+  const bar = el('div', 'qbar');
+  const play = el('button', 'sbtn win', '▶ Szene abspielen'); play.onclick = () => { seek(f.ov.decision[2] - TR); setPlaying(true); };
+  const next = el('button', 'sbtn pro', S.quiz.i + 1 < QUIZ.length ? 'Nächste Situation ›' : 'Fertig ✓'); next.onclick = () => quizShow(S.quiz.i + 1);
+  const stop = el('button', 'sbtn plain', 'Beenden'); stop.onclick = quizEnd;
+  bar.append(play, next, stop); q.appendChild(bar);
+  $('coach').dataset.key = ''; draw();
+}
+function quizScore() { try { return JSON.parse(localStorage.getItem('cstaktik-quiz-' + location.pathname)) || { ok: 0, n: 0 }; } catch (e) { return { ok: 0, n: 0 }; } }
+function quizSave(sc) { try { localStorage.setItem('cstaktik-quiz-' + location.pathname, JSON.stringify(sc)); } catch (e) { /* ohne Speicher weiter */ } }
+function quizEnd() { S.quiz = null; $('quiz').hidden = true; $('coach').dataset.key = ''; draw(); }
+if (QUIZ.length) { $('quizBtn').hidden = false; $('quizN').textContent = QUIZ.length + ' Situationen'; $('quizBtn').onclick = () => quizShow(0); }
 if (TOURS.all.length && $('allTour')) { $('allTour').hidden = false; $('allTour').textContent = 'Oder alle ' + TOURS.all.length + ' Fehler durchgehen ›'; $('allTour').onclick = () => goTour('all', 0); }
 function jumpFinding(dir) {
   const r = R(), list = r.f.map(id => F[id]).filter(f => f.tick != null).sort((a, b) => a.tick - b.tick);
