@@ -20,6 +20,7 @@ DEMOS_DIR = DATA_DIR / "demos_raw"
 REPORTS_DIR = DATA_DIR / "reports"
 CACHE_DIR = DATA_DIR / "cache"
 HISTORY_DIR = DATA_DIR / "history"
+GOALS_FILE = DATA_DIR / "goals.json"
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
 CACHE_SCHEMA = 5
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
@@ -146,16 +147,20 @@ def run(
     report("Fehler suchen", 0.92)
     result = analyze(match, config)
     report("Karte laden", 0.94)
-    from cstaktik import maps
+    from cstaktik import goals, history, maps
     from cstaktik.report.radar import LOCAL_MAPS_DIR
 
     note = maps.ensure_map(match.map_name, LOCAL_MAPS_DIR)
     if note:
         match.missing.append(note)
+    report("Ziele prüfen", 0.95)
+    stem = demo_stem(path.name)
+    summary = history.summarize(match, result, f"{stem}.html")
+    history.save(summary, HISTORY_DIR)
+    state = goals.load(GOALS_FILE)
+    goal_check = goals.update(state, summary, config["goals"])
+    goals.save(state, GOALS_FILE)
     report("Report bauen", 0.96)
-    out = write_report(match, result, out_dir / f"{demo_stem(path.name)}.html")
-    from cstaktik import history
-
-    history.save(history.summarize(match, result, out.name), HISTORY_DIR)
+    out = write_report(match, result, out_dir / f"{stem}.html", goal_check=goal_check)
     report("Fertig", 1.0)
     return out

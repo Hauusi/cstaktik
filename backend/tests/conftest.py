@@ -13,6 +13,7 @@ def _isolated_history(tmp_path, monkeypatch):
     from cstaktik import pipeline
 
     monkeypatch.setattr(pipeline, "HISTORY_DIR", tmp_path / "history")
+    monkeypatch.setattr(pipeline, "GOALS_FILE", tmp_path / "goals.json")
 
 
 @pytest.fixture(autouse=True)

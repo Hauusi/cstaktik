@@ -97,3 +97,10 @@ coach:
   trade_window_s: 3.0
   # Flash zählt als Blendung ab dieser Dauer (s, aus player_blind).
   blind_min_s: 0.5
+
+goals:
+  max_active: 3
+  # Zielwert = Ausgangswert x target_factor (Anteil Runden mit dieser Ursache).
+  target_factor: 0.6
+  # Ziel gilt als geschafft, wenn es so viele Matches in Folge erreicht wurde.
+  done_after: 2

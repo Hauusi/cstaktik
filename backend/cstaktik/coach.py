@@ -161,9 +161,12 @@ def diagnose(match: MatchData, result: AnalysisResult, cfg: dict) -> dict:
         sentence = "Kein klares Muster in den verlorenen Runden gefunden."
     else:
         sentence = "Keine verlorene Runde."
+    rounds_with = {cid: sum(1 for r in lost_rounds + won_rounds if per.get(r, {}).get(cid)) for cid in CAUSES}
     return {
         "won": won,
         "lost": lost,
+        "rounds_total": won + lost,
+        "rounds_with": rounds_with,  # Ursache -> Runden (egal ob gewonnen), Messgröße für Ziele
         "sentence": sentence,
         "causes": top,
         "all_causes": causes,

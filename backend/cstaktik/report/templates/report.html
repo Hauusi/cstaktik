@@ -175,6 +175,11 @@ dt { color: var(--faint); } dd { margin: 0; color: var(--text); word-break: brea
 .kpi.bad b { color: var(--loss); }
 details.more { margin-top: 26px; }
 details.more > summary { padding: 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); text-align: center; color: var(--text); font-size: 14px; }
+.gcheck { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; }
+.gcheck .gi { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; }
+.gcheck.ok .gi { background: rgba(63,191,127,.18); color: var(--win); }
+.gcheck.no .gi { background: rgba(240,86,106,.15); color: var(--loss); }
+.gcheck .num { color: var(--muted); font-size: 13px; }
 footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </style>
 </head>
@@ -189,6 +194,20 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <button class="tour" id="tourBtn" hidden>▶ Schlüsselmomente ansehen <small id="tourN"></small></button>
     <button class="linkbtn" id="allTour" hidden></button>
   </header>
+
+  {% if goal_check and (goal_check.checks or goal_check.new) %}
+  <h2>Ziel-Check</h2>
+  <div class="stack">
+    {% for c in goal_check.checks %}
+    <div class="gcheck {{ 'ok' if c.met else 'no' }}">
+      <span class="gi">{{ '✓' if c.met else '✗' }}</span>
+      <div><b>{{ c.title }}</b>
+        <div class="num">diesmal {{ c.pct }} % der Runden · Ziel ≤ {{ c.target }} %{% if c.status == 'geschafft' %} · <b>Ziel geschafft!</b>{% elif c.met %} · {{ c.streak }}x in Folge{% endif %}</div></div>
+    </div>
+    {% endfor %}
+    {% if goal_check.new %}<div class="quiet">Neue Ziele: {{ goal_check.new|join(", ") }}</div>{% endif %}
+  </div>
+  {% endif %}
 
   {% if debrief.causes %}
   <h2>Warum verloren</h2>

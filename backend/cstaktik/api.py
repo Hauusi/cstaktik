@@ -78,8 +78,27 @@ def _job_view(job_id: str, job: dict) -> dict:
 def index() -> str:
     with _jobs_lock:
         jobs = [_job_view(i, j) for i, j in _jobs.items() if j["status"] in ("wartet", "läuft")]
-    n_hist = len(list(pipeline.HISTORY_DIR.glob("*.json"))) if pipeline.HISTORY_DIR.exists() else 0
-    return _env.get_template("index.html").render(jobs=jobs, reports=_report_entries(), n_history=n_hist)
+    from cstaktik import goals, history
+
+    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    state = goals.load(pipeline.GOALS_FILE)
+    played = [h.get("map") for h in reversed(hist) if h.get("map")]
+    maps = list(dict.fromkeys(played + ["de_mirage", "de_dust2", "de_inferno"]))
+    return _env.get_template("index.html").render(
+        jobs=jobs, reports=_report_entries(), n_history=len(hist), goals=state["active"],
+        done_count=len(state["done"]), last=hist[-1] if hist else None, briefing_maps=maps,
+    )
+
+
+@app.get("/briefing/{map_name}", response_class=HTMLResponse)
+def briefing_page(map_name: str) -> str:
+    from cstaktik import briefing, goals, history
+
+    if not re.fullmatch(r"[a-z0-9_]+", map_name):
+        raise HTTPException(400, "Ungültiger Mapname.")
+    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE))
+    return _env.get_template("briefing.html").render(b=b)
 
 
 def _run_job(job_id: str, target: Path, focus: set[str] | None) -> None:

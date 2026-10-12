@@ -21,15 +21,62 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .item .score { font-weight: 800; font-size: 17px; }
 .score .w { color: var(--win); } .score .l { color: var(--loss); }
 .item .mini { margin-top: 6px; height: 6px; }
+.goalcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.goalcard summary { list-style: none; padding: 12px 14px; cursor: pointer; }
+.goalcard summary::-webkit-details-marker { display: none; }
+.gtop { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.dots { display: flex; gap: 4px; align-items: center; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; }
+.dots i.ok { background: var(--win); } .dots i.no { background: var(--loss); }
+.gbody { padding: 0 14px 12px; font-size: 14px; color: #d7dce5; }
+.gbody p { margin: 0 0 8px; } .gtip { color: #cdeedd; }
+.gbody ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+.maps { display: flex; flex-wrap: wrap; gap: 8px; }
+.mapbtn { padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-weight: 650; }
 .empty { text-align: center; padding: 26px 16px; color: var(--muted); }
 </style>
 {% endblock %}
 {% block hero %}
-<h1>Demo auswerten</h1>
-<p>Premier-Demo hochladen, Fehler finden, im 2D-Replay ansehen.</p>
+<h1>Dein Coach</h1>
+<p>{% if goals %}{{ goals|length }} {{ "Ziel" if goals|length == 1 else "Ziele" }} aktiv{% if done_count %} · {{ done_count }} geschafft{% endif %}.{% else %}Lade eine verlorene Demo hoch, der Coach setzt daraus eure ersten Ziele.{% endif %}</p>
 {% endblock %}
 {% block content %}
-<form class="card" id="form" action="/analyze" method="post" enctype="multipart/form-data" style="margin-top:16px">
+{% if goals %}
+<h2>Eure Ziele</h2>
+<div class="list">
+  {% for g in goals %}
+  <details class="goalcard">
+    <summary>
+      <div class="gtop"><b>{{ g.title }}</b><span class="dots">{% for c in g.checks[-5:] %}<i class="{{ 'ok' if c.met else 'no' }}" title="{{ c.pct }} %"></i>{% endfor %}{% if not g.checks %}<span class="muted small">noch kein Check</span>{% endif %}</span></div>
+      <div class="muted small num">Start {{ g.baseline_pct }} % der Runden → Ziel ≤ {{ g.target_pct }} %{% if g.checks %} · zuletzt {{ g.checks[-1].pct }} %{% endif %}</div>
+    </summary>
+    <div class="gbody">
+      <p>{{ g.why }}</p>
+      <p class="gtip">{{ g.tip }}</p>
+      <b class="small">Training</b>
+      <ul>{% for d in g.drills %}<li>{{ d }}</li>{% endfor %}</ul>
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2>Vor dem Match</h2>
+<div class="maps">
+  {% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}
+</div>
+
+{% if last %}
+<h2>Letztes Match</h2>
+<a class="item" href="{% if last.report_file %}/reports/{{ last.report_file }}{% else %}#{% endif %}">
+  <div class="map">{{ (last.map or "?").removeprefix("de_")[:2]|capitalize }}</div>
+  <div class="meta"><b class="num">{{ (last.map or "?").removeprefix("de_")|capitalize }} {{ last.won }}:{{ last.lost }}</b>
+    <span class="muted small" style="white-space:normal">{{ last.verdict }}</span></div>
+</a>
+{% endif %}
+
+<h2>Neues Match auswerten</h2>
+<form class="card" id="form" action="/analyze" method="post" enctype="multipart/form-data">
   <label class="drop" id="drop">
     <input type="file" name="demo" id="file" accept=".dem,.bz2" required>
     <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#c9bcff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></div>

@@ -32,6 +32,9 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         # Muster-Findings zählen ihre Runden, Einzel-Findings einmal
         issues[f.steamid][f.title] += len(f.rounds) if f.round is None and f.rounds else 1
 
+    _first_tick = {}
+    for k in sorted(match.kills, key=lambda k: k.tick):
+        _first_tick.setdefault(k.round, k.tick)
     from cstaktik.coach import diagnose
     from cstaktik.config import load_rules_config
 
@@ -60,9 +63,12 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "issues": {sid: dict(c) for sid, c in issues.items()},
         # Ursachen des Urteils: in wie vielen verlorenen Runden (Basis für Ziele/Ziel-Check)
         "causes": {c["id"]: len(c["lost_rounds"]) for c in debrief["all_causes"]},
+        "cause_rounds": debrief["rounds_with"],
+        "cause_order": [c["id"] for c in debrief["causes"]],
+        "verdict": debrief["sentence"],
         "deaths": [
             {"sid": k.victim_steamid, "x": round(k.victim_pos.x), "y": round(k.victim_pos.y), "place": k.victim_place,
-             "round": k.round}
+             "round": k.round, "side": k.victim_side, "first": k.tick == _first_tick.get(k.round)}
             for k in match.kills
             if k.victim_steamid in focus and k.victim_pos is not None
         ],

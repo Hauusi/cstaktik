@@ -54,6 +54,17 @@ Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Coach-Funktionen
 
+Lern-Kreislauf: Upload → Urteil + Schlüsselmomente → Ziele → Training → Briefing → nächstes Match → Ziel-Check.
+
+- **Startseite = Coach**: aktive Ziele mit Check-Verlauf (grün/rot), Training je Ziel,
+  Briefing-Auswahl je Map, Urteil des letzten Matches, Upload.
+- **Ziele** (`data/goals.json`): bis zu 3, aus den Top-Ursachen. Messgröße: Anteil der Runden
+  eines Matches mit dieser Ursache. Zielwert = Start x `goals.target_factor`. Bei jedem Upload
+  automatisch geprüft; `goals.done_after` Matches in Folge erreicht = geschafft, neues Ziel rückt
+  nach. Dieselbe Demo zweimal zählt nicht doppelt. Ergebnis steht als "Ziel-Check" im Report.
+- **Briefing** (`/briefing/<map>`): eure Ziele, wo ihr auf der Map (je Seite) wiederholt
+  sterbt (davon als Erster), häufigste Ursachen auf dieser Map. Nur aus eurem Verlauf.
+
 - **Urteil + Ursachen** (oben im Report): Befunde werden zu wenigen Ursachen gebündelt
   (getrennt gespielt, erste Tode, geblendet, wenig HP, Unterzahl, im Laufen, Utility,
   Überzahl verspielt, Economy) und danach sortiert, in wie vielen **verlorenen** Runden sie

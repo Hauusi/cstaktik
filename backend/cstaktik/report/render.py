@@ -193,7 +193,9 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     }
 
 
-def build_context(match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None) -> dict:
+def build_context(
+    match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None
+) -> dict:
     from cstaktik.coach import diagnose
 
     debrief = diagnose(match, result, load_rules_config()["coach"])
@@ -213,6 +215,7 @@ def build_context(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         "unevaluated": [s for s in result.rule_status if not s.evaluated],
         "radar_note": radar_note,
         "debrief": debrief,
+        "goal_check": goal_check,
         "n_findings": sum(1 for f in result.findings if f.severity != "gut"),
         "n_good": sum(1 for f in result.findings if f.severity == "gut"),
         "stats": result.stats,
@@ -221,12 +224,17 @@ def build_context(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     }
 
 
-def render_report(match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None) -> str:
+def render_report(
+    match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None
+) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
-    return env.get_template("report.html").render(**build_context(match, result, maps_dirs))
+    return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check))
 
 
-def write_report(match: MatchData, result: AnalysisResult, out: Path, maps_dirs: list[Path] | None = None) -> Path:
+def write_report(
+    match: MatchData, result: AnalysisResult, out: Path, maps_dirs: list[Path] | None = None,
+    goal_check: dict | None = None,
+) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_report(match, result, maps_dirs), encoding="utf-8")
+    out.write_text(render_report(match, result, maps_dirs, goal_check), encoding="utf-8")
     return out
