@@ -43,7 +43,7 @@ kann auch direkt aufs Handy geschickt werden). Geparste Demos werden als JSON in
 ## Report und 2D-Replay
 
 Pro Runde: Replay aller 10 Spieler (Positionen 4x pro Sekunde aus der Demo, interpoliert),
-Blickrichtung, Waffe in der Hand (`active_weapon_name`), Schüsse als Leuchtspur (Treffer: Linie zum
+Blickrichtung, Waffen-Silhouette in Blickrichtung (Klasse aus `active_weapon_name`), Schüsse als Leuchtspur (Treffer: Linie zum
 Getroffenen mit Schaden), Bombe, Killfeed. Granaten mit Wurfbahn (Projektil-Positionen aus der Demo);
 Smoke/Molotov mit Ring und Sekunden für die Restdauer (Detonation bis Ablauf laut Demo-Events),
 Flash/HE als kurzer Effekt beim Zünden. Die Größe der Smoke-/Molotov-Fläche ist nur Darstellung
