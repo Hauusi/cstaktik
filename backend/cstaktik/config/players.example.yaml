@@ -1,0 +1,5 @@
+# Kopieren nach players.yaml (wird nicht committet) und eigene SteamID64 eintragen.
+# SteamID64 findest du z. B. im Steam-Profil-Link oder in der Demo (CLI: cstaktik players <demo>).
+focus_steamids:
+  - "76561190000000001"  # du
+  - "76561190000000002"  # Bruder

@@ -66,6 +66,6 @@ Report: mobil optimiertes HTML.
 
 ## 9. Offene Punkte
 
-- Woher kommen die Demos? Der Nutzer kann sie nur am PC herunterladen. Eine Upload-Möglichkeit wird gebraucht. Ob Git LFS genutzt wird, ist offen (im Repo ist `.gitattributes` dafür vorhanden, aber noch keine `.dem` abgelegt).
+- Demos: Upload per Web (FastAPI, lokal im LAN) oder CLI. Kein Git LFS, Demo-Ordner ist in `.gitignore` (entschieden 2026-10-12).
 - Fehlerregeln der Post-Match-Analyse müssen noch festgelegt werden.
 - Entwicklung findet am Handy über Claude Code statt. Echte Demos stehen erst zur Verfügung, wenn der Nutzer Zugriff auf einen PC hat. Bis dahin Tests mit synthetischen Daten.

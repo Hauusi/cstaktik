@@ -28,3 +28,12 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Demos und erzeugte Reports (lokal, nicht ins Repo)
+backend/data/demos_raw/*
+!backend/data/demos_raw/README.md
+backend/data/reports/
+backend/data/cache/
+
+# Lokale Spieler-Config (SteamIDs)
+backend/cstaktik/config/players.yaml

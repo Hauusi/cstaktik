@@ -1,0 +1,85 @@
+# cstaktik – CS2-Coach (Phase 1: Post-Match-Analyse)
+
+Eigene CS2-Premier-Demo (`.dem`) hochladen → mobiler HTML-Report mit Fehlern pro Runde,
+Beleg (Runde, Tick, Rohwerte) und einem kurzen Tipp. Alle Werte stammen aus der Demo;
+fehlt etwas, steht es im Report unter „Datenlage“.
+
+## Installation (PC, einmalig)
+
+```bash
+cd backend
+python -m venv .venv
+. .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+awpy get maps                   # optional: Radarbilder + Kalibrierung für die 2D-Karte
+cp cstaktik/config/players.example.yaml cstaktik/config/players.yaml
+```
+
+In `players.yaml` die SteamID64 von dir und deinem Bruder eintragen. Die IDs einer Demo
+listet `cstaktik players <demo.dem>`.
+
+## Nutzung
+
+**Web (Upload am PC, Report am Handy):**
+
+```bash
+cstaktik serve                  # lauscht auf 0.0.0.0:8000
+```
+
+Am PC `http://localhost:8000` öffnen, Demo hochladen. Am Handy (gleiches WLAN)
+`http://<PC-IP>:8000` öffnen → Liste der Reports.
+
+**CLI:**
+
+```bash
+cstaktik analyze match.dem                          # Fokus aus players.yaml
+cstaktik analyze match.dem --me 7656... --me 7656...
+```
+
+Report landet in `data/reports/<name>.html` (eine Datei, ohne externe Abhängigkeiten,
+kann auch direkt aufs Handy geschickt werden). Geparste Demos werden als JSON in
+`data/cache/` gecacht. Demos, Reports und Cache sind per `.gitignore` ausgeschlossen.
+
+## Regeln
+
+Konfiguration: `cstaktik/config/rules.yaml`. Alle Schwellen sind Heuristiken (Startwerte, keine Quelle).
+
+| Regel | Auslöser | Datenquelle |
+|---|---|---|
+| Tod ohne Trade | Kein lebender Mitspieler innerhalb `trade_distance_units`, kein Gegen-Kill auf den Killer in `trade_window_s` | Kills, Positionen |
+| Gleicher Todesort | ≥ `min_deaths` Tode am selben Place-Namen (Fallback: Radius) | Kills |
+| Utility nicht genutzt | Granaten im Inventar 1 Tick vor dem Tod | Inventar (demoparser2) |
+| Economy | Teil-Team Full-Buy, Teil-Team Save; Force verloren und Folgerunde kein Full-Buy | Equipment/Geld am Freeze-Ende + Offset |
+
+Pistolrunden (1, 13) und Overtime werden bei Economy ignoriert. Kann eine Regel mangels
+Daten nicht laufen, steht sie im Report als „nicht auswertbar“.
+
+## Tests
+
+```bash
+cd backend
+pytest
+```
+
+Die Tests nutzen synthetische Mini-Matches (`tests/synth.py`, Orte mit Präfix `Synth`,
+Koordinaten frei erfunden). `tests/fixtures/synth_match.json` ist dasselbe Match als
+Datei: `cstaktik analyze tests/fixtures/synth_match.json --me 76561190000000001`.
+
+## Architektur
+
+```
+.dem ─► parser/awpy_adapter.py ─► MatchData (model.py) ─► rules/* ─► Findings ─► report/render.py ─► HTML
+                                      ▲
+                     parser/loader.py (JSON: Cache + Tests)
+```
+
+Nur `awpy_adapter.py` kennt awpy. Regeln und Report arbeiten ausschließlich auf `MatchData`.
+
+## Noch nicht mit echter Demo geprüft
+
+Der Adapter ist gegen den Code von awpy 2.0.2 / demoparser2 0.42 geschrieben, aber noch nie
+mit einer echten Premier-Demo gelaufen. Beim ersten Lauf prüfen:
+
+- Tickrate (Config: 64)
+- Inventar-Namen der Granaten (Keywords in `rules.yaml`)
+- Economy-Sample-Tick (Freeze-Ende + 5 s)
