@@ -481,6 +481,18 @@ function weaponKind(name) {
   return 'rifle'; // unbekannte Schusswaffe: neutrale Gewehr-Form
 }
 const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+// Deterministischer Zufall je Granate: Flammen/Rauchballen bleiben pro Frame an derselben Stelle
+function seeded(seed) { let a = (seed | 0) ^ 0x9e3779b9; return () => { a = Math.imul(a ^ (a >>> 15), 2246822507); a = Math.imul(a ^ (a >>> 13), 3266489909); return ((a ^= a >>> 16) >>> 0) / 4294967296; }; }
+// Restdauer: Ring + Sekunden
+function ring(g, R, left, total, u) {
+  const rr = R + 4 * u;
+  ctx.lineWidth = 3 * u; ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(7,9,13,.55)'; ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, 7); ctx.stroke();
+  ctx.strokeStyle = NADE[g.k]; ctx.beginPath(); ctx.arc(g.x, g.y, rr, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * (left / total)); ctx.stroke();
+  ctx.font = `800 ${11 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.8)'; ctx.strokeText(Math.ceil(left) + 's', g.x, g.y);
+  ctx.fillStyle = '#fff'; ctx.fillText(Math.ceil(left) + 's', g.x, g.y);
+}
 // Landezeitpunkt: ab wann sich das Projektil nicht mehr bewegt
 function landing(n) {
   if (n.land != null) return n.land;
@@ -618,50 +630,94 @@ function draw() {
   r.util.forEach((g, gi) => {
     const age = (t - g.s) / TR;
     if (age < 0) return;
-    if (g.k === 'flash' || g.k === 'he') {
-      if (age > .7) return;
-      const k = ease(age / .7), R0 = (g.k === 'he' ? D.rMolly : D.rSmoke * .8);
+    const rng = seeded(g.s * 7 + gi);
+    if (g.k === 'flash') { // Blitz: helles Aufleuchten mit Strahlen
+      if (age > .8) return;
+      const k = ease(age / .8), R0 = D.rSmoke * .9;
       ctx.globalAlpha = 1 - k;
-      ctx.fillStyle = `rgba(${NADE_RGB[g.k]},.55)`; ctx.beginPath(); ctx.arc(g.x, g.y, R0 * (.3 + .7 * k), 0, 7); ctx.fill();
-      ctx.strokeStyle = NADE[g.k]; ctx.lineWidth = 2.5 * u; ctx.beginPath(); ctx.arc(g.x, g.y, R0 * (.5 + .8 * k), 0, 7); ctx.stroke();
+      const gr = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R0 * (.4 + .8 * k));
+      gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.35, 'rgba(255,250,200,.8)'); gr.addColorStop(1, 'rgba(255,243,168,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.x, g.y, R0 * (.4 + .8 * k), 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,240,.9)'; ctx.lineWidth = 1.6 * u; ctx.lineCap = 'round';
+      for (let i = 0; i < 12; i++) {
+        const an = i * Math.PI / 6 + rng() * .3, r1 = R0 * (.15 + .3 * k), r2 = R0 * (.5 + 1.1 * k) * (.7 + .5 * rng());
+        ctx.beginPath(); ctx.moveTo(g.x + Math.cos(an) * r1, g.y + Math.sin(an) * r1); ctx.lineTo(g.x + Math.cos(an) * r2, g.y + Math.sin(an) * r2); ctx.stroke();
+      }
+      ctx.globalAlpha = 1; return;
+    }
+    if (g.k === 'he') { // Explosion: Feuerball, Druckwelle, Funken
+      if (age > 1) return;
+      const k = ease(age), R0 = D.rMolly * 1.1;
+      ctx.globalAlpha = 1 - k;
+      const gr = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R0 * (.3 + .5 * k));
+      gr.addColorStop(0, 'rgba(255,240,180,1)'); gr.addColorStop(.4, 'rgba(255,140,40,.9)'); gr.addColorStop(1, 'rgba(120,30,10,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.x, g.y, R0 * (.3 + .5 * k), 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,200,150,.9)'; ctx.lineWidth = 3 * u * (1 - k) + .5 * u;
+      ctx.beginPath(); ctx.arc(g.x, g.y, R0 * (.4 + 1.1 * k), 0, 7); ctx.stroke();
+      ctx.fillStyle = '#ffd27a';
+      for (let i = 0; i < 14; i++) {
+        const an = rng() * 7, d = R0 * (.2 + 1.2 * k * (.5 + .5 * rng()));
+        ctx.beginPath(); ctx.arc(g.x + Math.cos(an) * d, g.y + Math.sin(an) * d, 1.4 * u, 0, 7); ctx.fill();
+      }
       ctx.globalAlpha = 1; return;
     }
     if (g.e != null && t > g.e) return;
-    const R = (g.k === 'smoke' ? D.rSmoke : D.rMolly) * (.35 + .65 * ease(age / .6));
     const left = g.e != null ? (g.e - t) / TR : null, total = g.e != null ? (g.e - g.s) / TR : null;
     const showCount = g.ek !== false; // Ende unbekannt: keine Restzeit anzeigen
-    const fade = left != null ? Math.min(1, left / 1.2) : 1;
-    ctx.globalAlpha = fade;
     if (g.k === 'smoke') {
-      const gr = ctx.createRadialGradient(g.x, g.y, R * .1, g.x, g.y, R);
-      gr.addColorStop(0, 'rgba(214,220,230,.85)'); gr.addColorStop(.7, 'rgba(190,198,210,.6)'); gr.addColorStop(1, 'rgba(190,198,210,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.x, g.y, R, 0, 7); ctx.fill();
-      for (let b = 0; b < 5; b++) { // Wölkchen
-        const a = b * 1.256 + gi, d = R * .45, wob = Math.sin(now * .8 + b) * R * .04;
-        ctx.fillStyle = 'rgba(225,230,238,.22)'; ctx.beginPath(); ctx.arc(g.x + Math.cos(a) * d + wob, g.y + Math.sin(a) * d, R * .42, 0, 7); ctx.fill();
+      // Rauch: quillt auf (~1 s), wabert, löst sich in den letzten 2 s auf
+      const grow = ease(age / 1.1), fade = left != null ? Math.min(1, left / 2) : 1;
+      const R = D.rSmoke * (.3 + .7 * grow) * (left != null && left < 2 ? 1 + (2 - left) * .08 : 1);
+      ctx.globalAlpha = fade;
+      const gr = ctx.createRadialGradient(g.x, g.y, R * .1, g.x, g.y, R * 1.05);
+      gr.addColorStop(0, 'rgba(196,202,214,.8)'); gr.addColorStop(.6, 'rgba(160,168,182,.7)'); gr.addColorStop(1, 'rgba(130,138,152,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.x, g.y, R * 1.05, 0, 7); ctx.fill();
+      for (let b = 0; b < 11; b++) { // Rauchballen, langsam treibend
+        const an = rng() * 7 + now * .05 * (b % 2 ? 1 : -1), d = R * (.15 + .5 * rng());
+        const br = R * (.28 + .18 * rng()) * (1 + .05 * Math.sin(now * .9 + b));
+        const bx = g.x + Math.cos(an) * d, by = g.y + Math.sin(an) * d;
+        const bg2 = ctx.createRadialGradient(bx - br * .3, by - br * .3, br * .1, bx, by, br);
+        bg2.addColorStop(0, 'rgba(246,248,252,.55)'); bg2.addColorStop(.7, 'rgba(205,211,222,.35)'); bg2.addColorStop(1, 'rgba(150,158,172,0)');
+        ctx.fillStyle = bg2; ctx.beginPath(); ctx.arc(bx, by, br, 0, 7); ctx.fill();
       }
-    } else {
-      const fl = .75 + .25 * Math.sin(now * 9 + gi * 2.1);
-      const gr = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R);
-      gr.addColorStop(0, `rgba(255,190,80,${.75 * fl})`); gr.addColorStop(.6, `rgba(255,90,30,${.55 * fl})`); gr.addColorStop(1, 'rgba(200,40,20,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(g.x, g.y, R, 0, 7); ctx.fill();
-      for (let b = 0; b < 6; b++) { // Flammen
-        const a = b * 1.047 + gi + now * .6, d = R * (.35 + .15 * Math.sin(now * 5 + b));
-        ctx.fillStyle = `rgba(255,${140 + 40 * Math.sin(now * 7 + b) | 0},40,.35)`;
-        ctx.beginPath(); ctx.arc(g.x + Math.cos(a) * d, g.y + Math.sin(a) * d, R * .22, 0, 7); ctx.fill();
-      }
+      ctx.globalAlpha = 1;
+      if (showCount && left != null && total > 0) ring(g, R, left, total, u);
+      return;
     }
-    // Restdauer: Ring + Sekunden
-    if (showCount && left != null && total > 0) {
-      const rr = R + 4 * u;
-      ctx.lineWidth = 3 * u; ctx.lineCap = 'round';
-      ctx.strokeStyle = 'rgba(7,9,13,.55)'; ctx.beginPath(); ctx.arc(g.x, g.y, rr, 0, 7); ctx.stroke();
-      ctx.strokeStyle = NADE[g.k]; ctx.beginPath(); ctx.arc(g.x, g.y, rr, -Math.PI / 2, -Math.PI / 2 + 2 * Math.PI * (left / total)); ctx.stroke();
-      ctx.font = `800 ${11 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.8)'; ctx.strokeText(Math.ceil(left) + 's', g.x, g.y);
-      ctx.fillStyle = '#fff'; ctx.fillText(Math.ceil(left) + 's', g.x, g.y);
+    // Molotov/Brandgranate: Brandfläche breitet sich aus, Flammenzungen flackern, Glut steigt auf.
+    // Nur Mittelpunkt aus der Demo; die Form der Fläche ist Darstellung, keine echte Ausbreitung.
+    const grow = ease(age / .9), fade = left != null ? Math.min(1, left / 1.2) : 1;
+    const R = D.rMolly * (.3 + .7 * grow) * (left != null && left < 1.2 ? .7 + .3 * fade : 1);
+    ctx.globalAlpha = fade;
+    const scorch = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R * 1.15);
+    scorch.addColorStop(0, 'rgba(60,20,8,.55)'); scorch.addColorStop(.8, 'rgba(40,14,6,.35)'); scorch.addColorStop(1, 'rgba(30,10,5,0)');
+    ctx.fillStyle = scorch; ctx.beginPath(); ctx.arc(g.x, g.y, R * 1.15, 0, 7); ctx.fill();
+    const glow = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R);
+    const fl = .8 + .2 * Math.sin(now * 11 + gi);
+    glow.addColorStop(0, `rgba(255,200,90,${.55 * fl})`); glow.addColorStop(.6, `rgba(255,95,25,${.45 * fl})`); glow.addColorStop(1, 'rgba(200,40,15,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(g.x, g.y, R, 0, 7); ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 16; i++) { // Flammenzungen
+      const an = rng() * 7, d = R * Math.sqrt(rng()) * .72, ph = rng() * 7;
+      const fx = g.x + Math.cos(an) * d, fy = g.y + Math.sin(an) * d;
+      const h = R * (.42 + .2 * rng()) * (.7 + .4 * Math.abs(Math.sin(now * (5 + rng() * 3) + ph)));
+      const w = h * .62, sway = Math.sin(now * 4 + ph) * w * .3;
+      const fg = ctx.createLinearGradient(fx, fy + w * .5, fx, fy - h);
+      fg.addColorStop(0, 'rgba(255,240,170,.75)'); fg.addColorStop(.35, 'rgba(255,150,40,.55)'); fg.addColorStop(.75, 'rgba(230,60,15,.3)'); fg.addColorStop(1, 'rgba(180,20,5,0)');
+      ctx.fillStyle = fg; ctx.beginPath();
+      ctx.moveTo(fx - w / 2, fy + w * .3);
+      ctx.quadraticCurveTo(fx - w * .6 + sway * .3, fy - h * .45, fx + sway, fy - h);
+      ctx.quadraticCurveTo(fx + w * .6 + sway * .3, fy - h * .45, fx + w / 2, fy + w * .3);
+      ctx.closePath(); ctx.fill();
     }
+    for (let i = 0; i < 10; i++) { // Glutfunken steigen auf
+      const ph = rng(), an = rng() * 7, d = R * Math.sqrt(rng()) * .8, life = (now * .7 + ph) % 1;
+      ctx.fillStyle = `rgba(255,${180 + 60 * rng() | 0},80,${.9 * (1 - life)})`;
+      ctx.beginPath(); ctx.arc(g.x + Math.cos(an) * d, g.y + Math.sin(an) * d - life * R * .6, (1.8 - life) * u, 0, 7); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
+    if (showCount && left != null && total > 0) ring(g, R, left, total, u);
   });
 
   // Spuren
@@ -769,22 +825,35 @@ function draw() {
     }
   });
 
-  // Granaten im Flug: Wurfbahn + Projektil, nach der Landung kurz nachleuchten
+  // Granaten im Flug: Wurfbahn (verblassender Schweif) + Granaten-Icon an der Spitze, dreht sich im Flug
   (r.nades || []).forEach(n => {
     const t0 = n.pts[0][0], land = landing(n);
-    if (t < t0 || t > land + 1.5 * TR) return;
+    if (t < t0 || t > land + 1.2 * TR) return;
     const flying = t <= land, cur = nadeAt(n, Math.min(t, land));
-    ctx.globalAlpha = flying ? .95 : Math.max(0, 1 - (t - land) / (1.5 * TR)) * .6;
-    ctx.strokeStyle = NADE[n.k]; ctx.lineWidth = 2 * u; ctx.setLineDash([5 * u, 4 * u]); ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(n.pts[0][1], n.pts[0][2]);
-    for (let i = 1; i < cur.i && i < n.pts.length; i++) ctx.lineTo(n.pts[i][1], n.pts[i][2]);
-    ctx.lineTo(cur.x, cur.y); ctx.stroke(); ctx.setLineDash([]);
-    if (flying) {
-      ctx.fillStyle = `rgba(${NADE_RGB[n.k]},.35)`; ctx.beginPath(); ctx.arc(cur.x, cur.y, 7 * u, 0, 7); ctx.fill();
+    const pts = [[n.pts[0][1], n.pts[0][2]]];
+    for (let i = 1; i < cur.i && i < n.pts.length; i++) pts.push([n.pts[i][1], n.pts[i][2]]);
+    pts.push([cur.x, cur.y]);
+    const base = flying ? 1 : Math.max(0, 1 - (t - land) / (1.2 * TR));
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let i = 1; i < pts.length; i++) { // Schweif: hinten dünn und blass, vorne kräftig
+      const k = i / (pts.length - 1);
+      ctx.strokeStyle = `rgba(${NADE_RGB[n.k]},${(.15 + .7 * k) * base})`; ctx.lineWidth = (1 + 1.8 * k) * u;
+      ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke();
+    }
+    if (!flying) return;
+    const halo = ctx.createRadialGradient(cur.x, cur.y, 0, cur.x, cur.y, 11 * u);
+    halo.addColorStop(0, `rgba(${NADE_RGB[n.k]},.55)`); halo.addColorStop(1, `rgba(${NADE_RGB[n.k]},0)`);
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(cur.x, cur.y, 11 * u, 0, 7); ctx.fill();
+    const icon = n.ic ? ICON_IMG[n.ic] : null;
+    if (icon && icon.complete && icon.naturalWidth) {
+      const h = 22 * u, w = h * icon.naturalWidth / icon.naturalHeight;
+      ctx.save(); ctx.translate(cur.x, cur.y); ctx.rotate((t - t0) / TR * 5);
+      ctx.shadowColor = 'rgba(7,9,13,.95)'; ctx.shadowBlur = 3 * u;
+      ctx.drawImage(icon, -w / 2, -h / 2, w, h); ctx.restore();
+    } else {
       ctx.fillStyle = NADE[n.k]; ctx.strokeStyle = '#07090d'; ctx.lineWidth = 1.5 * u;
       ctx.beginPath(); ctx.arc(cur.x, cur.y, 3.5 * u, 0, 7); ctx.fill(); ctx.stroke();
     }
-    ctx.globalAlpha = 1;
   });
 
   // Coach-Overlay für den aktiven Befund

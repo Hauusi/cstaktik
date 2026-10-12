@@ -171,7 +171,9 @@ def run(
         match.missing.append(note)
     from cstaktik import icons
 
-    used = {icons.icon_for(w) for w in {p.weapon for p in match.positions} | {sh.weapon for sh in match.shots}}
+    used = {icons.icon_for(w) for w in {p.weapon for p in match.positions} | {sh.weapon for sh in match.shots}
+            | {g.grenade_type for g in match.grenades}}
+    used |= {"smokegrenade", "flashbang", "hegrenade", "molotov", "incgrenade", "decoy"}
     failed = icons.ensure_icons(used - {None}, icons.ICONS_DIR)
     if failed:
         match.missing.append(f"Waffen-Icons nicht geladen ({', '.join(failed)}): einfache Form statt Icon")

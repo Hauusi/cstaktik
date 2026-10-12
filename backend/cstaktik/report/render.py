@@ -60,6 +60,10 @@ def _floor_and_places(match: MatchData, px) -> tuple[list, list]:
     return floor, places
 
 
+NADE_ICON = {"smoke": "smokegrenade", "flash": "flashbang", "he": "hegrenade", "molotov": "molotov",
+             "decoy": "decoy"}
+
+
 def _icon_data(names: set[str]) -> dict[str, str]:
     """SVG-Icons aus data/icons als data-URI (nur die im Match benutzten)."""
     import base64
@@ -187,7 +191,8 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         for g in match.grenades:
             if g.round == r.num and g.points:
                 pts = [[t, *px(x, y)] for t, x, y, _z in g.points]
-                nades.append({"k": g.kind, "th": g.thrower_steamid, "pts": pts})
+                nades.append({"k": g.kind, "th": g.thrower_steamid, "pts": pts,
+                              "ic": icon_for(g.grenade_type) or NADE_ICON.get(g.kind)})
         shots = [[sh.tick, sh.steamid, wi(sh.weapon.removeprefix("weapon_"))] for sh in match.shots
                  if sh.round == r.num and is_gun(sh.weapon)]
         hurts = [[d.tick, d.attacker_steamid, d.victim_steamid, d.dmg] for d in match.damages
@@ -222,7 +227,7 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         # Zeichengrößen in Radar-Pixeln (Konfiguration, reine Darstellung)
         "weapons": weapons,
         "weaponIcon": [icon_for(w) for w in weapons],
-        "icons": _icon_data({icon_for(w) for w in weapons} - {None}),
+        "icons": _icon_data(({icon_for(w) for w in weapons} | set(NADE_ICON.values())) - {None}),
         "upx": round(1 / radar.scale, 4),  # Radar-Pixel pro Spieleinheit
         "rSmoke": round(draw_cfg.get("smoke_draw_radius_units", 140) / radar.scale, 1),
         "rMolly": round(draw_cfg.get("molotov_draw_radius_units", 110) / radar.scale, 1),
