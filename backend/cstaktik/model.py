@@ -109,6 +109,16 @@ class UtilityArea(BaseModel):
     pos: Vec
 
 
+class Blind(BaseModel):
+    """Geblendet (player_blind-Event der Demo)."""
+
+    round: int
+    tick: int
+    victim_steamid: str
+    attacker_steamid: str | None = None
+    duration: float  # Sekunden laut Demo
+
+
 class Damage(BaseModel):
     round: int
     tick: int
@@ -136,6 +146,7 @@ class MatchData(BaseModel):
     rounds: list[Round]
     kills: list[Kill] = Field(default_factory=list)
     damages: list[Damage] = Field(default_factory=list)
+    blinds: list[Blind] = Field(default_factory=list)
     grenades: list[GrenadeThrow] = Field(default_factory=list)
     positions: list[PositionSample] = Field(default_factory=list)
     utility: list[UtilityArea] = Field(default_factory=list)

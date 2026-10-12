@@ -20,7 +20,7 @@ DEMOS_DIR = DATA_DIR / "demos_raw"
 REPORTS_DIR = DATA_DIR / "reports"
 CACHE_DIR = DATA_DIR / "cache"
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
-CACHE_SCHEMA = 4
+CACHE_SCHEMA = 5
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
 MAX_DEMO_BYTES = 2 * 1024**3
 

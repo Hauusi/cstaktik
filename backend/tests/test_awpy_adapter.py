@@ -15,6 +15,10 @@ A, B = 76561190000000001, 76561190000000011
 
 
 class FakeParser:
+    def parse_event(self, name, **_):
+        assert name == "player_blind"
+        return pd.DataFrame([{"tick": 850, "user_steamid": A, "attacker_steamid": B, "blind_duration": 1.734}])
+
     def parse_ticks(self, props, ticks=None):
         rows = []
         for t in ticks or []:
@@ -91,6 +95,7 @@ def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
     assert {u.kind for u in m.utility} == {"smoke", "flash"}
     smoke = next(u for u in m.utility if u.kind == "smoke")
     assert (smoke.end_tick, smoke.end_known) == (1800, True)
+    assert m.blinds[0].victim_steamid == str(A) and m.blinds[0].duration == 1.73
     assert m.damages[0].dmg == 27 and m.damages[0].attacker_steamid == str(A)
     assert m.missing == []
     fr = [f for _, f in stages]

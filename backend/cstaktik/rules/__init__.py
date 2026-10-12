@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from cstaktik.model import AnalysisResult, MatchData, RuleStatus
 from cstaktik.rules import (
+    death_review,
     economy,
     entry_deaths,
     no_damage_death,
@@ -15,7 +16,7 @@ from cstaktik.rules import (
 from cstaktik.rules.base import NotEvaluable
 from cstaktik.stats import player_stats
 
-RULES = [untraded_death, repeated_death_spot, unused_utility, economy, entry_deaths, no_damage_death, positives]
+RULES = [death_review, untraded_death, repeated_death_spot, unused_utility, economy, entry_deaths, no_damage_death, positives]
 _SEV = {"hoch": 0, "mittel": 1, "niedrig": 2, "gut": 3}
 
 

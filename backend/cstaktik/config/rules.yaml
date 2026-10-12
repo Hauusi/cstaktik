@@ -18,8 +18,25 @@ report:
   molotov_draw_radius_units: 110
 
 rules:
-  untraded_death:
+  death_review:
     enabled: true
+    # Weniger HP als das vor dem Duell -> "Wenig HP".
+    hp_low: 50
+    # Schneller als das (Units/s, aus den Positionen) -> "Im Laufen".
+    moving_speed_units_s: 120
+    # Schnellere Werte gelten als Datensprung (z. B. Lücke in den Positionen) und werden ignoriert.
+    max_plausible_speed_units_s: 400
+    # Blendung zählt, wenn sie höchstens so lange vor dem Tod war und mindestens so lange dauerte.
+    blind_window_s: 3.0
+    blind_min_s: 0.5
+    trade_distance_units: 800
+    trade_window_s: 3.0
+    grenade_keywords: ["grenade", "flashbang", "molotov", "incendiary"]
+    ignore_keywords: ["decoy"]
+
+  # Einzelregeln für Tode: standardmäßig aus, death_review fasst sie pro Tod zusammen.
+  untraded_death:
+    enabled: false
     # Nächster lebender Mitspieler weiter weg als das -> "kein Trade-Partner in der Nähe".
     trade_distance_units: 800
     # Zeitfenster, in dem ein Gegen-Kill auf den Killer als Trade zählt.
@@ -35,7 +52,7 @@ rules:
     radius_units: 300
 
   unused_utility:
-    enabled: true
+    enabled: false
     # Inventar-Einträge, die als Utility zählen (Teilstring, Groß/klein egal).
     grenade_keywords: ["grenade", "flashbang", "molotov", "incendiary"]
     # Diese Einträge werden ignoriert.

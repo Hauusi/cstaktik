@@ -36,9 +36,10 @@ def test_report_is_selfcontained_and_mobile(tmp_path):
     r2 = next(r for r in data["rounds"] if r["n"] == 2)
     assert r2["out"] == "L" and r2["tracks"] and r2["kills"]
     titles = {data["findings"][i]["title"] for i in r2["f"]}
-    assert {"Tod ohne Trade", "Utility nicht genutzt", "Uneinheitlicher Kauf"} <= titles
-    untraded = next(data["findings"][i] for i in r2["f"] if data["findings"][i]["rule"] == "untraded_death")
-    assert untraded["x"] is not None  # Coach-Marker sitzt am Todesort
+    assert {"Tod: Allein, kein Trade", "Uneinheitlicher Kauf"} <= titles
+    review = next(data["findings"][i] for i in r2["f"] if data["findings"][i]["rule"] == "death_review")
+    assert review["x"] is not None  # Coach-Marker sitzt am Todesort
+    assert review["ov"]["line"] and review["evidence"]["ungenutzt"] == ["Flashbang", "Smoke Grenade"]
 
 
 def test_embedded_json_cannot_break_out_of_script(tmp_path):

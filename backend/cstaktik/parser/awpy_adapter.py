@@ -13,6 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from cstaktik.model import (
+    Blind,
     BombEvent,
     Damage,
     GrenadeThrow,
@@ -418,6 +419,22 @@ def parse_demo(
         except Exception as exc:  # noqa: BLE001
             missing.append(f"{event} nicht lesbar ({type(exc).__name__})")
 
+    # --- Blendungen (player_blind) ---------------------------------------------------
+    blinds: list[Blind] = []
+    try:
+        bdf = dem.parser.parse_event("player_blind")
+        for rec in bdf.to_dict("records"):
+            victim, dur = _sid(rec.get("user_steamid")), _num(rec.get("blind_duration"))
+            rnd = round_of(int(rec["tick"]))
+            if victim is None or dur is None or rnd is None:
+                continue
+            blinds.append(
+                Blind(round=rnd, tick=int(rec["tick"]), victim_steamid=victim,
+                      attacker_steamid=_sid(rec.get("attacker_steamid")), duration=round(dur, 2))
+            )
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"Blendungen nicht lesbar ({type(exc).__name__})")
+
     # --- Bombe -------------------------------------------------------------------------
     bomb: list[BombEvent] = []
     try:
@@ -453,6 +470,7 @@ def parse_demo(
         positions=positions,
         utility=utility,
         damages=damages,
+        blinds=blinds,
         bomb=bomb,
         missing=missing,
     )

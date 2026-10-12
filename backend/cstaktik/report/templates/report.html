@@ -152,6 +152,10 @@ dt { color: var(--faint); } dd { margin: 0; color: var(--text); word-break: brea
 .coach .next { background: var(--text); color: var(--bg); flex: 1; }
 .coach .stop { background: var(--surface-2); border: 1px solid var(--line); }
 .coach .prog { font-size: 11px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+.lage { margin: 6px 0 2px; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; color: #d7dce5; }
+.lage li { display: flex; gap: 7px; align-items: baseline; }
+.lage li::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); transform: translateY(-2px); }
+.also { font-size: 12px; color: var(--muted); margin-top: 4px; }
 footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </style>
 </head>
@@ -559,7 +563,7 @@ function draw() {
       }));
     }
     // Ungenutzte Granaten am Todesort
-    if (ovf.rule === 'unused_utility' && ovf.x != null && ovf.evidence && ovf.evidence.ungenutzt) {
+    if (ovf.x != null && ovf.evidence && ovf.evidence.ungenutzt) {
       ovf.evidence.ungenutzt.forEach((name, i) => {
         const low = name.toLowerCase();
         const k = low.includes('smoke') ? 'smoke' : low.includes('flash') ? 'flash' : (low.includes('molotov') || low.includes('incend')) ? 'molotov' : low.includes('explosive') || low.includes('he ') ? 'he' : 'other';
@@ -617,7 +621,11 @@ function ui() {
     if (active.length) active.forEach(id => {
       const f = F[id], it = el('div', 'item'), k = el('div', 'k', isErr(f) ? 'Coach' : 'Stark');
       k.style.color = SEV[f.sev];
-      it.append(k, el('div', 'tt', f.title + (f.who ? ' · ' + f.who : '')), el('div', 'tip', f.tip));
+      it.append(k, el('div', 'tt', f.title + (f.who ? ' · ' + f.who : '')));
+      if (f.rule === 'death_review') it.appendChild(lageList(f));
+      it.appendChild(el('div', 'tip', f.tip));
+      const more = f.evidence && f.evidence.weitere_punkte;
+      if (more && more.length) it.appendChild(el('div', 'also', 'Außerdem: ' + more.join(', ')));
       coach.appendChild(it);
     });
     if (inTour) {
@@ -674,7 +682,9 @@ function buildFindings() {
     const act = el('div', 'act');
     if (f.tick != null) { const w = el('button', 'watch', '▶ Im Replay ansehen'); w.onclick = () => watch(id); act.appendChild(w); }
     act.appendChild(evidence(f));
-    c.append(top, el('div', 'txt', f.text), tip, act); box.appendChild(c);
+    c.append(top, el('div', 'txt', f.text));
+    if (f.rule === 'death_review') c.appendChild(lageList(f));
+    c.append(tip, act); box.appendChild(c);
   });
 }
 
@@ -696,6 +706,12 @@ function selectRound(i, keep) {
   const res = $('rres'); res.className = 'res ' + (r.out || ''); res.textContent = r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '';
   buildTimeline(); buildFindings(); story(); draw();
   if (!keep) history.replaceState(null, '', '#r' + r.n);
+}
+// Lage-Stichpunkte einer Tod-Analyse
+function lageList(f) {
+  const ul = el('ul', 'lage');
+  ((f.evidence && f.evidence.lage) || []).forEach(x => ul.appendChild(el('li', null, x)));
+  return ul;
 }
 // Kurzfassung der Runde, nur aus den Ereignissen der Demo
 function story() {

@@ -81,7 +81,8 @@ def test_analyze_reports_unevaluable_rules():
     res = analyze(m, CFG)
     st = {s.rule_id: s for s in res.rule_status}
     assert st["economy"].evaluated is False and st["economy"].reason
-    assert st["untraded_death"].evaluated is True
+    assert st["death_review"].evaluated is True
+    assert st["untraded_death"].reason == "deaktiviert"  # in death_review zusammengefasst
 
 
 def test_analyze_requires_focus():
@@ -136,3 +137,26 @@ def test_stats_and_good_findings_not_in_top_issues():
     assert all(t["title"] != "Trade gegeben" for t in _top_issues(res))
     hw = {h["name"]: h for h in _homework(res)}
     assert hw["Ich"]["items"]
+
+
+def test_death_review_facts_and_tip_priority():
+    from cstaktik.model import Blind, Damage
+    from cstaktik.rules import death_review
+
+    m = build_match()
+    k2 = next(k for k in m.kills if k.round == 2)
+    m.damages = [Damage(round=2, tick=k2.tick - 200, attacker_steamid=k2.attacker_steamid, victim_steamid=ME, dmg=63)]
+    m.blinds = [Blind(round=2, tick=k2.tick - 32, victim_steamid=ME, attacker_steamid=k2.attacker_steamid, duration=1.8)]
+    f = {x.round: x for x in death_review.run(m, CFG["rules"]["death_review"])}
+    assert set(f) == {2, 3, 4}  # jeder Tod von ME
+    r2 = f[2]
+    lage = " | ".join(r2.evidence["lage"])
+    assert "5 gegen 5 (Opening-Duell)" in lage and "geblendet (1.8s) 0.5s vor dem Tod" in lage
+    assert "mit 37 HP" in lage and "0 Schaden davor" in lage
+    assert r2.title == "Tod: Geblendet" and r2.severity == "hoch"  # Blendung hat Vorrang
+    assert "Allein, kein Trade" in r2.evidence["weitere_punkte"] and "nicht genutzt: Flashbang, Smoke Grenade" in lage
+    assert r2.overlay["line"] and "Units zu" in r2.overlay["label"]
+    # Runde 3: Bruder 200 Units daneben -> nicht allein
+    assert all("Allein" not in p for p in f[3].evidence["weitere_punkte"]) and "Allein" not in f[3].title
+    # Runde 4: allein, aber Bruder tradet -> kein "Allein, kein Trade"
+    assert "wurde getradet" in f[4].evidence["lage"] and "Allein" not in f[4].title
