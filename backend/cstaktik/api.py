@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
+import os
 import re
+import secrets
 import threading
 import time
 import uuid
@@ -10,14 +13,38 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from cstaktik import pipeline
 
 app = FastAPI(title="cstaktik")
+
+
+@app.middleware("http")
+async def _password(request: Request, call_next):
+    """Optionaler Passwortschutz (HTTP Basic) für alle Seiten inkl. Reports.
+
+    Aktiv, wenn die Umgebungsvariable CSTAKTIK_PASSWORD gesetzt ist (Benutzer: CSTAKTIK_USER, Standard "coach").
+    """
+    password = os.environ.get("CSTAKTIK_PASSWORD")
+    if not password:
+        return await call_next(request)
+    user = os.environ.get("CSTAKTIK_USER", "coach")
+    header = request.headers.get("authorization", "")
+    if header.lower().startswith("basic "):
+        try:
+            got_user, _, got_pw = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+        except (ValueError, UnicodeDecodeError):
+            got_user, got_pw = "", ""
+        if secrets.compare_digest(got_user.encode(), user.encode()) and secrets.compare_digest(
+            got_pw.encode(), password.encode()
+        ):
+            return await call_next(request)
+    return Response("Login erforderlich", status_code=401, headers={"WWW-Authenticate": 'Basic realm="cstaktik"'})
+
 pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/reports", StaticFiles(directory=pipeline.REPORTS_DIR, html=True), name="reports")
 _env = Environment(loader=FileSystemLoader(Path(__file__).parent / "web"), autoescape=select_autoescape(["html"]))

@@ -29,6 +29,11 @@ cstaktik serve                  # lauscht auf 0.0.0.0:8000
 Am PC `http://localhost:8000` öffnen, Demo hochladen. Am Handy (gleiches WLAN)
 `http://<PC-IP>:8000` öffnen → Liste der Reports.
 
+**Passwortschutz** (empfohlen, wenn der Server aus dem Internet erreichbar ist): Umgebungsvariable
+`CSTAKTIK_PASSWORD` setzen (Benutzer `coach`, änderbar mit `CSTAKTIK_USER`). Gilt für alle Seiten
+inklusive Reports. Beim systemd-Dienst im `[Service]`-Block: `Environment=CSTAKTIK_PASSWORD=...`.
+Achtung: ohne HTTPS geht das Passwort unverschlüsselt über die Leitung.
+
 **CLI:**
 
 ```bash
