@@ -149,7 +149,7 @@ def parse_demo(
     step("Positionen", 0.78)
     # --- Ticks: Spieler, Seiten, Positionen ------------------------------------
     ticks = dem.ticks
-    step = max(1, tickrate // int(parser_cfg["position_samples_per_second"]))
+    sample_every = max(1, tickrate // int(parser_cfg["position_samples_per_second"]))
     players: dict[str, str] = {}
     positions: list[PositionSample] = []
     for row in ticks.select(["tick", "steamid", "name", "side", "round_num"]).unique(
@@ -169,7 +169,7 @@ def parse_demo(
         for c in ("tick", "steamid", "side", "round_num", "X", "Y", "Z", "place", "health", "yaw")
         if c in ticks.columns
     ]
-    sampled = ticks.filter((ticks["tick"] % step) == 0).select(cols)
+    sampled = ticks.filter((ticks["tick"] % sample_every) == 0).select(cols)
     for row in sampled.to_dicts():
         sid = _sid(row["steamid"])
         pos = _vec(row, "")
