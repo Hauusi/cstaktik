@@ -84,7 +84,7 @@ def build_radar(match: MatchData, maps_dirs: list[Path] | None = None) -> Radar:
     return Radar(
         1024,
         None,
-        "Kartenbild fehlt: Radar-Dateien nach backend/data/maps legen (siehe README). Laufwege ohne Karte.",
+        "Kein Radarbild: Kartenumriss aus den Laufwegen dieses Matches gezeichnet, Ortsnamen aus der Demo.",
         pos_x,
         pos_y,
         scale,

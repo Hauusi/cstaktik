@@ -208,6 +208,18 @@ const F = D.findings;
 const S = { ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, trailFull: false, lastF: null, coachF: null };
 let bg = null;
 if (D.img) { bg = new Image(); bg.onload = () => draw(); bg.src = D.img; }
+else if (D.floor && D.floor.cells.length) {
+  // Kartenumriss aus den Laufwegen: begangene Zellen hell, weichgezeichnet
+  const off = document.createElement('canvas'); off.width = off.height = SIZE;
+  const o = off.getContext('2d'), c = D.floor.cell;
+  const max = Math.max(...D.floor.cells.map(q => q[2]));
+  o.filter = 'blur(4px)';
+  for (const [i, j, n] of D.floor.cells) {
+    const a = .18 + .32 * Math.min(1, Math.log(1 + n) / Math.log(1 + max));
+    o.fillStyle = `rgba(120,135,165,${a})`; o.fillRect(i * c - 2, j * c - 2, c + 4, c + 4);
+  }
+  bg = off;
+}
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const name = sid => (D.players[sid] && D.players[sid].name) || '?';
@@ -268,6 +280,11 @@ function draw() {
   const u = SIZE / (cssW * z); // Radar-Pixel pro CSS-Pixel
   if (bg) { ctx.globalAlpha = .9; ctx.drawImage(bg, 0, 0, SIZE, SIZE); ctx.globalAlpha = 1; }
   else { ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = u; for (let g = 0; g <= SIZE; g += 64) { ctx.beginPath(); ctx.moveTo(g, 0); ctx.lineTo(g, SIZE); ctx.moveTo(0, g); ctx.lineTo(SIZE, g); ctx.stroke(); } }
+  if (!D.img && D.places) {
+    ctx.font = `600 ${9.5 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(200,210,230,.45)';
+    D.places.forEach(p => ctx.fillText(p.n, p.x, p.y));
+  }
 
   // Utility
   r.util.forEach(g => {

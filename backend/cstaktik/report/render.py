@@ -30,6 +30,31 @@ def _top_issues(result: AnalysisResult, n: int = 3) -> list[dict]:
     return [{"title": k[0], "who": k[1], "count": counter[k]} for k in ranked[:n]]
 
 
+FLOOR_CELL = 8  # Radar-Pixel pro Zelle des Kartenumrisses
+PLACE_MIN_SAMPLES = 20  # Mindestanzahl Positionen, damit ein Ortsname angezeigt wird
+
+
+def _floor_and_places(match: MatchData, px) -> tuple[list, list]:
+    """Kartenumriss (wo im Match Spieler standen) und Ortsnamen-Schwerpunkte, beides aus der Demo."""
+    cells: Counter = Counter()
+    sums: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0, 0])
+    for p in match.positions:
+        x, y = px(p.pos.x, p.pos.y)
+        cells[(int(x // FLOOR_CELL), int(y // FLOOR_CELL))] += 1
+        if p.place:
+            acc = sums[p.place]
+            acc[0] += x
+            acc[1] += y
+            acc[2] += 1
+    floor = [[i, j, c] for (i, j), c in cells.items()]
+    places = [
+        {"n": name, "x": round(sx / n, 1), "y": round(sy / n, 1)}
+        for name, (sx, sy, n) in sums.items()
+        if n >= PLACE_MIN_SAMPLES
+    ]
+    return floor, places
+
+
 def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None) -> dict:
     radar = build_radar(match, maps_dirs)
     px = radar.to_px
@@ -110,10 +135,13 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
             }
         )
 
+    floor, places = _floor_and_places(match, px)
     return {
         "tickrate": match.tickrate,
         "size": radar.size,
         "img": radar.image_data_uri,
+        "floor": {"cell": FLOOR_CELL, "cells": floor} if not radar.image_data_uri else None,
+        "places": places,
         "players": {p.steamid: {"name": p.name, "focus": p.steamid in focus} for p in match.players},
         "rounds": rounds,
         "findings": findings,

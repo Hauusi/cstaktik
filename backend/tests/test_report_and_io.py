@@ -29,9 +29,10 @@ def test_report_is_selfcontained_and_mobile(tmp_path):
     html = render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
     assert 'name="viewport"' in html
     assert not re.search(r'(src|href)="https?://', html)  # keine externen Ressourcen
-    assert "Kartenbild fehlt" in html  # ohne Radar-Dateien ehrlich melden
+    assert "Kein Radarbild" in html  # ohne Radar-Dateien ehrlich melden
     data = _embedded(html)
     assert data["img"] is None and len(data["rounds"]) == 6
+    assert data["floor"]["cells"]  # Kartenumriss aus Laufwegen
     r2 = next(r for r in data["rounds"] if r["n"] == 2)
     assert r2["out"] == "L" and r2["tracks"] and r2["kills"]
     titles = {data["findings"][i]["title"] for i in r2["f"]}
@@ -56,10 +57,24 @@ def test_report_uses_radar_files_when_present(tmp_path):
     m = build_match()
     html = render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
     data = _embedded(html)
-    assert data["img"].startswith("data:image/png;base64,") and "Kartenbild fehlt" not in html
+    assert data["img"].startswith("data:image/png;base64,") and "Kein Radarbild" not in html
+    assert data["floor"] is None
     # Welt (0,0) -> Pixel ((0+1000)/5, (1000-0)/5)
     k = next(k for r in data["rounds"] for k in r["kills"] if k["vx"] is not None)
     assert (k["vx"], k["vy"]) == (200.0, 200.0)
+
+
+def test_places_from_demo_positions(tmp_path):
+    from cstaktik.report.render import PLACE_MIN_SAMPLES
+
+    m = build_match()
+    for i, p in enumerate(m.positions):
+        p.place = "SynthMid" if i % 2 else None
+    data = _embedded(render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path]))
+    assert [p["n"] for p in data["places"]] == ["SynthMid"]
+    m.positions = m.positions[: PLACE_MIN_SAMPLES]  # zu wenige Samples -> kein Label
+    data = _embedded(render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path]))
+    assert data["places"] == []
 
 
 def test_valve_overview_txt_calibration(tmp_path):

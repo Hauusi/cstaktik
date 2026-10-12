@@ -50,7 +50,8 @@ Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Kartenbilder
 
-Ohne Kartenbild läuft das Replay auf einem neutralen Raster. Mit Bild wird die
+Ohne Kartenbild zeichnet der Report den Kartenumriss aus den Laufwegen des Matches
+(wo Spieler standen) und setzt die Ortsnamen aus der Demo. Mit Bild wird die
 Radar-Kalibrierung genutzt. Gesucht wird in `data/maps/` (nicht im Repo) und `~/.awpy/maps/`:
 
 - Bild: `<map>.png` oder `<map>_radar.png` (auch `.jpg`/`.webp`), z. B. `de_mirage.png`
