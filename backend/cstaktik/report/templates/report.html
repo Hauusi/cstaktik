@@ -17,12 +17,13 @@
 html { background: var(--bg); }
 body { margin: 0; background: var(--bg); color: var(--text);
   font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 720px; margin: 0 auto; padding: 0 16px 48px; }
+main, .hero-in { max-width: 720px; margin: 0 auto; }
+main { padding: 0 16px 48px; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 .num { font-variant-numeric: tabular-nums; }
 
 /* Hero */
-.hero { position: relative; margin: 0 -16px; padding: 28px 20px 22px; overflow: hidden;
+.hero { position: relative; padding: 28px 16px 22px; overflow: hidden;
   background: radial-gradient(120% 140% at 0% 0%, rgba(124,92,255,.35), transparent 55%),
               radial-gradient(120% 140% at 100% 0%, rgba(74,138,224,.25), transparent 55%), var(--bg); }
 .eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
@@ -57,13 +58,31 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .rchip .badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; border-radius: 9px;
   background: var(--mittel); color: #1a1200; font-size: 11px; line-height: 17px; padding: 0 4px; }
 
+/* Desktop: breite Seite, Karte groß mit Coach-Panel daneben */
+@media (min-width: 1000px) {
+  main, .hero-in { max-width: 1280px; }
+  main { padding: 0 32px 64px; }
+  .hero { padding: 36px 0 30px; }
+  .hero-in { padding: 0 32px; box-sizing: border-box; }
+  .hero-in { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 0 40px; align-items: end; }
+  .hero h1 { font-size: 42px; }
+  .verdict { font-size: 18px; }
+  .cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0 32px; align-items: start; }
+  .cols3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 0 24px; align-items: start; }
+  .rbody { display: grid; grid-template-columns: minmax(0, 1fr) 400px; align-items: start; }
+  .stage { width: min(100%, calc(100vh - 150px)); justify-self: center; }
+  .rside { border-left: 1px solid var(--line); min-height: 100%; }
+  .rside .coach { border-top: 0; }
+  .rounds { margin: 0; padding: 10px 0; }
+}
+
 /* Replay */
 .replay { margin-top: 14px; padding: 0; overflow: hidden; }
 .rhead { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }
 .rhead b { font-size: 18px; }
 .res { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
 .res.W { background: rgba(63,191,127,.15); color: var(--win); } .res.L { background: rgba(240,86,106,.15); color: var(--loss); }
-.stage { position: relative; aspect-ratio: 1; background: #07090d; touch-action: none; overscroll-behavior: contain; cursor: grab; }
+.stage { scroll-margin-top: 72px; position: relative; aspect-ratio: 1; background: #07090d; touch-action: none; overscroll-behavior: contain; cursor: grab; }
 .stage canvas { width: 100%; height: 100%; display: block; }
 .hud { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; }
 .hud .pill { background: rgba(7,9,13,.75); color: var(--text); }
@@ -189,31 +208,19 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </style>
 </head>
 <body>
-<main>
-  <header class="hero">
+  <header class="hero"><div class="hero-in"><div>
     <div class="eyebrow">{{ match.source_file or "Demo" }}</div>
     <h1>{{ map_label }}</h1>
     <div class="score num"><b class="w">{{ score.won }}</b><span class="sep">:</span><b class="l">{{ score.lost }}</b>
       <span class="pill">{{ n_findings }} Fehler</span>{% if n_good %}<span class="pill good">{{ n_good }}x stark</span>{% endif %}</div>
     <div class="verdict">{{ debrief.sentence }}</div>
+    </div><div>
     <button class="tour" id="tourBtn" hidden>▶ Schlüsselmomente ansehen <small id="tourN"></small></button>
     <button class="linkbtn" id="allTour" hidden></button>
-  </header>
+  </div></div></header>
+<main>
 
-  {% if goal_check and (goal_check.checks or goal_check.new) %}
-  <h2>Ziel-Check</h2>
-  <div class="stack">
-    {% for c in goal_check.checks %}
-    <div class="gcheck {{ 'ok' if c.met else 'no' }}">
-      <span class="gi">{{ '✓' if c.met else '✗' }}</span>
-      <div><b>{{ c.title }}</b>
-        <div class="num">diesmal {{ c.pct }} % · Ziel ≤ {{ c.target }} %{% if c.status == 'geschafft' %} · <b>Ziel geschafft!</b>{% elif c.met %} · {{ c.streak }}x in Folge{% endif %}</div></div>
-    </div>
-    {% endfor %}
-    {% if goal_check.new %}<div class="quiet">Neue Ziele: {{ goal_check.new|join(", ") }}</div>{% endif %}
-  </div>
-  {% endif %}
-
+  <div class="cols"><div class="col">
   {% if debrief.causes %}
   <h2>Warum verloren</h2>
   <div class="stack">
@@ -235,6 +242,21 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   <p class="quiet" style="margin:8px 2px 0">Zusammenhang aus euren Runden, kein Beweis, dass genau das die Runde gekostet hat.</p>
   {% endif %}
 
+  </div><div class="col">
+  {% if goal_check and (goal_check.checks or goal_check.new) %}
+  <h2>Ziel-Check</h2>
+  <div class="stack">
+    {% for c in goal_check.checks %}
+    <div class="gcheck {{ 'ok' if c.met else 'no' }}">
+      <span class="gi">{{ '✓' if c.met else '✗' }}</span>
+      <div><b>{{ c.title }}</b>
+        <div class="num">diesmal {{ c.pct }} % · Ziel ≤ {{ c.target }} %{% if c.status == 'geschafft' %} · <b>Ziel geschafft!</b>{% elif c.met %} · {{ c.streak }}x in Folge{% endif %}</div></div>
+    </div>
+    {% endfor %}
+    {% if goal_check.new %}<div class="quiet">Neue Ziele: {{ goal_check.new|join(", ") }}</div>{% endif %}
+  </div>
+  {% endif %}
+
   {% if debrief.positives %}
   <h2>Was gut lief</h2>
   <div class="goodlist">
@@ -242,17 +264,21 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </div>
   {% endif %}
 
+  </div></div>
+
   <h2>Replay</h2>
   <nav class="rounds" id="rounds" aria-label="Runden"></nav>
 
   <section class="card replay" aria-label="2D-Replay">
     <div class="rhead"><b id="rtitle">Runde</b><span id="rres" class="res"></span></div>
     <div class="story" id="story"></div>
+    <div class="rbody">
     <div class="stage" id="stage">
       <canvas id="cv"></canvas>
       <div class="hud" id="hud"></div>
       <div class="feed" id="feed"></div>
     </div>
+    <div class="rside">
     <div class="coach" id="coach" aria-live="polite"></div>
     <div class="timeline" id="tl"><div class="bar"></div><div class="fill" id="tlfill"></div><input type="range" id="scrub" min="0" max="1" step="1" aria-label="Zeit"></div>
     <div class="controls">
@@ -267,9 +293,11 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     </div>
     <div class="roster" id="roster"></div>
     <div class="ulegend"><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:#ff4d4d"></i>HE</span><span style="color:var(--faint)">Ring = Restdauer</span></div>
+    </div></div>
   </section>
 
-  {% if debrief.duo %}{% set d = debrief.duo %}
+  <div class="cols3">
+  {% if debrief.duo %}<div>{% set d = debrief.duo %}
   <h2>Ihr als Duo</h2>
   <div class="card duo">
     <div class="duo-s">{{ d.sentence }}</div>
@@ -283,7 +311,8 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </div>
   {% endif %}
 
-  {% if debrief.mechanics and debrief.mechanics[0].has_shot_data %}
+  {% if debrief.duo %}</div>{% endif %}
+  {% if debrief.mechanics and debrief.mechanics[0].has_shot_data %}<div>
   <h2>Mechanik</h2>
   <div class="stack">
     {% for m in debrief.mechanics %}
@@ -306,7 +335,8 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </div>
   {% endif %}
 
-  {% if debrief.utility %}
+  {% if debrief.mechanics and debrief.mechanics[0].has_shot_data %}</div>{% endif %}
+  {% if debrief.utility %}<div>
   <h2>Utility-Wirkung</h2>
   <div class="stack">
     {% for u in debrief.utility %}
@@ -323,6 +353,9 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     {% endfor %}
   </div>
   {% endif %}
+
+  {% if debrief.utility %}</div>{% endif %}
+  </div>
 
   <details class="more"><summary>Alle Details (Befunde, Statistik, Hausaufgaben)</summary>
   <h2>Befunde dieser Runde</h2>
@@ -942,7 +975,7 @@ function selectRound(i, keep) {
   S.ri = i; setPlaying(false); S.lastF = null;
   const r = R(); S.tick = r.t0;
   [...strip.children].forEach((b, j) => b.classList.toggle('on', j === i));
-  strip.children[i].scrollIntoView({ inline: 'center', block: 'nearest' });
+  { const c = strip.children[i]; strip.scrollTo({ left: c.offsetLeft - strip.clientWidth / 2 + c.clientWidth / 2 }); } // nur horizontal, Seite bleibt stehen
   $('rtitle').textContent = 'Runde ' + r.n + (r.side ? ' · ' + r.side.toUpperCase() : '');
   const res = $('rres'); res.className = 'res ' + (r.out || ''); res.textContent = r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '';
   buildTimeline(); buildFindings(); story(); draw();

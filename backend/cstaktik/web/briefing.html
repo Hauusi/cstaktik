@@ -16,11 +16,13 @@
 <p>{% if b.matches %}{{ b.matches }} {{ "Match" if b.matches == 1 else "Matches" }} auf {{ b.label }} ausgewertet, {{ b.won_matches }} gewonnen.{% else %}Noch kein Match auf {{ b.label }} ausgewertet.{% endif %}</p>
 {% endblock %}
 {% block content %}
+<div class="cols"><div class="col">
 {% if b.goals %}
 <h2>Eure Ziele heute</h2>
 {% for g in b.goals %}<div class="goal"><b>{{ g.title }}</b><div class="tp">{{ g.tip }}</div></div>{% endfor %}
 {% endif %}
 
+</div><div class="col">
 {% if b.win_spots %}
 <h2>So gewinnt ihr hier</h2>
 {% for w in b.win_spots %}<div class="note"><span class="side {{ w.side }}">{{ w.side }}</span>{{ w.name }}: in Siegrunden nach {{ w.at }} meist in <b>{{ w.place }}</b> <span class="empty num">({{ w.n }} von {{ w.total }})</span></div>{% endfor %}
@@ -45,4 +47,5 @@
 {% if not b.notes and not b.watch and not b.win_spots and not b.pro_spots %}
 <p class="empty sec">Für diese Map gibt es noch keine Muster. Nach der ersten ausgewerteten Demo auf {{ b.label }} steht hier euer Briefing.</p>
 {% endif %}
+</div></div>
 {% endblock %}

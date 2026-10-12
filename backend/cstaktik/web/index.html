@@ -43,6 +43,8 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 <p>{% if goals %}{{ goals|length }} {{ "Ziel" if goals|length == 1 else "Ziele" }} aktiv{% if done_count %} · {{ done_count }} geschafft{% endif %}.{% else %}Lade eine verlorene Demo hoch, der Coach setzt daraus eure ersten Ziele.{% endif %}</p>
 {% endblock %}
 {% block content %}
+<div class="cols">
+<div class="col">
 {% if goals %}
 <h2>Eure Ziele</h2>
 <div class="list">
@@ -77,6 +79,8 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 </a>
 {% endif %}
 
+</div>
+<div class="col">
 <h2>Neues Match auswerten</h2>
 <form class="card" id="form" action="/analyze" method="post" enctype="multipart/form-data">
   <label class="drop" id="drop">
@@ -135,6 +139,8 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 {% else %}
 <div class="card empty">Noch keine Reports. Lade deine erste Demo hoch.</div>
 {% endif %}
+</div>
+</div>
 {% endblock %}
 {% block script %}
 <script>
