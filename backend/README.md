@@ -11,7 +11,7 @@ cd backend
 python -m venv .venv
 . .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-awpy get maps                   # optional: Radarbilder + Kalibrierung für die 2D-Karte
+awpy get maps                   # optional: Radarbilder + Kalibrierung (siehe "Kartenbilder")
 cp cstaktik/config/players.example.yaml cstaktik/config/players.yaml
 ```
 
@@ -39,6 +39,26 @@ cstaktik analyze match.dem --me 7656... --me 7656...
 Report landet in `data/reports/<name>.html` (eine Datei, ohne externe Abhängigkeiten,
 kann auch direkt aufs Handy geschickt werden). Geparste Demos werden als JSON in
 `data/cache/` gecacht. Demos, Reports und Cache sind per `.gitignore` ausgeschlossen.
+
+## Report und 2D-Replay
+
+Pro Runde: Replay aller 10 Spieler (Positionen 4x pro Sekunde aus der Demo, interpoliert),
+Blickrichtung, Smokes/Molotovs, Bombe, Killfeed. Die Timeline markiert Tode und Befunde.
+Beim Abspielen hält das Replay an jedem Befund an und zeigt den Tipp; der Todesort pulsiert.
+Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Zoom (folgt den Fokus-Spielern),
+Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
+
+## Kartenbilder
+
+Ohne Kartenbild läuft das Replay auf einem neutralen Raster. Mit Bild wird die
+Radar-Kalibrierung genutzt. Gesucht wird in `data/maps/` (nicht im Repo) und `~/.awpy/maps/`:
+
+- Bild: `<map>.png` oder `<map>_radar.png` (auch `.jpg`/`.webp`), z. B. `de_mirage.png`
+- Kalibrierung: `map-data.json` im awpy-Format **oder** die CS2-Overview-Datei `<map>.txt`
+  mit `pos_x`, `pos_y`, `scale`
+
+`awpy get maps` lädt beides. Am 12.10.2026 lieferte der awpy-Server dafür 403. Bild und
+Kalibrierung müssen zusammenpassen, sonst liegen die Positionen falsch.
 
 ## Regeln
 

@@ -37,3 +37,4 @@ backend/data/cache/
 
 # Lokale Spieler-Config (SteamIDs)
 backend/cstaktik/config/players.yaml
+backend/data/maps/

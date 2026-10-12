@@ -5,8 +5,8 @@ parser:
   # Tickrate der Demo. awpy 2.0.2 liest sie nicht aus dem Header, Default dort ist 128.
   # CS2-Matchmaking-Server laufen mit 64 Tick. Mit der ersten echten Demo prüfen.
   tickrate: 64
-  # Positions-Samples pro Sekunde für Laufwege und Abstandsberechnung.
-  position_samples_per_second: 2
+  # Positions-Samples pro Sekunde für Replay, Laufwege und Abstandsberechnung.
+  position_samples_per_second: 4
   # Economy wird am Tick (Freeze-Ende + Offset) gemessen, damit späte Käufe mitzählen.
   economy_sample_offset_s: 5
 

@@ -17,33 +17,58 @@ def test_json_roundtrip(tmp_path):
     assert load_match(tmp_path / "m.json") == m
 
 
+def _embedded(html):
+    import json
+
+    raw = re.search(r'<script type="application/json" id="data">(.*?)</script>', html, re.S).group(1)
+    return json.loads(raw)
+
+
 def test_report_is_selfcontained_and_mobile(tmp_path):
     m = build_match()
-    html = render_report(m, analyze(m, load_rules_config()), maps_dir=tmp_path)
+    html = render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
     assert 'name="viewport"' in html
     assert not re.search(r'(src|href)="https?://', html)  # keine externen Ressourcen
-    assert "Tod ohne Trade" in html and "Gleicher Todesort" in html and "Force-Buy" in html
-    assert "Radarbild fehlt" in html  # ohne awpy-Kartendaten ehrlich melden
-    assert html.count("<polyline") > 0
+    assert "Kartenbild fehlt" in html  # ohne Radar-Dateien ehrlich melden
+    data = _embedded(html)
+    assert data["img"] is None and len(data["rounds"]) == 6
+    r2 = next(r for r in data["rounds"] if r["n"] == 2)
+    assert r2["out"] == "L" and r2["tracks"] and r2["kills"]
+    titles = {data["findings"][i]["title"] for i in r2["f"]}
+    assert {"Tod ohne Trade", "Utility nicht genutzt", "Uneinheitlicher Kauf"} <= titles
+    untraded = next(data["findings"][i] for i in r2["f"] if data["findings"][i]["rule"] == "untraded_death")
+    assert untraded["x"] is not None  # Coach-Marker sitzt am Todesort
 
 
-def test_report_uses_awpy_radar_when_present(tmp_path):
+def test_embedded_json_cannot_break_out_of_script(tmp_path):
+    m = build_match()
+    m.players[0].name = "</script><img src=x onerror=alert(1)>"
+    html = render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
+    assert "</script><img" not in html
+    assert _embedded(html)["players"][m.players[0].steamid]["name"].startswith("</script>")
+
+
+def test_report_uses_radar_files_when_present(tmp_path):
     import json
-    import struct
-    import zlib
 
-    def png(w, h):
-        raw = b"".join(b"\x00" + b"\x00\x00\x00" * w for _ in range(h))
-        chunk = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))
-        return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
-                + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
-
-    (tmp_path / "de_mirage.png").write_bytes(png(4, 4))
+    (tmp_path / "de_mirage.png").write_bytes(b"\x89PNG\r\n\x1a\nfake")
     (tmp_path / "map-data.json").write_text(json.dumps({"de_mirage": {"pos_x": -1000, "pos_y": 1000, "scale": 5}}))
     m = build_match()
-    html = render_report(m, analyze(m, load_rules_config()), maps_dir=tmp_path)
-    assert "data:image/png;base64," in html and "Radarbild fehlt" not in html
-    assert 'viewBox="0 0 4 4"' in html
+    html = render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
+    data = _embedded(html)
+    assert data["img"].startswith("data:image/png;base64,") and "Kartenbild fehlt" not in html
+    # Welt (0,0) -> Pixel ((0+1000)/5, (1000-0)/5)
+    k = next(k for r in data["rounds"] for k in r["kills"] if k["vx"] is not None)
+    assert (k["vx"], k["vy"]) == (200.0, 200.0)
+
+
+def test_valve_overview_txt_calibration(tmp_path):
+    from cstaktik.report.radar import build_radar
+
+    (tmp_path / "de_mirage_radar.png").write_bytes(b"x")
+    (tmp_path / "de_mirage.txt").write_text('"de_mirage"\n{\n "pos_x" "-3230"\n "pos_y" "1713"\n "scale" "5.00"\n}')
+    r = build_radar(build_match(), [tmp_path])
+    assert (r.pos_x, r.pos_y, r.scale) == (-3230.0, 1713.0, 5.0) and r.image_data_uri
 
 
 def test_cli_analyze_json(tmp_path, monkeypatch):

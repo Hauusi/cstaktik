@@ -2,121 +2,486 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ map_label }} {{ score.won }}:{{ score.lost }} – Analyse</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>{{ map_label }} {{ score.won }}:{{ score.lost }} – cstaktik</title>
 <style>
 :root {
-  --bg: #0f1216; --card: #1a1f26; --line: #2a313b; --text: #e8ecf1; --muted: #8b95a3;
-  --hoch: #ef5350; --mittel: #ffa726; --niedrig: #78909c; --win: #66bb6a; --loss: #ef5350;
+  --bg: #0b0d12; --surface: #141821; --surface-2: #1b202b; --line: rgba(255,255,255,.07);
+  --text: #eef1f6; --muted: #8d97a8; --faint: #5d6676;
+  --ct: #4a8ae0; --t: #c47a12; --accent: #7c5cff;
+  --win: #3fbf7f; --loss: #f0566a; --hoch: #f0566a; --mittel: #f5a524; --niedrig: #7d8899;
+  --r: 16px;
 }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { background: var(--bg); }
 body { margin: 0; background: var(--bg); color: var(--text);
-  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-main { max-width: 640px; margin: 0 auto; padding: 16px; }
-h1 { font-size: 22px; margin: 4px 0 2px; }
-h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 24px 0 8px; }
-.sub { color: var(--muted); font-size: 13px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 0 0 10px; }
-.score { font-size: 32px; font-weight: 700; }
-.score .w { color: var(--win); } .score .l { color: var(--loss); }
-.top li { margin: 4px 0; }
-.top { padding-left: 20px; margin: 6px 0 0; }
-.f { border-left: 3px solid var(--niedrig); padding: 2px 0 2px 10px; margin: 10px 0; }
-.f.hoch { border-color: var(--hoch); } .f.mittel { border-color: var(--mittel); }
-.f .t { font-weight: 600; }
-.f .who { color: var(--muted); font-weight: 400; }
-.f .tip { margin-top: 4px; }
-.f .tip::before { content: "Tipp: "; font-weight: 600; color: var(--win); }
-details { margin-top: 4px; font-size: 13px; color: var(--muted); }
-summary { cursor: pointer; }
-dl { margin: 4px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; }
-dt { color: var(--muted); } dd { margin: 0; color: var(--text); word-break: break-word; }
-.rh { display: flex; justify-content: space-between; align-items: baseline; }
-.rh b { font-size: 17px; }
-.tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--line); }
-.tag.gewonnen { background: #1e3a24; color: var(--win); } .tag.verloren { background: #3a1e1e; color: var(--loss); }
-.radar { width: 100%; margin-top: 8px; border-radius: 8px; background: #0b0d10;
-  {% if radar.image_data_uri %}background-image: url({{ radar.image_data_uri }}); background-size: 100% 100%;{% endif %} }
-.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--muted); }
-.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 0 16px 48px; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Hero */
+.hero { position: relative; margin: 0 -16px; padding: 28px 20px 22px; overflow: hidden;
+  background: radial-gradient(120% 140% at 0% 0%, rgba(124,92,255,.35), transparent 55%),
+              radial-gradient(120% 140% at 100% 0%, rgba(74,138,224,.25), transparent 55%), var(--bg); }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.hero h1 { margin: 2px 0 0; font-size: 34px; letter-spacing: -.02em; }
+.score { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
+.score b { font-size: 44px; font-weight: 800; letter-spacing: -.03em; }
+.score .w { color: var(--win); } .score .l { color: var(--loss); } .score .sep { color: var(--faint); font-size: 30px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.06); border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.focus-list { display: grid; gap: 8px; margin-top: 16px; }
+.focus-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px;
+  background: rgba(20,24,33,.7); border: 1px solid var(--line); backdrop-filter: blur(6px); }
+.focus-item .rank { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+  font-weight: 700; font-size: 13px; background: rgba(124,92,255,.2); color: #c9bcff; flex: none; }
+.focus-item .who { color: var(--muted); font-size: 13px; }
+
+/* Sections */
+h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
+.stack > * + * { margin-top: 10px; }
+
+/* Round strip */
+.rounds { position: sticky; top: 0; z-index: 5; margin: 0 -16px; padding: 10px 16px;
+  background: rgba(11,13,18,.88); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.rounds::-webkit-scrollbar { display: none; }
+.rchip { position: relative; flex: none; min-width: 40px; height: 40px; border-radius: 10px; padding: 0 8px;
+  background: var(--surface); border: 1px solid var(--line); font-weight: 600; font-size: 14px; }
+.rchip.W { box-shadow: inset 0 -3px 0 var(--win); } .rchip.L { box-shadow: inset 0 -3px 0 var(--loss); }
+.rchip.on { background: var(--text); color: var(--bg); }
+.rchip .badge { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; border-radius: 9px;
+  background: var(--mittel); color: #1a1200; font-size: 11px; line-height: 17px; padding: 0 4px; }
+
+/* Replay */
+.replay { margin-top: 14px; padding: 0; overflow: hidden; }
+.rhead { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }
+.rhead b { font-size: 18px; }
+.res { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+.res.W { background: rgba(63,191,127,.15); color: var(--win); } .res.L { background: rgba(240,86,106,.15); color: var(--loss); }
+.stage { position: relative; aspect-ratio: 1; background: #07090d; touch-action: manipulation; }
+.stage canvas { width: 100%; height: 100%; display: block; }
+.hud { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; }
+.hud .pill { background: rgba(7,9,13,.75); color: var(--text); }
+.feed { position: absolute; right: 8px; top: 8px; display: grid; gap: 4px; justify-items: end; max-width: 70%; pointer-events: none; }
+.feed div { font-size: 11.5px; padding: 3px 8px; border-radius: 8px; background: rgba(7,9,13,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.feed .mine { outline: 1px solid var(--loss); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+.coach { margin: 0; padding: 10px 14px; min-height: 52px; border-top: 1px solid var(--line); background: var(--surface); transition: background .2s; }
+.coach.show { background: rgba(245,165,36,.07); }
+.coach .hint { color: var(--muted); font-size: 13px; }
+.coach .item + .item { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.coach .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+.coach .tt { font-weight: 650; margin-top: 1px; }
+.coach .tip { font-size: 13.5px; color: #f5e7c8; margin-top: 2px; }
+.controls { display: flex; align-items: center; gap: 6px; padding: 10px 12px 4px; }
+.cbtn { height: 40px; min-width: 40px; padding: 0 10px; border-radius: 10px; background: var(--surface-2);
+  border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; }
+.cbtn.play { width: 48px; height: 48px; border-radius: 50%; background: var(--text); color: var(--bg); }
+.cbtn.on { border-color: var(--accent); color: #c9bcff; }
+.cbtn svg { width: 18px; height: 18px; }
+.spacer { flex: 1; }
+.clock { font-weight: 700; font-size: 15px; min-width: 44px; text-align: right; }
+.timeline { position: relative; margin: 6px 14px 4px; height: 34px; }
+.timeline .bar { position: absolute; left: 0; right: 0; top: 15px; height: 4px; border-radius: 2px; background: var(--surface-2); }
+.timeline .fill { position: absolute; left: 0; top: 15px; height: 4px; border-radius: 2px; background: var(--accent); }
+.timeline .mk { position: absolute; top: 9px; width: 3px; height: 16px; margin-left: -1px; border-radius: 2px; pointer-events: none; }
+.timeline .fm { position: absolute; top: 2px; width: 12px; height: 12px; margin-left: -6px; transform: rotate(45deg);
+  border-radius: 3px; background: var(--mittel); border: 2px solid var(--surface); pointer-events: none; }
+.timeline .fm.hoch { background: var(--hoch); }
+.timeline input { position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.roster { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; padding: 8px 14px 14px; font-size: 12.5px; }
+.roster span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.roster .dead { color: var(--faint); text-decoration: line-through; }
+.roster .me { font-weight: 700; }
+
+/* Findings */
+.f { position: relative; padding: 12px 14px 12px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.f::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--niedrig); }
+.f.hoch::before { background: var(--hoch); } .f.mittel::before { background: var(--mittel); }
+.f .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.f .t { font-weight: 650; }
+.f .who { color: var(--muted); font-size: 13px; }
+.f .txt { margin-top: 4px; color: #d7dce5; }
+.f .tip { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.08); color: #cdeedd; font-size: 14px; }
+.f .tip b { color: var(--win); }
+.f .act { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.watch { height: 34px; padding: 0 12px; border-radius: 9px; background: rgba(124,92,255,.18); color: #d4c9ff; font-weight: 600; font-size: 13px; }
+details { font-size: 12.5px; color: var(--muted); }
+summary { cursor: pointer; list-style: none; } summary::-webkit-details-marker { display: none; }
+dl { margin: 6px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; }
+dt { color: var(--faint); } dd { margin: 0; color: var(--text); word-break: break-word; }
+.rlinks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rlinks button { padding: 4px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; }
 .quiet { color: var(--muted); font-size: 13px; }
-.warn { border-color: var(--mittel); }
-.toggle { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-bottom: 10px; }
-body.only-findings .r-empty { display: none; }
+.note { border-color: rgba(245,165,36,.4); }
+.note ul { margin: 6px 0 0; padding-left: 18px; }
+footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </style>
 </head>
-<body class="only-findings">
+<body>
 <main>
-  <div class="sub">{{ match.source_file or "Demo" }}</div>
-  <h1>{{ map_label }}</h1>
-  <div class="card">
-    <div class="score"><span class="w">{{ score.won }}</span> : <span class="l">{{ score.lost }}</span></div>
-    <div class="sub">{{ n_findings }} Befunde · {{ match.rounds|length }} Runden</div>
+  <header class="hero">
+    <div class="eyebrow">{{ match.source_file or "Demo" }}</div>
+    <h1>{{ map_label }}</h1>
+    <div class="score num"><b class="w">{{ score.won }}</b><span class="sep">:</span><b class="l">{{ score.lost }}</b>
+      <span class="pill">{{ n_findings }} Befunde</span></div>
     {% if top %}
-    <ol class="top">
-      {% for t in top %}<li><b>{{ t.title }}</b> – {{ t.who }}{% if t.count > 1 %} ({{ t.count }}x){% endif %}</li>{% endfor %}
-    </ol>
-    {% else %}<p class="quiet">Keine Befunde nach den aktiven Regeln.</p>{% endif %}
-  </div>
+    <div class="focus-list">
+      {% for t in top %}
+      <div class="focus-item"><div class="rank">{{ loop.index }}</div>
+        <div><b>{{ t.title }}</b>{% if t.count > 1 %} <span class="num">· {{ t.count }}x</span>{% endif %}<div class="who">{{ t.who }}</div></div></div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </header>
 
-  {% set missing_rules = rule_status|rejectattr("evaluated")|list %}
-  {% if match.missing or missing_rules or radar.note %}
-  <div class="card warn">
-    <b>Datenlage</b>
-    <ul class="quiet">
-      {% for r in missing_rules %}<li>{{ r.title }}: nicht auswertbar ({{ r.reason }})</li>{% endfor %}
-      {% for m in match.missing %}<li>{{ m }}</li>{% endfor %}
-      {% if radar.note %}<li>{{ radar.note }}</li>{% endif %}
-    </ul>
-  </div>
-  {% endif %}
+  <nav class="rounds" id="rounds" aria-label="Runden"></nav>
+
+  <section class="card replay" aria-label="2D-Replay">
+    <div class="rhead"><b id="rtitle">Runde</b><span id="rres" class="res"></span></div>
+    <div class="stage" id="stage">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hud"></div>
+      <div class="feed" id="feed"></div>
+    </div>
+    <div class="coach" id="coach" aria-live="polite"></div>
+    <div class="timeline" id="tl"><div class="bar"></div><div class="fill" id="tlfill"></div><input type="range" id="scrub" min="0" max="1" step="1" aria-label="Zeit"></div>
+    <div class="controls">
+      <button class="cbtn" id="prevF" aria-label="Vorheriger Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button class="cbtn play" id="play" aria-label="Abspielen"><svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M7 4v16l13-8z"/></svg></button>
+      <button class="cbtn" id="nextF" aria-label="Nächster Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+      <button class="cbtn num" id="speed" aria-label="Geschwindigkeit">1x</button>
+      <span class="spacer"></span>
+      <button class="cbtn" id="zoom" aria-label="Zoom">Zoom</button>
+      <button class="cbtn" id="trail" aria-label="Spuren">Spur</button>
+      <span class="clock num" id="clock">0:00</span>
+    </div>
+    <div class="roster" id="roster"></div>
+  </section>
+
+  <h2>Befunde dieser Runde</h2>
+  <div class="stack" id="rfind"></div>
 
   {% if patterns %}
   <h2>Muster über das Match</h2>
-  {% for f in patterns %}
-  <div class="card">
-    {% include "finding.html" %}
+  <div class="stack">
+    {% for f in patterns %}
+    <div class="f {{ f.severity }}">
+      <div class="top"><span class="t">{{ f.title }}</span><span class="who">{{ f.player_name or "Team" }}</span></div>
+      <div class="txt">{{ f.text }}</div>
+      <div class="tip"><b>Tipp</b> · {{ f.tip }}</div>
+      {% if f.rounds %}<div class="rlinks">{% for r in f.rounds %}<button data-round="{{ r }}">Runde {{ r }}</button>{% endfor %}</div>{% endif %}
+    </div>
+    {% endfor %}
   </div>
-  {% endfor %}
   {% endif %}
 
-  <h2>Runden</h2>
-  <label class="toggle"><input type="checkbox" checked
-    onchange="document.body.classList.toggle('only-findings', this.checked)"> Nur Runden mit Befund</label>
-  <div class="legend">{% for l in legend %}<span><i style="background:{{ l.color }}"></i>{{ l.name }}</span>{% endfor %}
-    <span><i style="background:#9e9e9e"></i>Mitspieler</span><span>✕ Tod · ● Gegner</span></div>
-  {% for r in rounds %}
-  <div class="card{% if not r.findings %} r-empty{% endif %}" id="r{{ r.num }}">
-    <div class="rh"><b>Runde {{ r.num }}</b>
-      <span>{{ r.side }}{% if r.outcome %} <span class="tag {{ r.outcome }}">{{ r.outcome }}</span>{% endif %}</span></div>
-    {% for f in r.findings %}{% include "finding.html" %}{% endfor %}
-    {% if not r.findings %}<p class="quiet">Kein Befund.</p>{% endif %}
-    {% if r.paths or r.deaths %}
-    <svg class="radar" viewBox="0 0 {{ radar.width }} {{ radar.height }}" role="img" aria-label="Laufwege Runde {{ r.num }}">
-      {% for p in r.paths %}
-      <polyline points="{{ p.points }}" fill="none" stroke="{{ p.color }}"
-        stroke-width="{{ 5 if p.focus else 3 }}" stroke-opacity="{{ 0.95 if p.focus else 0.45 }}"
-        stroke-linejoin="round" stroke-linecap="round"><title>{{ p.name }}</title></polyline>
-      {% endfor %}
-      {% for d in r.deaths %}
-      {% if d.ax is defined %}
-      <line x1="{{ d.ax }}" y1="{{ d.ay }}" x2="{{ d.x }}" y2="{{ d.y }}" stroke="#ef5350" stroke-width="2" stroke-dasharray="6 6"/>
-      <circle cx="{{ d.ax }}" cy="{{ d.ay }}" r="9" fill="#ef5350"/>
-      {% endif %}
-      <g stroke="{{ d.color }}" stroke-width="{{ 6 if d.focus else 4 }}" stroke-linecap="round">
-        <line x1="{{ d.x - 12 }}" y1="{{ d.y - 12 }}" x2="{{ d.x + 12 }}" y2="{{ d.y + 12 }}"/>
-        <line x1="{{ d.x - 12 }}" y1="{{ d.y + 12 }}" x2="{{ d.x + 12 }}" y2="{{ d.y - 12 }}"/>
-      </g>
-      {% endfor %}
-    </svg>
-    {% endif %}
-  </div>
-  {% endfor %}
+  {% if match.missing or unevaluated or radar_note %}
+  <h2>Datenlage</h2>
+  <div class="card note quiet"><ul>
+    {% for r in unevaluated %}<li>{{ r.title }}: nicht auswertbar ({{ r.reason }})</li>{% endfor %}
+    {% for m in match.missing %}<li>{{ m }}</li>{% endfor %}
+    {% if radar_note %}<li>{{ radar_note }}</li>{% endif %}
+  </ul></div>
+  {% endif %}
 
-  <h2>Quelle</h2>
-  <p class="quiet">Alle Werte aus der Demo geparst (awpy). Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
+  <footer>Alle Werte aus der Demo geparst (awpy). Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
   {% if match.source_sha256 %}SHA-256 {{ match.source_sha256[:12] }}…{% endif %}
-  Schwellen der Regeln: config/rules.yaml (Heuristiken).</p>
+  Regel-Schwellen: config/rules.yaml (Heuristiken).</footer>
 </main>
+
+<script type="application/json" id="data">{{ data_json | safe }}</script>
+<script>
+{% raw %}
+(() => {
+const D = JSON.parse(document.getElementById('data').textContent);
+const TR = D.tickrate, SIZE = D.size;
+const COL = { ct: '#4a8ae0', t: '#c47a12' };
+const SEV = { hoch: '#f0566a', mittel: '#f5a524', niedrig: '#7d8899' };
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
+const F = D.findings;
+const S = { ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, trailFull: false, lastF: null, coachF: null };
+let bg = null;
+if (D.img) { bg = new Image(); bg.onload = () => draw(); bg.src = D.img; }
+
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const name = sid => (D.players[sid] && D.players[sid].name) || '?';
+const isFocus = sid => !!(D.players[sid] && D.players[sid].focus);
+const R = () => D.rounds[S.ri];
+const fmt = t => { const s = Math.max(0, Math.floor((t - R().t0) / TR)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+// ---- Rundenleiste
+const strip = $('rounds');
+D.rounds.forEach((r, i) => {
+  const b = el('button', 'rchip num' + (r.out ? ' ' + r.out : ''), String(r.n));
+  b.setAttribute('aria-label', 'Runde ' + r.n);
+  if (r.f.length) b.appendChild(el('span', 'badge', String(r.f.length)));
+  b.onclick = () => selectRound(i);
+  strip.appendChild(b);
+});
+
+// ---- Interpolation
+function sampleAt(pts, tick) {
+  if (!pts || !pts.length || tick < pts[0][0] - TR) return null;
+  let lo = 0, hi = pts.length - 1;
+  if (tick <= pts[0][0]) return { x: pts[0][1], y: pts[0][2], yaw: pts[0][3] };
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (pts[m][0] <= tick) lo = m; else hi = m - 1; }
+  const a = pts[lo], b = pts[lo + 1];
+  if (!b) return tick - a[0] <= TR ? { x: a[1], y: a[2], yaw: a[3] } : null;
+  if (b[0] - a[0] > 2 * TR) return { x: a[1], y: a[2], yaw: a[3] };
+  const k = (tick - a[0]) / (b[0] - a[0]);
+  let yaw = a[3];
+  if (a[3] != null && b[3] != null) { const d = ((b[3] - a[3] + 540) % 360) - 180; yaw = a[3] + d * k; }
+  return { x: a[1] + (b[1] - a[1]) * k, y: a[2] + (b[2] - a[2]) * k, yaw };
+}
+function deathTicks(r) { const m = {}; r.kills.forEach(k => { if (k.v && !(k.v in m)) m[k.v] = k.t; }); return m; }
+
+// ---- Zeichnen
+let cssW = 0;
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  cssW = stage.clientWidth;
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssW * dpr);
+  draw();
+}
+function center() {
+  if (S.zoom === 1) return { x: SIZE / 2, y: SIZE / 2 };
+  const r = R(), dt = deathTicks(r);
+  const focus = Object.keys(r.tracks).filter(isFocus).filter(s => !(dt[s] <= S.tick));
+  const p = focus.map(s => sampleAt(r.tracks[s], S.tick)).filter(Boolean);
+  if (!p.length) return S.cam || { x: SIZE / 2, y: SIZE / 2 };
+  S.cam = { x: p.reduce((a, q) => a + q.x, 0) / p.length, y: p.reduce((a, q) => a + q.y, 0) / p.length };
+  return S.cam;
+}
+function draw() {
+  if (!cssW) return;
+  const r = R(), t = S.tick, z = S.zoom;
+  const s = cv.width / SIZE * z, c = center();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#07090d'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(s, 0, 0, s, cv.width / 2 - c.x * s, cv.height / 2 - c.y * s);
+  const u = SIZE / (cssW * z); // Radar-Pixel pro CSS-Pixel
+  if (bg) { ctx.globalAlpha = .9; ctx.drawImage(bg, 0, 0, SIZE, SIZE); ctx.globalAlpha = 1; }
+  else { ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = u; for (let g = 0; g <= SIZE; g += 64) { ctx.beginPath(); ctx.moveTo(g, 0); ctx.lineTo(g, SIZE); ctx.moveTo(0, g); ctx.lineTo(SIZE, g); ctx.stroke(); } }
+
+  // Utility
+  r.util.forEach(g => {
+    if (t < g.s || (g.e != null && t > g.e)) return;
+    ctx.beginPath(); ctx.arc(g.x, g.y, 14 * u, 0, 7);
+    if (g.k === 'smoke') { ctx.fillStyle = 'rgba(200,206,216,.55)'; ctx.fill(); }
+    else { ctx.fillStyle = 'rgba(240,86,40,.35)'; ctx.fill(); ctx.strokeStyle = 'rgba(255,120,60,.9)'; ctx.lineWidth = 1.5 * u; ctx.setLineDash([3 * u, 3 * u]); ctx.stroke(); ctx.setLineDash([]); }
+  });
+
+  // Spuren
+  const dt = deathTicks(r);
+  const from = S.trailFull ? r.t0 : t - 3 * TR;
+  for (const sid in r.tracks) {
+    const pts = r.tracks[sid], team = r.teams[sid], end = Math.min(t, dt[sid] ?? Infinity);
+    ctx.beginPath(); let started = false;
+    for (const p of pts) { if (p[0] < from) continue; if (p[0] > end) break; started ? ctx.lineTo(p[1], p[2]) : ctx.moveTo(p[1], p[2]); started = true; }
+    if (!started) continue;
+    ctx.strokeStyle = COL[team] || '#888'; ctx.globalAlpha = isFocus(sid) ? .85 : .35;
+    ctx.lineWidth = (isFocus(sid) ? 2.5 : 1.5) * u; ctx.lineJoin = ctx.lineCap = 'round'; ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  // Bombe
+  r.bomb.forEach(b => {
+    if (t < b.t) return;
+    ctx.fillStyle = b.ev === 'defuse' ? COL.ct : '#f0566a';
+    ctx.font = `700 ${11 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.beginPath(); ctx.arc(b.x, b.y, 8 * u, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillText('C4', b.x, b.y);
+  });
+
+  // Kills: Schusslinie kurz einblenden, Tote als X
+  r.kills.forEach(k => {
+    if (t < k.t || k.vx == null) return;
+    const age = (t - k.t) / TR;
+    if (age < 1.5 && k.ax != null) {
+      ctx.strokeStyle = `rgba(255,255,255,${.8 * (1 - age / 1.5)})`; ctx.lineWidth = 1.5 * u; ctx.setLineDash([4 * u, 4 * u]);
+      ctx.beginPath(); ctx.moveTo(k.ax, k.ay); ctx.lineTo(k.vx, k.vy); ctx.stroke(); ctx.setLineDash([]);
+    }
+    const d = 5 * u; ctx.strokeStyle = COL[r.teams[k.v]] || '#888'; ctx.globalAlpha = isFocus(k.v) ? 1 : .6;
+    ctx.lineWidth = (isFocus(k.v) ? 3 : 2) * u; ctx.beginPath();
+    ctx.moveTo(k.vx - d, k.vy - d); ctx.lineTo(k.vx + d, k.vy + d); ctx.moveTo(k.vx - d, k.vy + d); ctx.lineTo(k.vx + d, k.vy - d); ctx.stroke(); ctx.globalAlpha = 1;
+  });
+
+  // Spieler
+  const drawn = [];
+  for (const sid in r.tracks) {
+    if (dt[sid] != null && t >= dt[sid]) continue;
+    const p = sampleAt(r.tracks[sid], t); if (!p) continue;
+    drawn.push([sid, p]);
+  }
+  drawn.sort((a, b) => isFocus(a[0]) - isFocus(b[0]));
+  for (const [sid, p] of drawn) {
+    const team = r.teams[sid], f = isFocus(sid), rad = (f ? 7.5 : 6) * u;
+    if (p.yaw != null) {
+      const a = -p.yaw * Math.PI / 180;
+      ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.beginPath(); ctx.moveTo(p.x, p.y);
+      ctx.arc(p.x, p.y, rad * 3.2, a - .35, a + .35); ctx.closePath(); ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, 7); ctx.fillStyle = COL[team] || '#888'; ctx.fill();
+    ctx.lineWidth = (f ? 2.5 : 1.5) * u; ctx.strokeStyle = f ? '#fff' : '#07090d'; ctx.stroke();
+    const label = f ? name(sid) : name(sid).slice(0, 8);
+    ctx.font = `${f ? 700 : 500} ${(f ? 11.5 : 10) * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(label, p.x, p.y - rad - 3 * u);
+    ctx.fillStyle = f ? '#fff' : 'rgba(238,241,246,.75)'; ctx.fillText(label, p.x, p.y - rad - 3 * u);
+  }
+
+  // Aktiver Befund: pulsierender Ring
+  const af = S.coachF != null ? F[S.coachF] : null;
+  if (af && af.x != null) {
+    const ph = (performance.now() / 600) % 1;
+    ctx.strokeStyle = SEV[af.sev]; ctx.lineWidth = 2.5 * u;
+    ctx.globalAlpha = 1 - ph; ctx.beginPath(); ctx.arc(af.x, af.y, (12 + 18 * ph) * u, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(af.x, af.y, 12 * u, 0, 7); ctx.stroke();
+  }
+  ui();
+}
+
+// ---- HUD, Killfeed, Coach, Kader
+function ui() {
+  const r = R(), t = S.tick;
+  $('clock').textContent = fmt(t);
+  const pct = (t - r.t0) / Math.max(1, r.t1 - r.t0) * 100;
+  $('tlfill').style.width = pct + '%'; $('scrub').value = t;
+  const hud = $('hud'); hud.textContent = '';
+  const planted = r.bomb.find(b => b.ev === 'plant' && b.t <= t);
+  if (planted) hud.appendChild(el('span', 'pill', 'Bombe gelegt'));
+
+  const feed = $('feed'); feed.textContent = '';
+  r.kills.filter(k => k.t <= t && t - k.t < 5 * TR).slice(-4).forEach(k => {
+    const row = el('div', isFocus(k.v) ? 'mine' : '');
+    const d1 = el('span', 'dot'); d1.style.background = COL[r.teams[k.a]] || '#888';
+    const d2 = el('span', 'dot'); d2.style.background = COL[r.teams[k.v]] || '#888';
+    row.append(d1, name(k.a) + ' › ', d2, name(k.v) + (k.w ? ' · ' + k.w : '') + (k.hs ? ' · HS' : ''));
+    feed.appendChild(row);
+  });
+
+  // Coach-Hinweise um den Befund herum (mehrere gleichzeitig möglich)
+  const active = r.f.filter(id => F[id].tick != null && t >= F[id].tick - 3 * TR && t <= F[id].tick + 3 * TR);
+  const withPos = active.filter(id => F[id].x != null);
+  S.coachF = withPos.length ? withPos[withPos.length - 1] : (active.length ? active[active.length - 1] : null);
+  const coach = $('coach'), key = active.join(',') || (r.f.length ? 'hint' : 'none');
+  if (coach.dataset.key !== key) {
+    coach.dataset.key = key; coach.textContent = '';
+    coach.classList.toggle('show', active.length > 0);
+    if (active.length) active.forEach(id => {
+      const f = F[id], it = el('div', 'item'), k = el('div', 'k', 'Coach');
+      k.style.color = SEV[f.sev];
+      it.append(k, el('div', 'tt', f.title + (f.who ? ' · ' + f.who : '')), el('div', 'tip', f.tip));
+      coach.appendChild(it);
+    });
+    else coach.appendChild(el('div', 'hint', r.f.length
+      ? 'Abspielen: das Replay hält bei jedem Fehler an und zeigt hier den Tipp.'
+      : 'Keine Befunde in dieser Runde.'));
+  }
+
+  const dt = deathTicks(r), ro = $('roster'); ro.textContent = '';
+  ['ct', 't'].forEach(team => {
+    const col = el('div');
+    Object.keys(r.teams).filter(s => r.teams[s] === team && D.players[s]).forEach(s => {
+      const line = el('div'); const d = el('span', 'dot'); d.style.background = COL[team];
+      const n = el('span', (dt[s] != null && t >= dt[s] ? 'dead ' : '') + (isFocus(s) ? 'me' : ''), name(s));
+      line.append(d, n); col.appendChild(line);
+    });
+    ro.appendChild(col);
+  });
+}
+
+// ---- Timeline-Marker
+function buildTimeline() {
+  const r = R(), tl = $('tl'), span = Math.max(1, r.t1 - r.t0);
+  tl.querySelectorAll('.mk,.fm').forEach(e => e.remove());
+  const scrub = $('scrub'); scrub.min = r.t0; scrub.max = r.t1;
+  r.kills.forEach(k => { const m = el('span', 'mk'); m.style.left = ((k.t - r.t0) / span * 100) + '%'; m.style.background = isFocus(k.v) ? '#f0566a' : (COL[r.teams[k.v]] || '#888'); m.style.opacity = isFocus(k.v) ? 1 : .55; tl.insertBefore(m, scrub); });
+  r.f.forEach(id => { const f = F[id]; if (f.tick == null) return; const m = el('span', 'fm ' + f.sev); m.style.left = ((f.tick - r.t0) / span * 100) + '%'; tl.insertBefore(m, scrub); });
+}
+
+// ---- Befundliste
+function evidence(f) {
+  const d = el('details'); d.appendChild(el('summary', null, 'Beleg' + (f.tick != null ? ' · Tick ' + f.tick : '')));
+  const dl = el('dl');
+  for (const k in f.evidence) { dl.appendChild(el('dt', null, k)); const v = f.evidence[k]; dl.appendChild(el('dd', null, typeof v === 'object' ? JSON.stringify(v) : String(v))); }
+  d.appendChild(dl); return d;
+}
+function buildFindings() {
+  const box = $('rfind'); box.textContent = '';
+  const r = R();
+  if (!r.f.length) { box.appendChild(el('p', 'quiet', 'Kein Befund in dieser Runde.')); return; }
+  r.f.forEach(id => {
+    const f = F[id], c = el('div', 'f ' + f.sev);
+    const top = el('div', 'top'); top.append(el('span', 't', f.title), el('span', 'who', f.who || 'Team'));
+    const tip = el('div', 'tip'); tip.append(el('b', null, 'Tipp'), ' · ' + f.tip);
+    const act = el('div', 'act');
+    if (f.tick != null) { const w = el('button', 'watch', '▶ Im Replay ansehen'); w.onclick = () => watch(id); act.appendChild(w); }
+    act.appendChild(evidence(f));
+    c.append(top, el('div', 'txt', f.text), tip, act); box.appendChild(c);
+  });
+}
+
+// ---- Steuerung
+function setPlaying(p) {
+  S.playing = p;
+  $('playIcon').innerHTML = p ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="M7 4v16l13-8z"/>';
+  $('play').setAttribute('aria-label', p ? 'Pause' : 'Abspielen');
+}
+function seek(t) { const r = R(); S.tick = Math.max(r.t0, Math.min(r.t1, t)); draw(); }
+function watch(id) { S.lastF = null; seek(F[id].tick - 3 * TR); setPlaying(true); $('stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+function selectRound(i, keep) {
+  S.ri = i; setPlaying(false); S.lastF = null; S.cam = null;
+  const r = R(); S.tick = r.t0;
+  [...strip.children].forEach((b, j) => b.classList.toggle('on', j === i));
+  strip.children[i].scrollIntoView({ inline: 'center', block: 'nearest' });
+  $('rtitle').textContent = 'Runde ' + r.n + (r.side ? ' · ' + r.side.toUpperCase() : '');
+  const res = $('rres'); res.className = 'res ' + (r.out || ''); res.textContent = r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '';
+  buildTimeline(); buildFindings(); draw();
+  if (!keep) history.replaceState(null, '', '#r' + r.n);
+}
+function jumpFinding(dir) {
+  const r = R(), list = r.f.map(id => F[id]).filter(f => f.tick != null).sort((a, b) => a.tick - b.tick);
+  const target = dir > 0 ? list.find(f => f.tick > S.tick + TR) : [...list].reverse().find(f => f.tick < S.tick - TR);
+  if (target) { S.lastF = target.id; setPlaying(false); seek(target.tick); }
+}
+$('play').onclick = () => { const r = R(); if (S.tick >= r.t1) S.tick = r.t0; setPlaying(!S.playing); };
+$('prevF').onclick = () => jumpFinding(-1);
+$('nextF').onclick = () => jumpFinding(1);
+$('speed').onclick = e => { S.speed = S.speed === 1 ? 2 : S.speed === 2 ? 4 : S.speed === 4 ? 0.5 : 1; e.currentTarget.textContent = S.speed + 'x'; };
+$('zoom').onclick = e => { S.zoom = S.zoom === 1 ? 2 : 1; e.currentTarget.classList.toggle('on', S.zoom > 1); draw(); };
+$('trail').onclick = e => { S.trailFull = !S.trailFull; e.currentTarget.classList.toggle('on', S.trailFull); e.currentTarget.textContent = S.trailFull ? 'Runde' : 'Spur'; draw(); };
+$('scrub').oninput = e => { setPlaying(false); seek(+e.target.value); };
+document.querySelectorAll('[data-round]').forEach(b => b.onclick = () => {
+  const i = D.rounds.findIndex(r => r.n === +b.dataset.round); if (i >= 0) { selectRound(i); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+});
+
+// ---- Loop: spielt ab und hält bei Befunden an
+let last = performance.now();
+function loop(now) {
+  const dts = Math.min(.1, (now - last) / 1000); last = now;
+  if (S.playing) {
+    const r = R(), prev = S.tick, next = prev + dts * TR * S.speed;
+    const hit = r.f.map(id => F[id]).find(f => f.tick != null && f.tick > prev && f.tick <= next && f.id !== S.lastF);
+    if (hit) { S.tick = hit.tick; S.lastF = hit.id; setPlaying(false); }
+    else if (next >= r.t1) { S.tick = r.t1; setPlaying(false); }
+    else S.tick = next;
+    draw();
+  } else if (S.coachF != null) draw(); // Puls-Animation
+  requestAnimationFrame(loop);
+}
+
+new ResizeObserver(resize).observe(stage);
+const fromHash = D.rounds.findIndex(r => '#r' + r.n === location.hash);
+const firstF = D.rounds.findIndex(r => r.f.length);
+selectRound(fromHash >= 0 ? fromHash : Math.max(0, firstF), true);
+resize();
+requestAnimationFrame(loop);
+})();
+{% endraw %}
+</script>
 </body>
 </html>

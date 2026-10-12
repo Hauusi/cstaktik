@@ -1,8 +1,0 @@
-<div class="f {{ f.severity }}">
-  <div class="t">{{ f.title }}{% if f.player_name %} <span class="who">· {{ f.player_name }}</span>{% endif %}</div>
-  <div>{{ f.text }}</div>
-  <div class="tip">{{ f.tip }}</div>
-  <details><summary>Beleg{% if f.tick is not none %} · Tick {{ f.tick }}{% endif %}</summary>
-    <dl>{% for k, v in f.evidence.items() %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>
-  </details>
-</div>

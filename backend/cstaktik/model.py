@@ -88,6 +88,26 @@ class PositionSample(BaseModel):
     pos: Vec
     place: str | None = None
     alive: bool = True
+    yaw: float | None = None  # Blickrichtung in Grad (Spielkoordinaten)
+
+
+class UtilityArea(BaseModel):
+    """Liegende Smoke/Molotov aus den Detonations-Events der Demo."""
+
+    round: int
+    kind: Literal["smoke", "molotov"]
+    start_tick: int
+    end_tick: int | None = None
+    thrower_steamid: str | None = None
+    pos: Vec
+
+
+class BombEvent(BaseModel):
+    round: int
+    tick: int
+    event: str  # plant | defuse | detonate | drop | pickup (wie in awpy)
+    steamid: str | None = None
+    pos: Vec | None = None
 
 
 class MatchData(BaseModel):
@@ -101,6 +121,8 @@ class MatchData(BaseModel):
     kills: list[Kill] = Field(default_factory=list)
     grenades: list[GrenadeEvent] = Field(default_factory=list)
     positions: list[PositionSample] = Field(default_factory=list)
+    utility: list[UtilityArea] = Field(default_factory=list)
+    bomb: list[BombEvent] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)  # Hinweise auf fehlende Datenarten
 
     def focus_ids(self) -> set[str]:

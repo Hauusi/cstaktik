@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 
 from cstaktik.model import (
+    BombEvent,
     GrenadeEvent,
     Kill,
     MatchData,
@@ -19,6 +20,7 @@ from cstaktik.model import (
     PlayerEconomy,
     PositionSample,
     Round,
+    UtilityArea,
     Vec,
 )
 
@@ -78,7 +80,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
 
     tickrate = int(parser_cfg["tickrate"])
     dem = Demo(path, tickrate=tickrate)
-    dem.parse()
+    dem.parse(player_props=["yaw"])
     missing: list[str] = []
 
     # --- Runden ---------------------------------------------------------------
@@ -114,7 +116,11 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
         if rnd is not None and side is not None:
             rnd.sides[sid] = side
 
-    cols = [c for c in ("tick", "steamid", "side", "round_num", "X", "Y", "Z", "place", "health") if c in ticks.columns]
+    cols = [
+        c
+        for c in ("tick", "steamid", "side", "round_num", "X", "Y", "Z", "place", "health", "yaw")
+        if c in ticks.columns
+    ]
     sampled = ticks.filter((ticks["tick"] % step) == 0).select(cols)
     for row in sampled.to_dicts():
         sid = _sid(row["steamid"])
@@ -131,6 +137,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
                 pos=pos,
                 place=row.get("place") or None,
                 alive=health is None or health > 0,
+                yaw=_num(row.get("yaw")),
             )
         )
 
@@ -234,6 +241,45 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
     except Exception as exc:  # noqa: BLE001
         missing.append(f"Granaten nicht lesbar ({type(exc).__name__})")
 
+    # --- Smokes / Molotovs (Detonation bis Ende) --------------------------------------
+    utility: list[UtilityArea] = []
+    for kind, attr in (("smoke", "smokes"), ("molotov", "infernos")):
+        try:
+            for row in getattr(dem, attr).to_dicts():
+                pos = _vec(row, "")
+                if pos is None or row.get("round_num") is None:
+                    continue
+                utility.append(
+                    UtilityArea(
+                        round=int(row["round_num"]),
+                        kind=kind,
+                        start_tick=int(row["start_tick"]),
+                        end_tick=_int_or_none(row.get("end_tick")),
+                        thrower_steamid=_sid(row.get("thrower_steamid")),
+                        pos=pos,
+                    )
+                )
+        except Exception as exc:  # noqa: BLE001
+            missing.append(f"{kind} nicht lesbar ({type(exc).__name__})")
+
+    # --- Bombe -------------------------------------------------------------------------
+    bomb: list[BombEvent] = []
+    try:
+        for row in dem.bomb.to_dicts():
+            if row.get("round_num") is None:
+                continue
+            bomb.append(
+                BombEvent(
+                    round=int(row["round_num"]),
+                    tick=int(row["tick"]),
+                    event=str(row.get("event")),
+                    steamid=_sid(row.get("steamid")),
+                    pos=_vec(row, ""),
+                )
+            )
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"Bomben-Events nicht lesbar ({type(exc).__name__})")
+
     unknown_focus = focus_steamids - set(players)
     if unknown_focus:
         missing.append(f"Fokus-SteamIDs nicht in der Demo: {', '.join(sorted(unknown_focus))}")
@@ -249,5 +295,7 @@ def parse_demo(path: Path, focus_steamids: set[str], parser_cfg: dict) -> MatchD
         kills=sorted(kills, key=lambda k: k.tick),
         grenades=grenades,
         positions=positions,
+        utility=utility,
+        bomb=bomb,
         missing=missing,
     )

@@ -15,6 +15,8 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DEMOS_DIR = DATA_DIR / "demos_raw"
 REPORTS_DIR = DATA_DIR / "reports"
 CACHE_DIR = DATA_DIR / "cache"
+# Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
+CACHE_SCHEMA = 2
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
 MAX_DEMO_BYTES = 2 * 1024**3
 
@@ -66,7 +68,7 @@ def load_any(path: Path, focus: set[str], config: dict, use_cache: bool = True) 
     elif path.suffix.lower() == ".dem":
         from cstaktik.parser.awpy_adapter import parse_demo, sha256_of
 
-        cache = CACHE_DIR / f"{sha256_of(path)}.json"
+        cache = CACHE_DIR / f"{sha256_of(path)}.v{CACHE_SCHEMA}.json"
         if use_cache and cache.exists():
             match = load_match(cache)
         else:
