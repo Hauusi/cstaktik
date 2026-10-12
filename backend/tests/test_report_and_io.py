@@ -97,6 +97,17 @@ def test_cli_analyze_json(tmp_path, monkeypatch):
     assert (out / "match.html").exists()
 
 
+def _finish(client, location):
+    import time
+
+    for _ in range(100):
+        r = client.get(location)
+        if "Auswertung" not in r.text:
+            return r
+        time.sleep(0.02)
+    raise AssertionError("Job wurde nicht fertig")
+
+
 def test_api_upload(tmp_path, monkeypatch):
     from cstaktik import api
 
@@ -115,7 +126,9 @@ def test_api_upload(tmp_path, monkeypatch):
     assert c.get("/").status_code == 200
     r = c.post("/analyze", files={"demo": ("../böse name.dem", b"FAKE")}, data={"steamids": "1, 2"},
                follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/reports/x.html"
+    assert r.status_code == 303 and r.headers["location"].startswith("/jobs/")
+    done = _finish(c, r.headers["location"])
+    assert "/reports/x.html" in done.text
     assert [p.name for p in (tmp_path / "demos").iterdir()] == ["b_se_name.dem"]
     assert c.post("/analyze", files={"demo": ("a.txt", b"x")}).status_code == 400
 
@@ -138,10 +151,12 @@ def test_api_upload_bz2(tmp_path, monkeypatch):
     c = TestClient(api.app)
     r = c.post("/analyze", files={"demo": ("match_123.dem.bz2", bz2.compress(b"DEMO"))}, follow_redirects=False)
     assert r.status_code == 303
+    _finish(c, r.headers["location"])
     assert seen["path"].name == "match_123.dem" and seen["data"] == b"DEMO"
     assert [p.name for p in (tmp_path / "demos").iterdir()] == ["match_123.dem"]  # .bz2 entfernt
-    bad = c.post("/analyze", files={"demo": ("kaputt.dem.bz2", b"nicht bz2")})
-    assert bad.status_code == 400
+    bad = c.post("/analyze", files={"demo": ("kaputt.dem.bz2", b"nicht bz2")}, follow_redirects=False)
+    assert "Fehler" in _finish(c, bad.headers["location"]).text
+    assert c.get("/jobs/unbekannt").status_code == 404
 
 
 def test_bz2_size_limit(tmp_path):
