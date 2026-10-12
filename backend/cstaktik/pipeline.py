@@ -143,11 +143,34 @@ def _coach(match: MatchData, config: dict):
     from cstaktik import pro as _pro
     from cstaktik.reference import enrich, enrich_pro
 
+    from cstaktik.reference import pro_clips
+
     result = analyze(match, config)
     hist = _history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []
     enrich(match, result.findings, hist)
-    enrich_pro(match, result.findings, _pro.load_all(PRO_DIR))
-    return result
+    pro = _pro.load_all(PRO_DIR)
+    enrich_pro(match, result.findings, pro)
+    clips = pro_clips(match, result.findings, load_pro_matches(pro, match.map_name))
+    return result, clips
+
+
+MAX_PRO_MATCHES = 8  # so viele Pro-Demos derselben Map werden für Pro-Szenen geladen (neueste zuerst)
+
+
+def load_pro_matches(pro: list[dict], map_name: str | None) -> list[MatchData]:
+    """Vollständige Pro-Demos (aus dem Cache) für die Pro-Szenen im Replay. Ohne Cache keine Szene."""
+    out = []
+    for d in sorted((d for d in pro if d.get("map") == map_name), key=lambda d: d.get("analyzed_at", ""),
+                    reverse=True):
+        cache = CACHE_DIR / f"{d.get('id')}.v{CACHE_SCHEMA}.json"
+        if cache.exists():
+            try:
+                out.append(load_match(cache))
+            except (OSError, ValueError):
+                continue
+        if len(out) >= MAX_PRO_MATCHES:
+            break
+    return out
 
 
 def run(
@@ -161,7 +184,7 @@ def run(
     match = load_any(path, focus, config, progress=lambda st, f: report(st, 0.9 * f))
     report("Fehler suchen", 0.92)
     upgrade_pro()
-    result = _coach(match, config)
+    result, clips = _coach(match, config)
     report("Karte laden", 0.94)
     from cstaktik import goals, history, maps
     from cstaktik.report.radar import LOCAL_MAPS_DIR
@@ -189,7 +212,7 @@ def run(
     summary["goal_check"] = goal_check if goal_check.get("checks") or not old else old.get("goal_check", goal_check)
     history.save(summary, HISTORY_DIR)
     report("Report bauen", 0.96)
-    out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"])
+    out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"], pro_clips=clips)
     report("Fertig", 1.0)
     return out
 
@@ -215,8 +238,8 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
                 p.is_focus = p.steamid in focus
         if not match.focus_ids():
             continue
-        result = _coach(match, config)
-        write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"))
+        result, clips = _coach(match, config)
+        write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips)
         done += 1
     return done
 
@@ -267,4 +290,4 @@ def faceit_sync(log=print) -> dict:
     from cstaktik import faceit
 
     cfg = load_rules_config()["faceit"]
-    return faceit.sync(cfg, PRO_DIR, DATA_DIR / "faceit_tmp", lambda p: run_pro(p, use_cache=False), log=log)
+    return faceit.sync(cfg, PRO_DIR, DATA_DIR / "faceit_tmp", lambda p: run_pro(p), log=log)

@@ -88,6 +88,9 @@ def _overlay_px(ov: dict, px) -> dict:
         out["line"] = [list(px(x, y)) for x, y in ov["line"]]
     if ov.get("label"):
         out["label"] = ov["label"]
+    if ov.get("pro_clip") is not None:
+        out["pro_clip"] = ov["pro_clip"]  # wird in build_payload auf den Rundenindex umgerechnet
+        out["pro_tick"] = ov.get("pro_tick")
     if ov.get("pro_nade"):
         fx, fy, tx, ty = ov["pro_nade"]["xy"]
         out["pro_nade"] = {"kind": ov["pro_nade"]["kind"], "a": list(px(fx, fy)), "b": list(px(tx, ty))}
@@ -113,7 +116,8 @@ def _homework(result: AnalysisResult, n: int = 3) -> list[dict]:
     return out
 
 
-def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None) -> dict:
+def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None,
+                  pro_clips: list[dict] | None = None) -> dict:
     radar = build_radar(match, maps_dirs)
     px = radar.to_px
     focus = match.focus_ids()
@@ -164,14 +168,10 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
             }
         )
 
-    rounds = []
-    for r in match.rounds:
-        side = match.focus_side(r.num)
-        outcome = None
-        if side and r.winner:
-            outcome = "W" if r.winner == side else "L"
+    def round_obj(m: MatchData, r, trk: dict, side, outcome, fids: list[int]) -> dict:
+        """Eine Runde für das Replay (auch für Pro-Szenen aus anderen Demos derselben Map)."""
         kills = []
-        for k in match.kills:
+        for k in m.kills:
             if k.round != r.num:
                 continue
             d = {"t": k.tick, "a": k.attacker_steamid, "v": k.victim_steamid, "w": k.weapon, "hs": k.headshot,
@@ -182,27 +182,27 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
                 d["ax"], d["ay"] = px(k.attacker_pos.x, k.attacker_pos.y)
             kills.append(d)
         util = []
-        for u in match.utility:
+        for u in m.utility:
             if u.round == r.num:
                 x, y = px(u.pos.x, u.pos.y)
                 util.append({"k": u.kind, "s": u.start_tick, "e": u.end_tick, "ek": u.end_known, "x": x, "y": y,
                              "th": u.thrower_steamid})
         nades = []
-        for g in match.grenades:
+        for g in m.grenades:
             if g.round == r.num and g.points:
                 pts = [[t, *px(x, y)] for t, x, y, _z in g.points]
                 nades.append({"k": g.kind, "th": g.thrower_steamid, "pts": pts,
                               "ic": icon_for(g.grenade_type) or NADE_ICON.get(g.kind)})
-        shots = [[sh.tick, sh.steamid, wi(sh.weapon.removeprefix("weapon_"))] for sh in match.shots
+        shots = [[sh.tick, sh.steamid, wi(sh.weapon.removeprefix("weapon_"))] for sh in m.shots
                  if sh.round == r.num and is_gun(sh.weapon)]
-        hurts = [[d.tick, d.attacker_steamid, d.victim_steamid, d.dmg] for d in match.damages
+        hurts = [[d.tick, d.attacker_steamid, d.victim_steamid, d.dmg] for d in m.damages
                  if d.round == r.num and d.attacker_steamid and is_gun(d.weapon)]
         bomb = []
-        for b in match.bomb:
+        for b in m.bomb:
             if b.round == r.num and b.event in ("plant", "defuse", "detonate") and b.pos:
                 x, y = px(b.pos.x, b.pos.y)
                 bomb.append({"t": b.tick, "ev": b.event, "x": x, "y": y})
-        rounds.append(
+        return (
             {
                 "n": r.num,
                 "side": side,
@@ -210,16 +210,54 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
                 "t0": r.freeze_end_tick if r.freeze_end_tick is not None else r.start_tick,
                 "t1": r.end_tick,
                 "teams": r.sides,
-                "tracks": tracks.get(r.num, {}),
+                "tracks": trk,
                 "kills": kills,
                 "util": util,
                 "shots": shots,
                 "hurts": hurts,
                 "nades": nades,
                 "bomb": bomb,
-                "f": [f["id"] for f in findings if f["round"] == r.num],
+                "f": fids,
             }
         )
+
+    rounds = []
+    for r in match.rounds:
+        side = match.focus_side(r.num)
+        outcome = None
+        if side and r.winner:
+            outcome = "W" if r.winner == side else "L"
+        rounds.append(round_obj(match, r, tracks.get(r.num, {}), side, outcome,
+                                [f["id"] for f in findings if f["round"] == r.num]))
+
+    # Pro-Szenen (reference.pro_clips): als zusätzliche Runden hinten angehängt, nicht in der Rundenleiste
+    players = {p.steamid: {"name": p.name, "focus": p.steamid in focus} for p in match.players}
+    base = len(rounds)
+    for i, c in enumerate(pro_clips or []):
+        pm, pr, t0, t1 = c["match"], c["round"], c["t0"], c["t1"]
+        trk: dict[str, list] = defaultdict(list)
+        for p in sorted(pm.positions, key=lambda s: s.tick):
+            if p.round == pr.num and p.alive and t0 - pm.tickrate <= p.tick <= t1:
+                x, y = px(p.pos.x, p.pos.y)
+                trk[p.steamid].append([p.tick, x, y, None if p.yaw is None else round(p.yaw), wi(p.weapon)])
+        side = pr.sides.get(c["sid"])
+        ro = round_obj(pm, pr, dict(trk), side, "W", [])
+        ro["kills"] = [k for k in ro["kills"] if k["t"] <= t1]
+        ro["util"] = [u for u in ro["util"] if u["s"] <= t1 and (u["e"] is None or u["e"] >= t0 - 20 * pm.tickrate)]
+        ro["nades"] = [n for n in ro["nades"] if n["pts"][0][0] <= t1 and n["pts"][-1][0] >= t0 - 2 * pm.tickrate]
+        ro["shots"] = [x for x in ro["shots"] if t0 <= x[0] <= t1]
+        ro["hurts"] = [x for x in ro["hurts"] if t0 <= x[0] <= t1]
+        ro["bomb"] = [x for x in ro["bomb"] if x["t"] <= t1]
+        name = next((p.name for p in pm.players if p.steamid == c["sid"]), "Pro")
+        ro.update({"t0": t0, "t1": t1, "rt0": pr.freeze_end_tick, "pro": True, "hl": c["sid"], "n": f"P{i + 1}",
+                   "desc": c.get("desc"),
+                   "label": f"Pro-Szene · {name} · {(side or '').upper()}"})
+        rounds.append(ro)
+        for p in pm.players:
+            players.setdefault(p.steamid, {"name": p.name, "focus": False})
+    for f in findings:
+        if f["ov"].get("pro_clip") is not None:
+            f["ov"]["pro_clip"] += base
 
     floor, places = _floor_and_places(match, px)
     draw_cfg = load_rules_config().get("report", {})
@@ -236,21 +274,22 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         "img": radar.image_data_uri,
         "floor": {"cell": FLOOR_CELL, "cells": floor} if not radar.image_data_uri else None,
         "places": places,
-        "players": {p.steamid: {"name": p.name, "focus": p.steamid in focus} for p in match.players},
+        "players": players,
         "rounds": rounds,
         "findings": findings,
     }
 
 
 def build_context(
-    match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None
+    match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
+    pro_clips: list[dict] | None = None,
 ) -> dict:
     from cstaktik.coach import diagnose
 
     debrief = diagnose(match, result, load_rules_config()["coach"], load_rules_config()["mechanics"])
-    payload = build_payload(match, result, maps_dirs)
+    payload = build_payload(match, result, maps_dirs, pro_clips)
     payload["moments"] = debrief["key_moments"]
-    won = sum(1 for r in payload["rounds"] if r["out"] == "W")
+    won = sum(1 for r in payload["rounds"] if r["out"] == "W" and not r.get("pro"))
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
     radar_note = None if payload["img"] else build_radar(match, maps_dirs).note
     # "</" escapen, damit eingebettetes JSON das <script>-Tag nicht schließen kann
@@ -275,16 +314,17 @@ def build_context(
 
 
 def render_report(
-    match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None
+    match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
+    pro_clips: list[dict] | None = None,
 ) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
-    return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check))
+    return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check, pro_clips))
 
 
 def write_report(
     match: MatchData, result: AnalysisResult, out: Path, maps_dirs: list[Path] | None = None,
-    goal_check: dict | None = None,
+    goal_check: dict | None = None, pro_clips: list[dict] | None = None,
 ) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_report(match, result, maps_dirs, goal_check), encoding="utf-8")
+    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips), encoding="utf-8")
     return out

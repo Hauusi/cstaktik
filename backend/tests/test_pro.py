@@ -143,3 +143,39 @@ def test_upgrade_old_pro_and_rerender_reports(tmp_path, monkeypatch):
     assert pipeline.rerender_reports({"de_mirage"}) == 1
     assert (tmp_path / "reports" / "own1.html").exists()
     assert json.loads(next(pipeline.HISTORY_DIR.glob("*.json")).read_text())["analyzed_at"] == "x"
+
+
+def test_pro_clip_found_and_in_report():
+    """Pro-Szene: Pro (CT) steht in Runde 2 bei 0:20 in SynthMid, überlebt, Seite gewinnt."""
+    from cstaktik.model import Kill, PositionSample, Vec
+    from cstaktik.reference import pro_clips
+    from cstaktik.report.render import build_payload
+
+    pm = build_match(focus=())
+    pm.source_sha256 = "prox"
+    r = next(r for r in pm.rounds if r.winner == "ct")
+    pro_sid = MATES[2]
+    pm.positions = [p for p in pm.positions if not (p.round == r.num and p.steamid == pro_sid)]
+    for i in range(0, 30 * 64, 32):
+        pm.positions.append(PositionSample(round=r.num, tick=r.freeze_end_tick + i, steamid=pro_sid, side="ct",
+                                           pos=Vec(x=10, y=10), place="SynthMid"))
+    pm.kills = [k for k in pm.kills if not (k.round == r.num and k.victim_steamid == pro_sid)]
+    pm.kills.append(Kill(tick=r.freeze_end_tick + 22 * 64, round=r.num, attacker_steamid=pro_sid, attacker_name="P",
+                         attacker_side="ct", victim_steamid=ENEMIES[0], victim_name="E", victim_side="t",
+                         victim_place="SynthMid"))
+
+    m = build_match()
+    res = analyze(m, load_rules_config())
+    clips = pro_clips(m, res.findings, [pm])
+    f = next(f for f in res.findings if f.rule_id == "death_review" and f.round == 2)
+    assert len(clips) == 1 and f.overlay["pro_clip"] == 0
+    assert "in SynthMid um 0:20, Runde gewonnen: überlebt, 1 Kill" in f.evidence["pro_clip"]
+
+    d = build_payload(m, res, pro_clips=clips)
+    pr = d["rounds"][-1]
+    assert pr["pro"] and pr["hl"] == pro_sid and pr["out"] == "W" and pro_sid in pr["tracks"]
+    assert pr["t0"] <= clips[0]["moment"] <= pr["t1"]
+    fp = next(x for x in d["findings"] if x["id"] == res.findings.index(f))
+    assert fp["ov"]["pro_clip"] == len(d["rounds"]) - 1
+    assert sum(1 for r in d["rounds"] if not r.get("pro")) == len(m.rounds)
+

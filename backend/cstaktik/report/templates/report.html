@@ -81,7 +81,11 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .rhead { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }
 .rhead b { font-size: 18px; }
 .res { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
-.res.W { background: rgba(63,191,127,.15); color: var(--win); } .res.L { background: rgba(240,86,106,.15); color: var(--loss); }
+.res.W { background: rgba(63,191,127,.15); color: var(--win); } .res.P { background: rgba(185,166,255,.16); color: #b9a6ff; }
+.proclip { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(185,166,255,.35); color: #d4c9ff; }
+.proclip b { color: #b9a6ff; } .vbtn.pbtn { color: #b9a6ff; display: block; margin-top: 6px; }
+.stage.prostage { box-shadow: inset 0 0 0 2px rgba(185,166,255,.6); }
+#rback { display: inline; margin: 0 6px 0 0; } #rback[hidden] { display: none; } .res.L { background: rgba(240,86,106,.15); color: var(--loss); }
 .stage { scroll-margin-top: 72px; position: relative; aspect-ratio: 1; background: #07090d; touch-action: none; overscroll-behavior: contain; cursor: grab; }
 .stage canvas { width: 100%; height: 100%; display: block; }
 .hud { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; }
@@ -274,7 +278,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   <nav class="rounds" id="rounds" aria-label="Runden"></nav>
 
   <section class="card replay" aria-label="2D-Replay">
-    <div class="rhead"><b id="rtitle">Runde</b><span id="rres" class="res"></span></div>
+    <div class="rhead"><b id="rtitle">Runde</b><span><button id="rback" class="vbtn" hidden>‹ Zurück zu deinem Tod</button> <span id="rres" class="res"></span></span></div>
     <div class="story" id="story"></div>
     <div class="rbody">
     <div class="stage" id="stage">
@@ -519,7 +523,7 @@ const TOURS = {
     .map(f => ({ ri, tick: f.tick, title: f.title, text: f.text }))),
 };
 const stopOf = () => S.tour ? TOURS[S.tour.name][S.tour.i] : null;
-const S = { tour: null, ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, cam: null, follow: false, trailFull: false, lastF: null, coachF: null };
+const S = { back: null, tour: null, ri: 0, tick: 0, playing: false, speed: 1, zoom: 1, cam: null, follow: false, trailFull: false, lastF: null, coachF: null };
 const ZMIN = 1, ZMAX = 8;
 let bg = null;
 if (D.img) { bg = new Image(); bg.onload = () => draw(); bg.src = D.img; }
@@ -544,13 +548,14 @@ else if (D.floor && D.floor.cells.length) {
 
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const name = sid => (D.players[sid] && D.players[sid].name) || '?';
-const isFocus = sid => !!(D.players[sid] && D.players[sid].focus);
+const isFocus = sid => !!(D.players[sid] && D.players[sid].focus) || (D.rounds[S.ri] && D.rounds[S.ri].hl === sid);
 const R = () => D.rounds[S.ri];
-const fmt = t => { const s = Math.max(0, Math.floor((t - R().t0) / TR)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const fmt = t => { const s = Math.max(0, Math.floor((t - (R().rt0 != null ? R().rt0 : R().t0)) / TR)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
 // ---- Rundenleiste
 const strip = $('rounds');
 D.rounds.forEach((r, i) => {
+  if (r.pro) return; // Pro-Szenen liegen hinten und erscheinen nicht in der Rundenleiste
   const b = el('button', 'rchip num' + (r.out ? ' ' + r.out : ''), String(r.n));
   b.setAttribute('aria-label', 'Runde ' + r.n);
   const nErr = r.f.filter(id => isErr(F[id])).length, nGood = r.f.length - nErr;
@@ -559,6 +564,8 @@ D.rounds.forEach((r, i) => {
   b.onclick = () => selectRound(i);
   strip.appendChild(b);
 });
+
+$('rback').onclick = backFromPro;
 
 // ---- Interpolation
 function sampleAt(pts, tick) {
@@ -997,7 +1004,7 @@ function ui() {
     }
     if (!active.length) coach.appendChild(el('div', 'hint', r.f.length
       ? 'Abspielen: das Replay hält bei jedem Fehler an und zeigt hier den Tipp.'
-      : 'Keine Befunde in dieser Runde.'));
+      : R().pro ? 'Pro-Replay (lila Rahmen): der hervorgehobene Pro ist dein Vergleich. Oben "Zurück zu deinem Tod".' : 'Keine Befunde in dieser Runde.'));
   }
 
   const dt = deathTicks(r), ro = $('roster'); ro.textContent = '';
@@ -1061,19 +1068,39 @@ function selectRound(i, keep) {
   S.ri = i; setPlaying(false); S.lastF = null;
   const r = R(); S.tick = r.t0;
   [...strip.children].forEach((b, j) => b.classList.toggle('on', j === i));
-  { const c = strip.children[i]; strip.scrollTo({ left: c.offsetLeft - strip.clientWidth / 2 + c.clientWidth / 2 }); } // nur horizontal, Seite bleibt stehen
-  $('rtitle').textContent = 'Runde ' + r.n + (r.side ? ' · ' + r.side.toUpperCase() : '');
-  const res = $('rres'); res.className = 'res ' + (r.out || ''); res.textContent = r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '';
+  { const c = strip.children[i]; if (c) strip.scrollTo({ left: c.offsetLeft - strip.clientWidth / 2 + c.clientWidth / 2 }); } // nur horizontal, Seite bleibt stehen
+  $('rtitle').textContent = r.pro ? r.label : 'Runde ' + r.n + (r.side ? ' · ' + r.side.toUpperCase() : '');
+  const res = $('rres'); res.className = 'res ' + (r.pro ? 'P' : (r.out || '')); res.textContent = r.pro ? 'Pro · gewonnen' : r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '';
+  $('rback').hidden = !(r.pro && S.back);
+  $('stage').classList.toggle('prostage', !!r.pro);
   buildTimeline(); buildFindings(); story(); draw();
-  if (!keep) history.replaceState(null, '', '#r' + r.n);
+  if (!keep && !r.pro) history.replaceState(null, '', '#r' + r.n);
 }
 // Vorbild aus eigenen Siegrunden + Sprung in die Siegrunde zur selben Rundenzeit
 function hasRef(f) {
-  return !!(f.evidence && ['vorbild', 'pro', 'pro_util', 'pro_lineup', 'pro_trade'].some(k => f.evidence[k]));
+  return !!(f.evidence && ['vorbild', 'pro', 'pro_util', 'pro_lineup', 'pro_trade', 'pro_clip'].some(k => f.evidence[k]));
+}
+// Pro-Szene: springt in die Pro-Runde (3 s vor dem Vergleichszeitpunkt) und spielt ab; "Zurück" führt zum eigenen Tod
+function openPro(f) {
+  S.tour = null; S.back = { ri: S.ri, tick: f.tick };
+  selectRound(f.ov.pro_clip, true);
+  seek(Math.max(R().t0, f.ov.pro_tick - 3 * TR)); setPlaying(true);
+  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function backFromPro() {
+  const b = S.back; if (!b) return; S.back = null;
+  selectRound(b.ri); seek(b.tick - 3 * TR);
 }
 function vorbild(f) {
   const box = el('div', 'vorbild');
   if (f.evidence.vorbild) box.append(el('b', null, 'Vorbild aus euren Siegrunden: '), f.evidence.vorbild);
+  if (f.ov && f.ov.pro_clip != null && D.rounds[f.ov.pro_clip]) {
+    const pc = el('div', 'proclip');
+    pc.append(el('b', null, 'Pro in derselben Situation: '), f.evidence.pro_clip || '');
+    const b = el('button', 'vbtn pbtn', '▶ Pro-Szene ansehen');
+    b.onclick = () => openPro(f);
+    pc.appendChild(b); box.appendChild(pc);
+  }
   const pros = ['pro_util', 'pro_lineup', 'pro_trade', 'pro'].map(k => f.evidence[k]).filter(Boolean);
   if (pros.length) {
     const pr = el('div', 'pro'); pr.append(el('b', null, 'So spielen Pros das: '));
@@ -1099,6 +1126,7 @@ function lageList(f) {
 // Kurzfassung der Runde, nur aus den Ereignissen der Demo
 function story() {
   const r = R(), box = $('story'); box.textContent = '';
+  if (r.pro) { box.append(el('b', null, 'Pro-Szene: '), r.desc || ''); return; }
   const parts = [];
   const fk = r.kills.find(k => k.a && r.teams[k.a] !== r.teams[k.v]);
   if (fk) parts.push(['Erster Kill', `${name(fk.a)} › ${name(fk.v)}${fk.pl ? ' (' + fk.pl + ')' : ''} ${fmt(fk.t)}`]);

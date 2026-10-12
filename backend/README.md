@@ -84,6 +84,11 @@ Community-Beitrag und ist unbestätigt (die ID steht in der Hub-URL auf faceit.c
   Ort, Rundenzeit, nur Siegrunden, ab 5 Runden), Trade-Quote der Pros am Ort (ab 8 Toden), häufigster
   Pro-Wurf (im Replay lila gestrichelt), Positionen nach Zeit (ab 10 Samples). Briefing: "Pro-Utility".
   Nach jedem Pro-Upload werden die eigenen Reports derselben Map automatisch neu gebaut.
+  **Pro-Szene ansehen:** Zu jedem eigenen Tod sucht das Tool eine Pro-Runde, in der ein Pro auf derselben
+  Seite zur selben Rundenzeit am selben Ort stand, seine Seite die Runde gewann und er die nächsten 5 s
+  überlebte (bevorzugt mit Kill/Utility). Knopf "Pro-Szene ansehen" spielt diese Szene (8 s vorher bis
+  12 s danach) im selben Replay ab, "Zurück zu deinem Tod" springt zurück. Braucht den Cache der Pro-Demo
+  (bei Upload über die Startseite vorhanden); max. 8 Pro-Demos je Map, max. 12 Szenen je Report.
   `cstaktik pro-update`: ältere Pro-Daten (nur Positionen) aus dem Cache nachrüsten und alle Reports
   neu bauen. Genaue Lineups (Blickwinkel) sind noch nicht erfasst. HLTV-Demos sind
   Archive: am PC die .dem entpacken und hochladen.
