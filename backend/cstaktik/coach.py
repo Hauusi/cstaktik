@@ -199,7 +199,8 @@ def expensive_moments(match: MatchData, result: AnalysisResult, n: int, min_cost
                     "title": f"-{cost} % Rundenchance · {f.evidence.get('situation') or f.title}",
                     "text": f"{f.player_name}: {f.evidence.get('entscheidung') or f.text}", "finding": i,
                     "who": f.player_name, "situation": f.evidence.get("situation"),
-                    "decision": f.evidence.get("entscheidung"), "chance": f.evidence.get("chance")})
+                    "decision": f.evidence.get("entscheidung"), "chance": f.evidence.get("chance"),
+                    "pro_tip": f.evidence.get("pro_tip")})
     out.sort(key=lambda m: -m["cost"])
     return out[:n]
 

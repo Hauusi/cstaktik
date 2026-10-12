@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import math
 from collections import defaultdict
 
@@ -25,13 +26,21 @@ class PositionIndex:
             self._by_key[(p.round, p.steamid)].append(p)
         for samples in self._by_key.values():
             samples.sort(key=lambda s: s.tick)
+        self._ticks = {k: [s.tick for s in v] for k, v in self._by_key.items()}
 
     def nearest(self, round_num: int, steamid: str, tick: int, max_gap: int) -> PositionSample | None:
+        key = (round_num, steamid)
+        samples = self._by_key.get(key)
+        if not samples:
+            return None
+        ticks = self._ticks[key]
+        i = bisect.bisect_left(ticks, tick)
         best = None
-        for s in self._by_key.get((round_num, steamid), []):
-            gap = abs(s.tick - tick)
-            if gap <= max_gap and (best is None or gap < abs(best.tick - tick)):
-                best = s
+        for j in (i - 1, i):  # bei gleichem Abstand gewinnt das frühere Sample (wie zuvor)
+            if 0 <= j < len(samples):
+                gap = abs(ticks[j] - tick)
+                if gap <= max_gap and (best is None or gap < abs(best.tick - tick)):
+                    best = samples[j]
         return best
 
     def path(self, round_num: int, steamid: str) -> list[PositionSample]:

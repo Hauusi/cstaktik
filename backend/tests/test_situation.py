@@ -106,3 +106,56 @@ def test_info_from_spotted():
     f = _finding(m)
     enrich(m, [f], None, CFG)
     assert "info" not in f.evidence  # Feld fehlt in der Demo: keine Aussage
+
+
+def test_pro_decisions_and_compare_by_situation():
+    from synth import build_match
+
+    from cstaktik.situation import compare, compare_text, enrich_pro, pro_decisions
+
+    rows = pro_decisions(build_match(focus=()))
+    assert rows and all(r[4] in ("gehalten", "zurückgezogen", "Richtung Gegner") for r in rows)
+    assert all(len(r) == 9 and r[0] in ("ct", "t") for r in rows)
+
+    # handgebaut: CT 4 gegen 5 ohne Bombe: 6x gehalten (4 Siege), 4x Richtung Gegner (1 Sieg)
+    dec = [["ct", 4, 5, 0, "gehalten", i < 4, 1, 0, "p"] for i in range(6)] + \
+          [["ct", 4, 5, 0, "Richtung Gegner", i < 1, 1, 0, "p"] for i in range(4)]
+    pro = [{"id": "a", "map": "de_synth", "decisions": dec}]
+    cmp = compare(pro, "de_synth", "ct", 4, 5, False, min_n=8)
+    assert cmp["best"] == "gehalten" and cmp["n"] == 10 and not cmp["coarse"]
+    assert compare_text(cmp, "ct", 4, 5, False, "Richtung Gegner") == (
+        "Pros in dieser Lage (CT, 4 gegen 5, Bombe nicht gelegt), 10 Fälle aus 1 Demo: Position gehalten 6x "
+        "(67 % Siege), Richtung Gegner 4x (25 % Siege). Du: Richtung Gegner.")
+    assert compare(pro, "de_other", "ct", 4, 5, False) is None
+
+    m = _match(moving_at_death=True)
+    m.map_name = "de_synth"
+    f = _finding(m)
+    enrich(m, [f], None, CFG)
+    enrich_pro(m, [f], pro)
+    assert f.evidence["pro_best"] == "gehalten" and "Du: Richtung Gegner" in f.evidence["pro_lage"]
+
+
+def test_pro_tip_and_situation_clip():
+    from synth import build_match
+
+    from cstaktik.reference import pro_clips
+    from cstaktik.situation import enrich_pro
+
+    pm = build_match(focus=())
+    pm.source_sha256 = "pm1"
+    rnd = next(r for r in pm.rounds if r.winner == "ct")
+    dec = [["ct", 4, 5, 0, "gehalten", True, rnd.num, rnd.freeze_end_tick + 15 * TR, MATES[2]] for _ in range(6)] + \
+          [["ct", 4, 5, 0, "Richtung Gegner", i < 1, 1, 0, "p"] for i in range(4)]
+    pro = [{"id": "pm1", "map": "de_synth", "decisions": dec}]
+    m = _match(moving_at_death=True)
+    m.map_name = pm.map_name = "de_synth"
+    f = _finding(m)
+    enrich(m, [f], None, CFG)
+    enrich_pro(m, [f], pro)
+    assert f.evidence["pro_tip"] == ('In dieser Lage gewinnen Pros am häufigsten mit "Position gehalten" '
+                                     '(100 % Siege), bei dir: Richtung Gegner (25 %).')
+    clips = pro_clips(m, [f], [pm], pro)  # kein Pro am selben Ort -> Szene nach Lage
+    assert len(clips) == 1 and clips[0]["sid"] == MATES[2]
+    assert f.evidence["pro_clip"].startswith("Gleiche Lage (CT, 4 gegen 5, Bombe nicht gelegt): Mate3 hat "
+                                             "Position gehalten und die Runde gewonnen.")

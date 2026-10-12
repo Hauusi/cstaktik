@@ -18,9 +18,9 @@ from collections import Counter
 
 from cstaktik.model import MatchData
 from cstaktik.reference import timeline
-from cstaktik.situation import round_states
+from cstaktik.situation import pro_decisions, round_states
 
-VERSION = 3  # 1: nur timeline; 2: + nades, deaths; 3: + states (Gewinnchance)
+VERSION = 4  # 1: nur timeline; 2: + nades, deaths; 3: + states (Gewinnchance); 4: + decisions (Lagen)
 _CELL = 128  # Rastergröße für die Ortsbestimmung von Granaten-Punkten
 
 
@@ -110,6 +110,7 @@ def summarize(match: MatchData, trade_window_s: float = 3.0) -> dict:
         "nades": nades(match),
         "deaths": deaths(match, trade_window_s),
         "states": round_states(match),
+        "decisions": pro_decisions(match),
     }
 
 

@@ -173,7 +173,9 @@ def _coach(match: MatchData, config: dict):
     states += [s for d in pro for s in d.get("states", [])] + situation.round_states(match)
     model = situation.WinModel(states, config["situation"]["win_min_rounds"])
     situation.enrich(match, result.findings, model, config["situation"], config["coach"]["trade_window_s"])
-    clips = pro_clips(match, result.findings, load_pro_matches(pro, match.map_name))
+    situation.enrich_pro(match, result.findings, pro, config["situation"]["pro_min_cases"])
+    clips = pro_clips(match, result.findings, load_pro_matches(pro, match.map_name), pro)
+
     return result, clips
 
 

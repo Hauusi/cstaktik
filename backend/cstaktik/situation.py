@@ -341,3 +341,105 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
         f.evidence["chance"] = (f"Rundenchance vorher {_pct(pb[0])}, danach {_pct(pa[0])}"
                                 + (" (inkl. Trade)" if traded else "") + rough
                                 + f". Gezählt aus {model.rounds} Runden.")
+
+
+# ---------------------------------------------------------------- Pro-Vergleich nach Lage
+
+ACTIONS = ("gehalten", "zurückgezogen", "Richtung Gegner")
+ACTION_DE = {"gehalten": "Position gehalten", "zurückgezogen": "zurückgezogen", "Richtung Gegner": "Richtung Gegner"}
+
+
+def lage_key(side: str, own: int, enemy: int, planted: bool) -> tuple:
+    return (side, own, enemy, int(planted))
+
+
+def pro_decisions(match: MatchData, window_s: float = 5.0) -> list[list]:
+    """Lagen aus einer (Pro-)Demo: nach jedem Kill (+1 s) und bei 0:15 für jeden lebenden Spieler
+    [seite, eigene, gegner, bombe, aktion, runde_gewonnen, runde, tick, steamid].
+    Aktion wie beim eigenen Entscheidungsmoment: Abstand zum nächsten Gegner jetzt vs. ``window_s`` später."""
+    tr = match.tickrate
+    idx = PositionIndex(match.positions)
+    out = []
+    for rnd in match.rounds:
+        if rnd.winner is None or rnd.freeze_end_tick is None or not rnd.sides:
+            continue
+        moments = [rnd.freeze_end_tick + 15 * tr] + sorted(k.tick + tr for k in match.kills if k.round == rnd.num)
+        for m in moments:
+            if m + int(window_s * tr) > rnd.end_tick:
+                continue
+            alive = alive_at(match, rnd, m)
+            planted = planted_at(match, rnd.num, m) is not None
+            for side in ("ct", "t"):
+                own, enemy = len(alive[side]), len(alive["t" if side == "ct" else "ct"])
+                if not own or not enemy:
+                    continue
+                for sid in sorted(alive[side]):
+                    act = action(idx, rnd, sid, side, m, m + int(window_s * tr), match)
+                    if act:
+                        out.append([side, own, enemy, int(planted), act, rnd.winner == side, rnd.num, m, sid])
+    return out
+
+
+def compare(pro: list[dict], map_name: str | None, side: str, own: int, enemy: int, planted: bool,
+            min_n: int = 8) -> dict | None:
+    """Was haben Pros in derselben Lage gemacht und wie oft haben sie die Runde gewonnen?
+    Erst exakte Lage (gleiche Map), sonst gleiche Differenz und Bombe. None bei zu wenigen Fällen."""
+    rows = [(d.get("id"), r) for d in pro if d.get("map") == map_name for r in d.get("decisions", [])]
+    exact = [(i, r) for i, r in rows if (r[0], r[1], r[2], r[3]) == (side, own, enemy, int(planted))]
+    coarse = False
+    use = exact
+    if len(exact) < min_n:
+        use = [(i, r) for i, r in rows if r[0] == side and r[3] == int(planted) and r[1] - r[2] == own - enemy
+               and (r[1] == 1) == (own == 1)]
+        coarse = True
+    if len(use) < min_n:
+        return None
+    by = []
+    for act in ACTIONS:
+        xs = [r for _i, r in use if r[4] == act]
+        if xs:
+            by.append({"act": act, "n": len(xs), "won": sum(1 for r in xs if r[5])})
+    best = max((b for b in by if b["n"] >= 3), key=lambda b: b["won"] / b["n"], default=None)
+    return {"n": len(use), "by": by, "coarse": coarse, "best": best["act"] if best else None,
+            "demos": len({i for i, _r in use}), "rows": use}
+
+
+def compare_text(cmp: dict, side: str, own: int, enemy: int, planted: bool, mine: str | None) -> str:
+    lage = f"{side.upper()}, {own} gegen {enemy}, Bombe {'liegt' if planted else 'nicht gelegt'}"
+    if cmp["coarse"]:
+        lage += f" (ähnlich: gleiche Differenz {own - enemy:+d})"
+    parts = [f"{ACTION_DE[b['act']]} {b['n']}x ({round(100 * b['won'] / b['n'])} % Siege)" for b in cmp["by"]]
+    text = f"Pros in dieser Lage ({lage}), {cmp['n']} Fälle aus {cmp['demos']} Demo{'s' if cmp['demos'] != 1 else ''}: " \
+           + ", ".join(parts) + "."
+    if mine:
+        text += f" Du: {ACTION_DE.get(mine, mine)}."
+    return text
+
+
+def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict], min_n: int = 8) -> None:
+    """Ergänzt Tod-Analysen mit Lagebild um ``evidence["pro_lage"]`` (Vergleich nach Lage) und
+    ``evidence["pro_best"]`` (Aktion mit der höchsten Siegquote, mind. 3 Fälle)."""
+    for f in findings:
+        snap = f.evidence.get("snap")
+        if f.rule_id != "death_review" or not snap or f.round is None:
+            continue
+        rnd = match.round_by_num(f.round)
+        side = rnd.sides.get(f.steamid) if rnd else None
+        if not side:
+            continue
+        cmp = compare(pro, match.map_name, side, snap["own"], snap["enemy"], snap["planted"], min_n)
+        if cmp is None:
+            continue
+        f.evidence["pro_lage"] = compare_text(cmp, side, snap["own"], snap["enemy"], snap["planted"],
+                                              f.evidence.get("aktion"))
+        if cmp["best"]:
+            f.evidence["pro_best"] = cmp["best"]
+            mine = f.evidence.get("aktion")
+            rate = {b["act"]: (b["won"] / b["n"], b["n"]) for b in cmp["by"]}
+            best_r = rate[cmp["best"]][0]
+            mine_r = rate.get(mine, (None, 0))
+            if mine and mine != cmp["best"] and (mine_r[0] is None or best_r - mine_r[0] >= 0.15):
+                vs = f" ({round(100 * mine_r[0])} %)" if mine_r[0] is not None and mine_r[1] >= 3 else ""
+                f.evidence["pro_tip"] = (f"In dieser Lage gewinnen Pros am häufigsten mit "
+                                         f"\"{ACTION_DE[cmp['best']]}\" ({round(100 * best_r)} % Siege), "
+                                         f"bei dir: {ACTION_DE.get(mine, mine)}{vs}.")

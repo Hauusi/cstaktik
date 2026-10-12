@@ -101,6 +101,7 @@ situation:
   bomb_time_s: 40
   win_min_rounds: 8         # so viele Runden braucht eine Lage für eine Gewinnchance
   max_moments: 5            # so viele teuerste Momente zeigt der Report
+  pro_min_cases: 8          # so viele Pro-Fälle braucht der Vergleich nach Lage
 
 coach:
   # Ursache erscheint im Urteil ab so vielen verlorenen Runden, in denen sie vorkam.

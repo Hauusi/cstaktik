@@ -306,7 +306,33 @@ def _clip_score(pm: MatchData, rnd, sid: str, moment: int, aplace: str) -> tuple
                    "team_kills": len(mates)}
 
 
-def pro_clips(match: MatchData, findings: list[Finding], pro_matches: list[MatchData]) -> list[dict]:
+def _situation_clip(match: MatchData, f: Finding, side: str, pro: list[dict], loaded: dict) -> tuple | None:
+    """Ersatz, wenn kein Pro am selben Ort war: Pro-Runde in derselben LAGE (Seite, Spieler am Leben, Bombe),
+    in der der Pro die erfolgreichste Aktion dieser Lage gewählt und die Runde gewonnen hat."""
+    from cstaktik.situation import ACTION_DE, compare
+
+    snap = f.evidence.get("snap")
+    if not snap:
+        return None
+    cmp = compare(pro, match.map_name, side, snap["own"], snap["enemy"], snap["planted"])
+    if cmp is None or not cmp["best"]:
+        return None
+    for demo_id, r in cmp["rows"]:
+        pm = loaded.get(demo_id)
+        if pm is None or r[4] != cmp["best"] or not r[5]:
+            continue
+        pr = pm.round_by_num(r[6])
+        if pr is None:
+            continue
+        name = next((p.name for p in pm.players if p.steamid == r[8]), "Pro")
+        text = (f"Gleiche Lage ({side.upper()}, {r[1]} gegen {r[2]}, Bombe {'liegt' if r[3] else 'nicht gelegt'}): "
+                f"{name} hat {ACTION_DE[r[4]]} und die Runde gewonnen.")
+        return pm, pr, r[8], r[7], text
+    return None
+
+
+def pro_clips(match: MatchData, findings: list[Finding], pro_matches: list[MatchData],
+              pro: list[dict] | None = None) -> list[dict]:
     """Sucht zu jeder Tod-Analyse eine Pro-Runde in derselben Situation:
     gleiche Map und Seite, ein Pro steht zur selben Rundenzeit (5-s-Raster, ±5 s) am selben Ort UND ein Gegner
     steht wie bei dir am Ort deines Killers (gleiche Angriffsrichtung). Die Pro-Seite gewinnt die Runde,
@@ -356,6 +382,20 @@ def pro_clips(match: MatchData, findings: list[Finding], pro_matches: list[Match
                 if res and (best is None or res[0] > best[0]):
                     best = (res[0], res[1], pm, pr, t["sid"], moment)
         if best is None:
+            sit = _situation_clip(match, f, side, pro or [], {m.source_sha256: m for m in pro_matches})
+            if sit is None:
+                continue
+            pm, pr, sid, moment, text = sit
+            key = (pm.source_sha256, pr.num, sid)
+            if key not in keys:
+                keys[key] = len(clips)
+                ptr = pm.tickrate
+                clips.append({"match": pm, "round": pr, "sid": sid, "moment": moment, "desc": text,
+                              "t0": max(pr.freeze_end_tick, moment - CLIP_BEFORE_S * ptr),
+                              "t1": min(pr.end_tick, moment + CLIP_AFTER_S * ptr)})
+            f.evidence["pro_clip"] = text
+            f.overlay["pro_clip"] = keys[key]
+            f.overlay["pro_tick"] = moment
             continue
         _score, info, pm, pr, sid, moment = best
         key = (pm.source_sha256, pr.num, sid)

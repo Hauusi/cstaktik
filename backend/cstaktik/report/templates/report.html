@@ -217,7 +217,8 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .cost { display: flex; gap: 14px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
 .cost .cnumbig { font-size: 30px; font-weight: 800; color: var(--loss); min-width: 70px; line-height: 1; }
 .cost .cnumbig small { font-size: 15px; margin-left: 2px; }
-.cost .cbody { flex: 1; min-width: 0; } .cost .costgo { margin-top: 8px; }
+.cost .cbody { flex: 1; min-width: 0; } .cost .protip { margin-top: 6px; font-size: 13.5px; color: #d4c9ff; } .cost .protip b { color: #b9a6ff; } .cost .costgo { margin-top: 8px; }
+.coach .protip { margin-top: 6px; font-size: 13.5px; color: #d4c9ff; } .coach .protip b { color: #b9a6ff; }
 .coach .lage { margin-top: 4px; font-size: 13.5px; color: #c9d4e6; background: rgba(255,255,255,.04); border-radius: 8px; padding: 6px 8px; }
 .coach .chip { font-size: 12px; font-weight: 800; color: var(--loss); background: rgba(240,86,106,.14); border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
 .vorbild { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.07);
@@ -250,6 +251,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       <div class="cbody">
         <div class="ct">{{ m.situation or "Tod" }} · {{ m.who }} <span class="quiet num">R{{ m.round }}</span></div>
         <div class="cx">{{ m.decision }}</div>
+        {% if m.pro_tip %}<div class="protip"><b>Pro-Entscheidung:</b> {{ m.pro_tip }}</div>{% endif %}
         {% if m.chance %}<div class="cnum num">{{ m.chance }}</div>{% endif %}
         <button class="sbtn win costgo" data-round="{{ m.round }}" data-tick="{{ m.from or m.tick }}" data-f="{{ m.finding }}">▶ Ab der Entscheidung ansehen</button>
       </div>
@@ -1041,6 +1043,7 @@ function ui() {
       it.append(k, tt);
       if (ev.entscheidung) it.appendChild(el('div', 'lage', (ev.situation ? ev.situation + ' · ' : '') + ev.entscheidung));
       if (f.rule === 'death_review') it.appendChild(el('div', 'what', f.text));
+      if (ev.pro_tip) { const pt = el('div', 'protip'); pt.append(el('b', null, 'Pro-Entscheidung: '), ev.pro_tip); it.appendChild(pt); }
       const tp = el('div', 'tip'); tp.append(el('b', null, isErr(f) ? 'Besser: ' : ''), f.tip); it.appendChild(tp);
       const sm = showMe(f); if (sm) it.appendChild(sm);
       const more = f.evidence && f.evidence.weitere_punkte;
@@ -1199,7 +1202,7 @@ function dataBox(f) {
   const d = el('details', 'data'); d.appendChild(el('summary', null, 'Daten'));
   d.appendChild(lageList(f));
   const ev = f.evidence || {};
-  const pros = ['pro_util', 'pro_lineup', 'pro_trade', 'pro'].map(k => ev[k]).filter(Boolean);
+  const pros = ['pro_lage', 'pro_util', 'pro_lineup', 'pro_trade', 'pro'].map(k => ev[k]).filter(Boolean);
   if (pros.length) { const ul = el('ul', 'lage'); pros.forEach(t => ul.appendChild(el('li', null, 'Pro-Daten: ' + t))); d.appendChild(ul); }
   return d;
 }
