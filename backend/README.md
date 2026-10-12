@@ -77,10 +77,15 @@ Community-Beitrag und ist unbestätigt (die ID steht in der Hub-URL auf faceit.c
 ## Coach-Funktionen
 
 - **Pro-Referenz** (`pro.py`): Pro-Demo hochladen mit Häkchen "Pro-Demo" (oder `cstaktik pro <demo>`).
-  Gespeichert wird nur, wo alle 10 Spieler alle 5 s standen und ob ihre Seite gewann
-  (`data/pro/`, kein Report, nicht im eigenen Verlauf). Danach zeigt die Tod-Analyse
-  "Pro-Vergleich: Pros auf CT in Siegrunden nach 0:20: Jungle 34 %, …" und das Briefing
-  "Pro-Standard nach 0:20". Erst ab 10 Pro-Spieler-Positionen pro Seite/Zeit. HLTV-Demos sind
+  Die Demo landet in `data/pro_demos/` (nie im eigenen Verlauf), die Auswertung in `data/pro/`:
+  Positionen aller 10 Spieler je 5 s, jede Granate (Seite, Rundenzeit, Wurf- und Landeort als Callout)
+  und jeder Tod (Ort, Zeit, getradet). Jede weitere Demo erweitert die Datenbasis.
+  Genutzt in der Tod-Analyse ("So spielen Pros das"): Utility in derselben Szene (gleiche Map, Seite,
+  Ort, Rundenzeit, nur Siegrunden, ab 5 Runden), Trade-Quote der Pros am Ort (ab 8 Toden), häufigster
+  Pro-Wurf (im Replay lila gestrichelt), Positionen nach Zeit (ab 10 Samples). Briefing: "Pro-Utility".
+  Nach jedem Pro-Upload werden die eigenen Reports derselben Map automatisch neu gebaut.
+  `cstaktik pro-update`: ältere Pro-Daten (nur Positionen) aus dem Cache nachrüsten und alle Reports
+  neu bauen. Genaue Lineups (Blickwinkel) sind noch nicht erfasst. HLTV-Demos sind
   Archive: am PC die .dem entpacken und hochladen.
 
 - **Vorbild aus euren Siegrunden** (`reference.py`): zu jedem Tod, wo derselbe Spieler auf

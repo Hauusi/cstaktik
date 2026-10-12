@@ -41,3 +41,13 @@ def test_start_page_and_briefing_route():
     b = c.get("/briefing/de_mirage")
     assert b.status_code == 200 and "Briefing Mirage" in b.text and "SynthMid" in b.text
     assert c.get("/briefing/..%2Fetc").status_code in (400, 404)
+
+
+def test_briefing_pro_utility():
+    from cstaktik import briefing
+
+    nades = [{"r": r, "side": "t", "won": True, "kind": "smoke", "t": 10.0, "from": "SynthT", "to": "SynthB",
+              "fx": 0, "fy": 0, "tx": 1, "ty": 1} for r in range(1, 5)]
+    tl = [{"round": r, "sid": "p", "side": "t", "won": True, "places": []} for r in range(1, 7)]
+    b = briefing.build("de_mirage", [], {"active": []}, pro=[{"id": "x", "map": "de_mirage", "nades": nades, "timeline": tl}])
+    assert b["pro_util"] == [{"side": "T", "items": [{"kind": "Smoke", "from": "SynthT", "to": "SynthB", "n": 4, "rounds": 6}]}]

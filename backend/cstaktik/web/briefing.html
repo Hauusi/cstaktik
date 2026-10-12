@@ -34,6 +34,13 @@
   <div class="tp" style="color:var(--muted)">Siegrunden der Pros, Anteil der Spieler-Positionen, {{ ps.demos }} Demo{{ "s" if ps.demos != 1 }}</div></div>{% endfor %}
 {% endif %}
 
+{% if b.pro_util %}
+<h2>Pro-Utility auf {{ b.label }}</h2>
+{% for pu in b.pro_util %}{% for it in pu.items %}<div class="note"><span class="side {{ pu.side }}">{{ pu.side }}</span><b>{{ it.kind }}</b> aus {{ it.from }} nach <b>{{ it.to }}</b>
+  <span class="empty num">({{ it.n }}x in {{ it.rounds }} Siegrunden)</span></div>{% endfor %}{% endfor %}
+<div class="tp" style="color:var(--muted)">Wurf- und Landeort als Callout aus den Pro-Demos. Genaue Lineups (Blickwinkel) sind noch nicht erfasst.</div>
+{% endif %}
+
 {% if b.notes %}
 <h2>Hier sterbt ihr auf {{ b.label }}</h2>
 {% for n in b.notes %}<div class="note"><span class="side {{ n.side }}">{{ n.side }}</span>{{ n.text }}<div class="tp">{{ n.tip }}</div></div>{% endfor %}
@@ -44,7 +51,7 @@
 {% for w in b.watch %}<div class="note"><b>{{ w.title }}</b> <span class="empty num">· in {{ w.pct }} % eurer Runden auf {{ b.label }}</span><div class="tp">{{ w.tip }}</div></div>{% endfor %}
 {% endif %}
 
-{% if not b.notes and not b.watch and not b.win_spots and not b.pro_spots %}
+{% if not b.notes and not b.watch and not b.win_spots and not b.pro_spots and not b.pro_util %}
 <p class="empty sec">Für diese Map gibt es noch keine Muster. Nach der ersten ausgewerteten Demo auf {{ b.label }} steht hier euer Briefing.</p>
 {% endif %}
 </div></div>

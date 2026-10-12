@@ -1,7 +1,11 @@
-"""Pro-Demos als Referenz: Positionen aller Spieler je 5 s Rundenzeit, gespeichert in data/pro.
+"""Pro-Demos als Referenz, gespeichert in data/pro (eine kleine JSON je Demo).
+
+Je Demo: Positionen aller Spieler je 5 s Rundenzeit (timeline), jede Granate (Seite, Rundenzeit,
+Wurf- und Landeort) und jeder Tod (Ort, Rundenzeit, getradet ja/nein). Alles aus der Demo, nichts geschätzt.
+Jede weitere Pro-Demo erweitert die Datenbasis; die Coach-Vergleiche nutzen alle Demos derselben Map.
 
 Pro-Demos z. B. von HLTV am PC herunterladen, die .dem aus dem Archiv entpacken und mit
-"Pro-Demo" hochladen (oder ``cstaktik pro <demo>``). Es wird kein Report erzeugt.
+"Pro-Demo" hochladen (oder ``cstaktik pro <demo>``). Es wird kein eigener Report erzeugt.
 """
 
 from __future__ import annotations
@@ -10,18 +14,100 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from collections import Counter
+
 from cstaktik.model import MatchData
 from cstaktik.reference import timeline
 
+VERSION = 2  # 1: nur timeline; 2: + nades, deaths
+_CELL = 128  # Rastergröße für die Ortsbestimmung von Granaten-Punkten
 
-def summarize(match: MatchData) -> dict:
+
+def place_lookup(match: MatchData):
+    """Ortsname (Callout) für beliebige Koordinaten: häufigster Ort der Spieler-Positionen in der Nähe."""
+    grid: dict[tuple[int, int, int], Counter] = {}
+    flat: dict[tuple[int, int], Counter] = {}
+    for p in match.positions:
+        if not p.place:
+            continue
+        gx, gy, gz = int(p.pos.x // _CELL), int(p.pos.y // _CELL), int(p.pos.z // _CELL)
+        grid.setdefault((gx, gy, gz), Counter())[p.place] += 1
+        flat.setdefault((gx, gy), Counter())[p.place] += 1
+
+    def find(x: float, y: float, z: float) -> str | None:
+        gx, gy, gz = int(x // _CELL), int(y // _CELL), int(z // _CELL)
+        for r in (0, 1):
+            c = Counter()
+            for dx in range(-r, r + 1):
+                for dy in range(-r, r + 1):
+                    for dz in (-1, 0, 1):
+                        c.update(grid.get((gx + dx, gy + dy, gz + dz), {}))
+            if c:
+                return c.most_common(1)[0][0]
+        c = Counter()  # Granate in der Luft/auf Dach: nur x/y
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                c.update(flat.get((gx + dx, gy + dy), {}))
+        return c.most_common(1)[0][0] if c else None
+
+    return find
+
+
+def nades(match: MatchData) -> list[dict]:
+    """Granaten mit Seite, Rundenzeit (Wurf), Wurf- und Landeort aus der Flugbahn."""
+    find = place_lookup(match)
+    tr = match.tickrate
+    out = []
+    for g in match.grenades:
+        rnd = match.round_by_num(g.round)
+        if g.kind not in ("smoke", "flash", "molotov", "he") or len(g.points) < 2 or rnd is None \
+                or rnd.freeze_end_tick is None or rnd.winner is None:
+            continue
+        side = rnd.sides.get(g.thrower_steamid or "")
+        if side is None:
+            continue
+        (t0, fx, fy, fz), (_t1, tx, ty, tz) = g.points[0], g.points[-1]
+        out.append({"r": g.round, "side": side, "won": rnd.winner == side, "kind": g.kind,
+                    "t": round((t0 - rnd.freeze_end_tick) / tr, 1),
+                    "from": find(fx, fy, fz), "to": find(tx, ty, tz),
+                    "fx": round(fx), "fy": round(fy), "tx": round(tx), "ty": round(ty)})
+    return out
+
+
+def deaths(match: MatchData, trade_window_s: float = 3.0) -> list[dict]:
+    """Tode mit Ort, Rundenzeit, erstes Duell, getradet (Killer stirbt binnen trade_window_s durch Team des Opfers)."""
+    tr = match.tickrate
+    kills = sorted(match.kills, key=lambda k: k.tick)
+    first: dict[int, int] = {}
+    for k in kills:
+        first.setdefault(k.round, k.tick)
+    out = []
+    for k in kills:
+        rnd = match.round_by_num(k.round)
+        if rnd is None or rnd.freeze_end_tick is None or rnd.winner is None or k.victim_side is None:
+            continue
+        if k.attacker_side == k.victim_side:
+            continue
+        traded = bool(k.attacker_steamid) and any(
+            x.round == k.round and x.victim_steamid == k.attacker_steamid and x.attacker_side == k.victim_side
+            and k.tick < x.tick <= k.tick + trade_window_s * tr for x in kills)
+        out.append({"r": k.round, "side": k.victim_side, "won": rnd.winner == k.victim_side,
+                    "t": round((k.tick - rnd.freeze_end_tick) / tr, 1), "place": k.victim_place,
+                    "first": first[k.round] == k.tick, "traded": traded})
+    return out
+
+
+def summarize(match: MatchData, trade_window_s: float = 3.0) -> dict:
     return {
         "id": match.source_sha256 or match.source_file,
+        "version": VERSION,
         "source_file": match.source_file,
         "map": match.map_name,
         "rounds": len(match.rounds),
         "analyzed_at": datetime.now().isoformat(timespec="minutes"),
         "timeline": timeline(match, all_players=True),
+        "nades": nades(match),
+        "deaths": deaths(match, trade_window_s),
     }
 
 
@@ -41,6 +127,18 @@ def load_all(pro_dir: Path) -> list[dict]:
         except (OSError, ValueError):
             continue
     return out
+
+
+def stats(pro_dir: Path) -> dict:
+    """Für die Startseite: je Map Demos, Runden und ob die Detaildaten (Granaten/Tode) vorliegen."""
+    out: dict[str, dict] = {}
+    for d in load_all(pro_dir):
+        m = out.setdefault(d.get("map") or "?", {"demos": 0, "rounds": 0, "nades": 0, "old": 0})
+        m["demos"] += 1
+        m["rounds"] += d.get("rounds") or 0
+        m["nades"] += len(d.get("nades") or [])
+        m["old"] += d.get("version", 1) < VERSION
+    return dict(sorted(out.items()))
 
 
 def overview(pro_dir: Path) -> dict[str, int]:

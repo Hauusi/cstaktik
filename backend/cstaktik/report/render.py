@@ -84,6 +84,9 @@ def _overlay_px(ov: dict, px) -> dict:
         out["line"] = [list(px(x, y)) for x, y in ov["line"]]
     if ov.get("label"):
         out["label"] = ov["label"]
+    if ov.get("pro_nade"):
+        fx, fy, tx, ty = ov["pro_nade"]["xy"]
+        out["pro_nade"] = {"kind": ov["pro_nade"]["kind"], "a": list(px(fx, fy)), "b": list(px(tx, ty))}
     return out
 
 

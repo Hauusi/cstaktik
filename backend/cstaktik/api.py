@@ -115,7 +115,7 @@ def index() -> str:
     return _env.get_template("index.html").render(
         jobs=jobs, reports=_report_entries(), n_history=len(hist), goals=state["active"],
         done_count=len(state["done"]), last=hist[-1] if hist else None, briefing_maps=maps,
-        pro_overview=__import__("cstaktik.pro", fromlist=["overview"]).overview(pipeline.PRO_DIR),
+        pro_overview=__import__("cstaktik.pro", fromlist=["stats"]).stats(pipeline.PRO_DIR),
         faceit_ready=bool(os.environ.get("FACEIT_API_KEY")),
     )
 
@@ -148,7 +148,8 @@ def _run_job(job_id: str, target: Path, focus: set[str] | None, is_pro: bool = F
             info = pipeline.run_pro(demo, progress=lambda stage, frac: update(stage=stage, frac=frac))
             label = (info["map"] or "?").removeprefix("de_").capitalize()
             update(status="fertig", stage="Fertig", frac=1.0,
-                   message=f"Pro-Demo gespeichert: {label}, {info['rounds']} Runden, {info['players']} Spieler.")
+                   message=f"Pro-Demo gespeichert: {label}, {info['rounds']} Runden, {info['nades']} Granaten. "
+                           f"{info['reports']} eigene {label}-Reports mit den neuen Pro-Daten aktualisiert.")
         else:
             out = pipeline.run(demo, focus, progress=lambda stage, frac: update(stage=stage, frac=frac))
             update(status="fertig", stage="Fertig", frac=1.0, report=out.name)
@@ -165,9 +166,11 @@ async def analyze_upload(
     filename = demo.filename or ""
     if not pipeline.is_demo_name(filename):
         raise HTTPException(400, "Nur .dem- oder .dem.bz2-Dateien.")
-    pipeline.DEMOS_DIR.mkdir(parents=True, exist_ok=True)
+    # Pro-Demos getrennt ablegen, damit sie nie als eigenes Match ausgewertet werden
+    folder = pipeline.PRO_DEMOS_DIR if pro else pipeline.DEMOS_DIR
+    folder.mkdir(parents=True, exist_ok=True)
     suffix = ".dem.bz2" if filename.lower().endswith(".bz2") else ".dem"
-    target = pipeline.DEMOS_DIR / f"{_safe_name(filename)}{suffix}"
+    target = folder / f"{_safe_name(filename)}{suffix}"
     with target.open("wb") as fh:
         while chunk := await demo.read(1 << 20):
             fh.write(chunk)

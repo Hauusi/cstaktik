@@ -158,8 +158,78 @@ def pro_text(ps: dict, side: str) -> str:
             f"(Anteil der Spieler-Positionen, {ps['demos']} Demo{'s' if ps['demos'] != 1 else ''})")
 
 
+PRO_MIN_ROUNDS = 5  # so viele passende Pro-Runden braucht der Szenen-Vergleich
+PRO_MIN_DEATHS = 8  # so viele Pro-Tode am Ort braucht die Trade-Quote
+NADE_NAMES = {"smoke": "Smoke", "flash": "Flash", "molotov": "Molotov", "he": "HE"}
+
+
+def pro_scene(pro: list[dict], map_name: str | None, side: str, place: str, seconds: float,
+              lead_s: float = 20.0) -> dict | None:
+    """Pro-Siegrunden derselben Seite, in denen ein Pro zur selben Rundenzeit am selben Ort war:
+    In wie vielen kam vorher Utility zum Einsatz? T: Granaten, die dort landen. CT: Granaten, die von dort fliegen.
+    """
+    b = _bucket(seconds) // STEP_S
+    rounds = 0
+    with_util = 0
+    kinds: Counter = Counter()
+    throws: Counter = Counter()
+    sample: dict = {}
+    demos = set()
+    key = "to" if side == "t" else "from"
+    for d in pro:
+        if d.get("map") != map_name or "nades" not in d:
+            continue
+        hit = {t["round"] for t in d.get("timeline", [])
+               if t["side"] == side and t["won"] and b < len(t["places"]) and t["places"][b] == place}
+        for r in hit:
+            rounds += 1
+            demos.add(d.get("id"))
+            ns = [n for n in d["nades"] if n["r"] == r and n["side"] == side and n[key] == place
+                  and seconds - lead_s <= n["t"] <= seconds + 2]
+            if ns:
+                with_util += 1
+                kinds.update({n["kind"] for n in ns})
+                for n in ns:
+                    if n["kind"] in ("smoke", "flash", "molotov"):
+                        k = (n["kind"], n["from"], n["to"])
+                        throws[k] += 1
+                        sample.setdefault(k, n)
+    if rounds < PRO_MIN_ROUNDS:
+        return None
+    lineup = None
+    if throws:
+        (kind, frm, to), n = throws.most_common(1)[0]
+        if n >= 2:
+            s = sample[(kind, frm, to)]
+            lineup = {"kind": kind, "from": frm, "to": to, "n": n, "xy": [s["fx"], s["fy"], s["tx"], s["ty"]]}
+    return {"rounds": rounds, "with_util": with_util, "kinds": kinds.most_common(), "lineup": lineup,
+            "demos": len(demos), "at": _bucket(seconds)}
+
+
+def pro_trade(pro: list[dict], map_name: str | None, side: str, place: str) -> dict | None:
+    """Wie oft werden Pros getradet, wenn sie auf dieser Seite an diesem Ort sterben?"""
+    ds = [x for d in pro if d.get("map") == map_name for x in d.get("deaths", [])
+          if x["side"] == side and x["place"] == place]
+    if len(ds) < PRO_MIN_DEATHS:
+        return None
+    return {"n": len(ds), "pct": round(100 * sum(x["traded"] for x in ds) / len(ds))}
+
+
+def scene_text(sc: dict, side: str, place: str) -> str:
+    mm, ss = divmod(sc["at"], 60)
+    if not sc["with_util"]:
+        return (f"In {sc['rounds']} Pro-Siegrunden ({side.upper()}, {place}, um {mm}:{ss:02d}) "
+                "kam vorher keine Utility: dort entscheidet das Duell/Timing.")
+    kinds = ", ".join(f"{NADE_NAMES[k]} {n}" for k, n in sc["kinds"])
+    where = "dorthin" if side == "t" else "von dort"
+    return (f"Pros ({side.upper()}) in {place} um {mm}:{ss:02d}: in {sc['with_util']} von {sc['rounds']} "
+            f"Siegrunden kam vorher Utility {where} ({kinds}).")
+
+
 def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict]) -> None:
-    """Ergänzt Tod-Analysen um ``evidence["pro"]``, wenn genug Pro-Daten zur Map vorliegen."""
+    """Ergänzt Tod-Analysen um Pro-Vergleiche, wenn genug Pro-Daten zur Map vorliegen:
+    ``pro`` (Positionen), ``pro_util`` (Utility in derselben Szene), ``pro_trade`` (Trade-Quote am Ort),
+    ``pro_lineup`` (häufigster Pro-Wurf, als Overlay ``pro_nade`` im Replay)."""
     if not pro:
         return
     tr = match.tickrate
@@ -170,6 +240,40 @@ def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict]) -> No
         if rnd is None or rnd.freeze_end_tick is None:
             continue
         side = rnd.sides.get(f.steamid)
-        ps = pro_spots(pro, match.map_name, side, (f.tick - rnd.freeze_end_tick) / tr) if side else None
+        if not side:
+            continue
+        secs = (f.tick - rnd.freeze_end_tick) / tr
+        ps = pro_spots(pro, match.map_name, side, secs)
         if ps:
             f.evidence["pro"] = pro_text(ps, side)
+        place = next((k.victim_place for k in match.kills if k.tick == f.tick and k.victim_steamid == f.steamid), None)
+        if not place:
+            continue
+        sc = pro_scene(pro, match.map_name, side, place, secs)
+        if sc:
+            f.evidence["pro_util"] = scene_text(sc, side, place)
+            lu = sc["lineup"]
+            if lu:
+                f.evidence["pro_lineup"] = (f"Häufigster Pro-Wurf dabei: {NADE_NAMES[lu['kind']]} aus "
+                                            f"{lu['from'] or '?'} nach {lu['to'] or '?'} ({lu['n']}x). "
+                                            "Im Replay lila gestrichelt.")
+                f.overlay["pro_nade"] = {"kind": lu["kind"], "xy": lu["xy"]}
+        pt = pro_trade(pro, match.map_name, side, place)
+        if pt:
+            f.evidence["pro_trade"] = (f"Pros, die in {place} sterben ({side.upper()}), werden zu {pt['pct']} % "
+                                       f"getradet ({pt['n']} Tode).")
+
+
+def pro_utility(pro: list[dict], map_name: str | None, side: str, top: int = 4, min_n: int = 3) -> list[dict]:
+    """Für das Briefing: häufigste Pro-Würfe (Smoke/Flash/Molotov) in Siegrunden einer Seite, von Ort nach Ort."""
+    c: Counter = Counter()
+    rounds = 0
+    for d in pro:
+        if d.get("map") != map_name or "nades" not in d:
+            continue
+        rounds += len({t["round"] for t in d.get("timeline", []) if t["side"] == side and t["won"]})
+        for n in d["nades"]:
+            if n["side"] == side and n["won"] and n["kind"] in ("smoke", "flash", "molotov") and n["from"] and n["to"]:
+                c[(n["kind"], n["from"], n["to"])] += 1
+    return [{"kind": NADE_NAMES[k], "from": f, "to": t, "n": n, "rounds": rounds}
+            for (k, f, t), n in c.most_common(top) if n >= min_n]

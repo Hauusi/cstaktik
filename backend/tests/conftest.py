@@ -15,6 +15,8 @@ def _isolated_history(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "HISTORY_DIR", tmp_path / "history")
     monkeypatch.setattr(pipeline, "GOALS_FILE", tmp_path / "goals.json")
     monkeypatch.setattr(pipeline, "PRO_DIR", tmp_path / "pro")
+    monkeypatch.setattr(pipeline, "PRO_DEMOS_DIR", tmp_path / "pro_demos")
+    monkeypatch.setattr(pipeline, "CACHE_DIR", tmp_path / "cache")
 
 
 @pytest.fixture(autouse=True)

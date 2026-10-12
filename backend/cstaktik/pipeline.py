@@ -22,6 +22,7 @@ CACHE_DIR = DATA_DIR / "cache"
 HISTORY_DIR = DATA_DIR / "history"
 GOALS_FILE = DATA_DIR / "goals.json"
 PRO_DIR = DATA_DIR / "pro"
+PRO_DEMOS_DIR = DATA_DIR / "pro_demos"  # hochgeladene Pro-Demos, getrennt von den eigenen
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
 CACHE_SCHEMA = 7
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
@@ -136,6 +137,19 @@ def load_any(
     return match
 
 
+def _coach(match: MatchData, config: dict):
+    """Regeln + Vorbild (eigene Siegrunden) + Pro-Vergleich. Gemeinsam für run() und rerender_reports()."""
+    from cstaktik import history as _history
+    from cstaktik import pro as _pro
+    from cstaktik.reference import enrich, enrich_pro
+
+    result = analyze(match, config)
+    hist = _history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []
+    enrich(match, result.findings, hist)
+    enrich_pro(match, result.findings, _pro.load_all(PRO_DIR))
+    return result
+
+
 def run(
     path: Path, focus: set[str] | None = None, out_dir: Path = REPORTS_DIR, progress: Progress | None = None
 ) -> Path:
@@ -146,16 +160,8 @@ def run(
     path = prepare_demo(path)
     match = load_any(path, focus, config, progress=lambda st, f: report(st, 0.9 * f))
     report("Fehler suchen", 0.92)
-    result = analyze(match, config)
-    from cstaktik import history as _history
-    from cstaktik.reference import enrich
-
-    # Vorbild aus eigenen Siegrunden (dieses Match + Verlauf auf derselben Map)
-    enrich(match, result.findings, _history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else [])
-    from cstaktik import pro as _pro
-    from cstaktik.reference import enrich_pro
-
-    enrich_pro(match, result.findings, _pro.load_all(PRO_DIR))
+    upgrade_pro()
+    result = _coach(match, config)
     report("Karte laden", 0.94)
     from cstaktik import goals, history, maps
     from cstaktik.report.radar import LOCAL_MAPS_DIR
@@ -172,18 +178,66 @@ def run(
     report("Ziele prüfen", 0.95)
     stem = demo_stem(path.name)
     summary = history.summarize(match, result, f"{stem}.html")
-    history.save(summary, HISTORY_DIR)
+    old = next((h for h in history.load_all(HISTORY_DIR) if h.get("id") == summary["id"]), None) \
+        if HISTORY_DIR.exists() else None
     state = goals.load(GOALS_FILE)
     goal_check = goals.update(state, summary, config["goals"], config.get("mechanics"))
     goals.save(state, GOALS_FILE)
+    # Ziel-Check mitspeichern, damit der Report später (z. B. nach neuen Pro-Demos) neu gebaut werden kann
+    summary["goal_check"] = goal_check if goal_check.get("checks") or not old else old.get("goal_check", goal_check)
+    history.save(summary, HISTORY_DIR)
     report("Report bauen", 0.96)
-    out = write_report(match, result, out_dir / f"{stem}.html", goal_check=goal_check)
+    out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"])
     report("Fertig", 1.0)
     return out
 
 
+def rerender_reports(maps: set[str] | None = None, progress: Progress | None = None) -> int:
+    """Baut die Reports eigener Matches aus dem Cache neu (z. B. nach neuen Pro-Demos).
+
+    Verlauf und Ziele bleiben unverändert. Matches ohne Cache (Schema geändert) werden übersprungen."""
+    from cstaktik import history
+
+    report = progress or (lambda _stage, _frac: None)
+    config = load_rules_config()
+    focus = load_focus_steamids()
+    todo = [h for h in (history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else [])
+            if h.get("report_file") and (maps is None or h.get("map") in maps)
+            and (CACHE_DIR / f"{h['id']}.v{CACHE_SCHEMA}.json").exists()]
+    done = 0
+    for i, h in enumerate(todo):
+        report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
+        match = load_match(CACHE_DIR / f"{h['id']}.v{CACHE_SCHEMA}.json")
+        if focus:  # wie load_any: Fokus aus der aktuellen Config, sonst aus dem Cache
+            for p in match.players:
+                p.is_focus = p.steamid in focus
+        if not match.focus_ids():
+            continue
+        result = _coach(match, config)
+        write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"))
+        done += 1
+    return done
+
+
+def upgrade_pro() -> int:
+    """Ältere Pro-Zusammenfassungen (nur Positionen) aus dem Cache um Granaten/Tode ergänzen."""
+    from cstaktik import pro
+
+    n = 0
+    for d in pro.load_all(PRO_DIR):
+        cache = CACHE_DIR / f"{d.get('id')}.v{CACHE_SCHEMA}.json"
+        if d.get("version", 1) >= pro.VERSION or not cache.exists():
+            continue
+        summary = pro.summarize(load_match(cache), load_rules_config()["coach"]["trade_window_s"])
+        summary["analyzed_at"] = d.get("analyzed_at", summary["analyzed_at"])
+        pro.save(summary, PRO_DIR)
+        n += 1
+    return n
+
+
 def run_pro(path: Path, progress: Progress | None = None, use_cache: bool = True) -> dict:
-    """Pro-Demo parsen und als Referenz speichern (kein Report, keine Fokus-Spieler).
+    """Pro-Demo parsen und als Referenz speichern (keine Fokus-Spieler). Danach werden die eigenen
+    Reports derselben Map mit den neuen Pro-Daten neu gebaut.
 
     ``use_cache=False`` (FACEIT-Sync): kein großer JSON-Cache, nur die kleine Zusammenfassung bleibt."""
     from cstaktik import pro
@@ -192,15 +246,18 @@ def run_pro(path: Path, progress: Progress | None = None, use_cache: bool = True
     config = load_rules_config()
     path = prepare_demo(path)
     if use_cache:
-        match = load_any(path, set(), config, progress=lambda st, f: report(st, 0.95 * f))
+        match = load_any(path, set(), config, progress=lambda st, f: report(st, 0.85 * f))
     else:
         from cstaktik.parser.awpy_adapter import parse_demo
 
-        match = parse_demo(path, set(), config["parser"], lambda st, f: report(st, 0.95 * f))
-    summary = pro.summarize(match)
+        match = parse_demo(path, set(), config["parser"], lambda st, f: report(st, 0.85 * f))
+    summary = pro.summarize(match, config["coach"]["trade_window_s"])
     pro.save(summary, PRO_DIR)
+    upgrade_pro()
+    updated = rerender_reports({summary["map"]}, lambda st, f: report(st, 0.85 + 0.15 * f))
     report("Fertig", 1.0)
-    return {"map": summary["map"], "rounds": summary["rounds"], "players": len(match.players)}
+    return {"map": summary["map"], "rounds": summary["rounds"], "players": len(match.players),
+            "nades": len(summary["nades"]), "reports": updated}
 
 
 def faceit_sync(log=print) -> dict:

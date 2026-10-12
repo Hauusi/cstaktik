@@ -25,6 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     pp = sub.add_parser("pro", help="Pro-Demo als Referenz speichern (kein Report)")
     pp.add_argument("file", type=Path)
 
+    sub.add_parser("pro-update", help="Alte Pro-Daten nachrüsten und alle eigenen Reports neu bauen")
     sub.add_parser("faceit-test", help="FACEIT-Schlüssel, Hub und Downloads-API-Freigabe prüfen")
     sub.add_parser("faceit-sync", help="Pro-Demos pro Map über die FACEIT-API holen")
 
@@ -78,7 +79,15 @@ def main(argv: list[str] | None = None) -> int:
         from cstaktik import pipeline
 
         info = pipeline.run_pro(args.file)
-        print(f"Pro-Demo gespeichert: {info['map']}, {info['rounds']} Runden, {info['players']} Spieler")
+        print(f"Pro-Demo gespeichert: {info['map']}, {info['rounds']} Runden, {info['nades']} Granaten; "
+              f"{info['reports']} eigene Reports aktualisiert")
+        return 0
+
+    if args.cmd == "pro-update":
+        from cstaktik import pipeline
+
+        print(f"Pro-Daten nachgerüstet: {pipeline.upgrade_pro()}")
+        print(f"Reports neu gebaut: {pipeline.rerender_reports()}")
         return 0
 
     if args.cmd in ("faceit-test", "faceit-sync"):

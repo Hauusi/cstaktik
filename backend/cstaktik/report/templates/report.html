@@ -818,6 +818,18 @@ function draw() {
       ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText('Sieg R' + ovf.ov.ghost_round, gx, gy + 11 * u);
       ctx.fillStyle = '#3fbf7f'; ctx.fillText('Sieg R' + ovf.ov.ghost_round, gx, gy + 11 * u);
     }
+    // Häufigster Pro-Wurf in derselben Szene (aus data/pro)
+    if (ovf.ov && ovf.ov.pro_nade) {
+      const pn = ovf.ov.pro_nade, [ax, ay] = pn.a, [bx, by] = pn.b;
+      ctx.strokeStyle = '#b9a6ff'; ctx.lineWidth = 2.2 * u; ctx.setLineDash([6 * u, 4 * u]);
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#b9a6ff'; ctx.beginPath(); ctx.arc(ax, ay, 3.5 * u, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#b9a6ff'; ctx.lineWidth = 2 * u; ctx.beginPath(); ctx.arc(bx, by, 8 * u, 0, 7); ctx.stroke();
+      const lbl = 'Pro-' + ({ smoke: 'Smoke', flash: 'Flash', molotov: 'Molotov', he: 'HE' }[pn.kind] || pn.kind);
+      ctx.font = `800 ${10 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(lbl, bx, by + 10 * u);
+      ctx.fillStyle = '#b9a6ff'; ctx.fillText(lbl, bx, by + 10 * u);
+    }
     // Frühere Tode desselben Spielers am selben Ort (Geister)
     const myDeath = r.kills.find(k => k.t === ovf.tick && k.v === ovf.sid);
     if (myDeath && myDeath.pl) {
@@ -898,7 +910,7 @@ function ui() {
       it.append(k, el('div', 'tt', f.title.replace(/^Tod: /, '') + (f.who ? ' · ' + f.who : '')));
       if (f.rule === 'death_review') it.appendChild(el('div', 'what', f.text));
       const tp = el('div', 'tip'); tp.append(el('b', null, isErr(f) ? 'Besser: ' : ''), f.tip); it.appendChild(tp);
-      if (f.evidence && (f.evidence.vorbild || f.evidence.pro)) it.appendChild(vorbild(f));
+      if (hasRef(f)) it.appendChild(vorbild(f));
       const more = f.evidence && f.evidence.weitere_punkte;
       if (more && more.length) it.appendChild(el('div', 'also', 'Außerdem: ' + more.join(' · ')));
       if (f.rule === 'death_review') { const d = el('details', 'data'); d.appendChild(el('summary', null, 'Daten')); d.appendChild(lageList(f)); it.appendChild(d); }
@@ -961,7 +973,7 @@ function buildFindings() {
     act.appendChild(evidence(f));
     c.append(top, el('div', 'txt', f.text));
     c.append(tip);
-    if (f.evidence && (f.evidence.vorbild || f.evidence.pro)) c.appendChild(vorbild(f));
+    if (hasRef(f)) c.appendChild(vorbild(f));
     if (f.rule === 'death_review') { const d = el('details', 'data'); d.appendChild(el('summary', null, 'Daten')); d.appendChild(lageList(f)); c.appendChild(d); }
     c.append(act); box.appendChild(c);
   });
@@ -987,10 +999,18 @@ function selectRound(i, keep) {
   if (!keep) history.replaceState(null, '', '#r' + r.n);
 }
 // Vorbild aus eigenen Siegrunden + Sprung in die Siegrunde zur selben Rundenzeit
+function hasRef(f) {
+  return !!(f.evidence && ['vorbild', 'pro', 'pro_util', 'pro_lineup', 'pro_trade'].some(k => f.evidence[k]));
+}
 function vorbild(f) {
   const box = el('div', 'vorbild');
   if (f.evidence.vorbild) box.append(el('b', null, 'Vorbild aus euren Siegrunden: '), f.evidence.vorbild);
-  if (f.evidence.pro) { const pr = el('div', 'pro'); pr.append(el('b', null, 'Pro-Vergleich: '), f.evidence.pro); box.appendChild(pr); }
+  const pros = ['pro_util', 'pro_lineup', 'pro_trade', 'pro'].map(k => f.evidence[k]).filter(Boolean);
+  if (pros.length) {
+    const pr = el('div', 'pro'); pr.append(el('b', null, 'So spielen Pros das: '));
+    pros.forEach((t, i) => { if (i) pr.append(el('br')); pr.append(t); });
+    box.appendChild(pr);
+  }
   if (f.ov && f.ov.ghost_round != null) {
     const ri = D.rounds.findIndex(r => r.n === f.ov.ghost_round);
     if (ri >= 0) {
