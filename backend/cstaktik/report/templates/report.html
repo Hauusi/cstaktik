@@ -473,15 +473,15 @@ D.rounds.forEach((r, i) => {
 function sampleAt(pts, tick) {
   if (!pts || !pts.length || tick < pts[0][0] - TR) return null;
   let lo = 0, hi = pts.length - 1;
-  if (tick <= pts[0][0]) return { x: pts[0][1], y: pts[0][2], yaw: pts[0][3] };
+  if (tick <= pts[0][0]) return { x: pts[0][1], y: pts[0][2], yaw: pts[0][3], w: pts[0][4] };
   while (lo < hi) { const m = (lo + hi + 1) >> 1; if (pts[m][0] <= tick) lo = m; else hi = m - 1; }
   const a = pts[lo], b = pts[lo + 1];
-  if (!b) return tick - a[0] <= TR ? { x: a[1], y: a[2], yaw: a[3] } : null;
-  if (b[0] - a[0] > 2 * TR) return { x: a[1], y: a[2], yaw: a[3] };
+  if (!b) return tick - a[0] <= TR ? { x: a[1], y: a[2], yaw: a[3], w: a[4] } : null;
+  if (b[0] - a[0] > 2 * TR) return { x: a[1], y: a[2], yaw: a[3], w: a[4] };
   const k = (tick - a[0]) / (b[0] - a[0]);
   let yaw = a[3];
   if (a[3] != null && b[3] != null) { const d = ((b[3] - a[3] + 540) % 360) - 180; yaw = a[3] + d * k; }
-  return { x: a[1] + (b[1] - a[1]) * k, y: a[2] + (b[2] - a[2]) * k, yaw };
+  return { x: a[1] + (b[1] - a[1]) * k, y: a[2] + (b[2] - a[2]) * k, yaw, w: k < .5 ? a[4] : b[4] };
 }
 function deathTicks(r) { const m = {}; r.kills.forEach(k => { if (k.v && !(k.v in m)) m[k.v] = k.t; }); return m; }
 
@@ -639,7 +639,40 @@ function draw() {
     ctx.font = `${f ? 700 : 500} ${(f ? 11.5 : 10) * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(label, p.x, p.y - rad - 3 * u);
     ctx.fillStyle = f ? '#fff' : 'rgba(238,241,246,.75)'; ctx.fillText(label, p.x, p.y - rad - 3 * u);
+    // Waffe in der Hand (aus der Demo)
+    const wn = p.w != null && D.weapons ? D.weapons[p.w] : null;
+    if (wn && (f || S.zoom >= 1.5)) {
+      ctx.font = `600 ${8.5 * u}px system-ui`; ctx.textBaseline = 'top';
+      ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(wn, p.x, p.y + rad + 2 * u);
+      ctx.fillStyle = 'rgba(238,241,246,.8)'; ctx.fillText(wn, p.x, p.y + rad + 2 * u);
+    }
   }
+
+  // Schüsse: Mündungsblitz + Leuchtspur; bei Treffer Linie zum Getroffenen mit Schaden
+  const SHOT_VIS = .14 * TR;
+  (r.shots || []).forEach(([st, sid, w]) => {
+    if (t < st || t > st + SHOT_VIS || (dt[sid] != null && st > dt[sid])) return;
+    const p = sampleAt(r.tracks[sid], st); if (!p) return;
+    const fade = 1 - (t - st) / SHOT_VIS, col = COL[r.teams[sid]] || '#fff';
+    const hit = (r.hurts || []).find(h => h[1] === sid && h[0] >= st && h[0] <= st + 2);
+    let tx, ty;
+    const vp = hit ? sampleAt(r.tracks[hit[2]], hit[0]) : null;
+    if (vp) { tx = vp.x; ty = vp.y; }
+    else if (p.yaw != null) { const a = -p.yaw * Math.PI / 180, L = 600 * (D.upx || .2); tx = p.x + Math.cos(a) * L; ty = p.y + Math.sin(a) * L; }
+    if (tx != null) {
+      const g = ctx.createLinearGradient(p.x, p.y, tx, ty);
+      g.addColorStop(0, `rgba(255,236,170,${.95 * fade})`); g.addColorStop(1, `rgba(255,236,170,${vp ? .9 * fade : 0})`);
+      ctx.strokeStyle = g; ctx.lineWidth = (vp ? 2 : 1.4) * u; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(tx, ty); ctx.stroke();
+    }
+    ctx.fillStyle = `rgba(255,220,120,${fade})`; ctx.beginPath(); ctx.arc(p.x, p.y, 3.5 * u * (1 + fade), 0, 7); ctx.fill();
+    if (vp) {
+      ctx.fillStyle = `rgba(240,86,106,${fade})`; ctx.beginPath(); ctx.arc(vp.x, vp.y, 4 * u, 0, 7); ctx.fill();
+      ctx.font = `800 ${10 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.lineWidth = 3 * u; ctx.strokeStyle = `rgba(7,9,13,${.85 * fade})`; ctx.strokeText('-' + hit[3], vp.x + 10 * u, vp.y - 6 * u);
+      ctx.fillStyle = `rgba(255,120,130,${fade})`; ctx.fillText('-' + hit[3], vp.x + 10 * u, vp.y - 6 * u);
+    }
+  });
 
   // Granaten im Flug: Wurfbahn + Projektil, nach der Landung kurz nachleuchten
   (r.nades || []).forEach(n => {

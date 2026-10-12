@@ -95,6 +95,7 @@ class PositionSample(BaseModel):
     place: str | None = None
     alive: bool = True
     yaw: float | None = None  # Blickrichtung in Grad (Spielkoordinaten)
+    weapon: str | None = None  # Waffe in der Hand (active_weapon_name)
 
 
 class UtilityArea(BaseModel):

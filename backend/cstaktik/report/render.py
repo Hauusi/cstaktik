@@ -13,6 +13,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from cstaktik.config import load_rules_config
+from cstaktik.mechanics import is_gun
 from cstaktik.model import AnalysisResult, MatchData
 from cstaktik.report.radar import build_radar
 
@@ -91,12 +92,23 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     px = radar.to_px
     focus = match.focus_ids()
 
+    weapons: list[str] = []  # Waffennamen-Tabelle, im Track als Index
+    widx: dict[str, int] = {}
+
+    def wi(name: str | None) -> int | None:
+        if not name:
+            return None
+        if name not in widx:
+            widx[name] = len(weapons)
+            weapons.append(name)
+        return widx[name]
+
     tracks: dict[int, dict[str, list]] = defaultdict(lambda: defaultdict(list))
     for p in sorted(match.positions, key=lambda s: s.tick):
         if not p.alive:
             continue
         x, y = px(p.pos.x, p.pos.y)
-        tracks[p.round][p.steamid].append([p.tick, x, y, None if p.yaw is None else round(p.yaw)])
+        tracks[p.round][p.steamid].append([p.tick, x, y, None if p.yaw is None else round(p.yaw), wi(p.weapon)])
 
     findings = []
     for i, f in enumerate(result.findings):
@@ -154,6 +166,10 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
             if g.round == r.num and g.points:
                 pts = [[t, *px(x, y)] for t, x, y, _z in g.points]
                 nades.append({"k": g.kind, "th": g.thrower_steamid, "pts": pts})
+        shots = [[sh.tick, sh.steamid, wi(sh.weapon.removeprefix("weapon_"))] for sh in match.shots
+                 if sh.round == r.num and is_gun(sh.weapon)]
+        hurts = [[d.tick, d.attacker_steamid, d.victim_steamid, d.dmg] for d in match.damages
+                 if d.round == r.num and d.attacker_steamid and is_gun(d.weapon)]
         bomb = []
         for b in match.bomb:
             if b.round == r.num and b.event in ("plant", "defuse", "detonate") and b.pos:
@@ -170,6 +186,8 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
                 "tracks": tracks.get(r.num, {}),
                 "kills": kills,
                 "util": util,
+                "shots": shots,
+                "hurts": hurts,
                 "nades": nades,
                 "bomb": bomb,
                 "f": [f["id"] for f in findings if f["round"] == r.num],
@@ -180,6 +198,8 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     draw_cfg = load_rules_config().get("report", {})
     return {
         # Zeichengrößen in Radar-Pixeln (Konfiguration, reine Darstellung)
+        "weapons": weapons,
+        "upx": round(1 / radar.scale, 4),  # Radar-Pixel pro Spieleinheit
         "rSmoke": round(draw_cfg.get("smoke_draw_radius_units", 140) / radar.scale, 1),
         "rMolly": round(draw_cfg.get("molotov_draw_radius_units", 110) / radar.scale, 1),
         "tickrate": match.tickrate,

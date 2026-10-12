@@ -47,9 +47,11 @@ class FakeDemo:
         ticks = []
         for t in range(200, 1000, 8):
             ticks.append({"tick": t, "steamid": A, "name": "Ich", "side": "ct", "round_num": 1,
-                          "X": float(t), "Y": 0.0, "Z": 0.0, "place": "Mid", "health": 100, "yaw": 90.0})
+                          "X": float(t), "Y": 0.0, "Z": 0.0, "place": "Mid", "health": 100, "yaw": 90.0,
+                          "active_weapon_name": "M4A1-S"})
             ticks.append({"tick": t, "steamid": B, "name": "Gegner", "side": "t", "round_num": 1,
-                          "X": float(t), "Y": 500.0, "Z": 0.0, "place": "Top", "health": 100, "yaw": 270.0})
+                          "X": float(t), "Y": 500.0, "Z": 0.0, "place": "Top", "health": 100, "yaw": 270.0,
+                          "active_weapon_name": "AK-47"})
         self.ticks = pl.DataFrame(ticks).with_columns(pl.col("steamid").cast(pl.UInt64))
         self.kills = pl.DataFrame([{
             "tick": 900, "round_num": 1, "attacker_steamid": B, "attacker_name": "Gegner", "attacker_side": "t",
@@ -98,6 +100,7 @@ def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
     assert {u.kind for u in m.utility} == {"smoke", "flash"}
     smoke = next(u for u in m.utility if u.kind == "smoke")
     assert (smoke.end_tick, smoke.end_known) == (1800, True)
+    assert {p.weapon for p in m.positions} == {"M4A1-S", "AK-47"}
     assert m.shots[0].speed == 50.0 and m.shots[0].weapon == "weapon_m4a1"
     assert m.blinds[0].victim_steamid == str(A) and m.blinds[0].duration == 1.73
     assert m.damages[0].dmg == 27 and m.damages[0].attacker_steamid == str(A)

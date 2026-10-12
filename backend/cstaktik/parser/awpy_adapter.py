@@ -158,7 +158,7 @@ def parse_demo(
     step("Demo einlesen", 0.0)
     dem = Demo(path, tickrate=tickrate)
     step("Demo parsen", 0.02)
-    dem.parse(player_props=["yaw"])
+    dem.parse(player_props=["yaw", "active_weapon_name"])
     missing: list[str] = []
 
     step("Runden", 0.75)
@@ -198,7 +198,7 @@ def parse_demo(
 
     cols = [
         c
-        for c in ("tick", "steamid", "side", "round_num", "X", "Y", "Z", "place", "health", "yaw")
+        for c in ("tick", "steamid", "side", "round_num", "X", "Y", "Z", "place", "health", "yaw", "active_weapon_name")
         if c in ticks.columns
     ]
     sampled = ticks.filter((ticks["tick"] % sample_every) == 0).select(cols)
@@ -218,6 +218,7 @@ def parse_demo(
                 place=row.get("place") or None,
                 alive=health is None or health > 0,
                 yaw=_num(row.get("yaw")),
+                weapon=row.get("active_weapon_name") or None,
             )
         )
 

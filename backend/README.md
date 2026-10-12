@@ -43,7 +43,8 @@ kann auch direkt aufs Handy geschickt werden). Geparste Demos werden als JSON in
 ## Report und 2D-Replay
 
 Pro Runde: Replay aller 10 Spieler (Positionen 4x pro Sekunde aus der Demo, interpoliert),
-Blickrichtung, Bombe, Killfeed. Granaten mit Wurfbahn (Projektil-Positionen aus der Demo);
+Blickrichtung, Waffe in der Hand (`active_weapon_name`), Schüsse als Leuchtspur (Treffer: Linie zum
+Getroffenen mit Schaden), Bombe, Killfeed. Granaten mit Wurfbahn (Projektil-Positionen aus der Demo);
 Smoke/Molotov mit Ring und Sekunden für die Restdauer (Detonation bis Ablauf laut Demo-Events),
 Flash/HE als kurzer Effekt beim Zünden. Die Größe der Smoke-/Molotov-Fläche ist nur Darstellung
 (`report.*_draw_radius_units` in rules.yaml). Die Timeline markiert Tode und Befunde.

@@ -235,3 +235,22 @@ def test_report_contains_grenade_paths_and_effects(tmp_path):
     assert r["nades"][0]["k"] == "smoke" and len(r["nades"][0]["pts"]) == 3
     assert {u["k"] for u in r["util"]} == {"smoke", "flash"}
     assert data["rSmoke"] > 0 and data["rMolly"] > 0
+
+
+def test_payload_has_weapons_shots_and_hits(tmp_path):
+    from synth import ENEMIES, ME
+
+    from cstaktik.model import Damage, Shot
+
+    m = build_match()
+    for p in m.positions:
+        p.weapon = "M4A1-S"
+    t = m.round_by_num(2).freeze_end_tick + 640
+    m.shots = [Shot(round=2, tick=t, steamid=ME, weapon="weapon_m4a1_silencer", speed=0),
+               Shot(round=2, tick=t + 1, steamid=ME, weapon="weapon_knife", speed=0)]
+    m.damages = [Damage(round=2, tick=t, attacker_steamid=ME, victim_steamid=ENEMIES[0], dmg=27, weapon="m4a1_silencer")]
+    data = _embedded(render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path]))
+    r2 = next(r for r in data["rounds"] if r["n"] == 2)
+    assert len(r2["shots"]) == 1 and data["weapons"][r2["shots"][0][2]] == "m4a1_silencer"  # Messer ausgeblendet
+    assert r2["hurts"] == [[t, ME, ENEMIES[0], 27]]
+    assert data["weapons"][r2["tracks"][ME][0][4]] == "M4A1-S"
