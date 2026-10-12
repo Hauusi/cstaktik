@@ -16,6 +16,9 @@ report:
   # Zeichengröße von Smoke/Molotov in Spieleinheiten. Nur Darstellung, keine Spielmechanik.
   smoke_draw_radius_units: 140
   molotov_draw_radius_units: 110
+  # Nur wenn die Demo kein Ende-Event liefert: Anzeige-Dauer (CS2-Standard), dann ohne Countdown.
+  smoke_default_s: 18
+  molotov_default_s: 7
 
 rules:
   death_review:

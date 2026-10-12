@@ -168,6 +168,9 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
             }
         )
 
+    draw_cfg0 = load_rules_config().get("report", {})
+    default_s = {"smoke": draw_cfg0.get("smoke_default_s", 18), "molotov": draw_cfg0.get("molotov_default_s", 7)}
+
     def round_obj(m: MatchData, r, trk: dict, side, outcome, fids: list[int]) -> dict:
         """Eine Runde für das Replay (auch für Pro-Szenen aus anderen Demos derselben Map)."""
         kills = []
@@ -185,14 +188,28 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
         for u in m.utility:
             if u.round == r.num:
                 x, y = px(u.pos.x, u.pos.y)
-                util.append({"k": u.kind, "s": u.start_tick, "e": u.end_tick, "ek": u.end_known, "x": x, "y": y,
+                end = u.end_tick
+                if not u.end_known:
+                    # Demo liefert kein Ende: CS2-Standarddauer statt bis Rundenende (ohne Countdown)
+                    dflt = default_s.get(u.kind)
+                    if dflt:
+                        cap = u.start_tick + int(dflt * m.tickrate)
+                        end = cap if end is None else min(end, cap)
+                util.append({"k": u.kind, "s": u.start_tick, "e": end, "ek": u.end_known, "x": x, "y": y,
                              "th": u.thrower_steamid})
+        used_util: set[int] = set()
         nades = []
-        for g in m.grenades:
-            if g.round == r.num and g.points:
-                pts = [[t, *px(x, y)] for t, x, y, _z in g.points]
-                nades.append({"k": g.kind, "th": g.thrower_steamid, "pts": pts,
-                              "ic": icon_for(g.grenade_type) or NADE_ICON.get(g.kind)})
+        for g in sorted((g for g in m.grenades if g.round == r.num and g.points), key=lambda g: g.points[0][0]):
+            pts = [[t, *px(x, y)] for t, x, y, _z in g.points]
+            nd = {"k": g.kind, "th": g.thrower_steamid, "pts": pts,
+                  "ic": icon_for(g.grenade_type) or NADE_ICON.get(g.kind)}
+            # Landung = Detonation derselben Granate (gleicher Werfer und Typ, erste danach)
+            det = next((i for i, u in enumerate(util) if i not in used_util and u["k"] == g.kind
+                        and u["th"] == g.thrower_steamid and u["s"] >= g.points[0][0]), None)
+            if det is not None:
+                used_util.add(det)
+                nd["land"] = min(util[det]["s"], g.points[-1][0])
+            nades.append(nd)
         shots = [[sh.tick, sh.steamid, wi(sh.weapon.removeprefix("weapon_"))] for sh in m.shots
                  if sh.round == r.num and is_gun(sh.weapon)]
         hurts = [[d.tick, d.attacker_steamid, d.victim_steamid, d.dmg] for d in m.damages

@@ -254,3 +254,28 @@ def test_payload_has_weapons_shots_and_hits(tmp_path):
     assert len(r2["shots"]) == 1 and data["weapons"][r2["shots"][0][2]] == "m4a1_silencer"  # Messer ausgeblendet
     assert r2["hurts"] == [[t, ME, ENEMIES[0], 27]]
     assert data["weapons"][r2["tracks"][ME][0][4]] == "M4A1-S"
+
+
+def test_nade_lands_at_detonation_and_unknown_end_is_capped():
+    from synth import build_match
+
+    from cstaktik.config import load_rules_config
+    from cstaktik.model import GrenadeThrow, UtilityArea, Vec
+    from cstaktik.report.render import build_payload
+    from cstaktik.rules import analyze
+
+    m = build_match()
+    r = m.rounds[1]
+    f0 = r.freeze_end_tick
+    thr = m.players[0].steamid
+    # Projektil liegt nach der Landung noch 18 s (Smoke-Entity), Detonation bei +100
+    pts = [(f0 + i * 4, 100.0 + i, 100.0, 0.0) for i in range(25)] + [(f0 + 100 + 64 * 18, 124.0, 100.0, 0.0)]
+    m.grenades.append(GrenadeThrow(round=r.num, entity_id=9, thrower_steamid=thr, grenade_type="Smoke Grenade",
+                                   kind="smoke", points=pts))
+    m.utility.append(UtilityArea(round=r.num, kind="smoke", start_tick=f0 + 100, end_tick=r.end_tick,
+                                 end_known=False, thrower_steamid=thr, pos=Vec(x=124, y=100)))
+    d = build_payload(m, analyze(m, load_rules_config()))
+    rr = next(x for x in d["rounds"] if x["n"] == r.num)
+    assert rr["nades"][-1]["land"] == f0 + 100
+    u = rr["util"][-1]
+    assert u["e"] == f0 + 100 + 18 * m.tickrate and u["ek"] is False

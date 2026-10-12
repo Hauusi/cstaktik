@@ -207,6 +207,13 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .gcheck.ok .gi { background: rgba(63,191,127,.18); color: var(--win); }
 .gcheck.no .gi { background: rgba(240,86,106,.15); color: var(--loss); }
 .gcheck .num { color: var(--muted); font-size: 13px; }
+.showme { margin-top: 8px; }
+.showme .vtxt { font-size: 13px; color: #bfe8cf; margin-bottom: 6px; }
+.showme .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.sbtn { font: inherit; font-size: 13.5px; font-weight: 700; padding: 8px 12px; border-radius: 10px; border: 1px solid; background: transparent; cursor: pointer; }
+.sbtn.pro { color: #c9bcff; border-color: rgba(185,166,255,.55); background: rgba(124,92,255,.14); }
+.sbtn.win { color: var(--win); border-color: rgba(63,191,127,.5); background: rgba(63,191,127,.1); }
+.showme .pdesc { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .vorbild { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.07);
   border: 1px dashed rgba(63,191,127,.45); font-size: 13.5px; color: #d7f2e3; }
 .vorbild b { color: var(--win); }
@@ -498,11 +505,12 @@ function ring(g, R, left, total, u) {
   ctx.fillStyle = '#fff'; ctx.fillText(Math.ceil(left) + 's', g.x, g.y);
 }
 // Landezeitpunkt: ab wann sich das Projektil nicht mehr bewegt
+// Landung: aus der Detonation (Payload "land"), sonst wenn das Projektil liegen bleibt; höchstens 5 s Flug
 function landing(n) {
   if (n.land != null) return n.land;
   const p = n.pts, L = p[p.length - 1]; let i = p.length - 1;
-  while (i > 0 && Math.abs(p[i - 1][1] - L[1]) < 1 && Math.abs(p[i - 1][2] - L[2]) < 1) i--;
-  return (n.land = p[i][0]);
+  while (i > 0 && Math.abs(p[i - 1][1] - L[1]) < 2 && Math.abs(p[i - 1][2] - L[2]) < 2) i--;
+  return (n.land = Math.min(p[i][0], p[0][0] + 5 * TR));
 }
 function nadeAt(n, t) {
   const p = n.pts; if (t <= p[0][0]) return { x: p[0][1], y: p[0][2], i: 0 };
@@ -727,6 +735,15 @@ function draw() {
     if (showCount && left != null && total > 0) ring(g, R, left, total, u);
   });
 
+  // Coach-Fokus: während ein Tipp aktiv ist, nur Opfer und Gegner voll zeigen, Rest abgedunkelt
+  const cf = S.coachF != null ? F[S.coachF] : null;
+  let inv = null;
+  if (cf && cf.sid && cf.rule === 'death_review') {
+    inv = new Set([cf.sid]);
+    const kk = r.kills.find(k => k.t === cf.tick && k.v === cf.sid); if (kk && kk.a) inv.add(kk.a);
+  }
+  const dimA = sid => (inv && !inv.has(sid) && !isFocus(sid) ? .28 : 1);
+
   // Spuren
   const dt = deathTicks(r);
   const from = S.trailFull ? r.t0 : t - 3 * TR;
@@ -735,7 +752,7 @@ function draw() {
     ctx.beginPath(); let started = false;
     for (const p of pts) { if (p[0] < from) continue; if (p[0] > end) break; started ? ctx.lineTo(p[1], p[2]) : ctx.moveTo(p[1], p[2]); started = true; }
     if (!started) continue;
-    ctx.strokeStyle = COL[team] || '#888'; ctx.globalAlpha = isFocus(sid) ? .85 : .35;
+    ctx.strokeStyle = COL[team] || '#888'; ctx.globalAlpha = (isFocus(sid) ? .85 : .35) * dimA(sid);
     ctx.lineWidth = (isFocus(sid) ? 2.5 : 1.5) * u; ctx.lineJoin = ctx.lineCap = 'round'; ctx.stroke(); ctx.globalAlpha = 1;
   }
 
@@ -769,7 +786,8 @@ function draw() {
   }
   drawn.sort((a, b) => isFocus(a[0]) - isFocus(b[0]));
   for (const [sid, p] of drawn) {
-    const team = r.teams[sid], f = isFocus(sid), rad = (f ? 7.5 : 6) * u;
+    const team = r.teams[sid], f = isFocus(sid), rad = (f ? 7.5 : 6) * u, pa = dimA(sid);
+    ctx.globalAlpha = pa;
     if (p.yaw != null) {
       const a = -p.yaw * Math.PI / 180;
       ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.beginPath(); ctx.moveTo(p.x, p.y);
@@ -784,7 +802,7 @@ function draw() {
         if (Math.cos(a) < 0) ctx.scale(1, -1); // nach links: spiegeln, Waffe nicht kopfüber
         const h = (f ? 12 : 9.5) * u, w = h * icon.naturalWidth / icon.naturalHeight;
         ctx.shadowColor = 'rgba(7,9,13,.95)'; ctx.shadowBlur = 2.5 * u;
-        ctx.globalAlpha = f ? 1 : .85;
+        ctx.globalAlpha = (f ? 1 : .85) * pa;
         ctx.drawImage(icon, rad * .6, -h * .55, w, h);
         ctx.restore();
       } else if (shape) {
@@ -804,6 +822,7 @@ function draw() {
     ctx.font = `${f ? 700 : 500} ${(f ? 11.5 : 10) * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(label, p.x, p.y - rad - 3 * u);
     ctx.fillStyle = f ? '#fff' : 'rgba(238,241,246,.75)'; ctx.fillText(label, p.x, p.y - rad - 3 * u);
+    ctx.globalAlpha = 1;
   }
 
   // Schüsse: Mündungsblitz + Leuchtspur; bei Treffer Linie zum Getroffenen mit Schaden
@@ -986,10 +1005,10 @@ function ui() {
       it.append(k, el('div', 'tt', f.title.replace(/^Tod: /, '') + (f.who ? ' · ' + f.who : '')));
       if (f.rule === 'death_review') it.appendChild(el('div', 'what', f.text));
       const tp = el('div', 'tip'); tp.append(el('b', null, isErr(f) ? 'Besser: ' : ''), f.tip); it.appendChild(tp);
-      if (hasRef(f)) it.appendChild(vorbild(f));
+      const sm = showMe(f); if (sm) it.appendChild(sm);
       const more = f.evidence && f.evidence.weitere_punkte;
       if (more && more.length) it.appendChild(el('div', 'also', 'Außerdem: ' + more.join(' · ')));
-      if (f.rule === 'death_review') { const d = el('details', 'data'); d.appendChild(el('summary', null, 'Daten')); d.appendChild(lageList(f)); it.appendChild(d); }
+      if (f.rule === 'death_review') it.appendChild(dataBox(f));
       coach.appendChild(it);
     });
     if (inTour) {
@@ -1116,6 +1135,36 @@ function vorbild(f) {
     }
   }
   return box;
+}
+// Coach-Panel kompakt: nur das, was man ansehen kann (Pro-Szene, Siegrunde), plus Vorbild wenn es einen anderen Ort nennt
+function showMe(f) {
+  const box = el('div', 'showme'), ev = f.evidence || {};
+  if (ev.vorbild && !/Position passt/.test(ev.vorbild)) box.appendChild(el('div', 'vtxt', ev.vorbild));
+  const btns = el('div', 'btns');
+  if (f.ov && f.ov.pro_clip != null && D.rounds[f.ov.pro_clip]) {
+    const b = el('button', 'sbtn pro', '▶ So hat es ein Pro gelöst'); b.title = ev.pro_clip || ''; b.onclick = () => openPro(f);
+    btns.appendChild(b);
+  }
+  if (f.ov && f.ov.ghost_round != null) {
+    const ri = D.rounds.findIndex(r => r.n === f.ov.ghost_round);
+    if (ri >= 0) {
+      const b = el('button', 'sbtn win', '▶ Eure Siegrunde ' + f.ov.ghost_round);
+      b.onclick = () => { S.tour = null; selectRound(ri); seek(D.rounds[ri].t0 + f.ov.ghost_offset_s * TR); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      btns.appendChild(b);
+    }
+  }
+  if (btns.children.length) box.appendChild(btns);
+  if (ev.pro_clip && f.ov && f.ov.pro_clip != null) box.appendChild(el('div', 'pdesc', ev.pro_clip));
+  return box.children.length ? box : null;
+}
+// Daten (eingeklappt): Lage-Stichpunkte und Pro-Statistiken
+function dataBox(f) {
+  const d = el('details', 'data'); d.appendChild(el('summary', null, 'Daten'));
+  d.appendChild(lageList(f));
+  const ev = f.evidence || {};
+  const pros = ['pro_util', 'pro_lineup', 'pro_trade', 'pro'].map(k => ev[k]).filter(Boolean);
+  if (pros.length) { const ul = el('ul', 'lage'); pros.forEach(t => ul.appendChild(el('li', null, 'Pro-Daten: ' + t))); d.appendChild(ul); }
+  return d;
 }
 // Lage-Stichpunkte einer Tod-Analyse
 function lageList(f) {
