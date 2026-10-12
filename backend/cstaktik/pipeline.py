@@ -145,6 +145,13 @@ def run(
     match = load_any(path, focus, config, progress=lambda st, f: report(st, 0.9 * f))
     report("Fehler suchen", 0.92)
     result = analyze(match, config)
+    report("Karte laden", 0.94)
+    from cstaktik import maps
+    from cstaktik.report.radar import LOCAL_MAPS_DIR
+
+    note = maps.ensure_map(match.map_name, LOCAL_MAPS_DIR)
+    if note:
+        match.missing.append(note)
     report("Report bauen", 0.96)
     out = write_report(match, result, out_dir / f"{demo_stem(path.name)}.html")
     from cstaktik import history

@@ -13,3 +13,16 @@ def _isolated_history(tmp_path, monkeypatch):
     from cstaktik import pipeline
 
     monkeypatch.setattr(pipeline, "HISTORY_DIR", tmp_path / "history")
+
+
+@pytest.fixture(autouse=True)
+def _no_network_maps(tmp_path, monkeypatch):
+    """Kein Karten-Download in Tests; Kartenordner isoliert."""
+    from cstaktik import maps
+    from cstaktik.report import radar
+
+    def offline(url, timeout):
+        raise OSError("offline im Test")
+
+    monkeypatch.setattr(maps, "_get", offline)
+    monkeypatch.setattr(radar, "LOCAL_MAPS_DIR", tmp_path / "maps")

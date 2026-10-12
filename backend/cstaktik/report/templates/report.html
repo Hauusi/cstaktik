@@ -403,10 +403,10 @@ function draw() {
   const u = SIZE / (cssW * z); // Radar-Pixel pro CSS-Pixel
   if (bg) { ctx.globalAlpha = .9; ctx.drawImage(bg, 0, 0, SIZE, SIZE); ctx.globalAlpha = 1; }
   else { ctx.strokeStyle = 'rgba(255,255,255,.04)'; ctx.lineWidth = u; for (let g = 0; g <= SIZE; g += 64) { ctx.beginPath(); ctx.moveTo(g, 0); ctx.lineTo(g, SIZE); ctx.moveTo(0, g); ctx.lineTo(SIZE, g); ctx.stroke(); } }
-  if (!D.img && D.places) {
+  if (D.places) { // Ortsnamen aus der Demo (Schwerpunkt der Positionen)
     ctx.font = `600 ${9.5 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(200,210,230,.45)';
-    D.places.forEach(p => ctx.fillText(p.n, p.x, p.y));
+    ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.6)'; ctx.fillStyle = D.img ? 'rgba(235,240,250,.7)' : 'rgba(200,210,230,.45)';
+    D.places.forEach(p => { if (D.img) ctx.strokeText(p.n, p.x, p.y); ctx.fillText(p.n, p.x, p.y); });
   }
 
   // Utility-Flächen (Smoke/Molotov mit Restdauer, Flash/HE als Zündeffekt)

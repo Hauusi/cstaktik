@@ -19,6 +19,9 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("players", help="Spieler + SteamID64 einer Demo anzeigen")
     p.add_argument("file", type=Path)
 
+    mp = sub.add_parser("maps", help="Radarbilder + Kalibrierung herunterladen (data/maps)")
+    mp.add_argument("names", nargs="*", help="Maps, z. B. de_mirage (leer = Standardliste)")
+
     sub.add_parser("progress", help="Fortschritts-Seite aus dem Match-Verlauf schreiben")
 
     s = sub.add_parser("serve", help="Web-Upload starten")
@@ -48,6 +51,20 @@ def main(argv: list[str] | None = None) -> int:
         for rec in df.to_dict("records"):
             print(f"{rec.get('steamid')}\t{rec.get('name')}")
         return 0
+
+    if args.cmd == "maps":
+        from cstaktik import maps
+        from cstaktik.report.radar import LOCAL_MAPS_DIR
+
+        failed = 0
+        for name in args.names or maps.DEFAULT_MAPS:
+            try:
+                maps.fetch_map(name, LOCAL_MAPS_DIR)
+                print(f"ok      {name}")
+            except Exception as exc:  # noqa: BLE001
+                failed += 1
+                print(f"FEHLER  {name}: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1 if failed else 0
 
     if args.cmd == "progress":
         from cstaktik import history, pipeline

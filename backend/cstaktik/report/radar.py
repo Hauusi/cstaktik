@@ -4,7 +4,8 @@ Gesucht wird in ``backend/data/maps/`` und ``~/.awpy/maps/`` (Ergebnis von ``awp
 
 - Kalibrierung: ``map-data.json`` (awpy-Format) oder ``<map>.txt`` (Valve-Overview mit
   ``pos_x``, ``pos_y``, ``scale``)
-- Bild: ``<map>.png`` / ``<map>_radar.png`` / ``.jpg`` / ``.webp``
+- Bild: ``<map>.png`` / ``<map>_radar.png`` / ``<map>_radar_psd.png`` / ``.jpg`` / ``.webp``
+  (``cstaktik maps`` lädt Bild + Kalibrierung nach data/maps)
 
 Formel wie awpy.plot.utils.game_to_pixel: px = (x - pos_x) / scale, py = (pos_y - y) / scale.
 Ohne Kalibrierung: Bounding-Box der Positionen, kein Kartenbild.
@@ -53,7 +54,7 @@ def _calibration(name: str, d: Path) -> dict | None:
 
 
 def _image(name: str, d: Path) -> str | None:
-    for stem in (name, f"{name}_radar"):
+    for stem in (name, f"{name}_radar", f"{name}_radar_psd"):
         for ext, mime in _MIME.items():
             f = d / f"{stem}{ext}"
             if f.exists():
@@ -84,7 +85,7 @@ def build_radar(match: MatchData, maps_dirs: list[Path] | None = None) -> Radar:
     return Radar(
         1024,
         None,
-        "Kein Radarbild: Kartenumriss aus den Laufwegen dieses Matches gezeichnet, Ortsnamen aus der Demo.",
+        "Kein Radarbild gefunden (Download fehlgeschlagen?): Kartenumriss aus den Laufwegen gezeichnet.",
         pos_x,
         pos_y,
         scale,

@@ -88,7 +88,10 @@ Radar-Kalibrierung genutzt. Gesucht wird in `data/maps/` (nicht im Repo) und `~/
 - Kalibrierung: `map-data.json` im awpy-Format **oder** die CS2-Overview-Datei `<map>.txt`
   mit `pos_x`, `pos_y`, `scale`
 
-`awpy get maps` lädt beides. Am 12.10.2026 lieferte der awpy-Server dafür 403. Bild und
+Automatisch: Vor jedem Report lädt der Server fehlende Karten selbst herunter (Quelle:
+github.com/MurkyYT/cs2-map-icons, dort automatisch aus dem offiziellen CS2-Depot gezogen;
+Rechte bei Valve, deshalb nur lokal in `data/maps/`). Vorab alle laden: `cstaktik maps`.
+`awpy get maps` lieferte am 12.10.2026 nur 403. Bild und
 Kalibrierung müssen zusammenpassen, sonst liegen die Positionen falsch.
 
 ## Regeln
