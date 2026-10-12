@@ -78,3 +78,45 @@ def test_api_upload(tmp_path, monkeypatch):
     assert r.status_code == 303 and r.headers["location"] == "/reports/x.html"
     assert [p.name for p in (tmp_path / "demos").iterdir()] == ["b_se_name.dem"]
     assert c.post("/analyze", files={"demo": ("a.txt", b"x")}).status_code == 400
+
+
+def test_api_upload_bz2(tmp_path, monkeypatch):
+    import bz2
+
+    from cstaktik import api
+
+    monkeypatch.setattr(pipeline, "DEMOS_DIR", tmp_path / "demos")
+    seen = {}
+
+    def fake_run(path: Path, focus=None, out_dir=None):
+        seen["path"], seen["data"] = path, path.read_bytes()
+        target = tmp_path / "x.html"
+        target.write_text("ok")
+        return target
+
+    monkeypatch.setattr(pipeline, "run", fake_run)
+    c = TestClient(api.app)
+    r = c.post("/analyze", files={"demo": ("match_123.dem.bz2", bz2.compress(b"DEMO"))}, follow_redirects=False)
+    assert r.status_code == 303
+    assert seen["path"].name == "match_123.dem" and seen["data"] == b"DEMO"
+    assert [p.name for p in (tmp_path / "demos").iterdir()] == ["match_123.dem"]  # .bz2 entfernt
+    bad = c.post("/analyze", files={"demo": ("kaputt.dem.bz2", b"nicht bz2")})
+    assert bad.status_code == 400
+
+
+def test_bz2_size_limit(tmp_path):
+    import bz2
+
+    import pytest
+
+    src = tmp_path / "big.dem.bz2"
+    src.write_bytes(bz2.compress(b"0" * 5000))
+    with pytest.raises(ValueError):
+        pipeline.decompress_bz2(src, tmp_path / "big.dem", max_bytes=1000)
+    assert not (tmp_path / "big.dem").exists()
+
+
+def test_demo_stem():
+    assert pipeline.demo_stem("a.dem.bz2") == "a"
+    assert pipeline.demo_stem("a.DEM") == "a"
+    assert pipeline.demo_stem("a.json") == "a"

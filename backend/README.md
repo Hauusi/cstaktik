@@ -1,6 +1,6 @@
 # cstaktik – CS2-Coach (Phase 1: Post-Match-Analyse)
 
-Eigene CS2-Premier-Demo (`.dem`) hochladen → mobiler HTML-Report mit Fehlern pro Runde,
+Eigene CS2-Premier-Demo (`.dem` oder `.dem.bz2`, wird automatisch entpackt) hochladen → mobiler HTML-Report mit Fehlern pro Runde,
 Beleg (Runde, Tick, Rohwerte) und einem kurzen Tipp. Alle Werte stammen aus der Demo;
 fehlt etwas, steht es im Report unter „Datenlage“.
 

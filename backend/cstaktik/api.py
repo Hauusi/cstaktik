@@ -27,7 +27,7 @@ small{{color:#8b95a3}}</style></head><body><main>{body}</main></body></html>"""
 
 
 def _safe_name(name: str) -> str:
-    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(name).stem).strip("._") or "demo"
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", pipeline.demo_stem(Path(name).name)).strip("._") or "demo"
     return stem[:80]
 
 
@@ -39,8 +39,8 @@ def index() -> str:
     ) or "<li><small>Noch keine Reports.</small></li>"
     body = f"""<h1>cstaktik</h1>
 <form class="card" action="/analyze" method="post" enctype="multipart/form-data">
-<b>Demo hochladen (.dem)</b>
-<input type="file" name="demo" accept=".dem" required>
+<b>Demo hochladen (.dem oder .dem.bz2)</b>
+<input type="file" name="demo" accept=".dem,.bz2" required>
 <input type="text" name="steamids" placeholder="SteamID64, kommagetrennt (leer = players.yaml)">
 <button type="submit">Analysieren</button>
 <small>Parsen kann je nach Demo etwas dauern.</small></form>
@@ -50,15 +50,18 @@ def index() -> str:
 
 @app.post("/analyze")
 async def analyze_upload(demo: UploadFile = File(...), steamids: str = Form("")) -> RedirectResponse:
-    if not (demo.filename or "").lower().endswith(".dem"):
-        raise HTTPException(400, "Nur .dem-Dateien.")
+    filename = demo.filename or ""
+    if not pipeline.is_demo_name(filename):
+        raise HTTPException(400, "Nur .dem- oder .dem.bz2-Dateien.")
     pipeline.DEMOS_DIR.mkdir(parents=True, exist_ok=True)
-    target = pipeline.DEMOS_DIR / f"{_safe_name(demo.filename)}.dem"
+    suffix = ".dem.bz2" if filename.lower().endswith(".bz2") else ".dem"
+    target = pipeline.DEMOS_DIR / f"{_safe_name(filename)}{suffix}"
     with target.open("wb") as fh:
         while chunk := await demo.read(1 << 20):
             fh.write(chunk)
     focus = {s.strip() for s in steamids.split(",") if s.strip()} or None
     try:
+        target = pipeline.prepare_demo(target, remove_source=True)
         out = pipeline.run(target, focus)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
