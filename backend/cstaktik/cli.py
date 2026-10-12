@@ -19,6 +19,8 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("players", help="Spieler + SteamID64 einer Demo anzeigen")
     p.add_argument("file", type=Path)
 
+    sub.add_parser("progress", help="Fortschritts-Seite aus dem Match-Verlauf schreiben")
+
     s = sub.add_parser("serve", help="Web-Upload starten")
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=8000)
@@ -45,6 +47,16 @@ def main(argv: list[str] | None = None) -> int:
         df = DemoParser(str(args.file)).parse_player_info()
         for rec in df.to_dict("records"):
             print(f"{rec.get('steamid')}\t{rec.get('name')}")
+        return 0
+
+    if args.cmd == "progress":
+        from cstaktik import history, pipeline
+        from cstaktik.report.progress import render_progress
+
+        out = pipeline.REPORTS_DIR / "fortschritt.html"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_progress(history.load_all(pipeline.HISTORY_DIR)), encoding="utf-8")
+        print(out)
         return 0
 
     if args.cmd == "serve":

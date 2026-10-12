@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Fortschritt – cstaktik</title>
+<style>
+:root { --bg: #0b0d12; --surface: #141821; --surface-2: #1b202b; --line: rgba(255,255,255,.07);
+  --text: #eef1f6; --muted: #8d97a8; --faint: #5d6676; --win: #3fbf7f; --loss: #f0566a; --warn: #f5a524; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 0 16px 48px; }
+a { color: inherit; } .num { font-variant-numeric: tabular-nums; }
+.hero { margin: 0 -16px; padding: 26px 20px 22px;
+  background: radial-gradient(120% 140% at 0% 0%, rgba(124,92,255,.35), transparent 55%),
+              radial-gradient(120% 140% at 100% 0%, rgba(63,191,127,.22), transparent 55%), var(--bg); }
+.back { font-size: 13px; color: var(--muted); text-decoration: none; }
+.hero h1 { margin: 10px 0 4px; font-size: 32px; letter-spacing: -.02em; }
+.hero p { margin: 0; color: var(--muted); }
+h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+.stack > * + * { margin-top: 10px; }
+.matches { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 14px -16px 0; padding: 0 16px; }
+.matches a { flex: none; text-decoration: none; padding: 8px 12px; border-radius: 12px; background: rgba(20,24,33,.8); border: 1px solid var(--line); font-size: 13px; }
+.matches b.w { color: var(--win); } .matches b.l { color: var(--loss); }
+.tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+.tabs button { font: inherit; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+.tabs button.on { color: var(--bg); background: var(--text); }
+.tabs i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+.kpi .lbl { font-size: 12px; color: var(--muted); }
+.kpi .val { font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
+.kpi .avg { font-size: 12px; color: var(--muted); }
+svg.spark { width: 100%; height: 40px; display: block; margin-top: 6px; overflow: visible; }
+.issue { display: grid; grid-template-columns: 1fr 110px; gap: 4px 12px; align-items: center; padding: 12px 14px; }
+.issue .t { font-weight: 650; }
+.issue .tr { grid-column: 1 / -1; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.badge { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.badge.besser { background: rgba(63,191,127,.15); color: var(--win); }
+.badge.schlechter { background: rgba(240,86,106,.15); color: var(--loss); }
+.badge.gleich { background: rgba(245,165,36,.12); color: var(--warn); }
+.heat { width: 100%; aspect-ratio: 1; display: block; border-radius: 12px; background: #07090d; }
+.legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted); margin: 8px 0; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+.bars { display: grid; gap: 6px; margin-top: 10px; }
+.bar { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; font-size: 13px; }
+.bar .track { position: relative; height: 22px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.bar .fill { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; opacity: .85; }
+.bar .txt { position: relative; padding: 0 8px; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quiet { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <header class="hero">
+    <a class="back" href="/">‹ Startseite</a>
+    <h1>Fortschritt</h1>
+    <p class="num">{{ data.matches|length }} Matches ausgewertet ·
+      {{ data.matches|map(attribute="won")|sum }}:{{ data.matches|map(attribute="lost")|sum }} Runden gesamt</p>
+    <div class="matches">
+      {% for m in data.matches %}
+      <a href="{% if m.report %}/reports/{{ m.report }}{% else %}#{% endif %}">{{ m.label }} <b class="{{ 'w' if m.won > m.lost else 'l' }} num">{{ m.won }}:{{ m.lost }}</b></a>
+      {% endfor %}
+    </div>
+  </header>
+
+  {% if not data.matches %}
+  <p class="quiet" style="margin-top:20px">Noch keine Matches im Verlauf. Nach der nächsten Auswertung erscheint hier dein Fortschritt.</p>
+  {% else %}
+  <h2>Spieler</h2>
+  <div class="tabs" id="tabs"></div>
+  <div class="kpis" id="kpis"></div>
+
+  <h2>Fehler im Verlauf <span style="text-transform:none;letter-spacing:0">(pro 10 Runden)</span></h2>
+  <div class="stack" id="issues"></div>
+
+  <h2>Wo ihr sterbt</h2>
+  <div class="stack" id="maps"></div>
+  {% endif %}
+</main>
+<script type="application/json" id="data">{{ data_json | safe }}</script>
+<script>
+{% raw %}
+(() => {
+const D = JSON.parse(document.getElementById('data').textContent);
+if (!D.matches.length) return;
+const PCOL = ['#8b6cf0', '#2fa874'];
+const $ = id => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const color = sid => PCOL[Math.max(0, D.players.findIndex(p => p.sid === sid)) % PCOL.length];
+const NS = 'http://www.w3.org/2000/svg';
+
+// Sparkline: 2px-Linie, Endpunkt mit Ring, native Tooltips pro Punkt.
+// Gezeichnet in echten Pixeln (nach dem Einhängen gemessen), damit Punkte rund bleiben.
+function spark(values, col, fmt) {
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('class', 'spark');
+  requestAnimationFrame(() => drawSpark(svg, values, col, fmt));
+  return svg;
+}
+function drawSpark(svg, values, col, fmt) {
+  const W = svg.clientWidth || 300, H = 40, pad = 6; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const pts = values.map((v, i) => [i, v]).filter(p => p[1] != null);
+  if (!pts.length) return;
+  const vs = pts.map(p => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), n = Math.max(1, values.length - 1);
+  const X = i => pad + (W - 2 * pad) * (values.length === 1 ? .5 : i / n);
+  const Y = v => hi === lo ? H / 2 : H - pad - (H - 2 * pad) * (v - lo) / (hi - lo);
+  const add = (tag, attrs) => { const e = document.createElementNS(NS, tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); svg.appendChild(e); return e; };
+  add('line', { x1: 0, x2: W, y1: H - .5, y2: H - .5, stroke: 'rgba(255,255,255,.07)', 'stroke-width': 1 });
+  if (pts.length > 1) add('polyline', { points: pts.map(p => X(p[0]) + ',' + Y(p[1])).join(' '), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  pts.forEach((p, k) => {
+    const last = k === pts.length - 1;
+    const c = add('circle', { cx: X(p[0]), cy: Y(p[1]), r: last ? 4 : 2.5, fill: col, stroke: '#141821', 'stroke-width': 2 });
+    const t = document.createElementNS(NS, 'title'); t.textContent = D.matches[p[0]].label + ': ' + fmt(p[1]); c.appendChild(t);
+  });
+}
+
+const KPI = [
+  ['kd', 'K/D', v => v.toFixed(2)],
+  ['adr', 'ADR', v => Math.round(v)],
+  ['opening', 'Opening-Duelle (+/-)', v => (v > 0 ? '+' : '') + v],
+  ['traded', 'Tode getradet', v => v + '%'],
+];
+let cur = 0;
+function showPlayer(i) {
+  cur = i; const p = D.players[i], col = PCOL[i % PCOL.length];
+  [...$('tabs').children].forEach((b, j) => b.classList.toggle('on', j === i));
+  const box = $('kpis'); box.textContent = '';
+  KPI.forEach(([key, label, fmt]) => {
+    const vals = p.series[key] || [], have = vals.filter(v => v != null);
+    const k = el('div', 'kpi'); k.appendChild(el('div', 'lbl', label));
+    k.appendChild(el('div', 'val num', have.length ? fmt(have[have.length - 1]) : '–'));
+    k.appendChild(el('div', 'avg num', have.length > 1 ? 'Ø ' + fmt(Math.round(have.reduce((a, b) => a + b, 0) / have.length * 100) / 100) : 'letztes Match'));
+    k.appendChild(spark(vals, col, fmt)); box.appendChild(k);
+  });
+  const ib = $('issues'); ib.textContent = '';
+  if (!p.issues.length) ib.appendChild(el('p', 'quiet', 'Keine Fehler im Verlauf.'));
+  p.issues.forEach(it => {
+    const c = el('div', 'card issue');
+    const left = el('div'); left.append(el('div', 't', it.title), el('div', 'quiet num', it.total + 'x insgesamt'));
+    c.append(left, spark(it.rates, it.trend.state === 'besser' ? '#3fbf7f' : it.trend.state === 'schlechter' ? '#f0566a' : col, v => v + ' pro 10 Runden'));
+    const tr = el('div', 'tr');
+    const icon = { besser: '▼ besser', schlechter: '▲ schlechter', gleich: '■ gleich', wenig: '… offen' }[it.trend.state];
+    tr.append(el('span', 'badge ' + it.trend.state, icon), el('span', 'quiet', it.trend.text));
+    c.appendChild(tr); ib.appendChild(c);
+  });
+}
+D.players.forEach((p, i) => {
+  const b = el('button'); const dot = el('i'); dot.style.background = PCOL[i % PCOL.length];
+  b.append(dot, p.name); b.onclick = () => showPlayer(i); $('tabs').appendChild(b);
+});
+showPlayer(0);
+
+// Todes-Karte je Map: Umriss aus allen Laufwegen + Todesorte je Spieler
+D.maps.forEach(m => {
+  const card = el('div', 'card');
+  card.appendChild(el('div', 't', m.label + ' · ' + m.matches + (m.matches === 1 ? ' Match' : ' Matches'))).style.fontWeight = 700;
+  const cv = el('canvas', 'heat'); card.appendChild(cv);
+  const lg = el('div', 'legend');
+  D.players.forEach((p, i) => { const s = el('span'); const d = el('i'); d.style.background = PCOL[i % PCOL.length]; s.append(d, p.name); lg.appendChild(s); });
+  card.appendChild(lg);
+  const bars = el('div', 'bars'), max = Math.max(1, ...m.top.map(t => t.count));
+  m.top.forEach(t => {
+    const row = el('div', 'bar'), tr = el('div', 'track'), f = el('div', 'fill');
+    f.style.width = (100 * t.count / max) + '%'; f.style.background = color(t.sid);
+    tr.append(f, el('div', 'txt', t.place + ' · ' + t.name)); row.append(tr, el('b', 'num', t.count + 'x')); bars.appendChild(row);
+  });
+  if (m.top.length) { card.appendChild(el('div', 'quiet', 'Häufigste Todesorte')); card.appendChild(bars); }
+  $('maps').appendChild(card);
+
+  requestAnimationFrame(() => {
+    const U = D.floorUnits, cells = m.floor, dpr = Math.min(devicePixelRatio || 1, 3), W = cv.clientWidth;
+    cv.width = cv.height = Math.round(W * dpr);
+    const xs = cells.map(c => c[0]).concat(m.deaths.map(d => Math.floor(d.x / U)));
+    const ys = cells.map(c => c[1]).concat(m.deaths.map(d => Math.floor(d.y / U)));
+    if (!xs.length) return;
+    const x0 = Math.min(...xs) - 2, x1 = Math.max(...xs) + 3, y0 = Math.min(...ys) - 2, y1 = Math.max(...ys) + 3;
+    const span = Math.max(x1 - x0, y1 - y0), k = cv.width / span;
+    const ox = (span - (x1 - x0)) / 2, oy = (span - (y1 - y0)) / 2;
+    const P = (gx, gy) => [(gx - x0 + ox) * k, (y1 - gy + oy) * k]; // Spiel-y nach oben
+    // Umriss: 1 Pixel pro Zelle, dann einmal hochskalieren und weichzeichnen (schnell)
+    const ctx = cv.getContext('2d'), mx = Math.max(...cells.map(c => c[2]), 1);
+    const small = document.createElement('canvas'); small.width = small.height = span;
+    const sc = small.getContext('2d'), img = sc.createImageData(span, span);
+    cells.forEach(([i, j, c]) => {
+      const sx = Math.floor(i - x0 + ox), sy = Math.floor(y1 - 1 - j + oy);
+      if (sx < 0 || sy < 0 || sx >= span || sy >= span) return;
+      const o = (sy * span + sx) * 4;
+      img.data[o] = 120; img.data[o + 1] = 135; img.data[o + 2] = 165;
+      img.data[o + 3] = Math.round(255 * (.2 + .3 * Math.log(1 + c) / Math.log(1 + mx)));
+    });
+    sc.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = true; ctx.filter = 'blur(' + Math.max(1, Math.round(k * .4)) + 'px)';
+    ctx.drawImage(small, 0, 0, cv.width, cv.height); ctx.filter = 'none';
+    m.deaths.forEach(d => {
+      const [px, py] = P(d.x / U, d.y / U);
+      ctx.beginPath(); ctx.arc(px, py, 5 * dpr, 0, 7); ctx.fillStyle = color(d.sid); ctx.globalAlpha = .85; ctx.fill();
+      ctx.globalAlpha = 1; ctx.lineWidth = 2 * dpr; ctx.strokeStyle = '#07090d'; ctx.stroke();
+    });
+  });
+});
+})();
+{% endraw %}
+</script>
+</body>
+</html>

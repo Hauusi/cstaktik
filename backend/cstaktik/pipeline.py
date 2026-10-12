@@ -19,6 +19,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DEMOS_DIR = DATA_DIR / "demos_raw"
 REPORTS_DIR = DATA_DIR / "reports"
 CACHE_DIR = DATA_DIR / "cache"
+HISTORY_DIR = DATA_DIR / "history"
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
 CACHE_SCHEMA = 5
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
@@ -146,5 +147,8 @@ def run(
     result = analyze(match, config)
     report("Report bauen", 0.96)
     out = write_report(match, result, out_dir / f"{demo_stem(path.name)}.html")
+    from cstaktik import history
+
+    history.save(history.summarize(match, result, out.name), HISTORY_DIR)
     report("Fertig", 1.0)
     return out

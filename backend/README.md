@@ -54,6 +54,17 @@ Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Coach-Funktionen
 
+- **Tod-Analyse (Situations-Coach)**: für jeden Tod eines Fokus-Spielers die Lage aus der Demo:
+  Zahlenverhältnis, Opening-Duell, Blendung (`player_blind`), HP vor dem Duell (100 minus
+  erlittener Schaden), Laufgeschwindigkeit aus den Positionen, nächster Mitspieler und deren Orte,
+  eigener Schaden, geworfene und ungenutzte Utility, Trade, Gegner-Distanz. Der Tipp richtet sich
+  nach dem wichtigsten erkannten Problem. Schwellen unter `rules.death_review`.
+- **Fortschritt** (`/progress`, CLI: `cstaktik progress`): jede Auswertung legt eine Zusammenfassung
+  in `data/history/` ab. Die Seite zeigt K/D, ADR, Opening-Duelle und getradete Tode je Match,
+  Fehlerarten pro 10 Runden mit Trend (ab 4 Matches: letzte 2 gegen die davor) und je Map eine
+  Karte aller Todesorte mit den häufigsten Orten. Datum = Auswertungszeitpunkt (die Demo enthält
+  kein Spieldatum).
+
 - **Coach-Tour**: spielt alle Fehler des Matches nacheinander ab (rundenübergreifend), hält an
   jedem an, "Weiter" springt zum nächsten.
 - **Overlays beim Fehler**: Linie zum nächsten Mitspieler mit Abstand (Tod ohne Trade),

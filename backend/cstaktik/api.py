@@ -39,6 +39,8 @@ def _report_entries() -> list[dict]:
     """Reports für die Startseite; Map und Ergebnis kommen aus dem <title> des Reports."""
     out = []
     for p in sorted(pipeline.REPORTS_DIR.glob("*.html"), key=lambda p: p.stat().st_mtime, reverse=True):
+        if p.name == "fortschritt.html":  # CLI-Export der Fortschritts-Seite, kein Match
+            continue
         with p.open(encoding="utf-8", errors="ignore") as fh:
             head = fh.read(4096)
         m = _TITLE.search(head)
@@ -76,7 +78,8 @@ def _job_view(job_id: str, job: dict) -> dict:
 def index() -> str:
     with _jobs_lock:
         jobs = [_job_view(i, j) for i, j in _jobs.items() if j["status"] in ("wartet", "läuft")]
-    return _env.get_template("index.html").render(jobs=jobs, reports=_report_entries())
+    n_hist = len(list(pipeline.HISTORY_DIR.glob("*.json"))) if pipeline.HISTORY_DIR.exists() else 0
+    return _env.get_template("index.html").render(jobs=jobs, reports=_report_entries(), n_history=n_hist)
 
 
 def _run_job(job_id: str, target: Path, focus: set[str] | None) -> None:
@@ -134,6 +137,14 @@ def _get_job(job_id: str) -> dict:
         if job is None:
             raise HTTPException(404, "Auftrag unbekannt (Server neu gestartet?). Reports stehen auf der Startseite.")
         return _job_view(job_id, job)
+
+
+@app.get("/progress", response_class=HTMLResponse)
+def progress() -> str:
+    from cstaktik import history
+    from cstaktik.report.progress import render_progress
+
+    return render_progress(history.load_all(pipeline.HISTORY_DIR))
 
 
 @app.get("/api/jobs/{job_id}")

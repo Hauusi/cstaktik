@@ -57,6 +57,11 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 </div>
 {% endif %}
 
+{% if n_history %}
+<a class="item" href="/progress" style="margin-top:16px;background:linear-gradient(135deg,rgba(124,92,255,.18),rgba(63,191,127,.12))">
+  <div class="map">↗</div><div class="meta"><b>Fortschritt</b><span class="muted small">{{ n_history }} Matches im Verlauf · Trends und Todes-Karte</span></div></a>
+{% endif %}
+
 <h2>Reports</h2>
 {% if reports %}
 <div class="list">
