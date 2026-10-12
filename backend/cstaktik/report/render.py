@@ -198,7 +198,7 @@ def build_context(
 ) -> dict:
     from cstaktik.coach import diagnose
 
-    debrief = diagnose(match, result, load_rules_config()["coach"])
+    debrief = diagnose(match, result, load_rules_config()["coach"], load_rules_config()["mechanics"])
     payload = build_payload(match, result, maps_dirs)
     payload["moments"] = debrief["key_moments"]
     won = sum(1 for r in payload["rounds"] if r["out"] == "W")
@@ -216,6 +216,7 @@ def build_context(
         "radar_note": radar_note,
         "debrief": debrief,
         "goal_check": goal_check,
+        "mech_cfg": load_rules_config()["mechanics"],
         "n_findings": sum(1 for f in result.findings if f.severity != "gut"),
         "n_good": sum(1 for f in result.findings if f.severity == "gut"),
         "stats": result.stats,

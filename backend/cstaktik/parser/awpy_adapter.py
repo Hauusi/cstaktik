@@ -15,6 +15,7 @@ from pathlib import Path
 from cstaktik.model import (
     Blind,
     BombEvent,
+    Shot,
     Damage,
     GrenadeThrow,
     Kill,
@@ -419,6 +420,29 @@ def parse_demo(
         except Exception as exc:  # noqa: BLE001
             missing.append(f"{event} nicht lesbar ({type(exc).__name__})")
 
+    # --- Schüsse mit Geschwindigkeit im Schuss-Tick --------------------------------------
+    shots: list[Shot] = []
+    try:
+        rows = [r for r in dem.shots.to_dicts() if r.get("round_num") is not None]
+        speed: dict[tuple[int, str], float] = {}
+        shot_ticks = sorted({int(r["tick"]) for r in rows})
+        if shot_ticks:
+            vel = dem.parser.parse_ticks(["velocity_X", "velocity_Y"], ticks=shot_ticks)
+            for rec in vel.to_dict("records"):
+                sid, vx, vy = _sid(rec.get("steamid")), _num(rec.get("velocity_X")), _num(rec.get("velocity_Y"))
+                if sid is not None and vx is not None and vy is not None:
+                    speed[(int(rec["tick"]), sid)] = math.hypot(vx, vy)
+        for r in rows:
+            sid = _sid(r.get("player_steamid"))
+            if sid is None:
+                continue
+            shots.append(Shot(round=int(r["round_num"]), tick=int(r["tick"]), steamid=sid,
+                              weapon=str(r.get("weapon") or ""), speed=speed.get((int(r["tick"]), sid))))
+        if rows and not speed:
+            missing.append("Geschwindigkeit beim Schuss nicht lesbar: 'bewegt geschossen' nicht auswertbar")
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"Schüsse nicht lesbar ({type(exc).__name__})")
+
     # --- Blendungen (player_blind) ---------------------------------------------------
     blinds: list[Blind] = []
     try:
@@ -471,6 +495,7 @@ def parse_demo(
         utility=utility,
         damages=damages,
         blinds=blinds,
+        shots=shots,
         bomb=bomb,
         missing=missing,
     )

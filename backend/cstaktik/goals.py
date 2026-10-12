@@ -41,6 +41,10 @@ GOAL_TEXT = {
         "10 Minuten Deathmatch vor dem Match: nur schießen, wenn du stehst (Counter-Strafe), Treffer zählen.",
         "Peeks kurz und kontrolliert: rauslaufen, stoppen, schießen.",
     ]),
+    "no_shot": ("Nicht mehr ohne Gegenwehr sterben", [
+        "Vor dem Match 5 Minuten Prefire üben: Ecken einzeln klären, Fadenkreuz vorher auf Kopfhöhe.",
+        "Im Match: an bekannten Gegner-Spots langsam und vorgezielt clearen statt durchzulaufen.",
+    ]),
     "utility": ("Utility vor dem Duell einsetzen", [
         "Pro Runde mindestens eine Granate werfen, bevor du stirbst.",
         "Für eure Standard-Positionen je eine Flash zum Selbst-Peeken einüben (Offline-Server).",
@@ -52,6 +56,27 @@ GOAL_TEXT = {
         "Vor jeder Runde ansagen: kaufen, force oder sparen. Alle gleich.",
     ]),
 }
+
+
+# Mechanik-Ziele je Spieler: Kennzahl aus history["mech"][steamid]
+MECH_GOALS = {
+    "moving_pct": ("Stehend schießen", "Anteil eurer Schüsse in Bewegung", "goal_moving_pct", [
+        "10 Minuten Deathmatch vor dem Match: nur schießen, wenn du stehst (Counter-Strafe).",
+        "Peeks: rauslaufen, stoppen, schießen. Nicht im Laufen sprayen.",
+    ], "Schüsse im Laufen streuen stark. Ein Teil deiner Duelle geht deshalb verloren.",
+        "Vor dem Schuss stoppen (Counter-Strafe), dann schießen."),
+    "deaths_no_shot_pct": ("Nicht ohne eigenen Schuss sterben", "Anteil deiner Tode ohne eigenen Schuss",
+                           "goal_no_shot_pct", [
+        "Prefire-Routine vor dem Match: Ecken einzeln klären, Fadenkreuz vorher auf Kopfhöhe.",
+    ], "Du stirbst oft, ohne zu schießen: überrascht oder zu langsam.",
+        "Vorzielen und Winkel einzeln klären, nicht unvorbereitet laufen."),
+}
+
+
+def _value(summary: dict, goal: dict) -> float | None:
+    if goal.get("kind") == "mech":
+        return (summary.get("mech", {}).get(goal["player"]) or {}).get(goal["metric"])
+    return _pct(summary, goal["cause"])
 
 
 def _pct(summary: dict, cause: str) -> float | None:
@@ -75,7 +100,7 @@ def save(state: dict, path: Path) -> None:
     path.write_text(json.dumps(state, ensure_ascii=False, indent=1))
 
 
-def update(state: dict, summary: dict, cfg: dict) -> dict:
+def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) -> dict:
     """Prüft aktive Ziele gegen das neue Match und füllt freie Plätze auf.
 
     Gibt den Ziel-Check dieses Matches zurück: [{goal, pct, target, met, status}].
@@ -88,7 +113,7 @@ def update(state: dict, summary: dict, cfg: dict) -> dict:
         if g.get("created_from") == match_id:
             still_active.append(g)
             continue
-        pct = _pct(summary, g["cause"])
+        pct = _value(summary, g)
         if pct is None:
             still_active.append(g)
             continue
@@ -137,5 +162,25 @@ def update(state: dict, summary: dict, cfg: dict) -> dict:
         })
         active_causes.add(cause)
         new_goals.append(state["active"][-1]["title"])
+
+    # Mechanik-Ziele je Spieler, wenn eine Kennzahl über der Schwelle liegt
+    for sid, mech in (summary.get("mech") or {}).items() if mech_cfg else []:
+        name = (summary.get("players", {}).get(sid) or {}).get("name", sid)
+        for metric, (title, label, thr_key, drills, why, tip) in MECH_GOALS.items():
+            if len(state["active"]) >= cfg["max_active"]:
+                break
+            key = f"mech:{metric}:{sid}"
+            base = mech.get(metric)
+            if key in active_causes or base is None or base < mech_cfg[thr_key]:
+                continue
+            state["active"].append({
+                "cause": key, "kind": "mech", "metric": metric, "player": sid,
+                "title": f"{title} ({name})", "why": why, "tip": tip, "drills": drills, "label": label,
+                "baseline_pct": base, "target_pct": round(base * cfg["target_factor"], 1),
+                "created_at": summary.get("analyzed_at") or datetime.now().isoformat(timespec="minutes"),
+                "created_from": match_id, "checks": [], "status": "aktiv",
+            })
+            active_causes.add(key)
+            new_goals.append(state["active"][-1]["title"])
     return {"checks": checks, "new": new_goals,
             "active": [{"title": g["title"], "target": g["target_pct"], "baseline": g["baseline_pct"]} for g in state["active"]]}

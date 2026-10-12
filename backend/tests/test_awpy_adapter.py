@@ -26,6 +26,8 @@ class FakeParser:
                 r = {"tick": t, "steamid": sid, "name": str(sid)}
                 if "inventory" in props:
                     r["inventory"] = ["Glock-18", "Flashbang"]
+                if "velocity_X" in props:
+                    r.update(velocity_X=30.0 if sid == A else 0.0, velocity_Y=40.0 if sid == A else 0.0)
                 if "balance" in props:
                     r.update(balance=800, current_equip_value=4200, cash_spent_this_round=3500, team_name=team)
                 rows.append(r)
@@ -67,6 +69,7 @@ class FakeDemo:
                                              "Z": pl.Float64, "round_num": pl.Int64})
         self.bomb = pl.DataFrame(schema={"tick": pl.Int64, "event": pl.Utf8, "X": pl.Float64, "Y": pl.Float64,
                                          "Z": pl.Float64, "steamid": pl.UInt64, "round_num": pl.Int64})
+        self.shots = pl.DataFrame([{"tick": 870, "round_num": 1, "player_steamid": A, "weapon": "weapon_m4a1"}])
         self.damages = pl.DataFrame([{"tick": 880, "round_num": 1, "attacker_steamid": A, "victim_steamid": B,
                                       "dmg_health_real": 27, "weapon": "m4a1"}])
         self.events = {
@@ -95,6 +98,7 @@ def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
     assert {u.kind for u in m.utility} == {"smoke", "flash"}
     smoke = next(u for u in m.utility if u.kind == "smoke")
     assert (smoke.end_tick, smoke.end_known) == (1800, True)
+    assert m.shots[0].speed == 50.0 and m.shots[0].weapon == "weapon_m4a1"
     assert m.blinds[0].victim_steamid == str(A) and m.blinds[0].duration == 1.73
     assert m.damages[0].dmg == 27 and m.damages[0].attacker_steamid == str(A)
     assert m.missing == []

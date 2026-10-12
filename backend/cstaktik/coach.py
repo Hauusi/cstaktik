@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections import defaultdict
 from statistics import mean
 
+from cstaktik.mechanics import mechanics
 from cstaktik.model import AnalysisResult, MatchData
 from cstaktik.rules.base import PositionIndex, dist
 
@@ -51,6 +52,11 @@ CAUSES = {
         "explain": "Beim Tod wart ihr in Bewegung. In CS2 trifft man im Laufen schlecht.",
         "tip": "Vor dem Schuss stoppen (Counter-Strafe), Winkel nicht offen anlaufen.",
     },
+    "no_shot": {
+        "title": "Erwischt ohne Gegenwehr",
+        "explain": "Ihr sterbt, ohne vorher einen Schuss abzugeben: der Gegner war schneller oder unerwartet da.",
+        "tip": "Vorzielen auf Kopfhöhe an die Stellen, wo Gegner auftauchen; Winkel einzeln und vorbereitet klären.",
+    },
     "utility": {
         "title": "Utility nicht eingesetzt",
         "explain": "Granaten im Inventar beim Tod oder erster Kontakt ganz ohne Utility.",
@@ -73,6 +79,8 @@ LABEL_TO_CAUSE = {
     "Wenig HP": "low_hp",
     "Unterzahl": "outnumbered",
     "Im Laufen": "moving",
+    "Im Laufen geschossen": "moving",
+    "Ohne Gegenwehr": "no_shot",
     "Utility nicht genutzt": "utility",
     "Ohne Utility": "utility",
 }
@@ -132,7 +140,7 @@ def _round_causes(match: MatchData, result: AnalysisResult, cfg: dict) -> dict[i
     return per
 
 
-def diagnose(match: MatchData, result: AnalysisResult, cfg: dict) -> dict:
+def diagnose(match: MatchData, result: AnalysisResult, cfg: dict, mech_cfg: dict | None = None) -> dict:
     lost_rounds, won_rounds = [], []
     for r in match.rounds:
         side = match.focus_side(r.num)
@@ -174,6 +182,7 @@ def diagnose(match: MatchData, result: AnalysisResult, cfg: dict) -> dict:
         "key_moments": key_moments(match, result, per, top, lost_rounds, cfg),
         "duo": duo(match, cfg),
         "utility": utility_impact(match, cfg),
+        "mechanics": mechanics(match, mech_cfg) if mech_cfg else [],
     }
 
 

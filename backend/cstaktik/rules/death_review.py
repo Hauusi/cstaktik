@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import Counter
 
 from cstaktik.model import Finding, MatchData
+from cstaktik.mechanics import is_gun
 from cstaktik.rules.base import PositionIndex, dist, round_time_s
 
 RULE_ID = "death_review"
@@ -74,9 +75,23 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
         if len(mates) + 1 < len(enemies):
             issues.append(("Unterzahl", "In Unterzahl nicht allein Duelle suchen: Zeit spielen, mit Mitspielern gemeinsam gehen."))
 
-        speed = _speed(idx, k.round, sid, k.tick, tr)
-        if speed is not None and speed <= cfg["max_plausible_speed_units_s"]:  # darüber: Sprung in den Daten
-            if speed > cfg["moving_speed_units_s"]:
+        mech = cfg.get("mech", {})
+        my_shots = [s for s in match.shots if s.steamid == sid and s.round == k.round and is_gun(s.weapon)
+                    and k.tick - mech.get("no_shot_window_s", 3.0) * tr <= s.tick <= k.tick]
+        if match.shots:
+            if not my_shots:
+                facts.append("kein eigener Schuss vor dem Tod")
+                issues.append(("Ohne Gegenwehr",
+                               "Vorzielen: Fadenkreuz auf Kopfhöhe dorthin, wo der Gegner auftauchen kann. Nicht unvorbereitet in Winkel laufen."))
+            else:
+                last = my_shots[-1]
+                facts.append(f"{len(my_shots)} eigene Schüsse vor dem Tod")
+                if last.speed is not None and last.speed > mech.get("moving_shot_speed_units_s", 80):
+                    facts.append(f"letzter Schuss im Laufen ({round(last.speed)} Units/s)")
+                    issues.append(("Im Laufen geschossen", "Vor dem Schuss stoppen (Counter-Strafe), dann schießen."))
+        else:  # ohne Schuss-Daten: Näherung aus den Positionen
+            speed = _speed(idx, k.round, sid, k.tick, tr)
+            if speed is not None and speed <= cfg["max_plausible_speed_units_s"] and speed > cfg["moving_speed_units_s"]:
                 facts.append(f"in Bewegung ({round(speed)} Units/s)")
                 issues.append(("Im Laufen", "Vor dem Schuss stoppen (Counter-Strafe), nicht offen in Winkel laufen."))
 

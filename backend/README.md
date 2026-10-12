@@ -54,6 +54,12 @@ Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Coach-Funktionen
 
+- **Mechanik** (aus `weapon_fire` + Geschwindigkeit im Schuss-Tick, `player_hurt`, Kills):
+  Anteil Schüsse im Laufen, Treffer pro Schuss, Headshot-Anteil der Kills, Tode ohne eigenen
+  Schuss, Spray (Treffer Schuss 1–3 vs. ab 4). Fließt in die Tod-Analyse ein ("letzter Schuss
+  im Laufen", "kein eigener Schuss"), in den Verlauf und in Mechanik-Ziele je Spieler.
+  Schwellen unter `mechanics` in rules.yaml (Heuristiken, an echten Demos kalibrieren).
+
 Lern-Kreislauf: Upload → Urteil + Schlüsselmomente → Ziele → Training → Briefing → nächstes Match → Ziel-Check.
 
 - **Startseite = Coach**: aktive Ziele mit Check-Verlauf (grün/rot), Training je Ziel,

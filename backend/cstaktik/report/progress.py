@@ -57,13 +57,16 @@ def build(histories: list[dict]) -> dict:
         for h in histories:
             p = h.get("players", {}).get(sid)
             if p is None:
-                for key in ("kd", "adr", "opening", "traded"):
+                for key in ("kd", "adr", "opening", "traded", "moving", "hit"):
                     series[key].append(None)
                 continue
             series["kd"].append(round(p["kills"] / p["deaths"], 2) if p["deaths"] else None)
             series["adr"].append(p.get("adr"))
             series["opening"].append(p["opening_kills"] - p["opening_deaths"])
             series["traded"].append(round(100 * p["traded_deaths"] / p["deaths"]) if p["deaths"] else None)
+            mech = (h.get("mech") or {}).get(sid) or {}
+            series["moving"].append(mech.get("moving_pct"))
+            series["hit"].append(mech.get("hit_pct"))
             titles.update(h.get("issues", {}).get(sid, {}).keys())
         issues = []
         for t in titles:

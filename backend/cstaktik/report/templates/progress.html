@@ -121,6 +121,8 @@ const KPI = [
   ['adr', 'ADR', v => Math.round(v)],
   ['opening', 'Opening-Duelle (+/-)', v => (v > 0 ? '+' : '') + v],
   ['traded', 'Tode getradet', v => v + '%'],
+  ['moving', 'Schüsse im Laufen', v => Math.round(v) + '%'],
+  ['hit', 'Treffer pro Schuss', v => Math.round(v) + '%'],
 ];
 let cur = 0;
 function showPlayer(i) {

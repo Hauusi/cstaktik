@@ -22,7 +22,7 @@ CACHE_DIR = DATA_DIR / "cache"
 HISTORY_DIR = DATA_DIR / "history"
 GOALS_FILE = DATA_DIR / "goals.json"
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
-CACHE_SCHEMA = 5
+CACHE_SCHEMA = 6
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
 MAX_DEMO_BYTES = 2 * 1024**3
 
@@ -158,7 +158,7 @@ def run(
     summary = history.summarize(match, result, f"{stem}.html")
     history.save(summary, HISTORY_DIR)
     state = goals.load(GOALS_FILE)
-    goal_check = goals.update(state, summary, config["goals"])
+    goal_check = goals.update(state, summary, config["goals"], config.get("mechanics"))
     goals.save(state, GOALS_FILE)
     report("Report bauen", 0.96)
     out = write_report(match, result, out_dir / f"{stem}.html", goal_check=goal_check)

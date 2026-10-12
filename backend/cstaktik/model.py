@@ -119,6 +119,16 @@ class Blind(BaseModel):
     duration: float  # Sekunden laut Demo
 
 
+class Shot(BaseModel):
+    """Schuss (weapon_fire) mit horizontaler Geschwindigkeit des Schützen im Schuss-Tick."""
+
+    round: int
+    tick: int
+    steamid: str
+    weapon: str
+    speed: float | None = None  # Units/s aus velocity_X/Y; None wenn nicht lesbar
+
+
 class Damage(BaseModel):
     round: int
     tick: int
@@ -146,6 +156,7 @@ class MatchData(BaseModel):
     rounds: list[Round]
     kills: list[Kill] = Field(default_factory=list)
     damages: list[Damage] = Field(default_factory=list)
+    shots: list[Shot] = Field(default_factory=list)
     blinds: list[Blind] = Field(default_factory=list)
     grenades: list[GrenadeThrow] = Field(default_factory=list)
     positions: list[PositionSample] = Field(default_factory=list)

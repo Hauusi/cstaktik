@@ -104,3 +104,17 @@ goals:
   target_factor: 0.6
   # Ziel gilt als geschafft, wenn es so viele Matches in Folge erreicht wurde.
   done_after: 2
+
+mechanics:
+  # Schuss gilt als "bewegt", wenn schneller als das (Units/s, aus velocity im Schuss-Tick).
+  # Heuristik: im Laufen streuen Waffen stark. Am echten Spiel kalibrieren.
+  moving_shot_speed_units_s: 80
+  # Schaden bis so viele Ticks nach dem Schuss zählt als Treffer dieses Schusses.
+  hit_window_ticks: 2
+  # Schüsse mit höchstens diesem Abstand bilden eine Salve.
+  burst_gap_s: 0.25
+  # "Tod ohne Schuss": kein eigener Schuss in diesem Fenster vor dem Tod.
+  no_shot_window_s: 3.0
+  # Ab diesen Werten wird ein Mechanik-Ziel vorgeschlagen (Heuristik).
+  goal_moving_pct: 30
+  goal_no_shot_pct: 30

@@ -25,7 +25,7 @@ def analyze(match: MatchData, config: dict) -> AnalysisResult:
     if not match.focus_ids():
         raise ValueError("Keine Fokus-Spieler gesetzt (SteamIDs in players.yaml oder --me).")
     for rule in RULES:
-        cfg = config["rules"].get(rule.RULE_ID, {})
+        cfg = {**config["rules"].get(rule.RULE_ID, {}), "mech": config.get("mechanics", {})}
         if not cfg.get("enabled", False):
             status.append(RuleStatus(rule_id=rule.RULE_ID, title=rule.TITLE, evaluated=False, reason="deaktiviert"))
             continue

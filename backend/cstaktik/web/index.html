@@ -48,7 +48,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
   <details class="goalcard">
     <summary>
       <div class="gtop"><b>{{ g.title }}</b><span class="dots">{% for c in g.checks[-5:] %}<i class="{{ 'ok' if c.met else 'no' }}" title="{{ c.pct }} %"></i>{% endfor %}{% if not g.checks %}<span class="muted small">noch kein Check</span>{% endif %}</span></div>
-      <div class="muted small num">Start {{ g.baseline_pct }} % der Runden → Ziel ≤ {{ g.target_pct }} %{% if g.checks %} · zuletzt {{ g.checks[-1].pct }} %{% endif %}</div>
+      <div class="muted small num">{{ g.label or "Runden mit diesem Fehler" }}: {{ g.baseline_pct }} % → Ziel ≤ {{ g.target_pct }} %{% if g.checks %} · zuletzt {{ g.checks[-1].pct }} %{% endif %}</div>
     </summary>
     <div class="gbody">
       <p>{{ g.why }}</p>

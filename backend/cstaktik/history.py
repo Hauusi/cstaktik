@@ -38,7 +38,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
     from cstaktik.coach import diagnose
     from cstaktik.config import load_rules_config
 
-    debrief = diagnose(match, result, load_rules_config()["coach"])
+    debrief = diagnose(match, result, load_rules_config()["coach"], load_rules_config()["mechanics"])
     floor = Counter()
     for p in match.positions:
         floor[(int(p.pos.x // FLOOR_UNITS), int(p.pos.y // FLOOR_UNITS))] += 1
@@ -66,6 +66,9 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "cause_rounds": debrief["rounds_with"],
         "cause_order": [c["id"] for c in debrief["causes"]],
         "verdict": debrief["sentence"],
+        "mech": {m["steamid"]: {k: m[k] for k in ("moving_pct", "hit_pct", "hs_pct", "deaths_no_shot_pct",
+                                                   "spray_early_pct", "spray_late_pct", "shots")}
+                 for m in debrief["mechanics"]},
         "deaths": [
             {"sid": k.victim_steamid, "x": round(k.victim_pos.x), "y": round(k.victim_pos.y), "place": k.victim_place,
              "round": k.round, "side": k.victim_side, "first": k.tick == _first_tick.get(k.round)}

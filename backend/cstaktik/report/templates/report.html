@@ -202,7 +202,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <div class="gcheck {{ 'ok' if c.met else 'no' }}">
       <span class="gi">{{ '✓' if c.met else '✗' }}</span>
       <div><b>{{ c.title }}</b>
-        <div class="num">diesmal {{ c.pct }} % der Runden · Ziel ≤ {{ c.target }} %{% if c.status == 'geschafft' %} · <b>Ziel geschafft!</b>{% elif c.met %} · {{ c.streak }}x in Folge{% endif %}</div></div>
+        <div class="num">diesmal {{ c.pct }} % · Ziel ≤ {{ c.target }} %{% if c.status == 'geschafft' %} · <b>Ziel geschafft!</b>{% elif c.met %} · {{ c.streak }}x in Folge{% endif %}</div></div>
     </div>
     {% endfor %}
     {% if goal_check.new %}<div class="quiet">Neue Ziele: {{ goal_check.new|join(", ") }}</div>{% endif %}
@@ -275,6 +275,29 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       <div class="kpi"><b>{{ fd[0][1] }}–{{ fd[1][1] }}</b><span>zuerst tot</span></div>
     </div>
     <div class="quiet" style="margin-top:8px">„zuerst tot“: wer von euch beiden in einer Runde zuerst gestorben ist ({{ fd[0][0] }}–{{ fd[1][0] }}).</div>
+  </div>
+  {% endif %}
+
+  {% if debrief.mechanics and debrief.mechanics[0].has_shot_data %}
+  <h2>Mechanik</h2>
+  <div class="stack">
+    {% for m in debrief.mechanics %}
+    <div class="card">
+      <b>{{ m.name }}</b> <span class="quiet num">· {{ m.shots }} Schüsse</span>
+      <div class="kpis num" style="margin-top:8px">
+        <div class="kpi {% if m.moving_pct is not none and m.moving_pct >= mech_cfg.goal_moving_pct %}bad{% endif %}"><b>{{ (m.moving_pct|round|int) if m.moving_pct is not none else "–" }}{% if m.moving_pct is not none %}%{% endif %}</b><span>im Laufen</span></div>
+        <div class="kpi"><b>{{ (m.hit_pct|round|int) if m.hit_pct is not none else "–" }}{% if m.hit_pct is not none %}%{% endif %}</b><span>Treffer/Schuss</span></div>
+        <div class="kpi"><b>{{ (m.hs_pct|round|int) if m.hs_pct is not none else "–" }}{% if m.hs_pct is not none %}%{% endif %}</b><span>HS-Kills</span></div>
+        <div class="kpi {% if m.deaths_no_shot_pct is not none and m.deaths_no_shot_pct >= mech_cfg.goal_no_shot_pct %}bad{% endif %}"><b>{{ m.deaths_no_shot }}/{{ m.deaths }}</b><span>Tode ohne Schuss</span></div>
+      </div>
+      {% if m.spray_early_pct is not none and m.spray_late_shots %}
+      <div class="quiet" style="margin-top:8px">Spray: Schuss 1–3 einer Salve {{ m.spray_early_pct|round|int }} % Treffer, ab Schuss 4 {{ (m.spray_late_pct or 0)|round|int }} %
+        {%- if m.spray_late_pct is not none and m.spray_early_pct and m.spray_late_pct < m.spray_early_pct / 2 %}. Kürzere Salven oder Spray-Kontrolle üben.{% endif %}</div>
+      {% endif %}
+      {% if m.no_shot_rounds %}<div class="rlinks">{% for r in m.no_shot_rounds[:8] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <p class="quiet" style="margin:0 2px">„im Laufen“: schneller als {{ mech_cfg.moving_shot_speed_units_s }} Units/s im Schuss-Moment (Schwelle einstellbar). Treffer: Schaden direkt nach dem Schuss.</p>
   </div>
   {% endif %}
 
