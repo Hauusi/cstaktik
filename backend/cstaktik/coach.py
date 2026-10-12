@@ -180,15 +180,36 @@ def diagnose(match: MatchData, result: AnalysisResult, cfg: dict, mech_cfg: dict
         "all_causes": causes,
         "positives": [{"title": f.title, "who": f.player_name, "round": f.round, "text": f.text} for f in good][:4],
         "key_moments": key_moments(match, result, per, top, lost_rounds, cfg),
+        "expensive": expensive_moments(match, result, cfg.get("max_key_moments", 5)),
         "duo": duo(match, cfg),
         "utility": utility_impact(match, cfg),
         "mechanics": mechanics(match, mech_cfg) if mech_cfg else [],
     }
 
 
+def expensive_moments(match: MatchData, result: AnalysisResult, n: int, min_cost: int = 5) -> list[dict]:
+    """Tode der Fokus-Spieler mit den größten Verlusten an Rundengewinn-Chance (situation.enrich)."""
+    out = []
+    for i, f in enumerate(result.findings):
+        cost = f.evidence.get("cost_pct") if f.rule_id == "death_review" else None
+        if cost is None or cost < min_cost:
+            continue
+        dec = f.overlay.get("decision")
+        out.append({"round": f.round, "tick": f.tick, "from": dec[2] if dec else None, "cost": cost,
+                    "title": f"-{cost} % Rundenchance · {f.evidence.get('situation') or f.title}",
+                    "text": f"{f.player_name}: {f.evidence.get('entscheidung') or f.text}", "finding": i,
+                    "who": f.player_name, "situation": f.evidence.get("situation"),
+                    "decision": f.evidence.get("entscheidung"), "chance": f.evidence.get("chance")})
+    out.sort(key=lambda m: -m["cost"])
+    return out[:n]
+
+
 def key_moments(match: MatchData, result: AnalysisResult, per: dict, top: list, lost_rounds: list, cfg: dict) -> list[dict]:
     """Die teuersten Momente: je Top-Ursache der wichtigste Beleg in einer verlorenen Runde,
     dazu verspielte Überzahl. Jeder Moment hat Runde + Tick fürs Replay."""
+    costly = expensive_moments(match, result, cfg.get("max_key_moments", 5))
+    if costly:  # mit Gewinnchance: die teuersten Tode statt Ursachen-Belege
+        return sorted(costly, key=lambda m: (m["round"], m["tick"]))
     moments: list[dict] = []
     seen: set[tuple[int, int]] = set()
 

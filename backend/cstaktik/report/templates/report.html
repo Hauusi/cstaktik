@@ -214,6 +214,12 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .sbtn.pro { color: #c9bcff; border-color: rgba(185,166,255,.55); background: rgba(124,92,255,.14); }
 .sbtn.win { color: var(--win); border-color: rgba(63,191,127,.5); background: rgba(63,191,127,.1); }
 .showme .pdesc { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.cost { display: flex; gap: 14px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.cost .cnumbig { font-size: 30px; font-weight: 800; color: var(--loss); min-width: 70px; line-height: 1; }
+.cost .cnumbig small { font-size: 15px; margin-left: 2px; }
+.cost .cbody { flex: 1; min-width: 0; } .cost .costgo { margin-top: 8px; }
+.coach .lage { margin-top: 4px; font-size: 13.5px; color: #c9d4e6; background: rgba(255,255,255,.04); border-radius: 8px; padding: 6px 8px; }
+.coach .chip { font-size: 12px; font-weight: 800; color: var(--loss); background: rgba(240,86,106,.14); border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
 .vorbild { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.07);
   border: 1px dashed rgba(63,191,127,.45); font-size: 13.5px; color: #d7f2e3; }
 .vorbild b { color: var(--win); }
@@ -234,6 +240,24 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <button class="linkbtn" id="allTour" hidden></button>
   </div></div></header>
 <main>
+
+  {% if debrief.expensive %}
+  <h2>Die teuersten Momente</h2>
+  <div class="stack">
+    {% for m in debrief.expensive %}
+    <div class="cost">
+      <div class="cnumbig num">-{{ m.cost }}<small>%</small></div>
+      <div class="cbody">
+        <div class="ct">{{ m.situation or "Tod" }} · {{ m.who }} <span class="quiet num">R{{ m.round }}</span></div>
+        <div class="cx">{{ m.decision }}</div>
+        {% if m.chance %}<div class="cnum num">{{ m.chance }}</div>{% endif %}
+        <button class="sbtn win costgo" data-round="{{ m.round }}" data-tick="{{ m.from or m.tick }}" data-f="{{ m.finding }}">▶ Ab der Entscheidung ansehen</button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="quiet" style="margin:8px 2px 0">Rundenchance = wie oft Runden aus dieser Lage gewonnen wurden (eure Matches + Pro-Demos, gezählt). Kosten = Chance vorher minus nachher (3 s nach dem Tod, Trades eingerechnet).</p>
+  {% endif %}
 
   <div class="cols"><div class="col">
   {% if debrief.causes %}
@@ -526,7 +550,7 @@ const F = D.findings;
 const isErr = f => f.sev !== 'gut';
 // Touren: Schlüsselmomente (Coach-Auswahl) und alle Fehler. Jeder Halt: Runde + Tick.
 const TOURS = {
-  key: (D.moments || []).map(m => ({ ri: D.rounds.findIndex(r => r.n === m.round), tick: m.tick, title: m.title, text: m.text, f: m.finding })).filter(x => x.ri >= 0),
+  key: (D.moments || []).map(m => ({ ri: D.rounds.findIndex(r => r.n === m.round), tick: m.tick, from: m.from, title: m.title, text: m.text, f: m.finding })).filter(x => x.ri >= 0),
   all: D.rounds.flatMap((r, ri) => r.f.map(id => F[id]).filter(f => f.tick != null && isErr(f)).sort((a, b) => a.tick - b.tick)
     .map(f => ({ ri, tick: f.tick, title: f.title, text: f.text }))),
 };
@@ -925,6 +949,15 @@ function draw() {
       ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(lbl, bx, by + 10 * u);
       ctx.fillStyle = '#b9a6ff'; ctx.fillText(lbl, bx, by + 10 * u);
     }
+    // Entscheidungsmoment: wo der Spieler losging bzw. hielt
+    if (ovf.ov && ovf.ov.decision) {
+      const [dx, dy] = ovf.ov.decision;
+      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2.2 * u; ctx.setLineDash([4 * u, 3 * u]);
+      ctx.beginPath(); ctx.arc(dx, dy, 10 * u, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = `800 ${10 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText('Entscheidung ' + fmt(ovf.ov.decision[2]), dx, dy - 12 * u);
+      ctx.fillStyle = '#ffd166'; ctx.fillText('Entscheidung ' + fmt(ovf.ov.decision[2]), dx, dy - 12 * u);
+    }
     // Frühere Tode desselben Spielers am selben Ort (Geister)
     const myDeath = r.kills.find(k => k.t === ovf.tick && k.v === ovf.sid);
     if (myDeath && myDeath.pl) {
@@ -1002,7 +1035,11 @@ function ui() {
     if (active.length) active.forEach(id => {
       const f = F[id], it = el('div', 'item'), k = el('div', 'k', isErr(f) ? 'Coach' : 'Stark');
       k.style.color = SEV[f.sev];
-      it.append(k, el('div', 'tt', f.title.replace(/^Tod: /, '') + (f.who ? ' · ' + f.who : '')));
+      const tt = el('div', 'tt', f.title.replace(/^Tod: /, '') + (f.who ? ' · ' + f.who : ''));
+      const ev = f.evidence || {};
+      if (ev.cost_pct != null && ev.cost_pct > 0) tt.appendChild(el('span', 'chip', '-' + ev.cost_pct + ' % Rundenchance'));
+      it.append(k, tt);
+      if (ev.entscheidung) it.appendChild(el('div', 'lage', (ev.situation ? ev.situation + ' · ' : '') + ev.entscheidung));
       if (f.rule === 'death_review') it.appendChild(el('div', 'what', f.text));
       const tp = el('div', 'tip'); tp.append(el('b', null, isErr(f) ? 'Besser: ' : ''), f.tip); it.appendChild(tp);
       const sm = showMe(f); if (sm) it.appendChild(sm);
@@ -1189,10 +1226,15 @@ function story() {
 function goTour(name, i) {
   const st = TOURS[name][i];
   selectRound(st.ri, true); S.tour = { name, i };
-  S.lastF = null; seek(st.tick - 4 * TR); setPlaying(true);
+  S.lastF = null; seek(Math.min(st.tick - 4 * TR, st.from != null ? st.from - TR : Infinity)); setPlaying(true);
   stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function endTour() { S.tour = null; $('coach').dataset.key = ''; draw(); }
+document.querySelectorAll('.costgo').forEach(b => b.onclick = () => {
+  const ri = D.rounds.findIndex(r => r.n === +b.dataset.round); if (ri < 0) return;
+  S.tour = null; selectRound(ri); seek(+b.dataset.tick - TR); setPlaying(true);
+  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 if (TOURS.key.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.key.length + ' Momente'; $('tourBtn').onclick = () => goTour('key', 0); }
 else if (TOURS.all.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.all.length + ' Fehler'; $('tourBtn').onclick = () => goTour('all', 0); }
 if (TOURS.all.length && $('allTour')) { $('allTour').hidden = false; $('allTour').textContent = 'Oder alle ' + TOURS.all.length + ' Fehler durchgehen ›'; $('allTour').onclick = () => goTour('all', 0); }
@@ -1270,7 +1312,7 @@ stage.addEventListener('wheel', e => { // Desktop: Mausrad zoomt die Karte
 }, { passive: false });
 $('trail').onclick = e => { S.trailFull = !S.trailFull; e.currentTarget.classList.toggle('on', S.trailFull); e.currentTarget.textContent = S.trailFull ? 'Runde' : 'Spur'; draw(); };
 $('scrub').oninput = e => { setPlaying(false); seek(+e.target.value); };
-document.querySelectorAll('[data-round]').forEach(b => b.onclick = () => {
+document.querySelectorAll('[data-round]:not(.costgo)').forEach(b => b.onclick = () => {
   const i = D.rounds.findIndex(r => r.n === +b.dataset.round); if (i >= 0) { selectRound(i); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 });
 

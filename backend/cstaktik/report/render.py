@@ -88,6 +88,9 @@ def _overlay_px(ov: dict, px) -> dict:
         out["line"] = [list(px(x, y)) for x, y in ov["line"]]
     if ov.get("label"):
         out["label"] = ov["label"]
+    if ov.get("decision"):
+        dx, dy, dt = ov["decision"]
+        out["decision"] = [*px(dx, dy), dt]
     if ov.get("pro_clip") is not None:
         out["pro_clip"] = ov["pro_clip"]  # wird in build_payload auf den Rundenindex umgerechnet
         out["pro_tick"] = ov.get("pro_tick")

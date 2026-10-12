@@ -145,11 +145,19 @@ def _coach(match: MatchData, config: dict):
 
     from cstaktik.reference import pro_clips
 
+    from cstaktik import situation
+
     result = analyze(match, config)
     hist = _history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []
     enrich(match, result.findings, hist)
     pro = _pro.load_all(PRO_DIR)
     enrich_pro(match, result.findings, pro)
+    # Gewinnchance je Lage: eure anderen Matches + Pro-Demos + dieses Match
+    me = match.source_sha256 or match.source_file
+    states = [s for h in hist if h.get("id") != me for s in h.get("states", [])]
+    states += [s for d in pro for s in d.get("states", [])] + situation.round_states(match)
+    model = situation.WinModel(states, config["situation"]["win_min_rounds"])
+    situation.enrich(match, result.findings, model, config["situation"], config["coach"]["trade_window_s"])
     clips = pro_clips(match, result.findings, load_pro_matches(pro, match.map_name))
     return result, clips
 
@@ -184,6 +192,7 @@ def run(
     match = load_any(path, focus, config, progress=lambda st, f: report(st, 0.9 * f))
     report("Fehler suchen", 0.92)
     upgrade_pro()
+    upgrade_history()
     result, clips = _coach(match, config)
     report("Karte laden", 0.94)
     from cstaktik import goals, history, maps
@@ -242,6 +251,22 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips)
         done += 1
     return done
+
+
+def upgrade_history() -> int:
+    """Ältere Verlaufs-Einträge ohne Rundenzustände (Gewinnchance) aus dem Cache ergänzen."""
+    from cstaktik import history
+    from cstaktik.situation import round_states
+
+    n = 0
+    for h in history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []:
+        cache = CACHE_DIR / f"{h.get('id')}.v{CACHE_SCHEMA}.json"
+        if "states" in h or not cache.exists():
+            continue
+        h["states"] = round_states(load_match(cache))
+        history.save(h, HISTORY_DIR)
+        n += 1
+    return n
 
 
 def upgrade_pro() -> int:

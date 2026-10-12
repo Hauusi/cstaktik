@@ -90,6 +90,18 @@ rules:
     trade_window_s: 3.0
     multi_kill_min: 3
 
+situation:
+  # Entscheidungsmoment: so weit vor dem Tod zurückschauen, mindestens so lange vor dem Tod
+  lookback_s: 8
+  min_before_s: 1.5
+  moving_units_s: 60        # darüber gilt ein Spieler als "in Bewegung"
+  alone_units: 1200         # nächster Mitspieler weiter weg = "allein"
+  # CS2-Standardzeiten (nicht aus der Demo), nur für "noch ca. x:xx" im Lagebild
+  round_time_s: 115
+  bomb_time_s: 40
+  win_min_rounds: 8         # so viele Runden braucht eine Lage für eine Gewinnchance
+  max_moments: 5            # so viele teuerste Momente zeigt der Report
+
 coach:
   # Ursache erscheint im Urteil ab so vielen verlorenen Runden, in denen sie vorkam.
   cause_min_lost_rounds: 2

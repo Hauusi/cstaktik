@@ -87,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         from cstaktik import pipeline
 
         print(f"Pro-Daten nachgerüstet: {pipeline.upgrade_pro()}")
+        print(f"Verlauf nachgerüstet: {pipeline.upgrade_history()}")
         print(f"Reports neu gebaut: {pipeline.rerender_reports()}")
         return 0
 

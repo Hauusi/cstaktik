@@ -13,6 +13,7 @@ from pathlib import Path
 
 from cstaktik.model import AnalysisResult, MatchData
 from cstaktik.reference import timeline
+from cstaktik.situation import round_states
 
 FLOOR_UNITS = 64  # Rastergröße des Kartenumrisses in Spieleinheiten
 
@@ -51,6 +52,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "analyzed_at": datetime.now().isoformat(timespec="minutes"),
         "map": match.map_name,
         "rounds": len(match.rounds),
+        "states": round_states(match),
         "won": won,
         "lost": lost,
         "players": {
