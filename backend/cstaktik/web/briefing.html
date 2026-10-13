@@ -41,7 +41,7 @@
   <svg viewBox="0 0 1024 1024" aria-label="Fehler-Orte">
     {% for a in kabine.players %}{% for q in a.points %}
     <a href="{% if q.report %}/reports/{{ q.report }}#s{{ q.round }}-{{ q.tick }}{% else %}#{% endif %}">
-      <circle cx="{{ q.px }}" cy="{{ q.py }}" r="16" fill="{{ a.color }}" fill-opacity=".85" stroke="#0c0d0f" stroke-width="5"><title>{{ a.name }} · R{{ q.round }}</title></circle>
+      <circle cx="{{ q.px }}" cy="{{ q.py }}" r="26" fill="{{ a.color }}" fill-opacity=".85" stroke="#0c0d0f" stroke-width="6"><title>{{ a.name }} · R{{ q.round }}</title></circle>
     </a>
     {% endfor %}{% endfor %}
   </svg>
@@ -56,28 +56,16 @@
   <div class="tp">{{ l.drill }}</div></div>{% endfor %}
 {% endif %}
 <div class="cols"><div class="col">
-{% if b.goals and not kabine %}
-<h2>Eure Ziele heute</h2>
-{% for g in b.goals %}<div class="goal"><b>{{ g.title }}</b><div class="tp">{{ g.tip }}</div></div>{% endfor %}
-{% endif %}
+<h2>Für diese Map</h2>
+<div class="maps">
+  <a class="mapbtn" href="/mapbook/{{ b.map }}">Map-Buch: deine Spots</a>
+  <a class="mapbtn" href="/lineups/{{ b.map }}">Lineups zum Üben</a>
+</div>
 
 </div><div class="col">
 {% if b.win_spots %}
 <h2>Wo ihr in Siegrunden steht</h2>
 {% for w in b.win_spots %}<div class="note"><span class="side {{ w.side }}">{{ w.side }}</span>{{ w.name }}: in Siegrunden nach {{ w.at }} meist in <b>{{ w.place }}</b> <span class="empty num">({{ w.n }} von {{ w.total }})</span></div>{% endfor %}
-{% endif %}
-
-{% if b.pro_spots %}
-<h2>Pro-Standard nach 0:20</h2>
-{% for ps in b.pro_spots %}<div class="note"><span class="side {{ ps.side }}">{{ ps.side }}</span>{% for sp in ps.spots %}<b>{{ sp.place }}</b> {{ sp.pct }} %{% if not loop.last %} · {% endif %}{% endfor %}
-  <div class="tp" style="color:var(--muted)">Siegrunden der Pros, Anteil der Spieler-Positionen, {{ ps.demos }} Demo{{ "s" if ps.demos != 1 }}</div></div>{% endfor %}
-{% endif %}
-
-{% if b.pro_util %}
-<h2>Pro-Utility auf {{ b.label }}</h2>
-{% for pu in b.pro_util %}{% for it in pu.items %}<div class="note"><span class="side {{ pu.side }}">{{ pu.side }}</span><b>{{ it.kind }}</b> aus {{ it.from }} nach <b>{{ it.to }}</b>
-  <span class="empty num">({{ it.n }}x in {{ it.rounds }} Siegrunden)</span></div>{% endfor %}{% endfor %}
-<div class="tp" style="color:var(--muted)">Wurf- und Landeort als Callout aus den Pro-Demos. <a href="/lineups/{{ b.map }}" style="color:var(--orange)">Lineups mit Befehl zum Üben ›</a></div>
 {% endif %}
 
 {% if b.notes %}
@@ -90,7 +78,7 @@
 {% for w in b.watch %}<div class="note"><b>{{ w.title }}</b> <span class="empty num">· in {{ w.pct }} % eurer Runden auf {{ b.label }}</span><div class="tp">{{ w.tip }}</div></div>{% endfor %}
 {% endif %}
 
-{% if not b.notes and not b.watch and not b.win_spots and not b.pro_spots and not b.pro_util %}
+{% if not b.notes and not b.watch and not b.win_spots %}
 <p class="empty sec">Für diese Map gibt es noch keine Muster. Nach der ersten ausgewerteten Demo auf {{ b.label }} steht hier euer Briefing.</p>
 {% endif %}
 </div></div>

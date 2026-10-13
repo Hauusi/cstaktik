@@ -13,7 +13,7 @@
 <div class="kpis num">
   <div><b>{{ chk.done }}/{{ chk.total }}</b><span>Aufgaben</span></div>
   <div><b class="{{ 'ok' if chk.matches >= chk.need }}">{{ chk.matches }}/{{ chk.need }}</b><span>Matches</span></div>
-  <div><b class="{{ '' if chk.met is none else ('ok' if chk.met else 'no') }}">{{ chk.rate|string|replace(".", ",") if chk.rate is not none else "–" }}</b><span>Fehler / 10 R · Ziel ≤ {{ chk.target|string|replace(".", ",") if chk.target is defined else "–" }}</span></div>
+  <div><b class="{{ '' if chk.met is none else ('ok' if chk.met else 'no') }}">{{ chk.rate|string|replace(".", ",") if chk.rate is not none else "–" }}</b><span>Fehler / 10 Runden</span>{% if chk.target is defined %}<span style="display:block">Ziel ≤ {{ chk.target|string|replace(".", ",") }}</span>{% endif %}</div>
 </div>
 <div style="margin-top:10px">
 {% for t in plan.tasks %}{% set d = t.id in plan.done %}

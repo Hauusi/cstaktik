@@ -272,9 +272,9 @@ D.maps.forEach(m => {
   requestAnimationFrame(() => {
     const U = D.floorUnits, cells = m.floor, dpr = Math.min(devicePixelRatio || 1, 3), W = cv.clientWidth;
     cv.width = cv.height = Math.round(W * dpr);
-    const xs = cells.map(c => c[0]).concat(m.deaths.map(d => Math.floor(d.x / U)));
-    const ys = cells.map(c => c[1]).concat(m.deaths.map(d => Math.floor(d.y / U)));
-    if (!xs.length) return;
+    const xs = cells.map(c => c[0]).concat(m.deaths.map(d => Math.floor(d.x / U))).filter(Number.isFinite);
+    const ys = cells.map(c => c[1]).concat(m.deaths.map(d => Math.floor(d.y / U))).filter(Number.isFinite);
+    if (!xs.length || !ys.length) return;  // ohne Positionen keine Karte
     const x0 = Math.min(...xs) - 2, x1 = Math.max(...xs) + 3, y0 = Math.min(...ys) - 2, y1 = Math.max(...ys) + 3;
     const span = Math.max(x1 - x0, y1 - y0), k = cv.width / span;
     const ox = (span - (x1 - x0)) / 2, oy = (span - (y1 - y0)) / 2;

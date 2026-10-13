@@ -89,10 +89,13 @@ def build(histories: list[dict]) -> dict:
                 for key in ("kd", "adr", "opening", "traded", "moving", "hit"):
                     series[key].append(None)
                 continue
-            series["kd"].append(round(p["kills"] / p["deaths"], 2) if p["deaths"] else None)
+            k, d = p.get("kills"), p.get("deaths")  # fehlende Werte bleiben Lücken statt Fehler
+            series["kd"].append(round(k / d, 2) if k is not None and d else None)
             series["adr"].append(p.get("adr"))
-            series["opening"].append(p["opening_kills"] - p["opening_deaths"])
-            series["traded"].append(round(100 * p["traded_deaths"] / p["deaths"]) if p["deaths"] else None)
+            ok, od = p.get("opening_kills"), p.get("opening_deaths")
+            series["opening"].append(ok - od if ok is not None and od is not None else None)
+            td = p.get("traded_deaths")
+            series["traded"].append(round(100 * td / d) if td is not None and d else None)
             mech = (h.get("mech") or {}).get(sid) or {}
             series["moving"].append(mech.get("moving_pct"))
             series["hit"].append(mech.get("hit_pct"))
