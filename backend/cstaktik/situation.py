@@ -313,6 +313,12 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
             act = action(idx, rnd, f.steamid, side, tick, min(f.tick, tick + int(5 * tr)), match)
             f.evidence["entscheidung"] = lage_text(snap, kind, nades)
             info = info_state(match, idx, rnd, side, death.attacker_steamid, tick, f.tick)
+            f.evidence["snap"] = {**{k: snap[k] for k in ("own", "enemy", "planted", "hp", "mate_d", "secs",
+                                                          "time_left", "place", "mate")}, "kind": kind}
+            if info is not None:
+                f.evidence["info_raw"] = {"seen_now": info["seen_now"],
+                                          "killer_seen_s": None if info["killer_seen"] is None
+                                          else round((f.tick - info["killer_seen"]) / tr, 1)}
             it = info_text(info, death.attacker_name, rnd.freeze_end_tick, tr)
             if it:
                 f.evidence["info"] = it
@@ -320,7 +326,6 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
             f.evidence["situation"] = category(side, snap["own"], snap["enemy"], snap["planted"], snap["mate_d"],
                                                kind, snap["first_contact"], cfg)
             f.evidence["aktion"] = act
-            f.evidence["snap"] = {k: snap[k] for k in ("own", "enemy", "planted", "hp", "mate_d", "secs", "time_left")}
             me = idx.nearest(rnd.num, f.steamid, tick, tr)
             if me is not None:
                 f.overlay["decision"] = [me.pos.x, me.pos.y, tick]

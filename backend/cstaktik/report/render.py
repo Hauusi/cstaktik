@@ -309,6 +309,9 @@ def build_context(
     debrief = diagnose(match, result, load_rules_config()["coach"], load_rules_config()["mechanics"])
     payload = build_payload(match, result, maps_dirs, pro_clips)
     payload["moments"] = debrief["key_moments"]
+    from cstaktik import coach_voice
+
+    lessons = coach_voice.focus(result.findings)
     won = sum(1 for r in payload["rounds"] if r["out"] == "W" and not r.get("pro"))
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
     radar_note = None if payload["img"] else build_radar(match, maps_dirs).note
@@ -323,6 +326,8 @@ def build_context(
         "unevaluated": [s for s in result.rule_status if not s.evaluated],
         "radar_note": radar_note,
         "debrief": debrief,
+        "lessons": lessons,
+        "coach_line": coach_voice.headline(lessons) or debrief["sentence"],
         "goal_check": goal_check,
         "mech_cfg": load_rules_config()["mechanics"],
         "n_findings": sum(1 for f in result.findings if f.severity != "gut"),

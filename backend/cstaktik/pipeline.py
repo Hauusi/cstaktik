@@ -174,6 +174,9 @@ def _coach(match: MatchData, config: dict):
     model = situation.WinModel(states, config["situation"]["win_min_rounds"])
     situation.enrich(match, result.findings, model, config["situation"], config["coach"]["trade_window_s"])
     situation.enrich_pro(match, result.findings, pro, config["situation"]["pro_min_cases"])
+    from cstaktik import coach_voice
+
+    coach_voice.apply(result.findings, config["rules"]["death_review"]["close_units"])
     clips = pro_clips(match, result.findings, load_pro_matches(pro, match.map_name), pro)
 
     return result, clips
@@ -266,6 +269,8 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
             continue
         result, clips = _coach(match, config)
         write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips)
+        h["lessons"] = history.lessons(result)  # Lektionen nachrüsten (Fortschritt je Map)
+        history.save(h, HISTORY_DIR)
         done += 1
     return done
 

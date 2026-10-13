@@ -177,8 +177,10 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             smp = idx.nearest(k.round, m, k.tick, tr)
             if smp is not None and k.victim_pos is not None:
                 near.append((dist(k.victim_pos, smp.pos), m, smp))
+        near_m = near_d = near_place = None
         if near:
             d, m, smp = min(near, key=lambda x: x[0])
+            near_m, near_d, near_place = m, round(d), smp.place
             facts.append(f"nächster Mitspieler {match.name_of(m)}: {round(d)} Units" + (f" in {smp.place}" if smp.place else ""))
             overlay = {"line": [[k.victim_pos.x, k.victim_pos.y], [smp.pos.x, smp.pos.y]],
                        "label": f"{round(d)} Units zu {match.name_of(m)}"}
@@ -241,7 +243,19 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 text=text,
                 tip=tip,
                 evidence={"lage": facts, "weitere_punkte": ordered[1:], "tick": k.tick,
-                          **({"ungenutzt": unused} if unused else {})},
+                          **({"ungenutzt": unused} if unused else {}),
+                          # strukturierte Fakten für die Coach-Texte (coach_voice.py)
+                          "f": {"label": label, "issues": ordered, "place": k.victim_place, "when": when,
+                                "attacker": k.attacker_name, "aplace": k.attacker_place, "a_dist": a_dist,
+                                "weapon": weapon_label(k.weapon) if k.weapon else None, "hp": hp,
+                                "no_shot": bool(match.shots) and not my_shots, "shots": len(my_shots),
+                                "dealt": dealt, "traded": traded, "opening": opening,
+                                "own": len(mates) + 1, "enemy": len(enemies),
+                                "mate": match.name_of(near_m) if near_m else None, "mate_dist": near_d,
+                                "mate_place": near_place, "nades": nade_names,
+                                "blind_by": (match.name_of(blind.attacker_steamid) if blind and blind.attacker_steamid
+                                             else None), "blind_ago": round((k.tick - blind.tick) / tr, 1) if blind else None,
+                                "shot_speed": round(my_shots[-1].speed) if my_shots and my_shots[-1].speed else None}},
                 overlay=overlay,
             )
         )

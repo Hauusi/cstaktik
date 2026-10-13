@@ -231,6 +231,17 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .quiz .qbar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .sbtn.plain { color: var(--muted); border-color: var(--line); }
 .quizbtn { background: rgba(124,92,255,.18) !important; }
+.coach .item.cv { padding: 4px 0 6px; }
+.coach .cmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 12px; font-weight: 800; }
+.coach .cmeta .k { letter-spacing: .06em; text-transform: uppercase; }
+.coach .cmeta .sit { color: var(--muted); font-weight: 700; }
+.coach .cmeta .chip { margin-left: 0; }
+.coach .lesson-h { margin-top: 6px; font-size: 21px; font-weight: 800; line-height: 1.2; letter-spacing: -.01em; }
+.coach .happened { margin-top: 8px; font-size: 15px; line-height: 1.5; color: #d5dbe5; }
+.coach .nextbox { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(63,191,127,.12); font-size: 15px; line-height: 1.45; }
+.coach .nextbox b { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--win); margin-bottom: 2px; }
+.coach .proline { margin-top: 8px; font-size: 13.5px; color: #cfc4ff; }
+.coach details.data .lage { margin: 6px 0; }
 .coach .protip { margin-top: 6px; font-size: 13.5px; color: #d4c9ff; } .coach .protip b { color: #b9a6ff; }
 .coach .lage { margin-top: 4px; font-size: 13.5px; color: #c9d4e6; background: rgba(255,255,255,.04); border-radius: 8px; padding: 6px 8px; }
 .coach .chip { font-size: 12px; font-weight: 800; color: var(--loss); background: rgba(240,86,106,.14); border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
@@ -239,87 +250,71 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .vorbild b { color: var(--win); }
 .vorbild .pro { margin-top: 6px; color: #d4c9ff; } .vorbild .pro b { color: #b9a6ff; }
 .vbtn { display: block; margin-top: 6px; color: var(--win); font-weight: 700; font-size: 13px; }
+.hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.hrow .score { margin: 0; }
+.coachline { margin-top: 14px; font-size: 19px; line-height: 1.35; font-weight: 700; letter-spacing: -.01em; }
+.goalrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.gpill { font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.06); }
+.gpill.ok { color: var(--win); background: rgba(63,191,127,.12); } .gpill.no { color: var(--loss); background: rgba(240,86,106,.12); }
+.subctas { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
+.subctas .linkbtn { margin: 4px auto 0; }
+.lessons { display: grid; gap: 12px; }
+.lesson { display: flex; gap: 14px; padding: 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+.lesson:first-child { border-color: rgba(240,86,106,.35); background: linear-gradient(180deg, rgba(240,86,106,.08), var(--surface) 60%); }
+.lnum { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 800;
+  background: rgba(240,86,106,.15); color: var(--loss); }
+.lbody { flex: 1; min-width: 0; }
+.ltitle { font-size: 20px; font-weight: 800; line-height: 1.2; letter-spacing: -.01em; }
+.lmeta { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.lmeta .lcost { color: var(--loss); }
+.lwhy { margin-top: 8px; font-size: 14.5px; line-height: 1.45; color: #c9d1de; }
+.lnext { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(63,191,127,.1); font-size: 14.5px; line-height: 1.45; }
+.lnext b { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--win); margin-bottom: 2px; }
+.scenes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.scene { font: inherit; font-size: 13px; font-weight: 700; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--text); cursor: pointer; }
+.scene span { color: var(--loss); margin-left: 2px; }
+.goodline { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13.5px; color: var(--muted); }
+.goodline b { color: var(--win); margin-right: 2px; }
+.gchip { font: inherit; font-size: 12.5px; padding: 5px 9px; border-radius: 999px; background: rgba(63,191,127,.1); color: #bfe8cf; border: 0; cursor: pointer; }
 footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </style>
 </head>
 <body>
   <header class="hero"><div class="hero-in"><div>
     <div class="eyebrow">{{ match.source_file or "Demo" }}</div>
-    <h1>{{ map_label }}</h1>
-    <div class="score num"><b class="w">{{ score.won }}</b><span class="sep">:</span><b class="l">{{ score.lost }}</b>
-      <span class="pill">{{ n_findings }} Fehler</span>{% if n_good %}<span class="pill good">{{ n_good }}x stark</span>{% endif %}</div>
-    <div class="verdict">{{ debrief.sentence }}</div>
+    <div class="hrow"><h1>{{ map_label }}</h1>
+      <div class="score num"><b class="w">{{ score.won }}</b><span class="sep">:</span><b class="l">{{ score.lost }}</b></div></div>
+    <div class="coachline">{{ coach_line }}</div>
+    {% if goal_check and goal_check.checks %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
     </div><div>
-    <button class="tour" id="tourBtn" hidden>▶ Schlüsselmomente ansehen <small id="tourN"></small></button>
-    <button class="linkbtn" id="allTour" hidden></button>
-    <button class="tour quizbtn" id="quizBtn" hidden>Training: Was machst du? <small id="quizN"></small></button>
+    <button class="tour" id="tourBtn" hidden>▶ Debrief starten <small id="tourN"></small></button>
+    <div class="subctas"><button class="linkbtn" id="quizBtn" hidden>Training: Was machst du? <span id="quizN"></span></button>
+      <button class="linkbtn" id="allTour" hidden></button></div>
   </div></div></header>
 <main>
 
-  {% if debrief.expensive %}
-  <h2>Die teuersten Momente</h2>
-  <div class="stack">
-    {% for m in debrief.expensive %}
-    <div class="cost">
-      <div class="cnumbig num">-{{ m.cost }}<small>%</small></div>
-      <div class="cbody">
-        <div class="ct">{{ m.situation or "Tod" }} · {{ m.who }} <span class="quiet num">R{{ m.round }}</span></div>
-        <div class="cx">{{ m.decision }}</div>
-        {% if m.pro_tip %}<div class="protip"><b>Pro-Entscheidung:</b> {{ m.pro_tip }}</div>{% endif %}
-        {% if m.chance %}<div class="cnum num">{{ m.chance }}</div>{% endif %}
-        <button class="sbtn win costgo" data-round="{{ m.round }}" data-tick="{{ m.from or m.tick }}" data-f="{{ m.finding }}">▶ Ab der Entscheidung ansehen</button>
+  {% if lessons %}
+  <h2>Deine Lektionen aus diesem Match</h2>
+  <div class="lessons">
+    {% for l in lessons %}
+    <article class="lesson">
+      <div class="lnum">{{ loop.index }}</div>
+      <div class="lbody">
+        <div class="ltitle">{{ l.lesson }}</div>
+        <div class="lmeta num"><span>{{ l.count }}x</span>{% if l.cost %}<span class="lcost">-{{ l.cost }} % Rundenchance</span>{% endif %}<span>{{ l.players|join(", ") }}</span></div>
+        <div class="lwhy">{{ l.why }}</div>
+        <div class="lnext"><b>Nächstes Match</b>{{ l.drill }}</div>
+        <div class="scenes">{% for sc in l.scenes[:6] %}<button class="scene costgo" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost %} <span class="num">-{{ sc.cost }}%</span>{% endif %}</button>{% endfor %}</div>
       </div>
-    </div>
+    </article>
     {% endfor %}
-  </div>
-  <p class="quiet" style="margin:8px 2px 0">Rundenchance = wie oft Runden aus dieser Lage gewonnen wurden (eure Matches + Pro-Demos, gezählt). Kosten = Chance vorher minus nachher (3 s nach dem Tod, Trades eingerechnet).</p>
-  {% endif %}
-
-  <div class="cols"><div class="col">
-  {% if debrief.causes %}
-  <h2>Warum verloren</h2>
-  <div class="stack">
-    {% for c in debrief.causes %}
-    <div class="cause">
-      <div class="crank">{{ loop.index }}</div>
-      <div class="cbody">
-        <div class="ct">{{ c.title }}</div>
-        <div class="cmeter num"><span style="width:{{ (100 * c.share)|round|int }}%"></span></div>
-        <div class="cnum num">in {{ c.lost_rounds|length }} von {{ debrief.lost }} verlorenen Runden
-          {%- if c.won_rounds %} · in Siegrunden nur {{ c.won_rounds|length }}x{% else %} · in keiner Siegrunde{% endif %}</div>
-        <div class="cx">{{ c.explain }}</div>
-        <div class="tip"><b>Was tun</b> · {{ c.tip }}</div>
-        <div class="rlinks">{% for r in c.lost_rounds[:10] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-  <p class="quiet" style="margin:8px 2px 0">Zusammenhang aus euren Runden, kein Beweis, dass genau das die Runde gekostet hat.</p>
-  {% endif %}
-
-  </div><div class="col">
-  {% if goal_check and (goal_check.checks or goal_check.new) %}
-  <h2>Ziel-Check</h2>
-  <div class="stack">
-    {% for c in goal_check.checks %}
-    <div class="gcheck {{ 'ok' if c.met else 'no' }}">
-      <span class="gi">{{ '✓' if c.met else '✗' }}</span>
-      <div><b>{{ c.title }}</b>
-        <div class="num">diesmal {{ c.pct }} % · Ziel ≤ {{ c.target }} %{% if c.status == 'geschafft' %} · <b>Ziel geschafft!</b>{% elif c.met %} · {{ c.streak }}x in Folge{% endif %}</div></div>
-    </div>
-    {% endfor %}
-    {% if goal_check.new %}<div class="quiet">Neue Ziele: {{ goal_check.new|join(", ") }}</div>{% endif %}
   </div>
   {% endif %}
 
   {% if debrief.positives %}
-  <h2>Was gut lief</h2>
-  <div class="goodlist">
-    {% for g in debrief.positives %}<div class="good"><b>{{ g.title }}</b> · {{ g.who }}{% if g.round %} <button data-round="{{ g.round }}">R{{ g.round }}</button>{% endif %}</div>{% endfor %}
-  </div>
+  <div class="goodline"><b>Gut gemacht:</b> {% for g in debrief.positives[:4] %}<button data-round="{{ g.round }}" class="gchip">{{ g.title }} · {{ g.who }}{% if g.round %} R{{ g.round }}{% endif %}</button>{% endfor %}</div>
   {% endif %}
-
-  </div></div>
 
   <h2>Replay</h2>
   <nav class="rounds" id="rounds" aria-label="Runden"></nav>
@@ -352,6 +347,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     </div></div>
   </section>
 
+  <details class="more"><summary>Mehr: Duo, Mechanik, Utility, Runden-Muster, alle Befunde</summary>
   <div class="cols3">
   {% if debrief.duo %}<div>{% set d = debrief.duo %}
   <h2>Ihr als Duo</h2>
@@ -413,7 +409,39 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   {% if debrief.utility %}</div>{% endif %}
   </div>
 
-  <details class="more"><summary>Alle Details (Befunde, Statistik, Hausaufgaben)</summary>
+  {% if debrief.causes %}
+  <h2>Warum verloren (Runden-Muster)</h2>
+  <div class="stack">
+    {% for c in debrief.causes %}
+    <div class="cause">
+      <div class="crank">{{ loop.index }}</div>
+      <div class="cbody">
+        <div class="ct">{{ c.title }}</div>
+        <div class="cmeter num"><span style="width:{{ (100 * c.share)|round|int }}%"></span></div>
+        <div class="cnum num">in {{ c.lost_rounds|length }} von {{ debrief.lost }} verlorenen Runden
+          {%- if c.won_rounds %} · in Siegrunden nur {{ c.won_rounds|length }}x{% else %} · in keiner Siegrunde{% endif %}</div>
+        <div class="cx">{{ c.explain }}</div>
+        <div class="tip"><b>Was tun</b> · {{ c.tip }}</div>
+        <div class="rlinks">{% for r in c.lost_rounds[:10] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if goal_check and (goal_check.checks or goal_check.new) %}
+  <h2>Ziel-Check</h2>
+  <div class="stack">
+    {% for c in goal_check.checks %}
+    <div class="gcheck {{ 'ok' if c.met else 'no' }}">
+      <span class="gi">{{ '✓' if c.met else '✗' }}</span>
+      <div><b>{{ c.title }}</b>
+        <div class="num">diesmal {{ c.pct }} % · Ziel ≤ {{ c.target }} %{% if c.status == 'geschafft' %} · <b>Ziel geschafft!</b>{% elif c.met %} · {{ c.streak }}x in Folge{% endif %}</div></div>
+    </div>
+    {% endfor %}
+    {% if goal_check.new %}<div class="quiet">Neue Ziele: {{ goal_check.new|join(", ") }}</div>{% endif %}
+  </div>
+  {% endif %}
+
   <h2>Befunde dieser Runde</h2>
   <div class="stack" id="rfind"></div>
 
@@ -1044,27 +1072,39 @@ function ui() {
   if (coach.dataset.key !== key) {
     coach.dataset.key = key; coach.textContent = '';
     coach.classList.toggle('show', active.length > 0 || inTour);
-    if (inTour && S.tour.name === 'key') {
+    if (inTour && S.tour.name === 'key' && stop.f == null) {
       const it = el('div', 'item'), k = el('div', 'k', 'Schlüsselmoment'); k.style.color = '#c9bcff';
-      it.append(k, el('div', 'tt', stop.title));
-      if (stop.f == null) it.appendChild(el('div', 'tip', stop.text)); // sonst steht der Befund direkt darunter
+      it.append(k, el('div', 'tt', stop.title), el('div', 'tip', stop.text));
       coach.appendChild(it);
     }
     if (active.length) active.forEach(id => {
-      const f = F[id], it = el('div', 'item'), k = el('div', 'k', isErr(f) ? 'Coach' : 'Stark');
-      k.style.color = SEV[f.sev];
-      const tt = el('div', 'tt', f.title.replace(/^Tod: /, '') + (f.who ? ' · ' + f.who : ''));
-      const ev = f.evidence || {};
-      if (ev.cost_pct != null && ev.cost_pct > 0) tt.appendChild(el('span', 'chip', '-' + ev.cost_pct + ' % Rundenchance'));
-      it.append(k, tt);
-      if (ev.entscheidung) it.appendChild(el('div', 'lage', (ev.situation ? ev.situation + ' · ' : '') + ev.entscheidung));
-      if (f.rule === 'death_review') it.appendChild(el('div', 'what', f.text));
-      if (ev.pro_tip) { const pt = el('div', 'protip'); pt.append(el('b', null, 'Pro-Entscheidung: '), ev.pro_tip); it.appendChild(pt); }
-      const tp = el('div', 'tip'); tp.append(el('b', null, isErr(f) ? 'Besser: ' : ''), f.tip); it.appendChild(tp);
+      const f = F[id], ev = f.evidence || {}, cv = ev.coach;
+      const it = el('div', 'item' + (cv ? ' cv' : ''));
+      // Kopfzeile: Spieler, Lage, Kosten
+      const meta = el('div', 'cmeta');
+      meta.append(el('span', 'k', isErr(f) ? (f.who || 'Coach') : 'Stark · ' + (f.who || '')));
+      if (ev.situation) meta.appendChild(el('span', 'sit', ev.situation));
+      if (ev.cost_pct != null && ev.cost_pct > 0) meta.appendChild(el('span', 'chip', '-' + ev.cost_pct + ' %'));
+      meta.querySelector('.k').style.color = SEV[f.sev];
+      it.appendChild(meta);
+      if (cv) {
+        it.appendChild(el('div', 'lesson-h', cv.lesson));
+        it.appendChild(el('div', 'happened', cv.happened));
+        const nx = el('div', 'nextbox'); nx.append(el('b', null, 'Nächstes Mal'), cv.next); it.appendChild(nx);
+        if (cv.pro) it.appendChild(el('div', 'proline', cv.pro));
+      } else {
+        it.appendChild(el('div', 'tt', f.title.replace(/^Tod: /, '')));
+        if (f.rule === 'death_review') it.appendChild(el('div', 'what', f.text));
+        const tp = el('div', 'tip'); tp.append(el('b', null, isErr(f) ? 'Besser: ' : ''), f.tip); it.appendChild(tp);
+      }
       const sm = showMe(f); if (sm) it.appendChild(sm);
-      const more = f.evidence && f.evidence.weitere_punkte;
-      if (more && more.length) it.appendChild(el('div', 'also', 'Außerdem: ' + more.join(' · ')));
-      if (f.rule === 'death_review') it.appendChild(dataBox(f));
+      if (f.rule === 'death_review') {
+        const d = dataBox(f);
+        const more = ev.weitere_punkte;
+        if (ev.entscheidung) d.insertBefore(el('div', 'lage', ev.entscheidung), d.children[1]);
+        if (more && more.length) d.insertBefore(el('div', 'also', 'Außerdem: ' + more.join(' · ')), d.children[1]);
+        it.appendChild(d);
+      }
       coach.appendChild(it);
     });
     if (inTour) {
@@ -1196,27 +1236,27 @@ function vorbild(f) {
 // Coach-Panel kompakt: nur das, was man ansehen kann (Pro-Szene, Siegrunde), plus Vorbild wenn es einen anderen Ort nennt
 function showMe(f) {
   const box = el('div', 'showme'), ev = f.evidence || {};
-  if (ev.vorbild && !/Position passt/.test(ev.vorbild)) box.appendChild(el('div', 'vtxt', ev.vorbild));
+  if (ev.vorbild && !ev.coach && !/Position passt/.test(ev.vorbild)) box.appendChild(el('div', 'vtxt', ev.vorbild));
   const btns = el('div', 'btns');
   if (f.ov && f.ov.pro_clip != null && D.rounds[f.ov.pro_clip]) {
-    const b = el('button', 'sbtn pro', '▶ So hat es ein Pro gelöst'); b.title = ev.pro_clip || ''; b.onclick = () => openPro(f);
+    const b = el('button', 'sbtn pro', '▶ Pro-Lösung'); b.title = ev.pro_clip || ''; b.onclick = () => openPro(f);
     btns.appendChild(b);
   }
   if (f.ov && f.ov.ghost_round != null) {
     const ri = D.rounds.findIndex(r => r.n === f.ov.ghost_round);
     if (ri >= 0) {
-      const b = el('button', 'sbtn win', '▶ Eure Siegrunde ' + f.ov.ghost_round);
+      const b = el('button', 'sbtn win', '▶ So habt ihr gewonnen (R' + f.ov.ghost_round + ')');
       b.onclick = () => { S.tour = null; selectRound(ri); seek(D.rounds[ri].t0 + f.ov.ghost_offset_s * TR); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
       btns.appendChild(b);
     }
   }
   if (btns.children.length) box.appendChild(btns);
-  if (ev.pro_clip && f.ov && f.ov.pro_clip != null) box.appendChild(el('div', 'pdesc', ev.pro_clip));
+  if (ev.pro_clip && f.ov && f.ov.pro_clip != null && !ev.coach) box.appendChild(el('div', 'pdesc', ev.pro_clip));
   return box.children.length ? box : null;
 }
 // Daten (eingeklappt): Lage-Stichpunkte und Pro-Statistiken
 function dataBox(f) {
-  const d = el('details', 'data'); d.appendChild(el('summary', null, 'Daten'));
+  const d = el('details', 'data'); d.appendChild(el('summary', null, 'Details zur Szene'));
   d.appendChild(lageList(f));
   const ev = f.evidence || {};
   const pros = ['pro_lage', 'pro_util', 'pro_lineup', 'pro_trade', 'pro'].map(k => ev[k]).filter(Boolean);

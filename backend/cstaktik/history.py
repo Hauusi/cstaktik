@@ -53,6 +53,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "map": match.map_name,
         "rounds": len(match.rounds),
         "states": round_states(match),
+        "lessons": lessons(result),
         "won": won,
         "lost": lost,
         "players": {
@@ -81,6 +82,17 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "floor": [[i, j, c] for (i, j), c in floor.items()],
         "timeline": timeline(match),  # Ortsname je 5 s Rundenzeit (Vorbild aus Siegrunden)
     }
+
+
+def lessons(result: AnalysisResult) -> dict[str, dict[str, int]]:
+    """Je Fokus-Spieler: Anzahl je Coach-Lektion (coach_voice) in diesem Match."""
+    out: dict[str, dict[str, int]] = {}
+    for f in result.findings:
+        v = f.evidence.get("coach")
+        if v and f.steamid:
+            d = out.setdefault(f.steamid, {})
+            d[v["id"]] = d.get(v["id"], 0) + 1
+    return out
 
 
 def save(summary: dict, history_dir: Path) -> Path:

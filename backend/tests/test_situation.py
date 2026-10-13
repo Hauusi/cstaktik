@@ -167,3 +167,24 @@ def test_no_best_action_with_single_option():
     dec = [["ct", 4, 5, 0, "gehalten", True, 1, 0, "p"] for _ in range(10)]
     cmp = compare([{"id": "a", "map": "m", "decisions": dec}], "m", "ct", 4, 5, False)
     assert cmp["n"] == 10 and cmp["best"] is None
+
+
+def test_coach_voice_scene_and_focus():
+    from cstaktik import coach_voice
+    from cstaktik.config import load_rules_config
+    from cstaktik.rules import death_review
+
+    m = _match(moving_at_death=True)
+    m.kills[-1].attacker_name = "Gegner1"
+    cfg = load_rules_config()["rules"]["death_review"]
+    fs = death_review.run(m, {**cfg, "mech": load_rules_config()["mechanics"]})
+    f = fs[-1]
+    enrich(m, [f], None, CFG)
+    coach_voice.apply([f])
+    v = f.evidence["coach"]
+    assert v["id"] in coach_voice.LESSONS and v["lesson"] == coach_voice.LESSONS[v["id"]][0]
+    assert v["happened"].startswith("Bei 0:14 gehst du in SynthA los: 4 gegen 5, nur 20 HP, Bruder 2000 Units weg.")
+    assert "Gegner1 aus SynthPalace" in v["happened"]
+    foc = coach_voice.focus([f, f])
+    assert foc[0]["count"] == 2 and foc[0]["lesson"] == v["lesson"]
+    assert coach_voice.headline(foc).startswith("Was euch heute Runden gekostet hat: ")

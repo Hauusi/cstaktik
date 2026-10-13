@@ -1,0 +1,215 @@
+"""Coach-Stimme: macht aus den Fakten einer Tod-Analyse eine Ansage wie von einem Coach.
+
+Aufbau je Szene (``f.evidence["coach"]``):
+- ``lesson``: Lektion als kurze Ansage ("Ecke vorzielen statt reinlaufen"), immer dieselbe je Fehlerart,
+  damit Wiederholungen über Matches zählbar sind (``id``).
+- ``happened``: 1–3 kurze Sätze in Du-Form, was passiert ist, mit echten Namen, Orten, Zeiten.
+- ``next``: eine konkrete Ansage fürs nächste Mal, mit den Orten/Utility dieser Szene.
+- ``pro``: kurze Zeile, was Pros in derselben Lage tun (nur wenn Daten da sind).
+
+Nur Fakten aus ``evidence["f"]`` (death_review) und ``situation.enrich``. Fehlt ein Fakt, fällt der
+Halbsatz weg. Die Lektions-Texte und Übungen sind allgemeines CS-Wissen, als Ratschlag formuliert.
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+
+from cstaktik.model import Finding
+
+# id -> (Lektion, warum das kostet, Übung fürs nächste Match)
+LESSONS = {
+    "no_shot_close": ("Ecke vorzielen statt reinlaufen",
+                      "Du stirbst, bevor du schießt: Der Gegner hatte den Winkel schon, dein Fadenkreuz nicht.",
+                      "Bekannte Gegner-Spots einzeln clearen, Fadenkreuz vorher auf Kopfhöhe."),
+    "no_shot_far": ("Lange Linien nicht offen kreuzen",
+                    "Über eine lange, offene Linie gehst du ohne Deckung, der Gegner wartet nur darauf.",
+                    "Lange Linien mit Smoke zumachen oder einen anderen Weg nehmen."),
+    "blind": ("Bei Flash sofort wegdrehen",
+              "Geblendet im Winkel stehen ist ein geschenkter Kill.",
+              "Beim Flash-Geräusch wegdrehen und einen Schritt hinter Deckung, erst dann wieder peeken."),
+    "alone": ("Nicht ohne Trade-Partner peeken",
+              "Stirbst du allein, kann dich niemand traden: Die Runde ist ein Spieler weniger, ohne Gegenleistung.",
+              "Vor dem Peek callen und warten, bis dein Mitspieler nah genug ist (unter 800 Units)."),
+    "utility": ("Erst Utility, dann Duell",
+                "Mit Granaten in der Tasche zu sterben heißt: Das Duell war fairer als nötig.",
+                "Vor jedem geplanten Duell eine Flash oder Molotov werfen."),
+    "low_hp": ("Mit wenig HP kein neues Duell",
+               "Mit wenig HP verlierst du fast jedes Duell, auch gegen schwächere Waffen.",
+               "Unter 50 HP: zurückfallen, Info callen, auf den Trade deiner Mitspieler spielen."),
+    "moving_shot": ("Erst stoppen, dann schießen",
+                    "Schüsse aus der Bewegung streuen, der Gegner steht und trifft.",
+                    "Deathmatch: nur schießen, wenn du stehst (Counter-Strafe)."),
+    "moving": ("Nicht laufend in den Winkel",
+               "Wer in den Winkel läuft, ist für den Haltenden ein leichtes Ziel.",
+               "Vor dem Winkel stoppen, kurz peeken, erst dann rein."),
+    "outnumbered": ("In Unterzahl zusammenbleiben",
+                    "In Unterzahl gewinnt man selten Einzelduelle, nur gemeinsame.",
+                    "In Unterzahl mit dem nächsten Mitspieler zusammen spielen oder auf Zeit spielen."),
+    "duel": ("Duell verloren, Lage war okay",
+             "Hier war die Lage nicht das Problem, das Duell selbst ging verloren.",
+             "Aim und Peek-Timing im Deathmatch trainieren."),
+}
+LABEL_TO_LESSON = {"Geblendet": "blind", "Allein, kein Trade": "alone", "Utility nicht genutzt": "utility",
+                   "Wenig HP": "low_hp", "Im Laufen geschossen": "moving_shot", "Im Laufen": "moving",
+                   "Unterzahl": "outnumbered", "Duell verloren": "duel"}
+ACTION_SHORT = {"gehalten": "halten", "zurückgezogen": "zurückziehen", "Richtung Gegner": "Richtung Gegner gehen"}
+
+
+def _clock(s: float | None) -> str | None:
+    if s is None:
+        return None
+    s = max(0, int(s))
+    return f"{s // 60}:{s % 60:02d}"
+
+
+def lesson_id(fx: dict, close_units: int = 600) -> str:
+    label = fx.get("label")
+    if label == "Ohne Gegenwehr":
+        d = fx.get("a_dist")
+        return "no_shot_close" if d is None or d < close_units else "no_shot_far"
+    return LABEL_TO_LESSON.get(label, "duel")
+
+
+def _lage_sentence(snap: dict | None) -> str | None:
+    if not snap:
+        return None
+    when = _clock(snap.get("secs"))
+    where = f" {snap['place']}" if snap.get("place") else ""
+    verb = f"gehst du{(' in' + where) if where else ''} los" if snap.get("kind") == "bewegt" \
+        else f"hältst du{where or ' deine Position'}"
+    bits = [f"{snap['own']} gegen {snap['enemy']}"]
+    hp = snap.get("hp")
+    if hp is not None:
+        bits.append("volle HP" if hp >= 100 else f"nur {hp} HP" if hp < 50 else f"{hp} HP")
+    if snap.get("mate") and snap.get("mate_d") is not None:
+        bits.append(f"{snap['mate']} {snap['mate_d']} Units neben dir" if snap["mate_d"] < 800
+                    else f"{snap['mate']} {snap['mate_d']} Units weg")
+    elif snap.get("own") == 1:
+        bits.append("du bist der Letzte")
+    return f"Bei {when} {verb}: " + ", ".join(bits) + "."
+
+
+def _death_sentence(fx: dict) -> str:
+    when = fx.get("when")
+    att = fx.get("attacker") or "der Gegner"
+    src = f" aus {fx['aplace']}" if fx.get("aplace") else ""
+    dist = f", {fx['a_dist']} Units entfernt" if fx.get("a_dist") is not None else ""
+    pre = f"Bei {when} " if when else ""
+    if fx.get("blind_by"):
+        return (f"{fx['blind_by']} flasht dich, {fx.get('blind_ago')} s später erwischt dich {att}{src}.")
+    if fx.get("no_shot"):
+        return f"{pre}taucht {att}{src} auf{dist}, und du kommst nicht zum Schuss."
+    dealt = fx.get("dealt")
+    tail = ("" if dealt is None else f" Du machst {dealt} Schaden, das reicht nicht." if dealt
+            else " Du triffst nicht.")
+    return f"{pre}gewinnt {att}{src} das Duell{dist}." + tail
+
+
+def _info_sentence(info: dict | None, fx: dict) -> str | None:
+    if not info:
+        return None
+    att = fx.get("attacker") or "Der Gegner"
+    if info.get("killer_seen_s") is None:
+        return f"Keiner von euch hatte {att} auf dem Radar."
+    return f"{att} war {info['killer_seen_s']} s vorher auf dem Radar zu sehen."
+
+
+def _next(lid: str, fx: dict, snap: dict | None) -> str:
+    nades = fx.get("nades") or []
+    aplace = fx.get("aplace")
+    if lid == "no_shot_close":
+        util = [n for n in ("Flash", "Molotov") if n in nades]
+        return (f"{aplace or 'Den Spot'} vorher anvisieren, Fadenkreuz auf Kopfhöhe"
+                + (f", oder mit deiner {util[0]} prüfen" if util else "") + ".")
+    if lid == "no_shot_far":
+        return (f"Die Linie aus {aplace or 'dieser Richtung'} mit Smoke zumachen"
+                + (" (du hattest eine dabei)" if "Smoke" in nades else "") + " oder einen anderen Weg nehmen.")
+    if lid == "blind":
+        return "Flash hören, sofort wegdrehen, einen Schritt zurück. Erst danach wieder peeken."
+    if lid == "alone":
+        mate = fx.get("mate")
+        return (f"Erst callen und warten, bis {mate} bei dir ist, dann zusammen peeken." if mate
+                else "Erst callen und auf einen Mitspieler warten, dann zusammen peeken.")
+    if lid == "utility":
+        pick = next((n for n in ("Flash", "Molotov", "Smoke", "HE") if n in nades), None)
+        return (f"Vor dem Duell deine {pick} werfen" + (f" auf {aplace}" if aplace and pick != "Smoke" else "")
+                + "." if pick else "Vor dem Duell Utility werfen.")
+    if lid == "low_hp":
+        return f"Mit {fx.get('hp')} HP nicht nachpeeken: zurückfallen, Info callen, auf den Trade spielen."
+    if lid == "moving_shot":
+        return "Vor dem Schuss stoppen (Counter-Strafe), dann schießen."
+    if lid == "moving":
+        return "Vor dem Winkel stoppen, kurz peeken, erst dann rein."
+    if lid == "outnumbered":
+        own, enemy = fx.get("own"), fx.get("enemy")
+        return f"{own} gegen {enemy}: mit dem nächsten Mitspieler zusammen gehen oder auf Zeit spielen."
+    return LESSONS["duel"][2]
+
+
+def _pro_line(ev: dict) -> str | None:
+    best, mine, rates = ev.get("pro_best"), ev.get("aktion"), ev.get("pro_rates") or {}
+    if not best or best not in rates:
+        return None
+    won, n = rates[best]
+    line = f"Pros in dieser Lage: meist {ACTION_SHORT[best]} ({round(100 * won / n)} % Siege)."
+    if mine and mine != best and mine in rates:
+        w2, n2 = rates[mine]
+        line += f" {ACTION_SHORT[mine].capitalize()} wie du: {round(100 * w2 / n2)} %."
+    return line
+
+
+def voice(f: Finding, close_units: int = 600) -> dict | None:
+    fx = f.evidence.get("f")
+    if f.rule_id != "death_review" or not fx:
+        return None
+    lid = lesson_id(fx, close_units)
+    happened = [s for s in (_lage_sentence(f.evidence.get("snap")), _death_sentence(fx),
+                            _info_sentence(f.evidence.get("info_raw"), fx)) if s]
+    if fx.get("traded"):
+        happened.append("Immerhin wurdest du getradet.")
+    return {"id": lid, "lesson": LESSONS[lid][0], "happened": " ".join(happened),
+            "next": _next(lid, fx, f.evidence.get("snap")), "pro": _pro_line(f.evidence)}
+
+
+def apply(findings: list[Finding], close_units: int = 600) -> None:
+    for f in findings:
+        v = voice(f, close_units)
+        if v:
+            f.evidence["coach"] = v
+
+
+def focus(findings: list[Finding], n: int = 3) -> list[dict]:
+    """Die Lektionen des Matches: gleiche Lektion zusammengefasst, sortiert nach verlorener Rundenchance
+    (falls vorhanden), dann Häufigkeit. Jede mit allen Szenen (Runde, Tick, Finding-Index)."""
+    groups: dict[str, dict] = defaultdict(lambda: {"count": 0, "cost": 0, "has_cost": False, "scenes": [],
+                                                   "players": set()})
+    for i, f in enumerate(findings):
+        v = f.evidence.get("coach")
+        if not v or v["id"] == "duel":
+            continue
+        g = groups[v["id"]]
+        g["count"] += 1
+        c = f.evidence.get("cost_pct")
+        if c is not None:
+            g["cost"] += max(0, c)
+            g["has_cost"] = True
+        g["players"].add(f.player_name)
+        g["scenes"].append({"round": f.round, "tick": f.tick, "finding": i, "who": f.player_name,
+                            "cost": c, "from": (f.overlay.get("decision") or [None, None, None])[2]})
+    out = []
+    for lid, g in groups.items():
+        title, why, drill = LESSONS[lid]
+        out.append({"id": lid, "lesson": title, "why": why, "drill": drill, "count": g["count"],
+                    "cost": g["cost"] if g["has_cost"] else None, "players": sorted(p for p in g["players"] if p),
+                    "scenes": sorted(g["scenes"], key=lambda s: -(s["cost"] or 0))})
+    out.sort(key=lambda x: (-(x["cost"] or 0), -x["count"]))
+    return out[:n]
+
+
+def headline(lessons: list[dict]) -> str | None:
+    """Ein Satz wie vom Coach nach dem Match."""
+    if not lessons:
+        return None
+    items = [f"{l['lesson']} ({l['count']}x)" for l in lessons[:2]]
+    return "Was euch heute Runden gekostet hat: " + " und ".join(items) + "."
