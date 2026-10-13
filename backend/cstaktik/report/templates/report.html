@@ -369,6 +369,9 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .nextfocus .sh { margin-bottom: 4px; }
 #proslot .sbtn { margin-top: 10px; }
 @media (min-width: 700px) { .cmp { grid-template-columns: 1fr 1fr; } }
+.auftraege .auftrag { margin-top: 10px; }
+.auftrag .who, .nf .who { font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.nf + .nf { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 {% include 'hud.css' %}
 </style>
 </head>
@@ -380,19 +383,25 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <span class="restag {{ 'win' if score.won > score.lost else 'loss' if score.lost > score.won else '' }}">{{ "Sieg" if score.won > score.lost else "Niederlage" if score.lost > score.won else "Unentschieden" }}</span>
   </div></header>
 <main>
-  {% if focus and focus.check %}{% set c = focus.check %}
-  <section class="auftrag {{ 'ok' if c.met else 'no' }}">
-    <div class="sh"><span class="t cond">Dein Auftrag</span></div>
-    <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Nicht geschafft" }}</div></div>
-    <div class="ameter num">
-      <div><b class="cond">{{ c.count }}x</b><span>heute</span></div>
-      <div><b class="cond">{{ c.rate|string|replace(".", ",") }}</b><span>pro 10 Runden</span></div>
-      <div><b class="cond">≤ {{ c.target|string|replace(".", ",") }}</b><span>Ziel</span></div>
-      <div><b class="cond">{{ c.streak }}/{{ c.need }}</b><span>in Folge</span></div>
+  {% set checks = auftraege|selectattr("check")|list %}
+  {% if checks %}
+  <section class="auftraege">
+    <div class="sh"><span class="t cond">Auftrag-Check</span></div>
+    {% for a in checks %}{% set c = a.check %}
+    <div class="auftrag {{ 'ok' if c.met else 'no' }}">
+      <div class="who cond">{{ a.name }}</div>
+      <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Nicht geschafft" }}</div></div>
+      <div class="ameter num">
+        <div><b class="cond">{{ c.count }}x</b><span>heute</span></div>
+        <div><b class="cond">{{ c.rate|string|replace(".", ",") }}</b><span>pro 10 Runden</span></div>
+        <div><b class="cond">≤ {{ c.target|string|replace(".", ",") }}</b><span>Ziel</span></div>
+        <div><b class="cond">{{ c.streak }}/{{ c.need }}</b><span>in Folge</span></div>
+      </div>
+      {% if a.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel. Das sitzt.</div>
+      {% elif c.met %}<div class="anote">Gut umgesetzt. Noch {{ c.need - c.streak }} Match in Folge, dann ist es gemeistert.</div>
+      {% else %}<div class="anote">Noch nicht umgesetzt. Der Auftrag bleibt, bis er {{ c.need }} Matches in Folge sitzt.</div>{% endif %}
     </div>
-    {% if focus.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel. Das sitzt.</div>
-    {% elif c.met %}<div class="anote">Gut umgesetzt. Noch {{ c.need - c.streak }} Match in Folge, dann ist es gemeistert.</div>
-    {% else %}<div class="anote">Noch nicht umgesetzt. Der Auftrag bleibt, bis er {{ c.need }} Matches in Folge sitzt.</div>{% endif %}
+    {% endfor %}
   </section>
   {% endif %}
 
@@ -427,7 +436,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     </div>
     <div id="proslot" data-lesson="{{ l.id }}"></div>
 
-    {% if memory and not (focus and focus.check) %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
+    {% if memory and not checks %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
     <div class="hw routine">
       <div class="k cond">Training vor dem nächsten Match · {{ t.routine.minutes }} Min</div>
       <div class="rt cond">{{ t.routine.title }}</div>
@@ -446,17 +455,21 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   {% endif %}
   {% elif memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
 
-  {% if focus and focus.focus %}{% set nf = focus.focus %}
+  {% set nexts = auftraege|selectattr("focus")|list %}
+  {% if nexts %}
   <section class="nextfocus">
-    <div class="sh"><span class="t cond">{{ "Neuer Auftrag ab jetzt" if focus.new else "Dein Auftrag bleibt" }}</span></div>
-    <div class="atitle cond">{{ nf.title }}</div>
-    <div class="anote">Ziel: höchstens {{ nf.target|string|replace(".", ",") }}x pro 10 Runden ({% if focus.new %}heute {{ nf.baseline|string|replace(".", ",") }}{% else %}Start {{ nf.baseline|string|replace(".", ",") }}{% if focus.check %}, zuletzt {{ focus.check.rate|string|replace(".", ",") }}{% endif %}{% endif %}), {{ nf.need }} Matches in Folge. Merksatz: <b>„{{ teach[nf.lesson].mantra }}“</b></div>
+    <div class="sh"><span class="t cond">Eure Aufträge ab jetzt</span></div>
+    {% for a in nexts %}{% set nf = a.focus %}
+    <div class="nf">
+      <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
+      <div class="atitle cond">{{ nf.title }}</div>
+      <div class="anote">Ziel: höchstens {{ nf.target|string|replace(".", ",") }}x pro 10 Runden ({% if a.new %}heute {{ nf.baseline|string|replace(".", ",") }}{% else %}Start {{ nf.baseline|string|replace(".", ",") }}{% if a.check %}, zuletzt {{ a.check.rate|string|replace(".", ",") }}{% endif %}{% endif %}), {{ nf.need }} Matches in Folge. Merksatz: <b>„{{ teach[nf.lesson].mantra }}“</b></div>
+    </div>
+    {% endfor %}
   </section>
   {% endif %}
 
-  {% if praise %}<section class="praise"><b class="cond">Gut</b>{% for p in praise %}<div>{{ p }}</div>{% endfor %}</section>{% endif %}
-
-  {% if goal_check and goal_check.checks and not (focus and focus.focus) %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
+  {% if goal_check and goal_check.checks and not nexts %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
 
   <div class="ctas">
     <button class="tour" id="tourBtn" hidden>▶ Debrief starten <small id="tourN"></small></button>

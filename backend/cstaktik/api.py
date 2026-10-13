@@ -137,38 +137,49 @@ def _all_scenes(hist: list[dict]) -> list[dict]:
     return out
 
 
-def _auftrag(hist: list[dict]) -> dict | None:
-    """Laufender Auftrag für die Startseite: Lektion, Merksatz, Übung, Verlauf der Checks, Übungen erledigt."""
+def _players_state() -> dict:
     from cstaktik import coaching
+
+    return coaching.load(pipeline.COACHING_FILE).get("players", {})
+
+
+def _auftrag(hist: list[dict]) -> list[dict]:
+    """Laufende Aufträge je Spieler für die Startseite: Lektion, Merksatz, Übung, Checks, erledigte Übungen."""
+    from cstaktik import coaching
+    from cstaktik.coach_voice import LESSONS
     from cstaktik.curriculum import TEACH
 
-    state = coaching.load(pipeline.COACHING_FILE)
-    f = state.get("focus")
-    if not f:
-        return None
-    from cstaktik.coach_voice import LESSONS
-
-    t = TEACH[f["lesson"]]
-    n_scenes = sum(1 for sc in _all_scenes(hist) if sc["lesson"] == f["lesson"])
-    return {"lesson": f["lesson"], "title": LESSONS[f["lesson"]][0], "target": f["target"], "baseline": f["baseline"],
-            "matches": f.get("matches", []), "mantra": t["mantra"], "routine": t["routine"], "in_game": t["in_game"],
-            "drills": coaching.drills_since(state, f.get("created_at")), "scenes": n_scenes,
-            "mastered": len(state.get("done", []))}
+    names = {sid: p["name"] for h in hist for sid, p in h.get("players", {}).items()}
+    scenes = _all_scenes(hist)
+    out = []
+    for sid, slot in sorted(_players_state().items(), key=lambda kv: names.get(kv[0], kv[0])):
+        f = slot.get("focus")
+        if not f:
+            continue
+        t = TEACH[f["lesson"]]
+        out.append({"sid": sid, "name": names.get(sid, sid), "lesson": f["lesson"], "title": LESSONS[f["lesson"]][0],
+                    "target": f["target"], "baseline": f["baseline"], "matches": f.get("matches", []),
+                    "mantra": t["mantra"], "routine": t["routine"], "in_game": t["in_game"],
+                    "drills": coaching.drills_since(slot, f.get("created_at")),
+                    "scenes": sum(1 for sc in scenes if sc["lesson"] == f["lesson"] and sc.get("sid") in (sid, None)),
+                    "mastered": len(slot.get("done", []))})
+    return out
 
 
 @app.post("/training/done")
-def training_done() -> RedirectResponse:
+def training_done(p: str = "") -> RedirectResponse:
     from cstaktik import coaching
 
     state = coaching.load(pipeline.COACHING_FILE)
-    if state.get("focus"):
-        coaching.drill_done(state, state["focus"]["lesson"])
+    slot = state.get("players", {}).get(p)
+    if slot and slot.get("focus"):
+        coaching.drill_done(slot, slot["focus"]["lesson"])
         coaching.save(state, pipeline.COACHING_FILE)
     return RedirectResponse("/", status_code=303)
 
 
 @app.get("/training", response_class=HTMLResponse)
-def training_page() -> str:
+def training_page(p: str = "") -> str:
     """Entscheidungs-Training mit eigenen Situationen aus allen Matches, zuerst zum laufenden Auftrag."""
     import json as _json
 
@@ -176,8 +187,10 @@ def training_page() -> str:
     from cstaktik.coach_voice import LESSONS
 
     hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
-    f = coaching.load(pipeline.COACHING_FILE).get("focus")
-    scenes = _all_scenes(hist)
+    players = _players_state()
+    sid = p if p in players else next((s for s, v in players.items() if v.get("focus")), None)
+    f = (players.get(sid) or {}).get("focus")
+    scenes = [sc for sc in _all_scenes(hist) if sid is None or sc.get("sid") in (sid, None)]
     lesson = f["lesson"] if f else None
     pick = [sc for sc in scenes if sc["lesson"] == lesson] if lesson else []
     if len(pick) < 6:  # auffüllen mit den teuersten anderen Szenen
@@ -186,8 +199,10 @@ def training_page() -> str:
     pick = pick[:12]
     data = _json.dumps([{**sc, "lesson_title": LESSONS.get(sc["lesson"], ("?",))[0]} for sc in pick],
                        ensure_ascii=False).replace("</", "<\\/")
+    names = {s: pp["name"] for h in hist for s, pp in h.get("players", {}).items()}
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
     return _env.get_template("training.html").render(title=LESSONS[lesson][0] if lesson else None, n=len(pick),
-                                                     data_json=data)
+                                                     data_json=data, tabs=tabs, who=names.get(sid))
 
 
 def _baustellen(hist: list[dict]) -> list[dict]:

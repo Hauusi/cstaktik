@@ -30,7 +30,7 @@ def load(path: Path) -> dict:
             return json.loads(path.read_text())
         except (OSError, ValueError):
             pass
-    return {"focus": None, "done": [], "drills": []}
+    return {"players": {}}
 
 
 def save(state: dict, path: Path) -> None:
@@ -38,16 +38,22 @@ def save(state: dict, path: Path) -> None:
     path.write_text(json.dumps(state, ensure_ascii=False, indent=1))
 
 
-def _rate(summary: dict, lid: str) -> tuple[float, int] | None:
+def _rate(summary: dict, lid: str, sid: str | None = None) -> tuple[float, int] | None:
+    """Rate pro 10 Runden: für einen Spieler (sid) oder alle Fokus-Spieler zusammen."""
     rounds = summary.get("rounds") or 0
     if not rounds or "lessons" not in summary:
         return None
-    n = sum(d.get(lid, 0) for d in summary["lessons"].values())
+    if sid is not None:
+        if sid not in summary.get("players", {}) and sid not in summary["lessons"]:
+            return None  # Spieler war in diesem Match nicht dabei
+        n = summary["lessons"].get(sid, {}).get(lid, 0)
+    else:
+        n = sum(d.get(lid, 0) for d in summary["lessons"].values())
     return round(10 * n / rounds, 1), n
 
 
 def update(state: dict, summary: dict, top_lessons: list[str], target_factor: float = 0.6,
-           done_after: int = 2) -> dict:
+           done_after: int = 2, sid: str | None = None) -> dict:
     """Prüft den laufenden Auftrag gegen dieses Match und setzt bei Bedarf einen neuen.
 
     ``top_lessons``: Lektionen dieses Matches, wichtigste zuerst (coach_voice.focus).
@@ -59,7 +65,7 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
     out = {"check": None, "focus": None, "new": False, "mastered": None}
     f = state.get("focus")
     if f and f.get("created_from") != mid:
-        r = _rate(summary, f["lesson"])
+        r = _rate(summary, f["lesson"], sid)
         if r is not None:
             rate, n = r
             entry = {"match": mid, "date": summary.get("analyzed_at"), "map": summary.get("map"), "rate": rate,
@@ -84,7 +90,7 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
         for lid in top_lessons:
             if lid in recent_done or lid == "duel":
                 continue
-            r = _rate(summary, lid)
+            r = _rate(summary, lid, sid)
             if not r or not r[1]:
                 continue
             state["focus"] = {"lesson": lid, "baseline": r[0], "target": round(max(0.3, r[0] * target_factor), 1),
@@ -99,13 +105,33 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
     return out
 
 
-def drill_done(state: dict, lesson: str, when: str | None = None) -> None:
-    state.setdefault("drills", []).append({"lesson": lesson, "date": when or datetime.now().isoformat(timespec="minutes")})
+def update_all(state: dict, summary: dict, tops: dict[str, list[str]], target_factor: float = 0.6,
+               done_after: int = 2) -> dict[str, dict]:
+    """Eigener Auftrag je Fokus-Spieler. ``tops``: steamid -> Lektionen dieses Spielers, wichtigste zuerst.
+    Alter gemeinsamer Auftrag (Version davor) wird beim ersten Mal für jeden Spieler übernommen."""
+    players = state.setdefault("players", {})
+    legacy = state.get("focus")
+    out = {}
+    for sid in sorted(set(tops) | set(summary.get("players", {}))):
+        if sid not in players:
+            players[sid] = {"focus": json.loads(json.dumps(legacy)) if legacy else None,
+                            "done": list(state.get("done", [])), "drills": []}
+        res = update(players[sid], summary, tops.get(sid, []), target_factor, done_after, sid=sid)
+        res["name"] = (summary.get("players", {}).get(sid) or {}).get("name", sid)
+        out[sid] = res
+    if legacy is not None:
+        state.pop("focus", None)
+        state.pop("done", None)
+    return out
 
 
-def drills_since(state: dict, since: str | None) -> int:
-    f = state.get("focus")
-    return sum(1 for d in state.get("drills", []) if f and d["lesson"] == f["lesson"] and (not since or d["date"] >= since))
+def drill_done(slot: dict, lesson: str, when: str | None = None) -> None:
+    slot.setdefault("drills", []).append({"lesson": lesson, "date": when or datetime.now().isoformat(timespec="minutes")})
+
+
+def drills_since(slot: dict, since: str | None) -> int:
+    f = slot.get("focus")
+    return sum(1 for d in slot.get("drills", []) if f and d["lesson"] == f["lesson"] and (not since or d["date"] >= since))
 
 
 # ---------------------------------------------------------------- "So geht's richtig" aus dem Match

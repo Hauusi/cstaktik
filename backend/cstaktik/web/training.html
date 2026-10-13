@@ -18,13 +18,17 @@
 .res .nx { margin-top: 8px; padding: 10px 12px; background: rgba(70,167,88,.1); border-left: 3px solid var(--win); }
 .res .nx b { display: block; font-family: var(--cond); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--win); }
 .res a { display: inline-block; margin-top: 10px; font-family: var(--cond); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--orange); }
+.ptabs { display: flex; gap: 6px; margin: 12px 0 8px; }
+.ptabs a { padding: 6px 12px; border: 1px solid var(--line); font-family: var(--cond); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.ptabs a.on { background: var(--orange); color: #111; border-color: var(--orange); }
 .score { margin-top: 16px; font-family: var(--cond); font-weight: 800; font-size: 20px; text-transform: uppercase; }
 </style>
 {% endblock %}
 {% block hero %}
 <a class="back" href="/">‹ Startseite</a>
 <h1>Training</h1>
-<p>{% if title %}Dein Auftrag: <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Entscheide, bevor du siehst, was passiert ist.</p>
+{% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<p>{% if title %}{{ who or "Dein" }}{{ "s" if who and not who.endswith("s") }} Auftrag: <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Entscheide, bevor du siehst, was passiert ist.</p>
 {% endblock %}
 {% block content %}
 <div id="list"></div>

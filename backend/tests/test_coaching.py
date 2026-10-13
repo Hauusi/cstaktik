@@ -49,19 +49,31 @@ def test_training_pages_and_drill_done():
 
     from cstaktik import api, history, pipeline
 
-    coaching.save({"focus": {"lesson": "alone", "target": 1.0, "baseline": 2.0, "created_at": "2026-10-01T10:00",
-                             "matches": [], "status": "aktiv"}, "done": [], "drills": []}, pipeline.COACHING_FILE)
+    coaching.save({"players": {"s1": {"focus": {"lesson": "alone", "target": 1.0, "baseline": 2.0,
+                                                "created_at": "2026-10-01T10:00", "matches": [], "status": "aktiv"},
+                                      "done": [], "drills": []}}}, pipeline.COACHING_FILE)
     sc = {"lesson": "alone", "who": "Ich", "round": 3, "tick": 500, "from": 400, "report": "x.html", "map": "de_mirage",
           "snap": {"own": 4, "enemy": 5, "planted": False, "hp": 100, "mate_d": 1300, "mate": "Bruder", "secs": 20,
                    "place": "Mid", "kind": "bewegt"}, "aktion": "Richtung Gegner", "pro_rates": None,
           "pro_best": None, "cost": 12, "happened": "h", "next": "n"}
+    sc["sid"] = "s1"
     history.save({"id": "a1", "map": "de_mirage", "rounds": 20, "analyzed_at": "2026-10-02T10:00",
-                  "players": {}, "scenes": [sc, sc]}, pipeline.HISTORY_DIR)
+                  "players": {"s1": {"name": "Ich"}}, "scenes": [sc, sc]}, pipeline.HISTORY_DIR)
     c = TestClient(api.app)
     home = c.get("/").text
-    assert "Dein Auftrag" in home and "Nie allein in ein Duell" in home and "1 eigene Situationen" in home
+    assert "Eure Aufträge" in home and "Nie allein in ein Duell" in home and "1 eigene Situationen" in home
     t = c.get("/training").text
     assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situationen" in t
-    assert c.post("/training/done", follow_redirects=False).status_code == 303
-    assert len(coaching.load(pipeline.COACHING_FILE)["drills"]) == 1
+    assert c.post("/training/done?p=s1", follow_redirects=False).status_code == 303
+    assert len(coaching.load(pipeline.COACHING_FILE)["players"]["s1"]["drills"]) == 1
     assert "(1x bisher)" in c.get("/").text
+
+
+def test_update_all_per_player_and_legacy_migration():
+    st = {"focus": {"lesson": "alone", "target": 1.0, "baseline": 2.0, "created_from": "0", "matches": [],
+                    "status": "aktiv"}, "done": [], "drills": []}
+    summ = {"id": "1", "rounds": 20, "analyzed_at": "2026-10-05", "players": {"a": {"name": "A"}, "b": {"name": "B"}},
+            "lessons": {"a": {"alone": 0, "utility": 4}, "b": {"alone": 5}}}
+    res = coaching.update_all(st, summ, {"a": ["utility"], "b": ["alone"]})
+    assert "focus" not in st and set(st["players"]) == {"a", "b"}  # alter gemeinsamer Auftrag übernommen
+    assert res["a"]["check"]["met"] and res["b"]["check"]["met"] is False and res["a"]["name"] == "A"

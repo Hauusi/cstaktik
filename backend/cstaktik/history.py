@@ -56,6 +56,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "lessons": lessons(result),
         "main_lesson": main_lesson(result),
         "lesson_rank": lesson_rank(result),
+        "lesson_rank_by": lesson_rank_by(result),
         "scenes": scenes(result, report_file, match.map_name),
         "won": won,
         "lost": lost,
@@ -112,6 +113,14 @@ def lesson_rank(result: AnalysisResult) -> list[str]:
     return [x["id"] for x in focus(result.findings, 10)]
 
 
+def lesson_rank_by(result: AnalysisResult) -> dict[str, list[str]]:
+    """Je Fokus-Spieler: seine Lektionen, wichtigste zuerst."""
+    from cstaktik.coach_voice import focus
+
+    sids = {f.steamid for f in result.findings if f.evidence.get("coach") and f.steamid}
+    return {sid: [x["id"] for x in focus([f for f in result.findings if f.steamid == sid], 10)] for sid in sids}
+
+
 def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None) -> list[dict]:
     """Tod-Szenen mit Lagebild fürs Training über mehrere Matches (Entscheidung nachspielen)."""
     out = []
@@ -119,7 +128,7 @@ def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None
         v, ev = f.evidence.get("coach"), f.evidence
         if not v or not ev.get("snap") or not ev.get("aktion"):
             continue
-        out.append({"lesson": v["id"], "who": f.player_name, "round": f.round, "tick": f.tick,
+        out.append({"lesson": v["id"], "who": f.player_name, "sid": f.steamid, "round": f.round, "tick": f.tick,
                     "from": (f.overlay.get("decision") or [None, None, None])[2], "report": report_file,
                     "map": map_name, "snap": ev["snap"], "info": ev.get("info"), "aktion": ev["aktion"],
                     "pro_rates": ev.get("pro_rates"), "pro_best": ev.get("pro_best"), "cost": ev.get("cost_pct"),

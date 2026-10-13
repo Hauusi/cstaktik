@@ -302,6 +302,15 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     }
 
 
+def normalize_focus(fc: dict | None) -> list[dict]:
+    """Auftrags-Ergebnis je Spieler als Liste. Älteres Format (ein gemeinsamer Auftrag) wird zu einem Eintrag."""
+    if not fc:
+        return []
+    if "check" in fc or "focus" in fc and not any(isinstance(v, dict) and "check" in v for v in fc.values()):
+        return [{**fc, "name": "Ihr", "sid": None}]
+    return [{**v, "sid": sid} for sid, v in sorted(fc.items(), key=lambda kv: kv[1].get("name", ""))]
+
+
 def build_context(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
     pro_clips: list[dict] | None = None, memory: dict | None = None, focus: dict | None = None,
@@ -314,6 +323,7 @@ def build_context(
     from cstaktik import coach_voice
 
     lessons = coach_voice.focus(result.findings)
+    auftraege = normalize_focus(focus)
     won = sum(1 for r in payload["rounds"] if r["out"] == "W" and not r.get("pro"))
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
     radar_note = None if payload["img"] else build_radar(match, maps_dirs).note
@@ -333,11 +343,11 @@ def build_context(
         "font_css": __import__("cstaktik.fonts", fromlist=["font_css"]).font_css(),
         "intro": coach_voice.intro(won, lost, (match.map_name or "?").removeprefix("de_").capitalize(), lessons),
         "memory": memory,
-        "focus": focus,
+        "focus": None,
+        "auftraege": auftraege,
         "teach": TEACH,
-        "bright": {l["id"]: bright_spots(match, l["id"]) for l in lessons[:1]}
-                  | ({focus["focus"]["lesson"]: bright_spots(match, focus["focus"]["lesson"])}
-                     if focus and focus.get("focus") else {}),
+        "bright": {lid: bright_spots(match, lid)
+                   for lid in {l["id"] for l in lessons[:1]} | {a["focus"]["lesson"] for a in auftraege if a.get("focus")}},
         "praise": coach_voice.praise(result.findings),
         "goal_check": goal_check,
         "mech_cfg": load_rules_config()["mechanics"],

@@ -247,8 +247,8 @@ def run(
     from cstaktik import coaching
 
     cstate = coaching.load(COACHING_FILE)
-    summary["focus_check"] = coaching.update(cstate, summary, summary.get("lesson_rank") or [],
-                                             config["goals"]["target_factor"], config["goals"]["done_after"])
+    summary["focus_check"] = coaching.update_all(cstate, summary, summary.get("lesson_rank_by") or {},
+                                                 config["goals"]["target_factor"], config["goals"]["done_after"])
     coaching.save(cstate, COACHING_FILE)
     history.save(summary, HISTORY_DIR)
     report("Report bauen", 0.96)
@@ -277,9 +277,9 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
     from cstaktik import coaching
 
     # Ohne Auftrags-Verlauf (erstes Update) und bei allen Matches: Aufträge aus dem Verlauf neu aufbauen
-    rebuild = coaching.load(COACHING_FILE) if maps is None and not COACHING_FILE.exists() else None
-    if rebuild is not None:
-        rebuild = {"focus": None, "done": [], "drills": []}
+    # Neu aufbauen, wenn es noch keine Datei gibt oder sie im alten Format (gemeinsamer Auftrag) ist
+    old_state = coaching.load(COACHING_FILE)
+    rebuild = {"players": {}} if maps is None and (not COACHING_FILE.exists() or "players" not in old_state) else None
     done = 0
     for i, h in enumerate(todo):
         report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
@@ -293,10 +293,11 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         h["lessons"] = history.lessons(result)  # Lektionen nachrüsten (Fortschritt je Map)
         h["main_lesson"] = history.main_lesson(result)
         h["lesson_rank"] = history.lesson_rank(result)
+        h["lesson_rank_by"] = history.lesson_rank_by(result)
         h["scenes"] = history.scenes(result, h.get("report_file"), h.get("map"))
         if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
-            h["focus_check"] = coaching.update(rebuild, h, h["lesson_rank"], config["goals"]["target_factor"],
-                                               config["goals"]["done_after"])
+            h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], config["goals"]["target_factor"],
+                                                   config["goals"]["done_after"])
         history.save(h, HISTORY_DIR)
         from cstaktik import coach_voice
 
