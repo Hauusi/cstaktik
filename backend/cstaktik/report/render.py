@@ -302,6 +302,25 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     }
 
 
+def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], intro: list[str]) -> dict:
+    """Inhalt der geführten Debrief-Sitzung (Report-JS baut daraus die Schritte)."""
+    lesson = None
+    if lessons:
+        l0 = lessons[0]
+        t = TEACH[l0["id"]]
+        lesson = {"id": l0["id"], "title": l0["lesson"], "why": l0["why"], "count": l0["count"], "cost": l0["cost"],
+                  "scenes": l0["scenes"][:4], "principle": t["principle"], "mantra": t["mantra"],
+                  "routine": t["routine"], "in_game": t["in_game"], "bright": bright_spots(match, l0["id"])}
+    checks = [{"name": a["name"], **{k: a["check"][k] for k in ("title", "count", "rate", "target", "met", "streak",
+                                                                 "need")}, "mastered": bool(a.get("mastered"))}
+              for a in auftraege if a.get("check")]
+    nexts = [{"name": a["name"], "sid": a.get("sid"), "lesson": a["focus"]["lesson"], "title": a["focus"]["title"],
+              "target": a["focus"]["target"], "new": a.get("new"), "mantra": TEACH[a["focus"]["lesson"]]["mantra"],
+              "routine": TEACH[a["focus"]["lesson"]]["routine"], "in_game": TEACH[a["focus"]["lesson"]]["in_game"]}
+             for a in auftraege if a.get("focus")]
+    return {"intro": intro, "lesson": lesson, "checks": checks, "next": nexts}
+
+
 def normalize_focus(fc: dict | None) -> list[dict]:
     """Auftrags-Ergebnis je Spieler als Liste. Älteres Format (ein gemeinsamer Auftrag) wird zu einem Eintrag."""
     if not fc:
@@ -328,6 +347,8 @@ def build_context(
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
     radar_note = None if payload["img"] else build_radar(match, maps_dirs).note
     # "</" escapen, damit eingebettetes JSON das <script>-Tag nicht schließen kann
+    map_label_s = (match.map_name or "?").removeprefix("de_").capitalize()
+    payload["debrief"] = _debrief_data(match, lessons, auftraege, coach_voice.intro(won, lost, map_label_s, lessons))
     data_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     return {
         "match": match,

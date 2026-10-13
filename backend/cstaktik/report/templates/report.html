@@ -372,6 +372,43 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .auftraege .auftrag { margin-top: 10px; }
 .auftrag .who, .nf .who { font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
 .nf + .nf { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* ---- Debrief-Sitzung ---- */
+.dbf { position: fixed; inset: 0; z-index: 50; background: #0c0d0f; display: flex; flex-direction: column; }
+.dbf[hidden] { display: none; }
+.dbf-top { display: flex; align-items: center; gap: 10px; padding: 12px 16px 6px; }
+.segs { flex: 1; display: flex; gap: 4px; } .segs i { flex: 1; height: 3px; background: var(--line); }
+.segs i.on { background: var(--orange); }
+.dbf-x { font-size: 20px; color: var(--muted); padding: 4px 8px; }
+.dbf-body { flex: 1; overflow-y: auto; padding: 18px 20px 24px; max-width: 640px; width: 100%; margin: 0 auto; }
+.dbf-body .k { font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--orange); }
+.dbf-body h3 { font-family: var(--cond); font-weight: 800; font-size: 34px; line-height: 1.02; text-transform: uppercase; margin: 8px 0 12px; }
+.dbf-body p { font-size: 17px; line-height: 1.5; margin: 0 0 12px; }
+.dbf-body .say { display: flex; gap: 12px; } .dbf-body .say .av { flex: none; width: 42px; height: 42px; background: var(--orange);
+  color: #111; font: 800 22px/42px var(--cond); text-align: center; clip-path: polygon(0 0,100% 0,100% 75%,75% 100%,0 100%); }
+.dbf-body .mantra { font-family: var(--cond); font-weight: 800; font-size: 28px; color: var(--orange); text-transform: uppercase; margin-top: 14px; }
+.dbf-body .box { padding: 12px 14px; border: 1px solid var(--line); background: var(--surface); margin-top: 12px; }
+.dbf-body .box.good { border-left: 3px solid var(--win); } .dbf-body .box.bad { border-left: 3px solid var(--loss); }
+.dbf-body .box.pro { border-left: 3px solid #9db4e0; }
+.dbf-body .play { display: block; width: 100%; margin-top: 10px; padding: 12px; background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--text); font: 800 16px var(--cond); letter-spacing: .1em; text-transform: uppercase; text-align: left; }
+.dbf-body .play.big { background: var(--orange); color: #111; border-color: var(--orange); text-align: center; }
+.dbf-body .opt { display: block; width: 100%; text-align: left; margin-top: 8px; padding: 12px; background: var(--surface-2);
+  border: 1px solid var(--line); color: var(--text); font-weight: 700; font-size: 15.5px; }
+.dbf-body .opt small { display: block; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.dbf-body .opt.mine { border-color: var(--loss); } .dbf-body .opt.best { border-color: var(--win); background: rgba(70,167,88,.1); }
+.dbf-body .stamp { display: inline-block; font: 800 14px var(--cond); letter-spacing: .14em; text-transform: uppercase; padding: 3px 9px;
+  border: 2px solid currentColor; transform: rotate(-3deg); margin-top: 6px; }
+.dbf-body .ok { color: var(--win); } .dbf-body .no { color: var(--loss); }
+.dbf-body ol { padding-left: 22px; font-size: 16px; } .dbf-body li { margin: 4px 0; }
+.dbf-nav { display: flex; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line);
+  max-width: 640px; width: 100%; margin: 0 auto; }
+.dbf-back { flex: 1; height: 50px; border: 1px solid var(--line); color: var(--muted); font: 700 16px var(--cond); letter-spacing: .1em; text-transform: uppercase; }
+.dbf-next { flex: 2; height: 50px; background: var(--orange); color: #111; font: 800 17px var(--cond); letter-spacing: .12em; text-transform: uppercase; }
+.dbf-return { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 40;
+  padding: 12px 20px; background: var(--orange); color: #111; font: 800 16px var(--cond); letter-spacing: .1em; text-transform: uppercase;
+  box-shadow: 0 6px 24px rgba(0,0,0,.6); white-space: nowrap; }
+.dbf-return[hidden] { display: none; }
 {% include 'hud.css' %}
 </style>
 </head>
@@ -382,6 +419,12 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       <div class="hscore num cond"><b>{{ score.won }}</b><span>:</span><b class="l">{{ score.lost }}</b></div></div>
     <span class="restag {{ 'win' if score.won > score.lost else 'loss' if score.lost > score.won else '' }}">{{ "Sieg" if score.won > score.lost else "Niederlage" if score.lost > score.won else "Unentschieden" }}</span>
   </div></header>
+<div class="dbf" id="dbf" hidden role="dialog" aria-label="Debrief">
+  <div class="dbf-top"><div class="segs" id="dbfSegs"></div><button class="dbf-x" id="dbfX" aria-label="Schließen">✕</button></div>
+  <div class="dbf-body" id="dbfBody"></div>
+  <div class="dbf-nav"><button class="dbf-back" id="dbfBack">‹ Zurück</button><button class="dbf-next" id="dbfNext">Weiter ›</button></div>
+</div>
+<button class="dbf-return" id="dbfRet" hidden>‹ Zurück zum Debrief</button>
 <main>
   {% set checks = auftraege|selectattr("check")|list %}
   {% if checks %}
@@ -472,7 +515,8 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   {% if goal_check and goal_check.checks and not nexts %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
 
   <div class="ctas">
-    <button class="tour" id="tourBtn" hidden>▶ Debrief starten <small id="tourN"></small></button>
+    <button class="tour" id="dbfBtn" hidden>▶ Debrief mit dem Coach <small id="dbfN"></small></button>
+    <button class="linkbtn" id="tourBtn" hidden>Schlüsselmomente im Replay <span id="tourN"></span></button>
     <div class="subctas"><button class="linkbtn" id="quizBtn" hidden>Training: Was machst du? <span id="quizN"></span></button>
       <button class="linkbtn" id="allTour" hidden></button></div>
   </div>
@@ -1475,7 +1519,7 @@ document.querySelectorAll('.costgo').forEach(b => b.onclick = () => {
   S.tour = null; selectRound(ri); seek(+b.dataset.tick - TR); setPlaying(true);
   stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
-if (TOURS.key.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.key.length + ' Momente'; $('tourBtn').onclick = () => goTour('key', 0); }
+if (TOURS.key.length) { $('tourBtn').hidden = false; $('tourN').textContent = '(' + TOURS.key.length + ')'; $('tourBtn').onclick = () => goTour('key', 0); }
 else if (TOURS.all.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.all.length + ' Fehler'; $('tourBtn').onclick = () => goTour('all', 0); }
 
 // ---- Training "Was machst du?": im Entscheidungsmoment anhalten, Option wählen, dann Auflösung
@@ -1532,6 +1576,141 @@ function quizScore() { try { return JSON.parse(localStorage.getItem('cstaktik-qu
 function quizSave(sc) { try { localStorage.setItem('cstaktik-quiz-' + location.pathname, JSON.stringify(sc)); } catch (e) { /* ohne Speicher weiter */ } }
 function quizEnd() { S.quiz = null; $('quiz').hidden = true; $('coach').dataset.key = ''; draw(); }
 if (QUIZ.length) { $('quizBtn').hidden = false; $('quizN').textContent = QUIZ.length + ' Situationen'; $('quizBtn').onclick = () => quizShow(0); }
+
+// ---- Debrief-Sitzung: Schritt für Schritt mit dem Coach (Daten: D.debrief)
+const DB = D.debrief || {};
+const DBS = { i: 0, steps: [] };
+const ACT = { 'gehalten': 'Position halten', 'zurückgezogen': 'Zurückziehen', 'Richtung Gegner': 'Richtung Gegner gehen / peeken' };
+function dbWatch(round, tick) {
+  const ri = D.rounds.findIndex(r => r.n === round); if (ri < 0) return;
+  $('dbf').hidden = true; $('dbfRet').hidden = false; document.body.style.overflow = '';
+  S.tour = null; selectRound(ri); seek(tick - TR); setPlaying(true);
+  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function dbPlayBtn(label, round, tick, big) { const b = el('button', 'play' + (big ? ' big' : ''), label); b.onclick = () => dbWatch(round, tick); return b; }
+function dbBuild() {
+  const st = [], L = DB.lesson;
+  if (DB.checks && DB.checks.length) st.push(() => {
+    const d = el('div'); d.append(el('div', 'k', 'Auftrag-Check'), el('h3', null, DB.checks.length > 1 ? 'Eure Aufträge' : 'Dein Auftrag'));
+    DB.checks.forEach(c => {
+      const b = el('div', 'box ' + (c.met ? 'good' : 'bad'));
+      b.append(el('div', 'k', c.name), el('div', null, c.title));
+      b.firstChild.style.color = 'var(--muted)'; b.lastChild.style.cssText = 'font:800 22px var(--cond);text-transform:uppercase';
+      b.append(el('div', null, `Heute ${c.count}x (${String(c.rate).replace('.', ',')} pro 10 Runden), Ziel ≤ ${String(c.target).replace('.', ',')}.`));
+      b.append(el('div', 'stamp ' + (c.met ? 'ok' : 'no'), c.mastered ? 'Gemeistert' : c.met ? `Geschafft · ${c.streak}/${c.need}` : 'Nicht geschafft'));
+      d.appendChild(b);
+    });
+    return d;
+  });
+  st.push(() => {
+    const d = el('div'); d.append(el('div', 'k', 'Der Coach'));
+    const say = el('div', 'say'); say.append(el('div', 'av', 'C'), el('p', null, (DB.intro || []).join(' ')));
+    d.appendChild(say);
+    if (L) { d.append(el('div', 'k', 'Heute geht es um'), el('h3', null, L.title)); }
+    else d.appendChild(el('p', null, 'In diesem Match gab es kein wiederkehrendes Muster. Schau dir die Szenen im Replay an.'));
+    return d;
+  });
+  if (L) {
+    st.push(() => {
+      const d = el('div'); d.append(el('div', 'k', 'Verstehen'), el('h3', null, 'Warum das Runden kostet'), el('p', null, L.principle));
+      d.append(el('p', null, L.why), el('div', 'mantra', '„' + L.mantra + '“'));
+      return d;
+    });
+    const sc = L.scenes[0], f = sc ? F[sc.finding] : null, cv = f && f.evidence && f.evidence.coach;
+    if (sc) st.push(() => {
+      const d = el('div'); d.append(el('div', 'k', `Deine Szene · R${sc.round} · ${sc.who || ''}`), el('h3', null, 'So ist es passiert'));
+      if (cv) d.appendChild(el('p', null, cv.happened));
+      d.appendChild(dbPlayBtn('▶ Szene im Replay ansehen', sc.round, sc.from || sc.tick, true));
+      if (L.scenes.length > 1) {
+        d.appendChild(el('p', null, `Das gleiche Muster gab es noch ${L.scenes.length - 1}x:`)).style.marginTop = '14px';
+        L.scenes.slice(1).forEach(x => d.appendChild(dbPlayBtn(`▶ R${x.round}${x.cost ? ' · -' + x.cost + ' %' : ''}`, x.round, x.from || x.tick)));
+      }
+      return d;
+    });
+    const ev = f && f.evidence;
+    if (ev && ev.snap && ev.aktion) st.push(() => {
+      const d = el('div'), s = ev.snap; d.append(el('div', 'k', 'Deine Entscheidung'), el('h3', null, 'Was hättest du gemacht?'));
+      const parts = [`${s.own} gegen ${s.enemy}`, s.hp != null ? (s.hp >= 100 ? 'volle HP' : s.hp + ' HP') : null,
+                     s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt', s.mate && s.mate_d != null ? `${s.mate} ${s.mate_d} Units weg` : null].filter(Boolean);
+      d.appendChild(el('p', null, parts.join(' · ') + (ev.info ? ' · ' + ev.info.replace(/^Info: /, '') : '')));
+      const opts = el('div'); let done = false;
+      Object.entries(ACT).forEach(([k, label]) => {
+        const b = el('button', 'opt', label);
+        b.onclick = () => {
+          if (done) return; done = true;
+          const rates = ev.pro_rates || {}, best = ev.pro_best;
+          opts.querySelectorAll('.opt').forEach(o => {
+            const key = o.dataset.k, r = rates[key];
+            if (key === ev.aktion) { o.classList.add('mine'); o.appendChild(el('small', null, 'Das hast du gemacht: Tod' + (ev.cost_pct > 0 ? `, -${ev.cost_pct} %` : ''))); }
+            if (key === best) o.classList.add('best');
+            if (r) o.appendChild(el('small', null, `Pros: ${r[1]}x, ${Math.round(100 * r[0] / r[1])} % Siege`));
+          });
+          const res = el('div', 'box ' + (best && k === best ? 'good' : 'bad'));
+          res.appendChild(el('div', null, best ? (k === best ? 'Richtig gedacht. Genau so spielen es Pros hier am erfolgreichsten.' : 'Pros gewinnen diese Lage am häufigsten mit: ' + ACT[best] + '.') : 'Für diese Lage fehlen Pro-Daten. Entscheidend ist, was der Coach dir sagt:'));
+          if (cv) { const nx = el('div'); nx.style.marginTop = '8px'; nx.append(el('b', null, 'Nächstes Mal: '), cv.next); res.appendChild(nx); }
+          d.appendChild(res);
+        };
+        b.dataset.k = k; opts.appendChild(b);
+      });
+      d.appendChild(opts);
+      return d;
+    });
+    st.push(() => {
+      const d = el('div'); d.append(el('div', 'k', 'So geht’s richtig'), el('h3', null, 'Bei euch selbst'));
+      if (L.bright && L.bright.length) {
+        d.appendChild(el('p', null, 'Ihr könnt es schon. Hier habt ihr es richtig gemacht:'));
+        L.bright.forEach(g => { const b = el('div', 'box good'); b.append(el('div', null, g.text), dbPlayBtn(`▶ R${g.round} ${g.when} ansehen`, g.round, g.from)); d.appendChild(b); });
+      } else d.appendChild(el('p', null, 'In diesem Match gab es keine Szene, in der ihr es sauber umgesetzt habt. Genau deshalb ist es der Punkt.'));
+      const pf = L.scenes.map(x => F[x.finding]).find(x => x && x.ov && x.ov.pro_clip != null && D.rounds[x.ov.pro_clip]);
+      if (pf) {
+        const b = el('div', 'box pro'); b.append(el('div', 'k', 'So spielt es ein Pro'), el('div', null, pf.evidence.pro_clip || ''));
+        b.firstChild.style.color = '#9db4e0';
+        const btn = el('button', 'play', '▶ Pro-Szene ansehen');
+        btn.onclick = () => { $('dbf').hidden = true; $('dbfRet').hidden = false; document.body.style.overflow = ''; openPro(pf); };
+        b.appendChild(btn); d.appendChild(b);
+      }
+      return d;
+    });
+  }
+  if (DB.next && DB.next.length) st.push(() => {
+    const d = el('div'); d.append(el('div', 'k', 'Abmachung'), el('h3', null, 'Bis zum nächsten Match'));
+    DB.next.forEach(n => {
+      const b = el('div', 'box');
+      b.append(el('div', 'k', n.name + (n.new ? ' · neuer Auftrag' : ' · Auftrag bleibt')), el('div', 'mantra', '„' + n.mantra + '“'));
+      b.firstChild.style.color = 'var(--muted)'; b.lastChild.style.marginTop = '4px';
+      b.appendChild(el('p', null, n.title + ': höchstens ' + String(n.target).replace('.', ',') + 'x pro 10 Runden.')).style.marginTop = '6px';
+      const r = el('div'); r.append(el('b', null, `Übung (${n.routine.minutes} Min): ${n.routine.title}`));
+      const ol = el('ol'); n.routine.steps.forEach(x => ol.appendChild(el('li', null, x))); r.appendChild(ol);
+      r.appendChild(el('div', null, 'Im Match: ' + n.in_game)); b.appendChild(r);
+      const key = 'cstaktik-deal-' + location.pathname + '-' + (n.sid || n.name);
+      let dealt = false; try { dealt = !!localStorage.getItem(key); } catch (e) { /* ohne Speicher */ }
+      const ok = el('button', 'play big', dealt ? '✓ Abgemacht' : 'Abgemacht');
+      ok.onclick = () => { ok.textContent = '✓ Abgemacht'; try { localStorage.setItem(key, '1'); } catch (e) { /* ohne Speicher */ } };
+      b.appendChild(ok); d.appendChild(b);
+    });
+    return d;
+  });
+  DBS.steps = st;
+}
+function dbShow(i) {
+  DBS.i = Math.max(0, Math.min(DBS.steps.length - 1, i));
+  const segs = $('dbfSegs'); segs.textContent = '';
+  DBS.steps.forEach((_, j) => segs.appendChild(el('i', j <= DBS.i ? 'on' : null)));
+  const body = $('dbfBody'); body.textContent = ''; body.appendChild(DBS.steps[DBS.i]()); body.scrollTop = 0;
+  $('dbfBack').style.visibility = DBS.i ? 'visible' : 'hidden';
+  $('dbfNext').textContent = DBS.i === DBS.steps.length - 1 ? 'Fertig ✓' : 'Weiter ›';
+}
+function dbOpen(i) { setPlaying(false); $('dbfRet').hidden = true; $('dbf').hidden = false; document.body.style.overflow = 'hidden'; dbShow(i); }
+function dbClose() { $('dbf').hidden = true; $('dbfRet').hidden = true; document.body.style.overflow = ''; }
+dbBuild();
+if (DBS.steps.length > 1) {
+  $('dbfBtn').hidden = false; $('dbfN').textContent = DBS.steps.length + ' Schritte';
+  $('dbfBtn').onclick = () => dbOpen(0);
+}
+$('dbfX').onclick = dbClose;
+$('dbfBack').onclick = () => dbShow(DBS.i - 1);
+$('dbfNext').onclick = () => DBS.i === DBS.steps.length - 1 ? dbClose() : dbShow(DBS.i + 1);
+$('dbfRet').onclick = () => dbOpen(DBS.i);
 if (TOURS.all.length && $('allTour')) { $('allTour').hidden = false; $('allTour').textContent = 'Oder alle ' + TOURS.all.length + ' Fehler durchgehen ›'; $('allTour').onclick = () => goTour('all', 0); }
 function jumpFinding(dir) {
   const r = R(), list = r.f.map(id => F[id]).filter(f => f.tick != null).sort((a, b) => a.tick - b.tick);
