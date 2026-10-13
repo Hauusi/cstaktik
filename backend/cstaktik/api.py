@@ -117,7 +117,30 @@ def index() -> str:
         done_count=len(state["done"]), last=hist[-1] if hist else None, briefing_maps=maps,
         pro_overview=__import__("cstaktik.pro", fromlist=["stats"]).stats(pipeline.PRO_DIR),
         faceit_ready=bool(os.environ.get("FACEIT_API_KEY")),
+        baustellen=_baustellen(hist),
     )
+
+
+def _baustellen(hist: list[dict]) -> list[dict]:
+    """Je Fokus-Spieler die größte Coach-Lektion im Verlauf, mit Trend und schlechtester Map."""
+    from cstaktik.report.progress import _lessons
+
+    out = []
+    names = {}
+    for h in hist:
+        for sid, p in h.get("players", {}).items():
+            names[sid] = p["name"]
+    for sid, name in names.items():
+        ls = _lessons(hist, sid)
+        if not ls:
+            continue
+        top = ls[0]
+        have = [r for r in top["rates"] if r is not None]
+        worst = max(top["by_map"].items(), key=lambda kv: kv[1]["rate"], default=(None, None))[0]
+        out.append({"name": name, "title": top["title"], "state": top["trend"]["state"],
+                    "now": str(round(have[-1], 1)).replace(".", ",") if have else "0",
+                    "worst_map": worst.removeprefix("de_").capitalize() if worst and len(top["by_map"]) > 1 else None})
+    return out
 
 
 @app.get("/briefing/{map_name}", response_class=HTMLResponse)
@@ -130,7 +153,21 @@ def briefing_page(map_name: str) -> str:
     from cstaktik import pro
 
     b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=pro.load_all(pipeline.PRO_DIR))
-    return _env.get_template("briefing.html").render(b=b)
+    return _env.get_template("briefing.html").render(b=b, map_lessons=_map_lessons(hist, map_name))
+
+
+def _map_lessons(hist: list[dict], map_name: str) -> list[dict]:
+    """Je Spieler die zwei häufigsten Coach-Lektionen auf dieser Map (aus dem Verlauf)."""
+    from cstaktik.report.progress import _lessons
+
+    names = {sid: p["name"] for h in hist for sid, p in h.get("players", {}).items()}
+    out = []
+    for sid, name in names.items():
+        ls = [l for l in _lessons(hist, sid) if (l["by_map"].get(map_name) or {}).get("count")]
+        ls.sort(key=lambda l: -l["by_map"][map_name]["rate"])
+        out += [{"name": name, "title": l["title"], "drill": l["drill"],
+                 "rate": str(l["by_map"][map_name]["rate"]).replace(".", ",")} for l in ls[:2]]
+    return out
 
 
 def _run_job(job_id: str, target: Path, focus: set[str] | None, is_pro: bool = False) -> None:

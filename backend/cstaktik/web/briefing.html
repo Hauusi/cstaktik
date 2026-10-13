@@ -16,6 +16,11 @@
 <p>{% if b.matches %}{{ b.matches }} {{ "Match" if b.matches == 1 else "Matches" }} auf {{ b.label }} ausgewertet, {{ b.won_matches }} gewonnen.{% else %}Noch kein Match auf {{ b.label }} ausgewertet.{% endif %}</p>
 {% endblock %}
 {% block content %}
+{% if map_lessons %}
+<h2>Eure Baustellen auf {{ b.label }}</h2>
+{% for l in map_lessons %}<div class="note"><b>{{ l.name }}: {{ l.title }}</b> <span class="empty num">· {{ l.rate }} pro 10 Runden hier</span>
+  <div class="tp">{{ l.drill }}</div></div>{% endfor %}
+{% endif %}
 <div class="cols"><div class="col">
 {% if b.goals %}
 <h2>Eure Ziele heute</h2>

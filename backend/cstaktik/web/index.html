@@ -31,6 +31,10 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .gbody { padding: 0 14px 12px; font-size: 14px; color: #d7dce5; }
 .gbody p { margin: 0 0 8px; } .gtip { color: #cdeedd; }
 .gbody ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
+.bst { display: block; text-decoration: none; color: inherit; }
+.bst .brow { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+.bst .brow b { font-size: 17px; line-height: 1.25; }
+.tb { font-weight: 700; margin-left: 6px; white-space: nowrap; } .tb.besser { color: #3fbf7f; } .tb.schlechter { color: #f0566a; } .tb.gleich { color: #f5a524; } .tb.wenig { color: #8d97a8; }
 .prochk { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13.5px; color: var(--muted); }
 .prochk input { width: 18px; height: 18px; accent-color: #7c5cff; }
 .maps { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -45,6 +49,18 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 {% block content %}
 <div class="cols">
 <div class="col">
+{% if baustellen %}
+<h2>Deine Baustellen</h2>
+<a class="card bst" href="/progress">
+  {% for b in baustellen %}
+  <div class="brow"><span class="muted small">{{ b.name }}</span>
+    <b>{{ b.title }}</b>
+    <span class="small num">{{ b.now }} pro 10 Runden{% if b.worst_map %} · am meisten auf {{ b.worst_map }}{% endif %}
+      <span class="tb {{ b.state }}">{{ {"besser": "▼ besser", "schlechter": "▲ schlechter", "gleich": "■ gleich", "wenig": "… offen"}[b.state] }}</span></span></div>
+  {% endfor %}
+  <span class="muted small">Alle Baustellen und Fehler je Map ›</span>
+</a>
+{% endif %}
 {% if goals %}
 <h2>Eure Ziele</h2>
 <div class="list">

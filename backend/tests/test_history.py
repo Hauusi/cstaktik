@@ -64,3 +64,19 @@ def test_run_writes_history_and_progress_route(tmp_path, monkeypatch):
     page = TestClient(api.app).get("/progress")
     assert page.status_code == 200 and "Fortschritt" in page.text and "Ich" in page.text
     assert "Noch keine Matches" in render_progress([])
+
+
+def test_progress_lessons_per_map_and_trend():
+    from cstaktik.report.progress import _lessons
+
+    hs = []
+    for i, m in enumerate(["de_mirage", "de_inferno", "de_mirage", "de_mirage"]):
+        hs.append({"id": str(i), "map": m, "rounds": 20, "players": {"a": {"name": "A"}},
+                   "lessons": {"a": {"alone": 4 - i, "duel": 9}}})
+    hs.insert(0, {"id": "alt", "map": "de_mirage", "rounds": 20, "players": {"a": {"name": "A"}}})  # ohne Lektionen
+    ls = _lessons(hs, "a")
+    assert [l["id"] for l in ls] == ["alone"]  # "duel" zählt nicht als Baustelle
+    l = ls[0]
+    assert l["rates"] == [None, 2.0, 1.5, 1.0, 0.5] and l["total"] == 10
+    assert l["by_map"]["de_mirage"] == {"rate": 1.2, "count": 7, "rounds": 60}
+    assert l["trend"]["state"] == "besser"

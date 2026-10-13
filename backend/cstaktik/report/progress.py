@@ -39,6 +39,34 @@ def _trend(values: list[float | None]) -> dict:
     return {"state": "gleich", "text": f"etwa gleich (~{round(a, 1)} pro 10 Runden)"}
 
 
+def _lessons(histories: list[dict], sid: str) -> list[dict]:
+    """Coach-Lektionen eines Spielers: Rate pro 10 Runden je Match (Trend) und je Map (Durchschnitt).
+    Nur Matches mit Lektionsdaten zählen (ältere Einträge: ``cstaktik pro-update`` rüstet nach)."""
+    from cstaktik.coach_voice import LESSONS
+
+    hs = [h for h in histories if "lessons" in h and sid in h.get("players", {}) and h.get("rounds")]
+    ids = {lid for h in hs for lid in h["lessons"].get(sid, {})} - {"duel"}
+    out = []
+    for lid in ids:
+        rates = []
+        for h in histories:
+            if h in hs:
+                rates.append(round(10 * h["lessons"].get(sid, {}).get(lid, 0) / h["rounds"], 2))
+            else:
+                rates.append(None)
+        by_map: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+        for h in hs:
+            m = h.get("map") or "?"
+            by_map[m][0] += h["lessons"].get(sid, {}).get(lid, 0)
+            by_map[m][1] += h["rounds"]
+        total = sum(h["lessons"].get(sid, {}).get(lid, 0) for h in hs)
+        out.append({"id": lid, "title": LESSONS[lid][0], "drill": LESSONS[lid][2], "total": total, "rates": rates,
+                    "trend": _trend(rates),
+                    "by_map": {m: {"rate": round(10 * c / r, 1), "count": c, "rounds": r} for m, (c, r) in by_map.items()}})
+    out.sort(key=lambda x: -x["total"])
+    return out
+
+
 def build(histories: list[dict]) -> dict:
     matches = [
         {"label": _label(h), "map": h.get("map"), "won": h.get("won", 0), "lost": h.get("lost", 0),
@@ -80,7 +108,8 @@ def build(histories: list[dict]) -> dict:
             total = sum(h.get("issues", {}).get(sid, {}).get(t, 0) for h in histories)
             issues.append({"title": t, "rates": rates, "total": total, "trend": _trend(rates)})
         issues.sort(key=lambda i: -i["total"])
-        players.append({"sid": sid, "name": name, "series": dict(series), "issues": issues})
+        players.append({"sid": sid, "name": name, "series": dict(series), "issues": issues,
+                        "lessons": _lessons(histories, sid)})
 
     maps = []
     by_map = defaultdict(list)

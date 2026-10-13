@@ -58,6 +58,18 @@ Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern z
 verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,
 Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
+## Coach-Stimme, Lektionen, Fortschritt
+
+- **Coach-Stimme** (`coach_voice.py`): Jede Tod-Szene bekommt eine Lektion als Überschrift (z. B. "Ecke vorzielen
+  statt reinlaufen"), 1–3 Sätze in Du-Form, was passiert ist (Lage im Entscheidungsmoment, Duell, Radar-Info),
+  und eine Ansage "Nächstes Mal" mit den Orten/Granaten der Szene. Rohdaten unter "Details zur Szene".
+- **Report:** oben eine Coach-Ansage, ein Knopf "Debrief starten" (teuerste Momente), darunter "Deine Lektionen"
+  (gleiche Fehler zusammengefasst, sortiert nach verlorener Rundenchance, mit Szenen-Knöpfen). Duo, Mechanik,
+  Utility, Runden-Muster und alle Befunde liegen unter "Mehr".
+- **Fortschritt:** "Deine Baustellen" (Lektionen pro 10 Runden je Match mit Trend) und "Fehler je Map"
+  (Tabelle Lektion x Map). Startseite: größte Baustelle je Spieler. Briefing: eure Baustellen auf der Map.
+  Ältere Matches bekommen die Lektionen mit `cstaktik pro-update` (baut alle Reports aus dem Cache neu).
+
 ## Situations-Analyse (situation.py)
 
 - **Entscheidungsmoment:** Je Tod wird der Moment davor gesucht, in dem du losgegangen bist (Beginn der

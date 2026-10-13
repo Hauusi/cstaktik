@@ -49,6 +49,23 @@ svg.spark { width: 100%; height: 40px; display: block; margin-top: 6px; overflow
 .bar .track { position: relative; height: 22px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
 .bar .fill { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; opacity: .85; }
 .bar .txt { position: relative; padding: 0 8px; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lesson { padding: 14px 16px; }
+.lesson:first-child { border-color: rgba(240,86,106,.35); background: linear-gradient(180deg, rgba(240,86,106,.08), var(--surface) 70%); }
+.lesson .lt { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.lesson .lt b { font-size: 18px; line-height: 1.25; letter-spacing: -.01em; }
+.lesson .lnow { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.lesson .ldrill { font-size: 13.5px; margin-top: 8px; color: #bfe8cf; }
+.lesson .ldrill b { color: var(--win); }
+.grid { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 13px; }
+.grid th { font-weight: 600; color: var(--muted); text-align: left; padding: 4px 6px; font-size: 12px; }
+.grid th.m { text-align: center; }
+.grid td.c { text-align: center; padding: 9px 4px; border-radius: 8px; font-weight: 700; min-width: 54px; }
+.grid td.c.none { color: var(--faint); font-weight: 500; }
+.grid td.l { padding: 4px 6px; line-height: 1.3; }
+.gridwrap { overflow-x: auto; margin: 0 -6px; }
+.insight { font-size: 15px; font-weight: 650; line-height: 1.4; margin-bottom: 10px; }
+details.more { margin-top: 26px; } details.more summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; list-style: none; text-align: center; }
 .quiet { color: var(--muted); font-size: 13px; }
 @media (min-width: 1000px) {
   main { max-width: 1160px; padding: 0 32px 64px; }
@@ -80,12 +97,20 @@ svg.spark { width: 100%; height: 40px; display: block; margin-top: 6px; overflow
   {% if not data.matches %}
   <p class="quiet" style="margin-top:20px">Noch keine Matches im Verlauf. Nach der nächsten Auswertung erscheint hier dein Fortschritt.</p>
   {% else %}
-  <h2>Spieler</h2>
-  <div class="tabs" id="tabs"></div>
+  <div class="tabs" id="tabs" style="margin-top:18px"></div>
+
+  <h2>Deine Baustellen <span style="text-transform:none;letter-spacing:0">(pro 10 Runden, je Match)</span></h2>
+  <div class="stack" id="lessons"></div>
+
+  <h2>Fehler je Map</h2>
+  <div class="card" id="mapgrid"></div>
+
+  <h2>Zahlen</h2>
   <div class="kpis" id="kpis"></div>
 
-  <h2>Fehler im Verlauf <span style="text-transform:none;letter-spacing:0">(pro 10 Runden)</span></h2>
-  <div class="stack" id="issues"></div>
+  <details class="more"><summary>Alle Befunde im Verlauf</summary>
+  <div class="stack" id="issues" style="margin-top:10px"></div>
+  </details>
 
   <h2>Wo ihr sterbt</h2>
   <div class="stack" id="maps"></div>
@@ -135,16 +160,64 @@ const KPI = [
   ['moving', 'Schüsse im Laufen', v => Math.round(v) + '%'],
   ['hit', 'Treffer pro Schuss', v => Math.round(v) + '%'],
 ];
+
+// Baustellen (Coach-Lektionen) und Fehler je Map
+const MAPLBL = m => (m || '?').replace(/^de_/, '').replace(/^./, c => c.toUpperCase());
+const fmt1 = v => String(Math.round(v * 10) / 10).replace('.', ',');
+function showLessons(p, col) {
+  const box = $('lessons'); box.textContent = '';
+  if (!p.lessons.length) {
+    box.appendChild(el('p', 'quiet', 'Noch keine Lektionen im Verlauf. Nach der nächsten Auswertung (oder "cstaktik pro-update") erscheinen sie hier.'));
+    $('mapgrid').textContent = ''; $('mapgrid').appendChild(el('p', 'quiet', 'Noch keine Daten.'));
+    return;
+  }
+  p.lessons.slice(0, 4).forEach(l => {
+    const c = el('div', 'card lesson'), top = el('div', 'lt');
+    const icon = { besser: '▼ besser', schlechter: '▲ schlechter', gleich: '■ gleich', wenig: '… offen' }[l.trend.state];
+    top.append(el('b', null, l.title), el('span', 'badge ' + l.trend.state, icon));
+    const have = l.rates.filter(v => v != null);
+    c.append(top, el('div', 'lnow num', `zuletzt ${fmt1(have[have.length - 1] ?? 0)} pro 10 Runden · ${l.total}x insgesamt · ${l.trend.text}`));
+    c.appendChild(spark(l.rates, l.trend.state === 'besser' ? '#3fbf7f' : l.trend.state === 'schlechter' ? '#f0566a' : col, v => fmt1(v) + ' pro 10 Runden'));
+    const d = el('div', 'ldrill'); d.append(el('b', null, 'Übung: '), l.drill); c.appendChild(d);
+    box.appendChild(c);
+  });
+  // Tabelle: Zeilen = Lektionen, Spalten = Maps, Zelle = Rate pro 10 Runden (Farbe = Stärke, Zahl steht immer drin)
+  const g = $('mapgrid'); g.textContent = '';
+  const rows = p.lessons.slice(0, 6), maps = [...new Set(rows.flatMap(l => Object.keys(l.by_map)))].sort();
+  let worst = null;
+  rows.forEach(l => maps.forEach(m => { const c = l.by_map[m]; if (c && c.count && (!worst || c.rate > worst.rate)) worst = { ...c, m, l }; }));
+  if (worst) g.appendChild(el('div', 'insight', `Am häufigsten: „${worst.l.title}“ auf ${MAPLBL(worst.m)} (${fmt1(worst.rate)} pro 10 Runden).`));
+  const max = Math.max(0.1, ...rows.flatMap(l => maps.map(m => (l.by_map[m] || {}).rate || 0)));
+  const t = el('table', 'grid num'), hr = el('tr'); hr.appendChild(el('th'));
+  maps.forEach(m => hr.appendChild(el('th', 'm', MAPLBL(m)))); t.appendChild(hr);
+  rows.forEach(l => {
+    const tr = el('tr'); tr.appendChild(el('td', 'l', l.title));
+    maps.forEach(m => {
+      const c = l.by_map[m], td = el('td', 'c');
+      if (!c) { td.classList.add('none'); td.textContent = '–'; td.title = MAPLBL(m) + ': noch nicht gespielt'; }
+      else {
+        td.textContent = fmt1(c.rate);
+        td.style.background = `rgba(240,86,106,${(0.08 + 0.7 * c.rate / max).toFixed(2)})`;
+        td.title = `${MAPLBL(m)}: ${c.count}x in ${c.rounds} Runden (${fmt1(c.rate)} pro 10 Runden)`;
+      }
+      tr.appendChild(td);
+    });
+    t.appendChild(tr);
+  });
+  const w = el('div', 'gridwrap'); w.appendChild(t); g.appendChild(w);
+  g.appendChild(el('div', 'quiet', 'Zahl = wie oft pro 10 Runden auf dieser Map. Je röter, desto häufiger. „–“ = auf der Map noch nicht gespielt.'));
+}
 let cur = 0;
 function showPlayer(i) {
   cur = i; const p = D.players[i], col = PCOL[i % PCOL.length];
   [...$('tabs').children].forEach((b, j) => b.classList.toggle('on', j === i));
+  showLessons(p, col);
   const box = $('kpis'); box.textContent = '';
   KPI.forEach(([key, label, fmt]) => {
     const vals = p.series[key] || [], have = vals.filter(v => v != null);
     const k = el('div', 'kpi'); k.appendChild(el('div', 'lbl', label));
     k.appendChild(el('div', 'val num', have.length ? fmt(have[have.length - 1]) : '–'));
-    k.appendChild(el('div', 'avg num', have.length > 1 ? 'Ø ' + fmt(Math.round(have.reduce((a, b) => a + b, 0) / have.length * 100) / 100) : 'letztes Match'));
+    k.appendChild(el('div', 'avg num', have.length > 1 ? 'Ø ' + fmt(Math.round(have.reduce((a, b) => a + b, 0) / have.length * (key === 'kd' ? 100 : 1)) / (key === 'kd' ? 100 : 1)) : 'letztes Match'));
     k.appendChild(spark(vals, col, fmt)); box.appendChild(k);
   });
   const ib = $('issues'); ib.textContent = '';
