@@ -59,9 +59,22 @@ def ensure_fonts(fonts_dir: Path | None = None, timeout: float = 15.0) -> list[s
     return errors
 
 
+_CSS_CACHE: dict[tuple, str] = {}
+
+
 def font_css(fonts_dir: Path | None = None) -> str:
-    """@font-face-Regeln mit eingebetteten Schriften (leer, wenn keine geladen sind)."""
+    """@font-face-Regeln mit eingebetteten Schriften (leer, wenn keine geladen sind). Gemerkt, bis sich die
+    Schrift-Dateien ändern (jede Seite bettet sie ein)."""
     fonts_dir = fonts_dir or FONTS_DIR
+    files = [_file(fam, wt, fonts_dir) for fam, wt in WANTED]
+    key = (str(fonts_dir), tuple(f.stat().st_mtime_ns if f.exists() else 0 for f in files))
+    if key not in _CSS_CACHE:
+        _CSS_CACHE.clear()
+        _CSS_CACHE[key] = _font_css(fonts_dir)
+    return _CSS_CACHE[key]
+
+
+def _font_css(fonts_dir: Path) -> str:
     out = []
     for family, weight in WANTED:
         f = _file(family, weight, fonts_dir)

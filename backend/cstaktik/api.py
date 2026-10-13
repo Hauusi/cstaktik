@@ -110,7 +110,7 @@ def index() -> str:
     jobs = _running_jobs()
     from cstaktik import history
 
-    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    hist = _load_hist()
     played = [h.get("map") for h in reversed(hist) if h.get("map")]
     maps = list(dict.fromkeys(played + ["de_mirage", "de_dust2", "de_inferno"]))
     return _env.get_template("index.html").render(
@@ -128,7 +128,7 @@ def _running_jobs() -> list[dict]:
 def matches_page() -> str:
     from cstaktik import history
 
-    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    hist = _load_hist()
     return _env.get_template("matches.html").render(nav_active="matches", jobs=_running_jobs(),
                                                     reports=_report_entries(), n_history=len(hist))
 
@@ -204,7 +204,7 @@ def quiz_page(p: str = "") -> str:
     from cstaktik import history
     from cstaktik.coach_voice import LESSONS
 
-    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    hist = _load_hist()
     players = _players_state()
     sid = p if p in players else next((s for s, v in players.items() if v.get("focus")), None)
     f = (players.get(sid) or {}).get("focus")
@@ -223,10 +223,32 @@ def quiz_page(p: str = "") -> str:
                                                      data_json=data, tabs=tabs, who=names.get(sid))
 
 
+_CACHE: dict[str, tuple] = {}
+
+
+def _dir_cached(name: str, folder: Path, loader) -> list[dict]:
+    """Ordner-Inhalt nur neu laden, wenn sich Dateien geändert haben (Name, Größe, Änderungszeit).
+    Die Seiten lesen die Daten nur; wer sie ändert, speichert sie und macht den Cache so ungültig."""
+    if not folder.exists():
+        return []
+    key = (str(folder), tuple(sorted((f.name, f.stat().st_mtime_ns, f.stat().st_size) for f in folder.glob("*.json"))))
+    hit = _CACHE.get(name)
+    if hit is None or hit[0] != key:
+        hit = (key, loader(folder))
+        _CACHE[name] = hit
+    return hit[1]
+
+
 def _load_hist() -> list[dict]:
     from cstaktik import history
 
-    return history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    return _dir_cached("hist", pipeline.HISTORY_DIR, history.load_all)
+
+
+def _load_pro() -> list[dict]:
+    from cstaktik import pro
+
+    return _dir_cached("pro", pipeline.PRO_DIR, pro.load_all)
 
 
 def _names(hist: list[dict]) -> dict[str, str]:
@@ -280,7 +302,7 @@ def training_page(p: str = "") -> str:
     plan = chk = key = None
     past = []
     if sid and focus:
-        key, plan, changed = weekplan.ensure(slot, _plan_ctx(hist, pro.load_all(pipeline.PRO_DIR), sid, focus))
+        key, plan, changed = weekplan.ensure(slot, _plan_ctx(hist, _load_pro(), sid, focus))
         if changed:
             coaching.save(state, pipeline.COACHING_FILE)
         chk = weekplan.check(key, plan, hist, sid, focus)
@@ -292,7 +314,7 @@ def training_page(p: str = "") -> str:
     return _env.get_template("training.html").render(
         nav_active="training", tabs=tabs, sid=sid, who=names.get(sid), plan=plan, week=key, chk=chk, past=past[:4],
         title=LESSONS[focus["lesson"]][0] if focus else None, maps=_player_maps(hist, sid) or ["de_mirage"],
-        pro_maps=sorted({d.get("map") for d in pro.load_all(pipeline.PRO_DIR) if d.get("map")}))
+        pro_maps=sorted({d.get("map") for d in _load_pro() if d.get("map")}))
 
 
 @app.post("/training/plan")
@@ -321,7 +343,7 @@ def mapbook_page(map_name: str, p: str = "") -> str:
     focus_ids = sorted({s for h in hist if h.get("map") == map_name for t in h.get("timeline", []) for s in [t["sid"]]},
                        key=lambda s: names.get(s, s))
     sid = p if p in focus_ids else (focus_ids[0] if focus_ids else None)
-    book = mapbook.build(hist, pro.load_all(pipeline.PRO_DIR), map_name, sid, load_rules_config()["mapbook"]) \
+    book = mapbook.build(hist, _load_pro(), map_name, sid, load_rules_config()["mapbook"]) \
         if sid else None
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in focus_ids]
     return _env.get_template("mapbook.html").render(nav_active="training", book=book, cfg=load_rules_config()["mapbook"], tabs=tabs, sid=sid,
@@ -339,7 +361,7 @@ def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "") -> 
 
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
-    allx = lineups.build(pro.load_all(pipeline.PRO_DIR), map_name)
+    allx = lineups.build(_load_pro(), map_name)
     if l and not any(x["id"] == l for x in allx):
         l = ""
     sel = [x for x in allx if (not side or x["side"] == side) and (not kind or x["kind"] == kind)]
@@ -361,7 +383,7 @@ def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "") -> 
     return _env.get_template("lineups.html").render(
         nav_active="training", items=sel, data_json=data, img=radar.image_data_uri, map_name=map_name,
         label=map_name.removeprefix("de_").capitalize(), side=side, kind=kind, sel=l, total=len(allx),
-        kinds=lineups.KIND_DE, n_demos=sum(1 for d in pro.load_all(pipeline.PRO_DIR) if d.get("map") == map_name))
+        kinds=lineups.KIND_DE, n_demos=sum(1 for d in _load_pro() if d.get("map") == map_name))
 
 
 def _baustellen(hist: list[dict]) -> list[dict]:
@@ -392,10 +414,10 @@ def briefing_page(map_name: str) -> str:
 
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
-    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    hist = _load_hist()
     from cstaktik import pro
 
-    b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=pro.load_all(pipeline.PRO_DIR))
+    b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=_load_pro())
     return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
                                                      kabine=_kabine(hist, map_name))
 
@@ -522,7 +544,7 @@ def _get_job(job_id: str) -> dict:
 def review_page(n: int = 5) -> str:
     from cstaktik import history, review
 
-    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    hist = _load_hist()
     return _env.get_template("review.html").render(nav_active="matches", r=review.build(hist, max(1, min(n, 20))))
 
 
@@ -531,7 +553,7 @@ def progress() -> str:
     from cstaktik import history
     from cstaktik.report.progress import render_progress
 
-    return render_progress(history.load_all(pipeline.HISTORY_DIR))
+    return render_progress(_load_hist())
 
 
 def _run_faceit_job(job_id: str) -> None:

@@ -46,11 +46,12 @@ def _lessons(histories: list[dict], sid: str) -> list[dict]:
 
     hs = [h for h in histories if "lessons" in h and sid in h.get("players", {}) and h.get("rounds")]
     ids = {lid for h in hs for lid in h["lessons"].get(sid, {})} - {"duel"}
+    in_hs = {id(h) for h in hs}  # Identität statt Vergleich ganzer Verlaufs-Einträge (langsam)
     out = []
     for lid in ids:
         rates = []
         for h in histories:
-            if h in hs:
+            if id(h) in in_hs:
                 rates.append(round(10 * h["lessons"].get(sid, {}).get(lid, 0) / h["rounds"], 2))
             else:
                 rates.append(None)
