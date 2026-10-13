@@ -210,3 +210,13 @@ def test_coach_intro_memory_praise():
     good.append(Finding(rule_id="positives", title="Clutch", round=12, tick=1, severity="gut", player_name="Bruder", steamid="b",
                         text="", tip=""))
     assert coach_voice.praise(good) == ["Bruder: 3x Trade gegeben, Clutch (R12)"]
+
+
+def test_win_model_uses_equipment_when_enough_rounds():
+    rounds = ([{"w": "ct", "s": [[5, 5, 0], [4, 5, 0]], "eq": 1} for _ in range(8)]
+              + [{"w": "t", "s": [[5, 5, 0], [4, 5, 0]], "eq": -1} for _ in range(8)])
+    m = WinModel(rounds, min_n=5)
+    assert m.prob("ct", 4, 5, False)[0] == 0.5
+    assert m.prob("ct", 4, 5, False, eq=1)[0] == 1.0 and m.last_eq
+    assert m.prob("ct", 4, 5, False, eq=-1)[0] == 0.0
+    assert m.prob("ct", 4, 5, False, eq=0)[0] == 0.5 and not m.last_eq  # zu wenige Runden: ohne Ausrüstung

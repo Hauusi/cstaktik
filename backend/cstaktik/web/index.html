@@ -85,6 +85,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 </div>
 {% endfor %}
 {% endif %}
+{% if n_history >= 2 %}<a class="tlink" style="margin-top:12px;background:var(--surface);color:var(--text);border:1px solid var(--orange)" href="/review">Review der letzten Matches ›</a>{% endif %}
 {% if baustellen %}
 <h2>Deine Baustellen</h2>
 <a class="card bst" href="/progress">

@@ -58,6 +58,26 @@ Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern z
 verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,
 Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
+## Version 3: tiefere Analysen
+
+- **Echtdaten-Check:** `cstaktik diagnose <demo>` prüft Datenfelder (Blickwinkel, Pitch, spotted, Schüsse, Schaden,
+  Utility-Enden, Economy) und zeigt die echten Werte neben den Schwellen aus rules.yaml. Ausgabe auch unter
+  /reports/diagnose-<name>.txt. Zum Kalibrieren der Heuristiken.
+- **Duell-Analyse** (duels.py): je Kill zwischen Gegnern im Kontakt-Moment (erster Schuss eines der beiden):
+  Fadenkreuz-Abweichung zum Kopf in Grad (Augenhöhe genähert), Reaktion in ms, erste Kugel getroffen, Tempo.
+  Neue Lektion "Fadenkreuz vorher auf den Spot" (ab 20° bei verlorenem Duell ohne Lage-Fehler). Report-Abschnitt
+  "Deine Duelle gegen Pros" (Mediane, Pro-Werte aus allen Pro-Demos mit Duell-Daten).
+- **Utility gegen Pros** (utility_cmp.py): eigene Smokes/Mollys gegen die Pro-Stelle desselben Landeorts
+  (Abstand in Units, häufigster Pro-Wurfort), Flash-Wirkung (Gegner/Team blind), Utility vor dem ersten Duell.
+- **Positionen und Ausführungen** (setups.py): CT-Orte nach 0:20 mit Toden/Siegen gegen Pro-Anteil und
+  Pro-Siegquote; T-Ausführungen je Bombsite (Ankunft, Spieler zusammen, Granaten vorher, Siege) gegen Pros.
+- **Rundenchance mit Ausrüstung:** Lagen werden zusätzlich nach Ausrüstungs-Unterschied der Teams gezählt
+  (über 4000 = deutlich besser); genutzt, sobald genug Runden vorliegen.
+- **Review** (/review): letzte 5 Matches gegen die 5 davor: teuerste Lektionen mit Trend, Duell-Werte,
+  Auftrag-Checks, Ansage in Ich-Form.
+- Cache v9 (Duelle): eigene Demos werden bei der nächsten Auswertung neu geparst. Pro-Demos in data/pro_demos
+  parst `cstaktik pro-update` automatisch neu.
+
 ## Version 2: Coaching-Erlebnis
 
 - **Eigener Auftrag je Spieler:** Jeder Fokus-Spieler hat seinen Auftrag mit eigenem Check und eigener Übung

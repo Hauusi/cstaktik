@@ -51,8 +51,24 @@ def round_states(match: MatchData) -> list[dict]:
             st = [len(alive["ct"]), len(alive["t"]), planted]
             if st != states[-1]:
                 states.append(st)
-        out.append({"w": r.winner, "s": states})
+        row = {"w": r.winner, "s": states}
+        eq = eq_bucket(r)
+        if eq is not None:
+            row["eq"] = eq
+        out.append(row)
     return out
+
+
+EQ_DIFF = 4000  # Ausrüstungs-Unterschied (Summe Team) ab dem eine Seite als besser ausgerüstet gilt
+
+
+def eq_bucket(rnd) -> int | None:
+    """Ausrüstung aus CT-Sicht: 1 = CT deutlich besser, -1 = T deutlich besser, 0 = ähnlich (Economy-Sample)."""
+    if not rnd.economy:
+        return None
+    ct = sum(e.equip_value or 0 for e in rnd.economy if e.side == "ct")
+    t = sum(e.equip_value or 0 for e in rnd.economy if e.side == "t")
+    return 1 if ct - t > EQ_DIFF else -1 if t - ct > EQ_DIFF else 0
 
 
 class WinModel:
@@ -62,12 +78,16 @@ class WinModel:
         self.min_n = min_n
         self.exact: dict[tuple, list[int]] = {}
         self.coarse: dict[tuple, list[int]] = {}
+        self.with_eq: dict[tuple, list[int]] = {}
         self.rounds = len(rounds)
         for rd in rounds:
-            seen_e, seen_c = set(), set()
+            seen_e, seen_c, seen_q = set(), set(), set()
             for ct, t, p in rd["s"]:
                 ke, kc = (ct, t, p), (max(-3, min(3, ct - t)), p, min(ct, t) > 0)
-                for key, table, seen in ((ke, self.exact, seen_e), (kc, self.coarse, seen_c)):
+                keys = [(ke, self.exact, seen_e), (kc, self.coarse, seen_c)]
+                if rd.get("eq") is not None:
+                    keys.append(((ct, t, p, rd["eq"]), self.with_eq, seen_q))
+                for key, table, seen in keys:
                     if key in seen:
                         continue
                     seen.add(key)
@@ -75,8 +95,16 @@ class WinModel:
                     c[0] += rd["w"] == "ct"
                     c[1] += 1
 
-    def prob(self, side: str, ct: int, t: int, planted: bool) -> tuple[float, int, bool] | None:
-        """(Gewinnchance der Seite 0..1, Anzahl Runden, grob?) oder None."""
+    def prob(self, side: str, ct: int, t: int, planted: bool, eq: int | None = None) -> tuple[float, int, bool] | None:
+        """(Gewinnchance der Seite 0..1, Anzahl Runden, grob?) oder None. Mit ``eq`` (Ausrüstungs-Stufe der Runde)
+        zuerst die Lage mit gleicher Ausrüstung, sofern genug Runden; ``self.last_eq`` sagt, ob sie genutzt wurde."""
+        self.last_eq = False
+        if eq is not None and ct and t:
+            c = self.with_eq.get((ct, t, int(planted), eq))
+            if c and c[1] >= self.min_n:
+                self.last_eq = True
+                p_ct = c[0] / c[1]
+                return (p_ct if side == "ct" else 1 - p_ct), c[1], False
         if ct == 0 or t == 0:  # entschieden (außer Bombe/Defuse): klare Grenzfälle
             if ct == 0:
                 return (0.0 if side == "ct" else 1.0), 0, False
@@ -335,8 +363,11 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
         after = alive_at(match, rnd, f.tick + int(trade_window_s * tr) + 1)
         pl_b = planted_at(match, rnd.num, f.tick) is not None
         pl_a = planted_at(match, rnd.num, f.tick + int(trade_window_s * tr)) is not None
-        pb = model.prob(side, len(before["ct"]), len(before["t"]), pl_b)
-        pa = model.prob(side, len(after["ct"]), len(after["t"]), pl_a)
+        eq = eq_bucket(rnd)
+        pb = model.prob(side, len(before["ct"]), len(before["t"]), pl_b, eq)
+        used_eq = model.last_eq
+        pa = model.prob(side, len(after["ct"]), len(after["t"]), pl_a, eq)
+        used_eq = used_eq and model.last_eq
         if pb is None or pa is None:
             continue
         cost = round(100 * (pb[0] - pa[0]))
@@ -345,6 +376,7 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
         rough = " (grobe Lage, wenig Daten)" if pb[2] or pa[2] else ""
         f.evidence["chance"] = (f"Rundenchance vorher {_pct(pb[0])}, danach {_pct(pa[0])}"
                                 + (" (inkl. Trade)" if traded else "") + rough
+                                + (", bei gleicher Ausrüstungslage" if used_eq else "")
                                 + f". Gezählt aus {model.rounds} Runden.")
 
 

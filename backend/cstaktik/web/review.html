@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Review – cstaktik{% endblock %}
+{% block head %}
+<style>
+.back { font-size: 13px; color: var(--muted); }
+.say { display: flex; gap: 12px; margin-top: 14px; }
+.say .av { flex: none; width: 42px; height: 42px; background: var(--orange); color: #111; font: 800 22px/42px var(--cond);
+  text-align: center; clip-path: polygon(0 0,100% 0,100% 75%,75% 100%,0 100%); }
+.say p { margin: 0 0 8px; font-size: 16px; line-height: 1.5; }
+.rp { margin-top: 14px; padding: 14px; background: var(--surface); border: 1px solid var(--line); }
+.rp .who { font-family: var(--cond); font-weight: 800; font-size: 22px; text-transform: uppercase; }
+.rl { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); }
+.rl b { display: block; font-size: 15.5px; } .rl span { font-size: 13px; color: var(--muted); }
+.rl .tr { font-family: var(--cond); font-weight: 800; text-transform: uppercase; }
+.tr.besser { color: #46a758; } .tr.schlechter { color: #e5484d; } .tr.gleich { color: #ff9f1c; }
+.kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.kv div { padding: 8px; background: var(--surface-2); }
+.kv span { display: block; font-family: var(--cond); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.kv b { font-family: var(--cond); font-size: 22px; } .kv i { font-style: normal; font-size: 12px; color: var(--muted); display: block; }
+.ck { display: inline-block; width: 26px; height: 26px; line-height: 24px; text-align: center; border: 1px solid; margin: 6px 4px 0 0; font-weight: 800; }
+.ck.ok { color: #46a758; } .ck.no { color: #e5484d; }
+</style>
+{% endblock %}
+{% block hero %}
+<a class="back" href="/">‹ Startseite</a>
+<h1>Review</h1>
+<p>Letzte {{ r.n }} Matches · {{ r.won }} gewonnen, {{ r.lost }} verloren{% if r.has_before %} · verglichen mit den {{ r.n }} davor{% endif %}.</p>
+{% endblock %}
+{% block content %}
+{% if r.say %}<div class="say"><div class="av">C</div><div>{% for s in r.say %}<p>{{ s }}</p>{% endfor %}</div></div>{% endif %}
+{% for p in r.players %}
+<div class="rp">
+  <div class="who">{{ p.name }}</div>
+  {% for l in p.lessons %}
+  <div class="rl"><div><b>{{ l.title }}</b><span>{{ l.count }}x{% if l.rounds_lost %} · ≈{{ l.rounds_lost|string|replace(".", ",") }} Runden{% endif %}{% if l.rate is not none %} · {{ l.rate|string|replace(".", ",") }} pro 10 Runden{% if l.rate_before is not none %} (vorher {{ l.rate_before|string|replace(".", ",") }}){% endif %}{% endif %}</span></div>
+    <div class="tr {{ l.trend or '' }}">{{ {"besser": "▼ besser", "schlechter": "▲ schlechter", "gleich": "■ gleich"}.get(l.trend, "neu") }}</div></div>
+  {% endfor %}
+  {% if p.duels.n %}{% set d = p.duels %}{% set o = p.duels_before %}
+  <div class="kv num">
+    <div><span>Fadenkreuz</span><b>{{ d.err|string|replace(".", ",") if d.err is not none else "–" }}°</b>{% if o.err is not none %}<i>vorher {{ o.err|string|replace(".", ",") }}°</i>{% endif %}</div>
+    <div><span>Reaktion</span><b>{{ d.react|int if d.react is not none else "–" }}</b>{% if o.react is not none %}<i>vorher {{ o.react|int }} ms</i>{% else %}<i>ms</i>{% endif %}</div>
+    <div><span>Erste Kugel</span><b>{{ d.first_hit|int if d.first_hit is not none else "–" }} %</b>{% if o.first_hit is not none %}<i>vorher {{ o.first_hit|int }} %</i>{% endif %}</div>
+  </div>
+  {% endif %}
+  {% if p.checks %}<div style="margin-top:10px" class="small muted">Auftrag-Checks: {% for c in p.checks %}<span class="ck {{ 'ok' if c.met else 'no' }}" title="{{ c.title }}: {{ c.rate }} (Ziel {{ c.target }})">{{ '✓' if c.met else '✗' }}</span>{% endfor %}</div>{% endif %}
+</div>
+{% endfor %}
+{% if not r.players %}<p class="muted">Noch keine Matches im Verlauf.</p>{% endif %}
+{% endblock %}

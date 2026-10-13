@@ -295,6 +295,8 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         h["lesson_rank"] = history.lesson_rank(result)
         h["lesson_rank_by"] = history.lesson_rank_by(result)
         h["scenes"] = history.scenes(result, h.get("report_file"), h.get("map"))
+        h["duel_stats"] = history.duel_stats(match)
+        h["util_stats"] = history.util_stats(match)
         if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
             h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], config["goals"]["target_factor"],
                                                    config["goals"]["done_after"])

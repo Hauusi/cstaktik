@@ -359,6 +359,14 @@ def _get_job(job_id: str) -> dict:
         return _job_view(job_id, job)
 
 
+@app.get("/review", response_class=HTMLResponse)
+def review_page(n: int = 5) -> str:
+    from cstaktik import history, review
+
+    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    return _env.get_template("review.html").render(r=review.build(hist, max(1, min(n, 20))))
+
+
 @app.get("/progress", response_class=HTMLResponse)
 def progress() -> str:
     from cstaktik import history

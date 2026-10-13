@@ -54,6 +54,8 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "rounds": len(match.rounds),
         "states": round_states(match),
         "lessons": lessons(result),
+        "duel_stats": duel_stats(match),
+        "util_stats": util_stats(match),
         "main_lesson": main_lesson(result),
         "lesson_rank": lesson_rank(result),
         "lesson_rank_by": lesson_rank_by(result),
@@ -104,6 +106,28 @@ def main_lesson(result: AnalysisResult) -> str | None:
 
     top = focus(result.findings, 1)
     return top[0]["id"] if top else None
+
+
+def duel_stats(match: MatchData) -> dict:
+    from cstaktik import duels
+
+    out = {}
+    for sid in match.focus_ids():
+        views = [duels.side_of(d, sid) for d in match.duels if sid in (d.winner, d.loser)]
+        if views:
+            out[sid] = duels.stats(views)
+    return out
+
+
+def util_stats(match: MatchData) -> dict:
+    from cstaktik import utility_cmp
+
+    out = {}
+    for sid in match.focus_ids():
+        n, pr = utility_cmp.pre_contact(match, {sid})
+        out[sid] = {"flash": utility_cmp.flash_stats(utility_cmp.flash_effect(match, {sid})) if match.blinds else None,
+                    "pre": round(n / pr, 2) if pr else None}
+    return out
 
 
 def lesson_rank(result: AnalysisResult) -> list[str]:
