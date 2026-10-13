@@ -107,6 +107,24 @@ def thin_path(points: list[tuple[int, float, float, float]], every: int) -> list
     return out
 
 
+THROW_MAX_GAP = 150  # Units zwischen Werfer und erstem Flugpunkt, darüber gilt die Wurfposition als unsicher
+THROW_GAP_TICKS = 16  # größere Lücke in den Ticks einer Entity-ID: neuer Wurf
+
+
+def split_throws(rows: list[dict]) -> list[list[dict]]:
+    """Zeilen einer (wiederverwendeten) Entity-ID in einzelne Würfe trennen. ``rows`` nach Tick sortiert."""
+    out: list[list[dict]] = []
+    for r in rows:
+        cur = out[-1] if out else None
+        if cur is None or int(r["tick"]) - int(cur[-1]["tick"]) > THROW_GAP_TICKS \
+                or r.get("thrower_steamid") != cur[-1].get("thrower_steamid") \
+                or r.get("grenade_type") != cur[-1].get("grenade_type") or r.get("round_num") != cur[-1].get("round_num"):
+            out.append([r])
+        else:
+            cur.append(r)
+    return out
+
+
 def match_timed(
     starts: list[dict], ends: list[dict], round_bounds: list[tuple[int, int, int]]
 ) -> list[tuple[dict, int, int | None, bool]]:
@@ -318,31 +336,34 @@ def parse_demo(
     # --- Granaten-Flugbahnen ----------------------------------------------------------
     grenades: list[GrenadeThrow] = []
     try:
+        # Die Entity-ID wird im Spiel wiederverwendet: pro ID in einzelne Würfe trennen (Lücke in den Ticks,
+        # anderer Werfer, anderer Typ oder andere Runde = neuer Wurf).
         by_entity: dict[int, list[dict]] = {}
         for row in dem.grenades.sort("tick").to_dicts():
             if row.get("entity_id") is None or row.get("round_num") is None:
                 continue
             by_entity.setdefault(int(row["entity_id"]), []).append(row)
         every = int(parser_cfg.get("grenade_sample_ticks", 4))
-        for eid, rows in by_entity.items():
-            pts = [
-                (int(r["tick"]), float(r["X"]), float(r["Y"]), float(r["Z"] or 0.0))
-                for r in rows
-                if _num(r.get("X")) is not None and _num(r.get("Y")) is not None
-            ]
-            if not pts:
-                continue
-            raw = str(rows[0].get("grenade_type"))
-            grenades.append(
-                GrenadeThrow(
-                    round=int(rows[0]["round_num"]),
-                    entity_id=eid,
-                    thrower_steamid=_sid(rows[0].get("thrower_steamid")),
-                    grenade_type=raw,
-                    kind=nade_kind(raw),
-                    points=thin_path(pts, every),
+        for eid, all_rows in by_entity.items():
+            for rows in split_throws(all_rows):
+                pts = [
+                    (int(r["tick"]), float(r["X"]), float(r["Y"]), float(r["Z"] or 0.0))
+                    for r in rows
+                    if _num(r.get("X")) is not None and _num(r.get("Y")) is not None
+                ]
+                if not pts:
+                    continue
+                raw = str(rows[0].get("grenade_type"))
+                grenades.append(
+                    GrenadeThrow(
+                        round=int(rows[0]["round_num"]),
+                        entity_id=eid,
+                        thrower_steamid=_sid(rows[0].get("thrower_steamid")),
+                        grenade_type=raw,
+                        kind=nade_kind(raw),
+                        points=thin_path(pts, every),
+                    )
                 )
-            )
         unknown = sorted({g.grenade_type for g in grenades if g.kind == "other"})
         if unknown:
             missing.append(f"Unbekannte Granatentypen (grau dargestellt): {', '.join(unknown)}")
@@ -467,7 +488,9 @@ def parse_demo(
     blinds: list[Blind] = []
     try:
         bdf = dem.parser.parse_event("player_blind")
-        for rec in bdf.to_dict("records"):
+        recs = bdf.to_dicts() if hasattr(bdf, "to_dicts") else bdf.to_dict("records") if hasattr(bdf, "to_dict") \
+            else list(bdf or [])
+        for rec in recs:
             victim, dur = _sid(rec.get("user_steamid")), _num(rec.get("blind_duration"))
             rnd = round_of(int(rec["tick"]))
             if victim is None or dur is None or rnd is None:
@@ -477,7 +500,7 @@ def parse_demo(
                       attacker_steamid=_sid(rec.get("attacker_steamid")), duration=round(dur, 2))
             )
     except Exception as exc:  # noqa: BLE001
-        missing.append(f"Blendungen nicht lesbar ({type(exc).__name__})")
+        missing.append(f"Blendungen nicht lesbar ({type(exc).__name__}: {str(exc)[:80]})")
 
     # --- Bombe -------------------------------------------------------------------------
     bomb: list[BombEvent] = []
@@ -559,13 +582,16 @@ def _add_throws(dem, match: MatchData) -> None:
                 duck[(int(rec["tick"]), sid)] = v
     except Exception:  # noqa: BLE001 - Ducken ist optional
         pass
-    n = 0
+    n = dropped = 0
     for g in match.grenades:
         if not g.thrower_steamid or not g.points:
             continue
         t = g.points[0][0] - 1
         cur, prev = view.get((t, g.thrower_steamid)), view.get((t - 2, g.thrower_steamid))
         if cur is None:
+            continue
+        if math.hypot(cur[0] - g.points[0][1], cur[1] - g.points[0][2]) > THROW_MAX_GAP:
+            dropped += 1  # Flugbeginn passt nicht zum Werfer: lieber keine Wurfdaten als falsche
             continue
         sxy = sz = None
         if prev is not None:
@@ -575,6 +601,9 @@ def _add_throws(dem, match: MatchData) -> None:
         g.throw = [t, round(cur[0], 2), round(cur[1], 2), round(cur[2], 2), round(cur[3], 2), round(cur[4], 2),
                    sxy, sz, None if d is None else round(d, 2)]
         n += 1
+    if dropped:
+        match.missing.append(f"Wurfposition bei {dropped} von {dropped + n} Granaten verworfen "
+                             f"(Werfer über {THROW_MAX_GAP} Units vom Flugbeginn entfernt)")
     if match.grenades and not n:
         match.missing.append("Wurfpositionen fehlen: keine Lineups aus dieser Demo")
 

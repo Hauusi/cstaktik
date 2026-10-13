@@ -21,8 +21,8 @@ from cstaktik.reference import timeline
 from cstaktik.situation import pro_decisions, round_states
 from cstaktik.utility_cmp import flash_effect, pre_contact
 
-VERSION = 7  # 1: timeline; 2: + nades, deaths; 3: + states; 4: + decisions; 5: + duels; 6: + flashes, pre_util;
-#             7: + Wurfposition/Blick je Granate (Lineups), sid bei Toden (Map-Buch)
+VERSION = 8  # 1: timeline; 2: + nades, deaths; 3: + states; 4: + decisions; 5: + duels; 6: + flashes, pre_util;
+#             7: + Wurfposition/Blick je Granate (Lineups), sid bei Toden (Map-Buch); 8: Würfe je Entity getrennt
 _CELL = 128  # Rastergröße für die Ortsbestimmung von Granaten-Punkten
 
 

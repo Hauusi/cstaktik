@@ -130,3 +130,13 @@ def test_match_timed_long_missing_and_reused_entity():
     assert res[(5, 1)] == (900, True)  # 800 Ticks, keine Obergrenze
     assert res[(5, 2)] == (2700, True)  # gleiche entityid in neuer Runde
     assert res[(9, 1)] == (1000, False)  # kein Ende -> Rundenende, markiert
+
+
+def test_split_throws_reused_entity_id():
+    from cstaktik.parser.awpy_adapter import split_throws
+
+    a = [{"tick": t, "thrower_steamid": 1, "grenade_type": "smokegrenade", "round_num": 1} for t in range(100, 140, 2)]
+    b = [{"tick": t, "thrower_steamid": 2, "grenade_type": "flashbang", "round_num": 1} for t in range(141, 160, 2)]
+    c = [{"tick": t, "thrower_steamid": 1, "grenade_type": "smokegrenade", "round_num": 1} for t in range(400, 420, 2)]
+    parts = split_throws(a + b + c)
+    assert [len(p) for p in parts] == [20, 10, 10]  # anderer Werfer und Tick-Lücke trennen
