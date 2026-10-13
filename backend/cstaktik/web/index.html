@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block head %}
 <style>
-.drop { display: block; border: 1.5px dashed rgba(124,92,255,.5); border-radius: 16px; padding: 22px 16px; text-align: center;
-  background: rgba(124,92,255,.06); cursor: pointer; transition: .2s; }
-.drop.has { border-style: solid; border-color: var(--accent); background: rgba(124,92,255,.12); }
+.drop { display: block; border: 1.5px dashed rgba(255,159,28,.5); border-radius: 16px; padding: 22px 16px; text-align: center;
+  background: rgba(255,159,28,.06); cursor: pointer; transition: .2s; }
+.drop.has { border-style: solid; border-color: var(--accent); background: rgba(255,159,28,.12); }
 .drop input { display: none; }
-.drop .ic { width: 44px; height: 44px; margin: 0 auto 8px; border-radius: 12px; display: grid; place-items: center; background: rgba(124,92,255,.18); }
+.drop .ic { width: 44px; height: 44px; margin: 0 auto 8px; border-radius: 12px; display: grid; place-items: center; background: rgba(255,159,28,.18); }
 .drop .ic svg { width: 22px; height: 22px; }
 .drop b { display: block; font-size: 16px; word-break: break-all; }
 details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; cursor: pointer; }
@@ -15,7 +15,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .list { display: grid; gap: 8px; }
 .item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
 .item .map { width: 42px; height: 42px; border-radius: 11px; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 13px;
-  background: linear-gradient(135deg, rgba(124,92,255,.25), rgba(74,138,224,.2)); }
+  background: linear-gradient(135deg, rgba(255,159,28,.25), rgba(255,159,28,.2)); }
 .item .meta { flex: 1; min-width: 0; }
 .item .meta b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item .score { font-weight: 800; font-size: 17px; }
@@ -36,7 +36,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .bst .brow b { font-size: 17px; line-height: 1.25; }
 .tb { font-weight: 700; margin-left: 6px; white-space: nowrap; } .tb.besser { color: #3fbf7f; } .tb.schlechter { color: #f0566a; } .tb.gleich { color: #f5a524; } .tb.wenig { color: #8d97a8; }
 .prochk { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13.5px; color: var(--muted); }
-.prochk input { width: 18px; height: 18px; accent-color: #7c5cff; }
+.prochk input { width: 18px; height: 18px; accent-color: #ff9f1c; }
 .maps { display: flex; flex-wrap: wrap; gap: 8px; }
 .mapbtn { padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-weight: 650; }
 .empty { text-align: center; padding: 26px 16px; color: var(--muted); }
@@ -101,7 +101,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 <form class="card" id="form" action="/analyze" method="post" enctype="multipart/form-data">
   <label class="drop" id="drop">
     <input type="file" name="demo" id="file" accept=".dem,.bz2" required>
-    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#c9bcff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></div>
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#ffc46b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></div>
     <b id="fname">Datei wählen</b>
     <span class="muted small" id="fsize">.dem oder .dem.bz2</span>
   </label>
@@ -128,7 +128,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 {% endif %}
 
 {% if n_history %}
-<a class="item" href="/progress" style="margin-top:16px;background:linear-gradient(135deg,rgba(124,92,255,.18),rgba(63,191,127,.12))">
+<a class="item" href="/progress" style="margin-top:16px;background:linear-gradient(135deg,rgba(255,159,28,.18),rgba(63,191,127,.12))">
   <div class="map">↗</div><div class="meta"><b>Fortschritt</b><span class="muted small">{{ n_history }} Matches im Verlauf · Trends und Todes-Karte</span></div></a>
 {% endif %}
 

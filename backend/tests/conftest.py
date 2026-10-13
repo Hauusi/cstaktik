@@ -33,4 +33,8 @@ def _no_network_maps(tmp_path, monkeypatch):
 
     monkeypatch.setattr(icons, "_get", offline)
     monkeypatch.setattr(icons, "ICONS_DIR", tmp_path / "icons")
+    from cstaktik import fonts
+
+    monkeypatch.setattr(fonts, "_get", offline)
+    monkeypatch.setattr(fonts, "FONTS_DIR", tmp_path / "fonts")
     monkeypatch.setattr(radar, "LOCAL_MAPS_DIR", tmp_path / "maps")

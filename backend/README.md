@@ -60,6 +60,12 @@ Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
 ## Coach-Stimme, Lektionen, Fortschritt
 
+- **Design:** HUD-Stil (dunkel, CS-Orange, Barlow/Barlow Condensed). Die Schriften (SIL OFL) werden einmal nach
+  data/fonts geladen und in Report und Seiten eingebettet; ohne Netz greift die Systemschrift.
+- **Coach-Ansprache:** Ich-Form aus den Zahlen des Matches, genau EIN Hauptpunkt ("Der eine Punkt"), Erinnerung an das
+  Hauptthema des letzten Matches (dort Nx, heute Mx), Hausaufgabe und Lob je Spieler. Kosten werden als
+  "≈ x Runden gekostet" angezeigt (Summe der verlorenen Rundenchance).
+
 - **Coach-Stimme** (`coach_voice.py`): Jede Tod-Szene bekommt eine Lektion als Überschrift (z. B. "Ecke vorzielen
   statt reinlaufen"), 1–3 Sätze in Du-Form, was passiert ist (Lage im Entscheidungsmoment, Duell, Radar-Info),
   und eine Ansage "Nächstes Mal" mit den Orten/Granaten der Szene. Rohdaten unter "Details zur Szene".

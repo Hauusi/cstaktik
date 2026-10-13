@@ -54,6 +54,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "rounds": len(match.rounds),
         "states": round_states(match),
         "lessons": lessons(result),
+        "main_lesson": main_lesson(result),
         "won": won,
         "lost": lost,
         "players": {
@@ -93,6 +94,20 @@ def lessons(result: AnalysisResult) -> dict[str, dict[str, int]]:
             d = out.setdefault(f.steamid, {})
             d[v["id"]] = d.get(v["id"], 0) + 1
     return out
+
+
+def main_lesson(result: AnalysisResult) -> str | None:
+    from cstaktik.coach_voice import focus
+
+    top = focus(result.findings, 1)
+    return top[0]["id"] if top else None
+
+
+def previous(histories: list[dict], current: dict) -> dict | None:
+    """Das zuletzt ausgewertete andere Match vor ``current`` (nach Auswertungszeit)."""
+    before = [h for h in histories if h.get("id") != current.get("id")
+              and h.get("analyzed_at", "") <= (current.get("analyzed_at") or "9999")]
+    return before[-1] if before else None
 
 
 def save(summary: dict, history_dir: Path) -> Path:

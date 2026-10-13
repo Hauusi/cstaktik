@@ -47,7 +47,9 @@ async def _password(request: Request, call_next):
 
 pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/reports", StaticFiles(directory=pipeline.REPORTS_DIR, html=True), name="reports")
-_env = Environment(loader=FileSystemLoader(Path(__file__).parent / "web"), autoescape=select_autoescape(["html"]))
+_env = Environment(loader=FileSystemLoader([Path(__file__).parent / "web", Path(__file__).parent / "report" / "templates"]),
+                   autoescape=select_autoescape(["html"]))
+_env.globals["font_css"] = lambda: __import__("cstaktik.fonts", fromlist=["font_css"]).font_css()
 
 # Auswertung läuft im Hintergrund: Der Browser muss nach dem Upload nicht offen bleiben.
 _executor = ThreadPoolExecutor(max_workers=1)

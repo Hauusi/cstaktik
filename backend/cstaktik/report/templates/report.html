@@ -4,12 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
+<style>{{ font_css|safe }}</style>
 <title>{{ map_label }} {{ score.won }}:{{ score.lost }} – cstaktik</title>
 <style>
 :root {
   --bg: #0b0d12; --surface: #141821; --surface-2: #1b202b; --line: rgba(255,255,255,.07);
   --text: #eef1f6; --muted: #8d97a8; --faint: #5d6676;
-  --ct: #4a8ae0; --t: #c47a12; --accent: #7c5cff;
+  --ct: #4a8ae0; --t: #c47a12; --accent: #ff9f1c;
   --win: #3fbf7f; --loss: #f0566a; --hoch: #f0566a; --mittel: #f5a524; --niedrig: #7d8899;
   --r: 16px;
 }
@@ -24,8 +25,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* Hero */
 .hero { position: relative; padding: 28px 16px 22px; overflow: hidden;
-  background: radial-gradient(120% 140% at 0% 0%, rgba(124,92,255,.35), transparent 55%),
-              radial-gradient(120% 140% at 100% 0%, rgba(74,138,224,.25), transparent 55%), var(--bg); }
+  background: radial-gradient(120% 140% at 0% 0%, rgba(255,159,28,.35), transparent 55%),
+              radial-gradient(120% 140% at 100% 0%, rgba(255,159,28,.25), transparent 55%), var(--bg); }
 .eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .hero h1 { margin: 2px 0 0; font-size: 34px; letter-spacing: -.02em; }
 .score { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
@@ -37,7 +38,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .focus-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px;
   background: rgba(20,24,33,.7); border: 1px solid var(--line); backdrop-filter: blur(6px); }
 .focus-item .rank { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
-  font-weight: 700; font-size: 13px; background: rgba(124,92,255,.2); color: #c9bcff; flex: none; }
+  font-weight: 700; font-size: 13px; background: rgba(255,159,28,.2); color: #ffc46b; flex: none; }
 .focus-item .who { color: var(--muted); font-size: 13px; }
 
 /* Sections */
@@ -81,10 +82,10 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .rhead { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; }
 .rhead b { font-size: 18px; }
 .res { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
-.res.W { background: rgba(63,191,127,.15); color: var(--win); } .res.P { background: rgba(185,166,255,.16); color: #b9a6ff; }
-.proclip { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(185,166,255,.35); color: #d4c9ff; }
-.proclip b { color: #b9a6ff; } .vbtn.pbtn { color: #b9a6ff; display: block; margin-top: 6px; }
-.stage.prostage { box-shadow: inset 0 0 0 2px rgba(185,166,255,.6); }
+.res.W { background: rgba(63,191,127,.15); color: var(--win); } .res.P { background: rgba(157,180,224,.16); color: #9db4e0; }
+.proclip { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(157,180,224,.35); color: #c5d3ee; }
+.proclip b { color: #9db4e0; } .vbtn.pbtn { color: #9db4e0; display: block; margin-top: 6px; }
+.stage.prostage { box-shadow: inset 0 0 0 2px rgba(157,180,224,.6); }
 #rback { display: inline; margin: 0 6px 0 0; } #rback[hidden] { display: none; } .res.L { background: rgba(240,86,106,.15); color: var(--loss); }
 .stage { scroll-margin-top: 72px; position: relative; aspect-ratio: 1; background: #07090d; touch-action: none; overscroll-behavior: contain; cursor: grab; }
 .stage canvas { width: 100%; height: 100%; display: block; }
@@ -105,7 +106,7 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .cbtn { height: 40px; min-width: 40px; padding: 0 10px; border-radius: 10px; background: var(--surface-2);
   border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; }
 .cbtn.play { width: 48px; height: 48px; border-radius: 50%; background: var(--text); color: var(--bg); }
-.cbtn.on { border-color: var(--accent); color: #c9bcff; }
+.cbtn.on { border-color: var(--accent); color: #ffc46b; }
 .cbtn svg { width: 18px; height: 18px; }
 .spacer { flex: 1; }
 .clock { font-weight: 700; font-size: 15px; min-width: 44px; text-align: right; }
@@ -137,7 +138,7 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .f .tip { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.08); color: #cdeedd; font-size: 14px; }
 .f .tip b { color: var(--win); }
 .f .act { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
-.watch { height: 34px; padding: 0 12px; border-radius: 9px; background: rgba(124,92,255,.18); color: #d4c9ff; font-weight: 600; font-size: 13px; }
+.watch { height: 34px; padding: 0 12px; border-radius: 9px; background: rgba(255,159,28,.18); color: #c5d3ee; font-weight: 600; font-size: 13px; }
 details { font-size: 12.5px; color: var(--muted); }
 summary { cursor: pointer; list-style: none; } summary::-webkit-details-marker { display: none; }
 dl { margin: 6px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; }
@@ -151,7 +152,7 @@ dt { color: var(--faint); } dd { margin: 0; color: var(--text); word-break: brea
 .f.gut .tip { background: rgba(63,191,127,.12); }
 .tour { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 54px; margin-top: 16px;
   border-radius: 14px; font-weight: 750; font-size: 16px; color: #fff;
-  background: linear-gradient(135deg, #7c5cff, #4a8ae0); box-shadow: 0 8px 24px rgba(124,92,255,.35); }
+  background: var(--orange); box-shadow: 0 8px 24px rgba(255,159,28,.35); }
 .tour small { font-weight: 600; opacity: .8; }
 .pill.good { color: var(--win); border-color: rgba(63,191,127,.35); }
 .players { display: grid; gap: 10px; }
@@ -166,7 +167,7 @@ dt { color: var(--faint); } dd { margin: 0; color: var(--text); word-break: brea
 .hw { counter-reset: hw; display: grid; gap: 8px; margin-top: 4px; }
 .hw li { list-style: none; position: relative; padding: 10px 12px 10px 42px; border-radius: 12px; background: var(--surface-2); }
 .hw li::before { counter-increment: hw; content: counter(hw); position: absolute; left: 12px; top: 10px; width: 22px; height: 22px;
-  border-radius: 7px; display: grid; place-items: center; font-weight: 800; font-size: 12px; background: rgba(124,92,255,.25); color: #d4c9ff; }
+  border-radius: 7px; display: grid; place-items: center; font-weight: 800; font-size: 12px; background: rgba(255,159,28,.25); color: #c5d3ee; }
 .hw .t { font-weight: 650; } .hw .tp { font-size: 13.5px; color: #cdeedd; margin-top: 2px; }
 .story { padding: 0 14px 10px; font-size: 13px; color: var(--muted); }
 .story b { color: var(--text); font-weight: 600; }
@@ -211,26 +212,26 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .showme .vtxt { font-size: 13px; color: #bfe8cf; margin-bottom: 6px; }
 .showme .btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .sbtn { font: inherit; font-size: 13.5px; font-weight: 700; padding: 8px 12px; border-radius: 10px; border: 1px solid; background: transparent; cursor: pointer; }
-.sbtn.pro { color: #c9bcff; border-color: rgba(185,166,255,.55); background: rgba(124,92,255,.14); }
+.sbtn.pro { color: #ffc46b; border-color: rgba(157,180,224,.55); background: rgba(255,159,28,.14); }
 .sbtn.win { color: var(--win); border-color: rgba(63,191,127,.5); background: rgba(63,191,127,.1); }
 .showme .pdesc { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .cost { display: flex; gap: 14px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
 .cost .cnumbig { font-size: 30px; font-weight: 800; color: var(--loss); min-width: 70px; line-height: 1; }
 .cost .cnumbig small { font-size: 15px; margin-left: 2px; }
-.cost .cbody { flex: 1; min-width: 0; } .cost .protip { margin-top: 6px; font-size: 13.5px; color: #d4c9ff; } .cost .protip b { color: #b9a6ff; } .cost .costgo { margin-top: 8px; }
-.quiz { padding: 12px 14px; background: rgba(124,92,255,.1); border-bottom: 1px solid var(--line); }
-.quiz .qk { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #b9a6ff; }
+.cost .cbody { flex: 1; min-width: 0; } .cost .protip { margin-top: 6px; font-size: 13.5px; color: #c5d3ee; } .cost .protip b { color: #9db4e0; } .cost .costgo { margin-top: 8px; }
+.quiz { padding: 12px 14px; background: rgba(255,159,28,.1); border-bottom: 1px solid var(--line); }
+.quiz .qk { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #9db4e0; }
 .quiz .qt { font-size: 16px; font-weight: 800; margin: 2px 0 6px; }
 .quiz .ql { font-size: 13.5px; color: #c9d4e6; line-height: 1.45; }
 .quiz .qopts { display: grid; gap: 8px; margin-top: 10px; }
 .quiz .qopt { font: inherit; font-size: 14px; font-weight: 700; text-align: left; padding: 10px 12px; border-radius: 10px;
-  border: 1px solid rgba(185,166,255,.4); background: rgba(255,255,255,.03); color: var(--text); cursor: pointer; }
+  border: 1px solid rgba(157,180,224,.4); background: rgba(255,255,255,.03); color: var(--text); cursor: pointer; }
 .quiz .qopt.mine { border-color: var(--loss); } .quiz .qopt.best { border-color: var(--win); background: rgba(63,191,127,.1); }
 .quiz .qopt small { display: block; font-weight: 600; color: var(--muted); margin-top: 2px; }
 .quiz .qres { margin-top: 10px; font-size: 13.5px; line-height: 1.45; }
 .quiz .qbar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .sbtn.plain { color: var(--muted); border-color: var(--line); }
-.quizbtn { background: rgba(124,92,255,.18) !important; }
+.quizbtn { background: rgba(255,159,28,.18) !important; }
 .coach .item.cv { padding: 4px 0 6px; }
 .coach .cmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 12px; font-weight: 800; }
 .coach .cmeta .k { letter-spacing: .06em; text-transform: uppercase; }
@@ -240,15 +241,15 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .coach .happened { margin-top: 8px; font-size: 15px; line-height: 1.5; color: #d5dbe5; }
 .coach .nextbox { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(63,191,127,.12); font-size: 15px; line-height: 1.45; }
 .coach .nextbox b { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--win); margin-bottom: 2px; }
-.coach .proline { margin-top: 8px; font-size: 13.5px; color: #cfc4ff; }
+.coach .proline { margin-top: 8px; font-size: 13.5px; color: #c5d3ee; }
 .coach details.data .lage { margin: 6px 0; }
-.coach .protip { margin-top: 6px; font-size: 13.5px; color: #d4c9ff; } .coach .protip b { color: #b9a6ff; }
+.coach .protip { margin-top: 6px; font-size: 13.5px; color: #c5d3ee; } .coach .protip b { color: #9db4e0; }
 .coach .lage { margin-top: 4px; font-size: 13.5px; color: #c9d4e6; background: rgba(255,255,255,.04); border-radius: 8px; padding: 6px 8px; }
 .coach .chip { font-size: 12px; font-weight: 800; color: var(--loss); background: rgba(240,86,106,.14); border-radius: 999px; padding: 2px 8px; margin-left: 6px; white-space: nowrap; }
 .vorbild { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.07);
   border: 1px dashed rgba(63,191,127,.45); font-size: 13.5px; color: #d7f2e3; }
 .vorbild b { color: var(--win); }
-.vorbild .pro { margin-top: 6px; color: #d4c9ff; } .vorbild .pro b { color: #b9a6ff; }
+.vorbild .pro { margin-top: 6px; color: #c5d3ee; } .vorbild .pro b { color: #9db4e0; }
 .vbtn { display: block; margin-top: 6px; color: var(--win); font-weight: 700; font-size: 13px; }
 .hrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .hrow .score { margin: 0; }
@@ -278,43 +279,110 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .goodline b { color: var(--win); margin-right: 2px; }
 .gchip { font: inherit; font-size: 12.5px; padding: 5px 9px; border-radius: 999px; background: rgba(63,191,127,.1); color: #bfe8cf; border: 0; cursor: pointer; }
 footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
+
+/* ---- HUD: Kopf, Coach-Ansage, Hauptpunkt ---- */
+.hero.herohud { background: linear-gradient(90deg, rgba(255,159,28,.09), transparent 60%), var(--bg) !important;
+  border-bottom: 2px solid var(--orange); padding: 20px 16px 16px; }
+.hero.herohud .eyebrow { font-family: var(--cond); font-weight: 700; letter-spacing: .18em; font-size: 11px; }
+.hero.herohud .hrow { display: flex; justify-content: space-between; align-items: flex-end; }
+.hero.herohud h1 { font-size: 44px; line-height: 1; margin: 4px 0 0; }
+.hscore { font-size: 44px; font-weight: 800; line-height: 1; } .hscore span { color: var(--faint); margin: 0 4px; }
+.hscore .l { color: var(--muted); }
+.restag { display: inline-block; margin-top: 10px; font-family: var(--cond); font-weight: 700; font-size: 12px; letter-spacing: .16em;
+  text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--muted); color: var(--muted); }
+.restag.loss { color: var(--loss); border-color: var(--loss); } .restag.win { color: var(--win); border-color: var(--win); }
+.coachsay { display: flex; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.coachsay .av { flex: none; width: 42px; height: 42px; background: var(--orange); color: #111; font-weight: 800; font-size: 22px;
+  line-height: 42px; text-align: center; clip-path: polygon(0 0, 100% 0, 100% 75%, 75% 100%, 0 100%); }
+.coachsay .say { font-size: 17px; line-height: 1.45; }
+.mainpoint { padding: 18px 0 6px; }
+.sh { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.sh .n { font-weight: 800; font-size: 13px; color: #111; background: var(--orange); padding: 1px 7px; }
+.sh .t { font-weight: 700; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--orange); }
+.mainpoint .big { font-weight: 800; font-size: 32px; line-height: 1.02; text-transform: uppercase; }
+.stats { display: flex; margin-top: 12px; border: 1px solid var(--line); }
+.stats > div { flex: 1; padding: 8px 10px; border-right: 1px solid var(--line); min-width: 0; }
+.stats > div:last-child { border-right: 0; }
+.stats b { display: block; font-size: 24px; font-weight: 800; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats span { font-family: var(--cond); font-weight: 600; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.red { color: var(--loss); }
+.mainpoint .why { margin-top: 12px; color: #c4c1ba; font-size: 15px; }
+.scenes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.scenes button { font-weight: 700; font-size: 15px; letter-spacing: .05em; background: var(--surface); border: 1px solid var(--line);
+  padding: 8px 12px; color: var(--text); }
+.scenes button i { font-style: normal; color: var(--loss); margin-left: 4px; }
+.scenes.sm button { font-size: 13px; padding: 5px 9px; }
+.memo { margin-top: 12px; padding: 10px 12px; border-left: 3px solid var(--muted); background: var(--surface); font-size: 14.5px; }
+.memo.besser { border-left-color: var(--win); background: rgba(70,167,88,.08); }
+.memo.schlechter { border-left-color: var(--loss); background: rgba(229,72,77,.08); }
+.hw { margin-top: 12px; padding: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 15px; }
+.hw .k { color: var(--orange); font-weight: 700; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; margin-bottom: 2px; }
+.also { padding: 14px 0 4px; border-top: 1px solid var(--line); margin-top: 14px; }
+.also .sh .t { color: var(--muted); }
+.arow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.arow:first-of-type { border-top: 0; } .arow b { display: block; font-size: 15.5px; }
+.arow span { font-size: 13px; color: var(--muted); } .arow .scenes { margin: 0; flex: none; }
+.praise { margin-top: 14px; padding: 12px; border-left: 3px solid var(--win); background: rgba(70,167,88,.07); font-size: 14.5px; }
+.praise b { display: block; color: var(--win); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
+.ctas { margin-top: 18px; }
+.ctas .tour { width: 100%; height: 54px; font-size: 18px; }
+.coach .cmeta .k { font-family: var(--cond); }
+.coach .lesson-h { font-family: var(--cond); text-transform: uppercase; font-size: 26px; line-height: 1.02; }
+.coach .nextbox { background: rgba(70,167,88,.1); border-left: 3px solid var(--win); }
+.coach.show { background: rgba(255,159,28,.05); }
+.rchip { font-family: var(--cond); font-size: 16px; font-weight: 700; }
+.rchip.on { background: var(--orange); color: #111; }
+.rounds { background: rgba(12,13,15,.94); }
+{% include 'hud.css' %}
 </style>
 </head>
 <body>
-  <header class="hero"><div class="hero-in"><div>
+  <header class="hero herohud"><div class="hero-in">
     <div class="eyebrow">{{ match.source_file or "Demo" }}</div>
     <div class="hrow"><h1>{{ map_label }}</h1>
-      <div class="score num"><b class="w">{{ score.won }}</b><span class="sep">:</span><b class="l">{{ score.lost }}</b></div></div>
-    <div class="coachline">{{ coach_line }}</div>
-    {% if goal_check and goal_check.checks %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
-    </div><div>
+      <div class="hscore num cond"><b>{{ score.won }}</b><span>:</span><b class="l">{{ score.lost }}</b></div></div>
+    <span class="restag {{ 'win' if score.won > score.lost else 'loss' if score.lost > score.won else '' }}">{{ "Sieg" if score.won > score.lost else "Niederlage" if score.lost > score.won else "Unentschieden" }}</span>
+  </div></header>
+<main>
+  <section class="coachsay">
+    <div class="av cond">C</div>
+    <div class="say">{% for line in intro %}{{ line }} {% endfor %}</div>
+  </section>
+
+  {% if lessons %}{% set l = lessons[0] %}
+  <section class="mainpoint">
+    <div class="sh"><span class="n cond">01</span><span class="t cond">Der eine Punkt</span></div>
+    <div class="big cond">{{ l.lesson }}</div>
+    <div class="stats">
+      <div><b class="cond">{{ l.count }}x</b><span>passiert</span></div>
+      {% if l.cost and l.cost >= 30 %}<div><b class="cond red">≈{{ "%.1f"|format(l.cost / 100)|replace(".", ",") }}</b><span>Runden gekostet</span></div>{% endif %}
+      <div><b class="cond">{{ (l.players[0] if l.players|length == 1 else l.players|length ~ " Spieler") if l.players else "–" }}</b><span>{{ "wer" if l.players|length == 1 else "betroffen" }}</span></div>
+    </div>
+    <div class="why">{{ l.why }}</div>
+    <div class="scenes">{% for sc in l.scenes[:6] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div>
+    {% if memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
+    <div class="hw"><div class="k cond">Hausaufgabe fürs nächste Match</div>{{ l.drill }}</div>
+  </section>
+  {% if lessons|length > 1 %}
+  <section class="also">
+    <div class="sh"><span class="t cond">Außerdem</span></div>
+    {% for o in lessons[1:] %}
+    <div class="arow"><div><b>{{ o.lesson }}</b><span class="num">{{ o.count }}x{% if o.cost %} · ≈{{ "%.1f"|format(o.cost / 100)|replace(".", ",") }} Runden{% endif %}</span></div>
+      <div class="scenes sm">{% for sc in o.scenes[:3] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">R{{ sc.round }}</button>{% endfor %}</div></div>
+    {% endfor %}
+  </section>
+  {% endif %}
+  {% elif memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
+
+  {% if praise %}<section class="praise"><b class="cond">Gut</b>{% for p in praise %}<div>{{ p }}</div>{% endfor %}</section>{% endif %}
+
+  {% if goal_check and goal_check.checks %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
+
+  <div class="ctas">
     <button class="tour" id="tourBtn" hidden>▶ Debrief starten <small id="tourN"></small></button>
     <div class="subctas"><button class="linkbtn" id="quizBtn" hidden>Training: Was machst du? <span id="quizN"></span></button>
       <button class="linkbtn" id="allTour" hidden></button></div>
-  </div></div></header>
-<main>
-
-  {% if lessons %}
-  <h2>Deine Lektionen aus diesem Match</h2>
-  <div class="lessons">
-    {% for l in lessons %}
-    <article class="lesson">
-      <div class="lnum">{{ loop.index }}</div>
-      <div class="lbody">
-        <div class="ltitle">{{ l.lesson }}</div>
-        <div class="lmeta num"><span>{{ l.count }}x</span>{% if l.cost %}<span class="lcost">-{{ l.cost }} % Rundenchance</span>{% endif %}<span>{{ l.players|join(", ") }}</span></div>
-        <div class="lwhy">{{ l.why }}</div>
-        <div class="lnext"><b>Nächstes Match</b>{{ l.drill }}</div>
-        <div class="scenes">{% for sc in l.scenes[:6] %}<button class="scene costgo" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost %} <span class="num">-{{ sc.cost }}%</span>{% endif %}</button>{% endfor %}</div>
-      </div>
-    </article>
-    {% endfor %}
   </div>
-  {% endif %}
-
-  {% if debrief.positives %}
-  <div class="goodline"><b>Gut gemacht:</b> {% for g in debrief.positives[:4] %}<button data-round="{{ g.round }}" class="gchip">{{ g.title }} · {{ g.who }}{% if g.round %} R{{ g.round }}{% endif %}</button>{% endfor %}</div>
-  {% endif %}
 
   <h2>Replay</h2>
   <nav class="rounds" id="rounds" aria-label="Runden"></nav>
@@ -985,14 +1053,14 @@ function draw() {
     // Häufigster Pro-Wurf in derselben Szene (aus data/pro)
     if (ovf.ov && ovf.ov.pro_nade) {
       const pn = ovf.ov.pro_nade, [ax, ay] = pn.a, [bx, by] = pn.b;
-      ctx.strokeStyle = '#b9a6ff'; ctx.lineWidth = 2.2 * u; ctx.setLineDash([6 * u, 4 * u]);
+      ctx.strokeStyle = '#9db4e0'; ctx.lineWidth = 2.2 * u; ctx.setLineDash([6 * u, 4 * u]);
       ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = '#b9a6ff'; ctx.beginPath(); ctx.arc(ax, ay, 3.5 * u, 0, 7); ctx.fill();
-      ctx.strokeStyle = '#b9a6ff'; ctx.lineWidth = 2 * u; ctx.beginPath(); ctx.arc(bx, by, 8 * u, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#9db4e0'; ctx.beginPath(); ctx.arc(ax, ay, 3.5 * u, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#9db4e0'; ctx.lineWidth = 2 * u; ctx.beginPath(); ctx.arc(bx, by, 8 * u, 0, 7); ctx.stroke();
       const lbl = 'Pro-' + ({ smoke: 'Smoke', flash: 'Flash', molotov: 'Molotov', he: 'HE' }[pn.kind] || pn.kind);
       ctx.font = `800 ${10 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(lbl, bx, by + 10 * u);
-      ctx.fillStyle = '#b9a6ff'; ctx.fillText(lbl, bx, by + 10 * u);
+      ctx.fillStyle = '#9db4e0'; ctx.fillText(lbl, bx, by + 10 * u);
     }
     // Entscheidungsmoment: wo der Spieler losging bzw. hielt
     if (ovf.ov && ovf.ov.decision) {
@@ -1073,7 +1141,7 @@ function ui() {
     coach.dataset.key = key; coach.textContent = '';
     coach.classList.toggle('show', active.length > 0 || inTour);
     if (inTour && S.tour.name === 'key' && stop.f == null) {
-      const it = el('div', 'item'), k = el('div', 'k', 'Schlüsselmoment'); k.style.color = '#c9bcff';
+      const it = el('div', 'item'), k = el('div', 'k', 'Schlüsselmoment'); k.style.color = '#ffc46b';
       it.append(k, el('div', 'tt', stop.title), el('div', 'tip', stop.text));
       coach.appendChild(it);
     }

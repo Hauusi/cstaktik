@@ -213,3 +213,64 @@ def headline(lessons: list[dict]) -> str | None:
         return None
     items = [f"{l['lesson']} ({l['count']}x)" for l in lessons[:2]]
     return "Was euch heute Runden gekostet hat: " + " und ".join(items) + "."
+
+
+# ---------------------------------------------------------------- Coach-Ansprache für den ganzen Match
+
+
+def _de(x: float) -> str:
+    return f"{x:.1f}".replace(".", ",")
+
+
+def memory(prev: dict | None, now_lessons: dict, now_rounds: int) -> dict | None:
+    """Erinnerung an das Hauptthema des letzten Matches: dort wie oft, heute wie oft (Rate pro Runde)."""
+    if not prev or not prev.get("main_lesson") or not prev.get("rounds") or not now_rounds:
+        return None
+    lid = prev["main_lesson"]
+    if lid not in LESSONS:
+        return None
+    before = sum(d.get(lid, 0) for d in (prev.get("lessons") or {}).values())
+    after = sum(d.get(lid, 0) for d in now_lessons.values())
+    r0, r1 = before / prev["rounds"], after / now_rounds
+    if after == 0:
+        verdict, state = "Heute kein einziges Mal. Stark.", "besser"
+    elif r1 <= 0.7 * r0:
+        verdict, state = "Das sitzt langsam.", "besser"
+    elif r1 >= 1.3 * r0:
+        verdict, state = "Schlechter als letztes Mal, dranbleiben.", "schlechter"
+    else:
+        verdict, state = "Noch nicht umgesetzt, bleib dran.", "gleich"
+    return {"lesson": LESSONS[lid][0], "before": before, "after": after, "state": state,
+            "text": f"Letztes Match war euer Hauptpunkt „{LESSONS[lid][0]}“: {before}x. Heute {after}x. {verdict}"}
+
+
+def intro(won: int, lost: int, map_label: str, lessons: list[dict]) -> list[str]:
+    """Ansprache in Ich-Form, nur aus Zahlen dieses Matches."""
+    out = [f"Ich hab mir euer {won}:{lost} auf {map_label} angesehen." if lost > won
+           else f"{won}:{lost} auf {map_label}. Gewonnen, trotzdem gibt es was zu holen." if won > lost
+           else f"{won}:{lost} auf {map_label}. Ich hab es mir angesehen."]
+    if lessons:
+        main = lessons[0]
+        if main["count"] == 1:
+            out.append(f"Euer teuerster Fehler: {main['lesson']}.")
+        else:
+            out.append(f"{main['count']} eurer Tode hatten dasselbe Muster: {main['lesson']}.")
+        if main.get("cost") and main["cost"] >= 30:
+            out.append(f"Das hat euch rechnerisch etwa {_de(main['cost'] / 100)} Runden gekostet.")
+    return out
+
+
+def praise(findings: list[Finding]) -> list[str]:
+    """Lob je Spieler aus den positiven Befunden ("gut"), z. B. "Bruder: 3x Trade gegeben, Clutch (R12)"."""
+    per: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+    for f in findings:
+        if f.severity == "gut" and f.player_name:
+            per[f.player_name][f.title].append(f.round)
+    out = []
+    for name, items in per.items():
+        parts = []
+        for title, rounds in sorted(items.items(), key=lambda kv: -len(kv[1])):
+            rs = [r for r in rounds if r is not None]
+            parts.append(f"{len(rounds)}x {title}" if len(rounds) > 1 else f"{title}" + (f" (R{rs[0]})" if rs else ""))
+        out.append(f"{name}: " + ", ".join(parts[:3]))
+    return out

@@ -134,4 +134,6 @@ def render_progress(histories: list[dict]) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
     data = build(histories)
     data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
-    return env.get_template("progress.html").render(data=data, data_json=data_json)
+    from cstaktik.fonts import font_css
+
+    return env.get_template("progress.html").render(data=data, data_json=data_json, font_css=font_css())

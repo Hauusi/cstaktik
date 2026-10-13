@@ -188,3 +188,25 @@ def test_coach_voice_scene_and_focus():
     foc = coach_voice.focus([f, f])
     assert foc[0]["count"] == 2 and foc[0]["lesson"] == v["lesson"]
     assert coach_voice.headline(foc).startswith("Was euch heute Runden gekostet hat: ")
+
+
+def test_coach_intro_memory_praise():
+    from cstaktik import coach_voice
+    from cstaktik.model import Finding
+
+    les = [{"id": "alone", "lesson": "Nicht ohne Trade-Partner peeken", "count": 6, "cost": 71}]
+    assert coach_voice.intro(9, 13, "Mirage", les) == [
+        "Ich hab mir euer 9:13 auf Mirage angesehen.",
+        "6 eurer Tode hatten dasselbe Muster: Nicht ohne Trade-Partner peeken.",
+        "Das hat euch rechnerisch etwa 0,7 Runden gekostet."]
+    prev = {"main_lesson": "no_shot_close", "rounds": 20, "lessons": {"a": {"no_shot_close": 5}}}
+    m = coach_voice.memory(prev, {"a": {"no_shot_close": 2}}, 22)
+    assert m["state"] == "besser" and m["text"].endswith("5x. Heute 2x. Das sitzt langsam.")
+    assert coach_voice.memory(prev, {"a": {}}, 22)["text"].endswith("Heute kein einziges Mal. Stark.")
+    assert coach_voice.memory(None, {}, 22) is None
+
+    good = [Finding(rule_id="positives", title="Trade gegeben", round=r, tick=1, severity="gut", player_name="Bruder", steamid="b",
+                    text="", tip="") for r in (3, 5, 9)]
+    good.append(Finding(rule_id="positives", title="Clutch", round=12, tick=1, severity="gut", player_name="Bruder", steamid="b",
+                        text="", tip=""))
+    assert coach_voice.praise(good) == ["Bruder: 3x Trade gegeben, Clutch (R12)"]

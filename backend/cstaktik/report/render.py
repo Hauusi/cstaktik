@@ -302,7 +302,7 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
 
 def build_context(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
-    pro_clips: list[dict] | None = None,
+    pro_clips: list[dict] | None = None, memory: dict | None = None,
 ) -> dict:
     from cstaktik.coach import diagnose
 
@@ -328,6 +328,10 @@ def build_context(
         "debrief": debrief,
         "lessons": lessons,
         "coach_line": coach_voice.headline(lessons) or debrief["sentence"],
+        "font_css": __import__("cstaktik.fonts", fromlist=["font_css"]).font_css(),
+        "intro": coach_voice.intro(won, lost, (match.map_name or "?").removeprefix("de_").capitalize(), lessons),
+        "memory": memory,
+        "praise": coach_voice.praise(result.findings),
         "goal_check": goal_check,
         "mech_cfg": load_rules_config()["mechanics"],
         "n_findings": sum(1 for f in result.findings if f.severity != "gut"),
@@ -340,16 +344,17 @@ def build_context(
 
 def render_report(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
-    pro_clips: list[dict] | None = None,
+    pro_clips: list[dict] | None = None, memory: dict | None = None,
 ) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
-    return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check, pro_clips))
+    return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check, pro_clips,
+                                                                  memory))
 
 
 def write_report(
     match: MatchData, result: AnalysisResult, out: Path, maps_dirs: list[Path] | None = None,
-    goal_check: dict | None = None, pro_clips: list[dict] | None = None,
+    goal_check: dict | None = None, pro_clips: list[dict] | None = None, memory: dict | None = None,
 ) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips), encoding="utf-8")
+    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips, memory), encoding="utf-8")
     return out

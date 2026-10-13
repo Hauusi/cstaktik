@@ -75,7 +75,7 @@ def test_report_shows_verdict_causes_and_moment_tour(tmp_path):
 
     m = _with_throw()
     html = render_report(m, analyze(m, CFG), maps_dirs=[tmp_path])
-    assert "Hauptgründe" in html and "Warum verloren" in html and "Economy-Fehler" in html
+    assert "3:3 auf Mirage. Ich hab es mir angesehen." in html and "Warum verloren" in html and "Economy-Fehler" in html
     assert "Ihr als Duo" in html and "Utility-Wirkung" in html
     data = json.loads(re.search(r'id="data">(.*?)</script>', html, re.S).group(1))
     assert data["moments"] and all({"round", "tick", "title"} <= set(mo) for mo in data["moments"])

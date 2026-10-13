@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <title>Fortschritt – cstaktik</title>
+<style>{{ font_css|safe }}</style>
 <style>
 :root { --bg: #0b0d12; --surface: #141821; --surface-2: #1b202b; --line: rgba(255,255,255,.07);
   --text: #eef1f6; --muted: #8d97a8; --faint: #5d6676; --win: #3fbf7f; --loss: #f0566a; --warn: #f5a524; }
@@ -13,7 +14,7 @@ html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.
 main { max-width: 720px; margin: 0 auto; padding: 0 16px 48px; }
 a { color: inherit; } .num { font-variant-numeric: tabular-nums; }
 .hero { margin: 0 -16px; padding: 26px 20px 22px;
-  background: radial-gradient(120% 140% at 0% 0%, rgba(124,92,255,.35), transparent 55%),
+  background: radial-gradient(120% 140% at 0% 0%, rgba(255,159,28,.35), transparent 55%),
               radial-gradient(120% 140% at 100% 0%, rgba(63,191,127,.22), transparent 55%), var(--bg); }
 .back { font-size: 13px; color: var(--muted); text-decoration: none; }
 .hero h1 { margin: 10px 0 4px; font-size: 32px; letter-spacing: -.02em; }
@@ -78,6 +79,19 @@ details.more { margin-top: 26px; } details.more summary { cursor: pointer; color
   #maps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   #maps > * + * { margin-top: 0; }
 }
+
+/* ---- HUD-Design ---- */
+.hero { background: linear-gradient(90deg, rgba(255,159,28,.09), transparent 60%), var(--bg) !important;
+  border-bottom: 2px solid var(--orange); }
+.hero h1 { font-size: 42px; line-height: 1; }
+.tabs button { font-family: var(--cond); font-weight: 700; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
+.tabs button.on { background: var(--orange); color: #111; border-color: var(--orange); }
+.lesson .lt b { font-family: var(--cond); font-size: 22px; text-transform: uppercase; line-height: 1.05; }
+.lesson:first-child { border-color: var(--orange); background: linear-gradient(180deg, rgba(255,159,28,.07), var(--surface) 70%); }
+.kpi .val { font-family: var(--cond); font-size: 30px; }
+.insight { font-family: var(--cond); font-size: 19px; text-transform: uppercase; letter-spacing: .02em; }
+.grid th.m { font-family: var(--cond); font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
+{% include 'hud.css' %}
 </style>
 </head>
 <body>
@@ -122,7 +136,7 @@ details.more { margin-top: 26px; } details.more summary { cursor: pointer; color
 (() => {
 const D = JSON.parse(document.getElementById('data').textContent);
 if (!D.matches.length) return;
-const PCOL = ['#8b6cf0', '#2fa874'];
+const PCOL = ['#ff9f1c', '#6f9be8'];
 const $ = id => document.getElementById(id);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const color = sid => PCOL[Math.max(0, D.players.findIndex(p => p.sid === sid)) % PCOL.length];

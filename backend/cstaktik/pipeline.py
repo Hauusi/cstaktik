@@ -227,6 +227,9 @@ def run(
             | {g.grenade_type for g in match.grenades}}
     used |= {"smokegrenade", "flashbang", "hegrenade", "molotov", "incgrenade", "decoy"}
     failed = icons.ensure_icons(used - {None}, icons.ICONS_DIR)
+    from cstaktik import fonts
+
+    fonts.ensure_fonts()  # ohne Netz: Systemschrift
     if failed:
         match.missing.append(f"Waffen-Icons nicht geladen ({', '.join(failed)}): einfache Form statt Icon")
     report("Ziele prüfen", 0.95)
@@ -241,7 +244,12 @@ def run(
     summary["goal_check"] = goal_check if goal_check.get("checks") or not old else old.get("goal_check", goal_check)
     history.save(summary, HISTORY_DIR)
     report("Report bauen", 0.96)
-    out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"], pro_clips=clips)
+    from cstaktik import coach_voice
+
+    prev = history.previous(history.load_all(HISTORY_DIR), summary)
+    mem = coach_voice.memory(prev, summary.get("lessons") or {}, summary.get("rounds") or 0)
+    out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"], pro_clips=clips,
+                       memory=mem)
     report("Fertig", 1.0)
     return out
 
@@ -268,9 +276,15 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         if not match.focus_ids():
             continue
         result, clips = _coach(match, config)
-        write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips)
         h["lessons"] = history.lessons(result)  # Lektionen nachrüsten (Fortschritt je Map)
+        h["main_lesson"] = history.main_lesson(result)
         history.save(h, HISTORY_DIR)
+        from cstaktik import coach_voice
+
+        prev = history.previous(history.load_all(HISTORY_DIR), h)
+        mem = coach_voice.memory(prev, h["lessons"], h.get("rounds") or 0)
+        write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips,
+                     memory=mem)
         done += 1
     return done
 
