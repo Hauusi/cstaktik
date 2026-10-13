@@ -409,6 +409,15 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   padding: 12px 20px; background: var(--orange); color: #111; font: 800 16px var(--cond); letter-spacing: .1em; text-transform: uppercase;
   box-shadow: 0 6px 24px rgba(0,0,0,.6); white-space: nowrap; }
 .dbf-return[hidden] { display: none; }
+.duelcmp { margin-top: 16px; padding: 14px; border: 1px solid var(--line); background: var(--surface); }
+.dp + .dp { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.dp .who { font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.dgrid > div { padding: 8px 10px; background: var(--surface-2); }
+.dgrid span { display: block; font-family: var(--cond); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.dgrid b { display: block; font-size: 26px; font-weight: 800; line-height: 1.1; }
+.dgrid i { font-style: normal; font-size: 12.5px; color: #9db4e0; }
+@media (min-width: 700px) { .dgrid { grid-template-columns: repeat(4, 1fr); } }
 {% include 'hud.css' %}
 </style>
 </head>
@@ -497,6 +506,24 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </section>
   {% endif %}
   {% elif memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
+
+  {% if duel_cmp %}{% set pr = duel_cmp.pro %}
+  <section class="duelcmp">
+    <div class="sh"><span class="t cond">Deine Duelle{% if pr %} gegen Pros{% endif %}</span></div>
+    {% for d in duel_cmp.players %}
+    <div class="dp">
+      <div class="who cond">{{ d.name }} · {{ d.n }} Duelle · {{ d.won }} % gewonnen</div>
+      <div class="dgrid num">
+        <div><span>Fadenkreuz daneben</span><b class="cond">{{ d.err|string|replace(".", ",") if d.err is not none else "–" }}°</b>{% if pr and pr.err is not none %}<i>Pros {{ pr.err|string|replace(".", ",") }}°</i>{% endif %}</div>
+        <div><span>Reaktion, wenn er zuerst schießt</span><b class="cond">{{ d.react|int if d.react is not none else "–" }} ms</b>{% if pr and pr.react is not none %}<i>Pros {{ pr.react|int }} ms</i>{% endif %}</div>
+        <div><span>Erste Kugel trifft</span><b class="cond">{{ d.first_hit if d.first_hit is not none else "–" }} %</b>{% if pr and pr.first_hit is not none %}<i>Pros {{ pr.first_hit }} %</i>{% endif %}</div>
+        <div><span>Zuerst geschossen</span><b class="cond">{{ d.shot_first if d.shot_first is not none else "–" }} %</b>{% if pr and pr.shot_first is not none %}<i>Pros {{ pr.shot_first }} %</i>{% endif %}</div>
+      </div>
+    </div>
+    {% endfor %}
+    <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe genähert).{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>
+  </section>
+  {% endif %}
 
   {% set nexts = auftraege|selectattr("focus")|list %}
   {% if nexts %}

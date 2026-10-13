@@ -20,7 +20,7 @@ from cstaktik.model import MatchData
 from cstaktik.reference import timeline
 from cstaktik.situation import pro_decisions, round_states
 
-VERSION = 4  # 1: nur timeline; 2: + nades, deaths; 3: + states (Gewinnchance); 4: + decisions (Lagen)
+VERSION = 5  # 1: timeline; 2: + nades, deaths; 3: + states; 4: + decisions; 5: + duels
 _CELL = 128  # Rastergröße für die Ortsbestimmung von Granaten-Punkten
 
 
@@ -98,6 +98,25 @@ def deaths(match: MatchData, trade_window_s: float = 3.0) -> list[dict]:
     return out
 
 
+def duel_rows(match: MatchData) -> list[list]:
+    """Je Duell beide Sichten: [Abweichung Grad, Reaktion ms, erste Kugel getroffen, gewonnen]."""
+    from cstaktik.duels import side_of
+
+    out = []
+    for d in match.duels:
+        for sid in (d.winner, d.loser):
+            v = side_of(d, sid)
+            out.append([v["err"], v["react"], v["hit"], v["won"]])
+    return out
+
+
+def duel_stats(pro: list[dict]) -> dict | None:
+    from cstaktik.duels import stats
+
+    rows = [{"err": r[0], "react": r[1], "hit": r[2], "won": r[3]} for d in pro for r in d.get("duels", [])]
+    return stats(rows) if rows else None
+
+
 def summarize(match: MatchData, trade_window_s: float = 3.0) -> dict:
     return {
         "id": match.source_sha256 or match.source_file,
@@ -111,6 +130,7 @@ def summarize(match: MatchData, trade_window_s: float = 3.0) -> dict:
         "deaths": deaths(match, trade_window_s),
         "states": round_states(match),
         "decisions": pro_decisions(match),
+        "duels": duel_rows(match),
     }
 
 

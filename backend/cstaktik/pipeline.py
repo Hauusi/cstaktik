@@ -25,7 +25,7 @@ COACHING_FILE = DATA_DIR / "coaching.json"
 PRO_DIR = DATA_DIR / "pro"
 PRO_DEMOS_DIR = DATA_DIR / "pro_demos"  # hochgeladene Pro-Demos, getrennt von den eigenen
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
-CACHE_SCHEMA = 8
+CACHE_SCHEMA = 9
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
 MAX_DEMO_BYTES = 2 * 1024**3
 
@@ -333,8 +333,19 @@ def upgrade_pro() -> int:
 
     n = 0
     for d in pro.load_all(PRO_DIR):
+        if d.get("version", 1) >= pro.VERSION:
+            continue
         cache = cache_file(d.get("id"))
-        if d.get("version", 1) >= pro.VERSION or cache is None:
+        demo = PRO_DEMOS_DIR / str(d.get("source_file") or "")
+        if (cache is None or not cache.name.endswith(f".v{CACHE_SCHEMA}.json")) and d.get("source_file") and demo.exists():
+            # Cache zu alt für neue Felder (z. B. Duelle): Pro-Demo neu parsen
+            try:
+                run_pro(demo, rerender=False)
+                n += 1
+            except Exception:  # noqa: BLE001 - einzelne Demo überspringen
+                pass
+            continue
+        if cache is None:
             continue
         summary = pro.summarize(load_match(cache), load_rules_config()["coach"]["trade_window_s"])
         summary["analyzed_at"] = d.get("analyzed_at", summary["analyzed_at"])
@@ -343,7 +354,7 @@ def upgrade_pro() -> int:
     return n
 
 
-def run_pro(path: Path, progress: Progress | None = None, use_cache: bool = True) -> dict:
+def run_pro(path: Path, progress: Progress | None = None, use_cache: bool = True, rerender: bool = True) -> dict:
     """Pro-Demo parsen und als Referenz speichern (keine Fokus-Spieler). Danach werden die eigenen
     Reports derselben Map mit den neuen Pro-Daten neu gebaut.
 
@@ -361,6 +372,9 @@ def run_pro(path: Path, progress: Progress | None = None, use_cache: bool = True
         match = parse_demo(path, set(), config["parser"], lambda st, f: report(st, 0.85 * f))
     summary = pro.summarize(match, config["coach"]["trade_window_s"])
     pro.save(summary, PRO_DIR)
+    if not rerender:
+        return {"map": summary["map"], "rounds": summary["rounds"], "players": len(match.players),
+                "nades": len(summary["nades"]), "reports": 0}
     upgrade_pro()
     updated = rerender_reports({summary["map"]}, lambda st, f: report(st, 0.85 + 0.15 * f))
     report("Fertig", 1.0)

@@ -28,6 +28,9 @@ class FakeParser:
                     r["inventory"] = ["Glock-18", "Flashbang"]
                 if "velocity_X" in props:
                     r.update(velocity_X=30.0 if sid == A else 0.0, velocity_Y=40.0 if sid == A else 0.0)
+                if "pitch" in props:  # Kontakt-Tick: A schaut nach +y zu B, B nach -y zu A
+                    r.update(X=float(t), Y=0.0 if sid == A else 500.0, Z=0.0, yaw=90.0 if sid == A else 270.0,
+                             pitch=0.0)
                 if "balance" in props:
                     r.update(balance=800, current_equip_value=4200, cash_spent_this_round=3500, team_name=team)
                 rows.append(r)
@@ -107,7 +110,10 @@ def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
     assert m.damages[0].dmg == 27 and m.damages[0].attacker_steamid == str(A)
     assert m.missing == []
     fr = [f for _, f in stages]
-    assert fr == sorted(fr) and stages[-1][0] == "Bombe"
+    assert fr == sorted(fr) and stages[-1][0] == "Duelle"
+    d = m.duels[0]
+    assert (d.contact, d.winner, d.loser) == (870, str(B), str(A))
+    assert d.l_err == 0.0 and d.w_err == 0.0 and d.l_react_ms == 0 and d.w_react_ms is None
 
 
 def test_match_timed_long_missing_and_reused_entity():

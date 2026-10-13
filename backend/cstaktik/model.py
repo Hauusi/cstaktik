@@ -148,6 +148,26 @@ class BombEvent(BaseModel):
     pos: Vec | None = None
 
 
+class Duel(BaseModel):
+    """Ein entschiedenes Duell (siehe duels.py). w_* = Sieger (Killer), l_* = Verlierer (Opfer)."""
+
+    round: int
+    tick: int  # Kill-Tick
+    contact: int  # erster Schuss eines der beiden
+    winner: str
+    loser: str
+    w_err: float | None = None  # Fadenkreuz-Abweichung zum Gegnerkopf im Kontakt-Tick (Grad)
+    l_err: float | None = None
+    w_react_ms: int | None = None  # eigener erster Schuss nach Kontakt (0 = zuerst geschossen)
+    l_react_ms: int | None = None
+    w_first_hit: bool | None = None
+    l_first_hit: bool | None = None
+    w_speed: int | None = None
+    l_speed: int | None = None
+    w_shots: int = 0
+    l_shots: int = 0
+
+
 class MatchData(BaseModel):
     map_name: str | None = None
     tickrate: int
@@ -164,6 +184,7 @@ class MatchData(BaseModel):
     positions: list[PositionSample] = Field(default_factory=list)
     utility: list[UtilityArea] = Field(default_factory=list)
     bomb: list[BombEvent] = Field(default_factory=list)
+    duels: list[Duel] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)  # Hinweise auf fehlende Datenarten
 
     def focus_ids(self) -> set[str]:

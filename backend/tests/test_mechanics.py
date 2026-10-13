@@ -72,3 +72,42 @@ def test_weapon_label():
     assert weapon_label("weapon_usp_silencer") == "USP-S"
     assert weapon_label("m4a1_silencer") == "M4A1-S"
     assert weapon_label("unbekannt_x") == "unbekannt_x"
+
+
+def test_duel_angle_and_compute():
+    from synth import ENEMIES, ME, build_match
+
+    from cstaktik.duels import angle_error, compute, side_of, stats
+    from cstaktik.model import Damage, Shot
+
+    assert angle_error((0, 0, 0, 0.0, 0.0), (100, 0, 0)) == 0.0
+    assert angle_error((0, 0, 0, 90.0, 0.0), (100, 0, 0)) == 90.0
+    assert angle_error((0, 0, 0, 0.0, 0.0), (100, 100, 0)) == 45.0
+    assert angle_error((0, 0, 0, None, 0.0), (1, 0, 0)) is None
+
+    m = build_match()
+    k = next(k for k in m.kills if k.victim_steamid == ME)
+    m.shots += [Shot(round=k.round, tick=k.tick - 40, steamid=k.attacker_steamid, weapon="weapon_ak47", speed=0.0),
+                Shot(round=k.round, tick=k.tick - 20, steamid=ME, weapon="weapon_m4a1", speed=150.0)]
+    m.damages.append(Damage(round=k.round, tick=k.tick - 39, attacker_steamid=k.attacker_steamid, victim_steamid=ME,
+                            dmg=27, weapon="ak47"))
+    c = k.tick - 40
+    views = {(c, k.attacker_steamid): (600, 0, 0, 180.0, 0.0), (c, ME): (0, 0, 0, 30.0, 0.0)}
+    d = next(x for x in compute(m, views) if x.loser == ME)
+    me = side_of(d, ME)
+    assert me["err"] == 30.0 and me["react"] == round(20 * 1000 / 64) and me["won"] is False and me["speed"] == 150
+    assert d.w_err == 0.0 and d.w_react_ms == 0 and d.w_first_hit is True
+    st = stats([me, side_of(d, k.attacker_steamid)])
+    assert st["n"] == 2 and st["shot_first"] == 50 and st["won"] == 50
+
+
+def test_crosshair_lesson_and_duel_sentence():
+    from cstaktik.coach_voice import _duel_sentence, lesson_id
+
+    fx = {"label": "Duell verloren", "attacker": "Blackwell", "duel": {"err": 31.0, "opp_err": 4.0, "react": 250,
+                                                                      "hit": False, "speed": 160}}
+    assert lesson_id(fx) == "crosshair"
+    assert _duel_sentence(fx) == ("Im Moment des ersten Schusses zeigte dein Fadenkreuz 31° neben Blackwell, seins 4° "
+                                  "neben dich. Dein erster Schuss kam 250 ms nach seinem, bei 160 Units/s.")
+    fx["duel"]["err"] = 8.0
+    assert lesson_id(fx) == "duel"

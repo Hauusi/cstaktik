@@ -46,6 +46,9 @@ LESSONS = {
     "outnumbered": ("In Unterzahl zusammenbleiben",
                     "In Unterzahl gewinnt man selten Einzelduelle, nur gemeinsame.",
                     "In Unterzahl mit dem nächsten Mitspieler zusammen spielen oder auf Zeit spielen."),
+    "crosshair": ("Fadenkreuz vorher auf den Spot",
+                  "Als das Duell begann, zeigte dein Fadenkreuz deutlich neben den Gegner. Bis du nachziehst, hat er geschossen.",
+                  "Prefire-Map: Fadenkreuz an jede Kante auf Kopfhöhe, bevor du dich bewegst."),
     "duel": ("Duell verloren, Lage war okay",
              "Hier war die Lage nicht das Problem, das Duell selbst ging verloren.",
              "Aim und Peek-Timing im Deathmatch trainieren."),
@@ -63,8 +66,14 @@ def _clock(s: float | None) -> str | None:
     return f"{s // 60}:{s % 60:02d}"
 
 
+CROSSHAIR_BAD_DEG = 20.0  # ab dieser Abweichung im Kontakt-Moment gilt das Fadenkreuz als "nicht vorgehalten"
+
+
 def lesson_id(fx: dict, close_units: int = 600) -> str:
     label = fx.get("label")
+    duel = fx.get("duel") or {}
+    if label == "Duell verloren" and duel.get("err") is not None and duel["err"] >= CROSSHAIR_BAD_DEG:
+        return "crosshair"
     if label == "Ohne Gegenwehr":
         d = fx.get("a_dist")
         return "no_shot_close" if d is None or d < close_units else "no_shot_far"
@@ -106,6 +115,30 @@ def _death_sentence(fx: dict) -> str:
     return f"{pre}gewinnt {att}{src} das Duell{dist}." + tail
 
 
+def _duel_sentence(fx: dict) -> str | None:
+    d = fx.get("duel")
+    if not d:
+        return None
+    att = fx.get("attacker") or "der Gegner"
+    parts = []
+    if d.get("err") is not None:
+        s = f"Im Moment des ersten Schusses zeigte dein Fadenkreuz {_de1(d['err'])}° neben {att}"
+        if d.get("opp_err") is not None:
+            s += f", seins {_de1(d['opp_err'])}° neben dich"
+        parts.append(s + ".")
+    if d.get("react") == 0:
+        parts.append("Du hast zuerst geschossen" + (" und mit der ersten Kugel getroffen." if d.get("hit")
+                                                    else ", die erste Kugel ging daneben." if d.get("hit") is False else "."))
+    elif d.get("react") is not None:
+        parts.append(f"Dein erster Schuss kam {d['react']} ms nach seinem"
+                     + (f", bei {d['speed']} Units/s" if d.get("speed") and d["speed"] > 80 else "") + ".")
+    return " ".join(parts) or None
+
+
+def _de1(x: float) -> str:
+    return f"{x:.0f}"
+
+
 def _info_sentence(info: dict | None, fx: dict) -> str | None:
     if not info:
         return None
@@ -139,6 +172,9 @@ def _next(lid: str, fx: dict, snap: dict | None) -> str:
         return f"Mit {fx.get('hp')} HP nicht nachpeeken: zurückfallen, Info callen, auf den Trade spielen."
     if lid == "moving_shot":
         return "Vor dem Schuss stoppen (Counter-Strafe), dann schießen."
+    if lid == "crosshair":
+        return (f"Fadenkreuz schon vorher auf {aplace or 'den Spot'} legen, auf Kopfhöhe. "
+                "Dann musst du nur noch klicken, nicht erst suchen.")
     if lid == "moving":
         return "Vor dem Winkel stoppen, kurz peeken, erst dann rein."
     if lid == "outnumbered":
@@ -164,7 +200,7 @@ def voice(f: Finding, close_units: int = 600) -> dict | None:
     if f.rule_id != "death_review" or not fx:
         return None
     lid = lesson_id(fx, close_units)
-    happened = [s for s in (_lage_sentence(f.evidence.get("snap")), _death_sentence(fx),
+    happened = [s for s in (_lage_sentence(f.evidence.get("snap")), _death_sentence(fx), _duel_sentence(fx),
                             _info_sentence(f.evidence.get("info_raw"), fx)) if s]
     if fx.get("traded"):
         happened.append("Immerhin wurdest du getradet.")

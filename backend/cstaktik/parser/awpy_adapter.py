@@ -489,7 +489,7 @@ def parse_demo(
     if unknown_focus:
         missing.append(f"Fokus-SteamIDs nicht in der Demo: {', '.join(sorted(unknown_focus))}")
 
-    return MatchData(
+    match = MatchData(
         map_name=dem.header.get("map_name"),
         tickrate=tickrate,
         tickrate_source="config (parser.tickrate)",
@@ -507,3 +507,29 @@ def parse_demo(
         bomb=bomb,
         missing=missing,
     )
+    step("Duelle", 0.995)
+    _add_duels(dem, match)
+    return match
+
+
+def _add_duels(dem, match: MatchData) -> None:
+    """Blickwinkel/Positionen im Kontakt-Tick jedes Duells laden (ein parse_ticks-Aufruf) und Duelle berechnen."""
+    from cstaktik import duels
+
+    cons = duels.contacts(match)
+    if not cons:
+        return
+    ticks = sorted({c for _k, c in cons})
+    try:
+        df = dem.parser.parse_ticks(["X", "Y", "Z", "yaw", "pitch"], ticks=ticks)
+        views = {}
+        for rec in df.to_dict("records"):
+            sid = _sid(rec.get("steamid"))
+            vals = [_num(rec.get(k)) for k in ("X", "Y", "Z", "yaw", "pitch")]
+            if sid is not None and None not in vals[:3]:
+                views[(int(rec["tick"]), sid)] = tuple(vals)
+        match.duels = duels.compute(match, views)
+        if not any(d.w_err is not None for d in match.duels):
+            match.missing.append("Blickwinkel (pitch) nicht lesbar: Fadenkreuz-Abweichung nicht auswertbar")
+    except Exception as exc:  # noqa: BLE001
+        match.missing.append(f"Duell-Daten nicht lesbar ({type(exc).__name__})")

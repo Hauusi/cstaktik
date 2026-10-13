@@ -302,6 +302,20 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     }
 
 
+def _duel_cmp(match: MatchData) -> dict | None:
+    """Duell-Kennzahlen je Fokus-Spieler gegen den Schnitt aller Pro-Demos (Fadenkreuz, Reaktion, erste Kugel)."""
+    from cstaktik import duels, pipeline, pro
+
+    rows = {}
+    for sid in sorted(match.focus_ids()):
+        views = [duels.side_of(d, sid) for d in match.duels if sid in (d.winner, d.loser)]
+        if views:
+            rows[sid] = {"name": match.name_of(sid), **duels.stats(views)}
+    if not rows:
+        return None
+    return {"players": list(rows.values()), "pro": pro.duel_stats(pro.load_all(pipeline.PRO_DIR))}
+
+
 def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], intro: list[str]) -> dict:
     """Inhalt der geführten Debrief-Sitzung (Report-JS baut daraus die Schritte)."""
     lesson = None
@@ -365,6 +379,7 @@ def build_context(
         "intro": coach_voice.intro(won, lost, (match.map_name or "?").removeprefix("de_").capitalize(), lessons),
         "memory": memory,
         "focus": None,
+        "duel_cmp": _duel_cmp(match),
         "auftraege": auftraege,
         "teach": TEACH,
         "bright": {lid: bright_spots(match, lid)

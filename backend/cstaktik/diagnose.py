@@ -95,7 +95,8 @@ def report(match: MatchData, findings: list, config: dict) -> str:
     add(f"Aktion im Entscheidungsmoment: " + ", ".join(f"{k} {n}x" for k, n in Counter(f.evidence.get('aktion') for f in dec).most_common()))
     costs = [f.evidence.get("cost_pct") for f in dec if f.evidence.get("cost_pct") is not None]
     add(f"Kosten Rundenchance (Prozentpunkte): {_q(costs)}")
-    duels = [f.evidence.get("duel") for f in dec if f.evidence.get("duel")]
+    add(f"Duelle erkannt: {len(match.duels)} · mit Fadenkreuz-Wert {_pct(sum(d.w_err is not None for d in match.duels), len(match.duels))}")
+    duels = [(f.evidence.get("f") or {}).get("duel") for f in dec if (f.evidence.get("f") or {}).get("duel")]
     if duels:
         add(f"Duell: Fadenkreuz-Abweichung Grad {_q([d.get('cross_err') for d in duels])}")
         add(f"Duell: Reaktion ms {_q([d.get('reaction_ms') for d in duels])}")

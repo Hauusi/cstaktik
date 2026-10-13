@@ -100,6 +100,16 @@ TEACH: dict[str, dict] = {
             "Retake-Server: 2 gegen mehr bewusst gemeinsam lösen.",
         ]},
     },
+    "crosshair": {
+        "principle": ("Ein Duell wird oft entschieden, bevor jemand schießt: Wessen Fadenkreuz schon auf dem Kopf liegt, "
+                      "muss nur klicken. Jedes Grad, das du nachziehen musst, kostet Zeit, die der Gegner nutzt."),
+        "mantra": "Fadenkreuz wartet schon da.",
+        "in_game": "Beim Laufen und Halten: Fadenkreuz immer auf Kopfhöhe an die nächste Kante, wo ein Gegner kommen kann.",
+        "routine": {"title": "Crosshair-Placement", "minutes": 10, "steps": [
+            "Prefire-Map deiner Map: an jeder Ecke Fadenkreuz vorher an die Kante auf Kopfhöhe.",
+            "Deathmatch: beim Laufen bewusst nie auf den Boden schauen.",
+        ]},
+    },
     "duel": {
         "principle": "Die Lage war in Ordnung, das Duell selbst ging verloren. Das trainiert man mit Aim, nicht mit Taktik.",
         "mantra": "Aim warm, Kopf ruhig.",

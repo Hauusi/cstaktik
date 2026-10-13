@@ -54,6 +54,14 @@ def _list_de(items: list[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " und " + items[-1]
 
 
+def _duel(match: MatchData, k) -> dict | None:
+    """Duell-Werte aus Sicht des Opfers (duels.py), falls die Demo sie hergibt."""
+    from cstaktik.duels import side_of
+
+    d = next((d for d in match.duels if d.tick == k.tick and d.loser == k.victim_steamid), None)
+    return side_of(d, k.victim_steamid) if d else None
+
+
 def run(match: MatchData, cfg: dict) -> list[Finding]:
     focus = match.focus_ids()
     idx = PositionIndex(match.positions)
@@ -256,7 +264,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                                 "blind_by": (match.name_of(blind.attacker_steamid) if blind and blind.attacker_steamid
                                              else None), "blind_ago": round((k.tick - blind.tick) / tr, 1) if blind else None,
                                 "shot_speed": round(my_shots[-1].speed) if my_shots and my_shots[-1].speed else None,
-                                "vpos": [round(k.victim_pos.x), round(k.victim_pos.y)] if k.victim_pos else None}},
+                                "vpos": [round(k.victim_pos.x), round(k.victim_pos.y)] if k.victim_pos else None,
+                                "duel": _duel(match, k)}},
                 overlay=overlay,
             )
         )
