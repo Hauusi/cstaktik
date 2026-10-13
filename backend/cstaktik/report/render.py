@@ -339,7 +339,7 @@ def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], 
         t = TEACH[l0["id"]]
         lesson = {"id": l0["id"], "title": l0["lesson"], "why": l0["why"], "count": l0["count"], "cost": l0["cost"],
                   "scenes": l0["scenes"][:4], "principle": t["principle"], "mantra": t["mantra"],
-                  "routine": t["routine"], "in_game": t["in_game"], "bright": bright_spots(match, l0["id"])}
+                  "routine": t["routine"], "in_game": t["in_game"], "bright": bright_spots(match, l0["id"], _trade_units())}
     checks = [{"name": a["name"], **{k: a["check"][k] for k in ("title", "count", "rate", "target", "met", "streak",
                                                                  "need")}, "mastered": bool(a.get("mastered"))}
               for a in auftraege if a.get("check")]
@@ -357,6 +357,10 @@ def normalize_focus(fc: dict | None) -> list[dict]:
     if "check" in fc or "focus" in fc and not any(isinstance(v, dict) and "check" in v for v in fc.values()):
         return [{**fc, "name": "Ihr", "sid": None}]
     return [{**v, "sid": sid} for sid, v in sorted(fc.items(), key=lambda kv: kv[1].get("name", ""))]
+
+
+def _trade_units() -> float:
+    return load_rules_config()["rules"]["death_review"]["trade_distance_units"]
 
 
 def build_context(
@@ -399,7 +403,7 @@ def build_context(
         "setups": _setups(match),
         "auftraege": auftraege,
         "teach": TEACH,
-        "bright": {lid: bright_spots(match, lid)
+        "bright": {lid: bright_spots(match, lid, _trade_units())
                    for lid in {l["id"] for l in lessons[:1]} | {a["focus"]["lesson"] for a in auftraege if a.get("focus")}},
         "praise": coach_voice.praise(result.findings),
         "goal_check": goal_check,

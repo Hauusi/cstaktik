@@ -42,8 +42,8 @@ rules:
   # Einzelregeln für Tode: standardmäßig aus, death_review fasst sie pro Tod zusammen.
   untraded_death:
     enabled: false
-    # Nächster lebender Mitspieler weiter weg als das -> "kein Trade-Partner in der Nähe".
-    trade_distance_units: 800
+    # Nächster lebender Mitspieler weiter weg als das -> "kein Trade-Partner in der Nähe" (wie death_review).
+    trade_distance_units: 1000
     # Zeitfenster, in dem ein Gegen-Kill auf den Killer als Trade zählt.
     trade_window_s: 3.0
     # Max. Abstand zwischen Todestick und Positions-Sample des Mitspielers.
@@ -110,7 +110,7 @@ situation:
   min_before_s: 1.5
   moving_units_s: 100       # darüber gilt ein Spieler als "in Bewegung" (geglättet)
   still_units_s: 40         # darunter als "steht"; dazwischen bleibt der vorige Zustand
-  alone_units: 1200         # nächster Mitspieler weiter weg = "allein"
+  alone_units: 1000         # nächster Mitspieler weiter weg = "allein" (gleich wie death_review.trade_distance_units)
   # CS2-Standardzeiten (nicht aus der Demo), nur für "noch ca. x:xx" im Lagebild
   round_time_s: 115
   bomb_time_s: 40

@@ -119,3 +119,52 @@ def test_angle_lesson_for_wrong_direction():
     assert lesson_id({"label": "Duell verloren", "duel": {"err": 120.0}}) == "angle"
     assert lesson_id({"label": "Ohne Gegenwehr", "a_dist": 300, "duel": {"err": 95.0}}) == "angle"
     assert lesson_id({"label": "Duell verloren", "duel": {"err": 35.0}}) == "crosshair"
+
+
+def test_duel_contact_ignores_shots_at_other_enemies():
+    """Opfer sprüht vorher auf Gegner X; Y tötet es von der Seite: Kontakt = Ys erster Schuss."""
+    from synth import ENEMIES, ME, build_match
+
+    from cstaktik.duels import contacts
+    from cstaktik.model import Damage, Shot
+
+    m = build_match()
+    k = next(k for k in m.kills if k.victim_steamid == ME and k.attacker_steamid in ENEMIES)
+    m.shots = [s for s in m.shots if s.round != k.round]
+    m.damages = [d for d in m.damages if d.round != k.round]
+    m.shots += [Shot(round=k.round, tick=k.tick - 150, steamid=ME, weapon="ak47"),  # auf jemand anderen
+                Shot(round=k.round, tick=k.tick - 40, steamid=k.attacker_steamid, weapon="ak47")]
+    c = dict((kk.tick, t) for kk, t in contacts(m))
+    assert c[k.tick] == k.tick - 40
+    # Trifft das Opfer den Killer, beginnt das Duell mit seinem Schuss davor
+    m.shots.append(Shot(round=k.round, tick=k.tick - 60, steamid=ME, weapon="ak47"))
+    m.damages.append(Damage(round=k.round, tick=k.tick - 58, attacker_steamid=ME, victim_steamid=k.attacker_steamid, dmg=27))
+    c = dict((kk.tick, t) for kk, t in contacts(m))
+    assert c[k.tick] == k.tick - 60
+
+
+def test_death_review_other_deaths_blind_and_duel_damage():
+    from synth import BRO, ENEMIES, ME, build_match
+
+    from cstaktik.config import load_rules_config
+    from cstaktik.model import Blind, Damage
+    from cstaktik.rules import death_review
+
+    cfg = {**load_rules_config()["rules"]["death_review"], "mech": load_rules_config()["mechanics"]}
+    m = build_match()
+    k = next(k for k in m.kills if k.victim_steamid == ME and k.attacker_steamid in ENEMIES)
+    k.weapon = "ak47"
+    r = k.round
+    m.damages = [d for d in m.damages if d.round != r]
+    m.damages += [Damage(round=r, tick=k.tick - 900, attacker_steamid=ME, victim_steamid=ENEMIES[4], dmg=100),  # früher Kill
+                  Damage(round=r, tick=k.tick - 20, attacker_steamid=ME, victim_steamid=k.attacker_steamid, dmg=27)]
+    m.blinds = [Blind(round=r, tick=k.tick - 150, victim_steamid=ME, attacker_steamid=BRO, duration=3.0),  # eigene Flash
+                Blind(round=r, tick=k.tick - 180, victim_steamid=ME, attacker_steamid=ENEMIES[3], duration=0.6)]  # vorbei
+    f = next(f for f in death_review.run(m, cfg) if f.tick == k.tick)
+    fx = f.evidence["f"]
+    assert fx["dealt"] == 27  # nur Schaden am Killer im Duell
+    assert "Geblendet" not in fx["issues"]  # Teamflash und abgelaufene Gegner-Flash zählen nicht
+    assert any("eigene Flash" in x for x in f.evidence["lage"])
+    k.weapon = "hegrenade"
+    f = next(f for f in death_review.run(m, cfg) if f.tick == k.tick)
+    assert f.rule_id == "death_other" and f.title == "Tod: HE"

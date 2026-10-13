@@ -126,12 +126,14 @@ def blinds_from_flash_duration(dem, utility: list, missing: list[str]) -> list[B
         if sid is not None and v is not None:
             fd[(int(rec["tick"]), sid)] = v
     out = []
-    for u in dets:
+    seen: dict[str, int] = {}  # mehrere Flashes gleichzeitig: Blendung nur der ersten zurechnen
+    for u in sorted(dets, key=lambda u: u.start_tick):
         after_t = u.start_tick + 3
         for (t, sid), v in fd.items():
             if t != after_t or v <= 0:
                 continue
-            if v > fd.get((u.start_tick - 2, sid), 0.0) + 0.1:
+            if v > fd.get((u.start_tick - 2, sid), 0.0) + 0.1 and u.start_tick - seen.get(sid, -10**9) > 5:
+                seen[sid] = u.start_tick
                 out.append(Blind(round=u.round, tick=u.start_tick, victim_steamid=sid,
                                  attacker_steamid=u.thrower_steamid, duration=round(v, 2)))
     missing.append(f"Blendungen aus flash_duration abgeleitet (player_blind leer): {len(out)}")

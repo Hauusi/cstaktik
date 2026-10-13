@@ -30,7 +30,7 @@ LESSONS = {
               "Beim Flash-Geräusch wegdrehen und einen Schritt hinter Deckung, erst dann wieder peeken."),
     "alone": ("Nicht ohne Trade-Partner peeken",
               "Stirbst du allein, kann dich niemand traden: Die Runde ist ein Spieler weniger, ohne Gegenleistung.",
-              "Vor dem Peek callen und warten, bis dein Mitspieler nah genug ist (unter 800 Units)."),
+              "Vor dem Peek callen und warten, bis dein Mitspieler in Trade-Reichweite ist."),
     "utility": ("Erst Utility, dann Duell",
                 "Mit Granaten in der Tasche zu sterben heißt: Das Duell war fairer als nötig.",
                 "Vor jedem geplanten Duell eine Flash oder Molotov werfen."),
@@ -87,6 +87,13 @@ def lesson_id(fx: dict, close_units: int = 600) -> str:
     return LABEL_TO_LESSON.get(label, "duel")
 
 
+def _trade_units() -> float:
+    """Trade-Reichweite aus rules.yaml (death_review), überall dieselbe Grenze."""
+    from cstaktik.config import load_rules_config
+
+    return load_rules_config()["rules"]["death_review"]["trade_distance_units"]
+
+
 def _lage_sentence(snap: dict | None) -> str | None:
     if not snap:
         return None
@@ -99,7 +106,7 @@ def _lage_sentence(snap: dict | None) -> str | None:
     if hp is not None:
         bits.append("volle HP" if hp >= 100 else f"nur {hp} HP" if hp < 50 else f"{hp} HP")
     if snap.get("mate") and snap.get("mate_d") is not None:
-        bits.append(f"{snap['mate']} {snap['mate_d']} Units neben dir" if snap["mate_d"] < 800
+        bits.append(f"{snap['mate']} {snap['mate_d']} Units neben dir" if snap["mate_d"] <= _trade_units()
                     else f"{snap['mate']} {snap['mate_d']} Units weg")
     elif snap.get("own") == 1:
         bits.append("du bist der Letzte")

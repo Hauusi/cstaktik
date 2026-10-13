@@ -1,7 +1,9 @@
 """Duell-Analyse: Was passiert in den Sekunden, in denen ein Duell entschieden wird?
 
 Je Kill zwischen zwei Gegnern (Waffe, kein Granaten-/Weltschaden):
-- Kontakt = erster Schuss eines der beiden im Fenster ``window_s`` vor dem Kill.
+- Kontakt = Beginn des Schusswechsels zwischen genau diesen beiden: erster Schuss des Killers im Fenster
+  ``window_s`` vor dem Kill. Schüsse des Opfers zählen nur, wenn es den Killer getroffen hat (ab 1 s vor dem
+  ersten Treffer); Schüsse auf andere Gegner beginnen kein Duell mit dem Killer.
 - Fadenkreuz-Abweichung (Grad) je Spieler im Kontakt-Tick: Winkel zwischen Blickrichtung (yaw/pitch) und
   der Richtung zum Kopf des Gegners (Augenhöhe = Position + ``eye_height``, Näherung für stehend).
 - Reaktion (ms): eigener erster Schuss minus Kontakt (0 = hat zuerst geschossen).
@@ -28,15 +30,23 @@ def contacts(match: MatchData, window_s: float = 3.0) -> list[tuple]:
     for s in match.shots:
         if is_gun(s.weapon):
             by_round.setdefault(s.round, []).append(s)
+    dmg_round: dict[int, list] = {}
+    for d in match.damages:
+        dmg_round.setdefault(d.round, []).append(d)
     out = []
     for k in match.kills:
         if not k.attacker_steamid or k.attacker_side == k.victim_side or not is_gun(k.weapon):
             continue
         lo = k.tick - int(window_s * tr)
-        sh = [s for s in by_round.get(k.round, []) if lo <= s.tick <= k.tick
-              and s.steamid in (k.attacker_steamid, k.victim_steamid)]
-        if sh:
-            out.append((k, min(s.tick for s in sh)))
+        sh = [s for s in by_round.get(k.round, []) if lo <= s.tick <= k.tick]
+        starts = [s.tick for s in sh if s.steamid == k.attacker_steamid]
+        hits = [d.tick for d in dmg_round.get(k.round, []) if d.attacker_steamid == k.victim_steamid
+                and d.victim_steamid == k.attacker_steamid and lo <= d.tick <= k.tick]
+        if hits:  # Opfer hat den Killer getroffen: seine Schüsse ab kurz vor dem ersten Treffer gehören dazu
+            first_hit = min(hits)
+            starts += [s.tick for s in sh if s.steamid == k.victim_steamid and first_hit - tr <= s.tick <= first_hit]
+        if starts:
+            out.append((k, min(starts)))
     return out
 
 
