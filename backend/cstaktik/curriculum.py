@@ -110,6 +110,16 @@ TEACH: dict[str, dict] = {
             "Deathmatch: beim Laufen bewusst nie auf den Boden schauen.",
         ]},
     },
+    "angle": {
+        "principle": ("Du kannst nur in eine Richtung schauen. Jede Position, an der zwei oder drei Winkel auf dich "
+                      "zeigen, verlierst du gegen den, der aus dem Winkel kommt, den du gerade nicht prüfst."),
+        "mantra": "Ein Winkel pro Spieler.",
+        "in_game": "Vor dem Halten fragen: Von wo kann er kommen? Mehr als ein Winkel? Dann Position wechseln oder absprechen.",
+        "routine": {"title": "Positionen prüfen", "minutes": 10, "steps": [
+            "Offline-Server: deine drei Standard-Positionen anstellen.",
+            "Für jede zählen, aus wie vielen Winkeln man dich sehen kann. Mehr als einer: bessere Stelle suchen.",
+        ]},
+    },
     "duel": {
         "principle": "Die Lage war in Ordnung, das Duell selbst ging verloren. Das trainiert man mit Aim, nicht mit Taktik.",
         "mantra": "Aim warm, Kopf ruhig.",

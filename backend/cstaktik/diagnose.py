@@ -39,7 +39,6 @@ def report(match: MatchData, findings: list, config: dict) -> str:
     add("\n-- Datenfelder")
     pos = match.positions
     add(f"Positionen: {len(pos)} · mit Blickrichtung {_pct(sum(p.yaw is not None for p in pos), len(pos))}"
-        f" · mit Pitch {_pct(sum(getattr(p, 'pitch', None) is not None for p in pos), len(pos))}"
         f" · mit Waffe {_pct(sum(bool(p.weapon) for p in pos), len(pos))} · mit Ort {_pct(sum(bool(p.place) for p in pos), len(pos))}")
     sp = [p.spotted for p in pos if p.spotted is not None]
     add(f"spotted: {'FEHLT' if not sp else f'{len(sp)} Werte, davon sichtbar {_pct(sum(sp), len(sp))}'}")
@@ -78,12 +77,11 @@ def report(match: MatchData, findings: list, config: dict) -> str:
                 ds.append(dist(p.pos, k.victim_pos))
         if ds:
             mate_d.append(min(ds))
-        taken = sum(d.dmg for d in match.damages if d.round == k.round and d.victim_steamid == k.victim_steamid and d.tick < k.tick)
-        hp.append(max(0, 100 - taken))
+    hp = [(f.evidence.get("f") or {}).get("hp") for f in findings if f.rule_id == "death_review"]
     dr = config["rules"]["death_review"]
     add(f"Abstand zum Killer bei eigenen Toden: {_q(a_d)} (Schwelle nah = {dr.get('close_units')})")
     add(f"Abstand nächster Mitspieler bei eigenen Toden: {_q(mate_d)} (Schwelle Trade = {dr.get('trade_distance_units')})")
-    add(f"HP vor eigenem Tod: {_q(hp)} (Schwelle wenig = {dr.get('hp_low')})")
+    add(f"HP vor dem tödlichen Duell: {_q(hp)} (Schwelle wenig = {dr.get('hp_low')})")
 
     add("\n-- Ergebnis der Analyse")
     dec = [f for f in findings if f.rule_id == "death_review"]

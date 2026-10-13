@@ -49,6 +49,10 @@ LESSONS = {
     "crosshair": ("Fadenkreuz vorher auf den Spot",
                   "Als das Duell begann, zeigte dein Fadenkreuz deutlich neben den Gegner. Bis du nachziehst, hat er geschossen.",
                   "Prefire-Map: Fadenkreuz an jede Kante auf Kopfhöhe, bevor du dich bewegst."),
+    "angle": ("Nicht offen in mehrere Winkel stehen",
+              "Der Gegner kam aus einer Richtung, in die du gar nicht geschaut hast. Das ist kein Aim-Problem, "
+              "sondern eine Position, die zu viele Winkel gleichzeitig offen lässt.",
+              "Positionen wählen, an denen nur ein Winkel auf dich zeigt; den Rest deckt ein Mitspieler oder Utility."),
     "duel": ("Duell verloren, Lage war okay",
              "Hier war die Lage nicht das Problem, das Duell selbst ging verloren.",
              "Aim und Peek-Timing im Deathmatch trainieren."),
@@ -67,11 +71,14 @@ def _clock(s: float | None) -> str | None:
 
 
 CROSSHAIR_BAD_DEG = 20.0  # ab dieser Abweichung im Kontakt-Moment gilt das Fadenkreuz als "nicht vorgehalten"
+WRONG_ANGLE_DEG = 60.0  # ab hier schaute man in eine andere Richtung (Gegner kam von der Seite/hinten)
 
 
 def lesson_id(fx: dict, close_units: int = 600) -> str:
     label = fx.get("label")
     duel = fx.get("duel") or {}
+    if label in ("Duell verloren", "Ohne Gegenwehr") and duel.get("err") is not None and duel["err"] >= WRONG_ANGLE_DEG:
+        return "angle"
     if label == "Duell verloren" and duel.get("err") is not None and duel["err"] >= CROSSHAIR_BAD_DEG:
         return "crosshair"
     if label == "Ohne Gegenwehr":
@@ -172,6 +179,9 @@ def _next(lid: str, fx: dict, snap: dict | None) -> str:
         return f"Mit {fx.get('hp')} HP nicht nachpeeken: zurückfallen, Info callen, auf den Trade spielen."
     if lid == "moving_shot":
         return "Vor dem Schuss stoppen (Counter-Strafe), dann schießen."
+    if lid == "angle":
+        return (f"Stell dich so, dass nur ein Winkel auf dich zeigt. {fx.get('aplace') or 'Diese Richtung'} "
+                "muss ein Mitspieler oder eine Smoke abdecken, nicht du nebenbei.")
     if lid == "crosshair":
         return (f"Fadenkreuz schon vorher auf {aplace or 'den Spot'} legen, auf Kopfhöhe. "
                 "Dann musst du nur noch klicken, nicht erst suchen.")

@@ -106,7 +106,8 @@ def stats(rows: list[dict]) -> dict:
 
     hits = [r["hit"] for r in rows if r.get("hit") is not None]
     first = [r["react"] == 0 for r in rows if r.get("react") is not None]
-    reacts = [r["react"] for r in rows if r.get("react")]  # nur Duelle, in denen der Gegner zuerst schoss
+    # nur Duelle, in denen der Gegner zuerst schoss; über 1,5 s meist Schuss auf einen anderen Gegner
+    reacts = [r["react"] for r in rows if r.get("react") and r["react"] <= 1500]
     return {"n": len(rows), "err": med("err"), "react": round(statistics.median(reacts)) if reacts else None,
             "first_hit": round(100 * sum(hits) / len(hits)) if hits else None,
             "shot_first": round(100 * sum(first) / len(first)) if first else None,

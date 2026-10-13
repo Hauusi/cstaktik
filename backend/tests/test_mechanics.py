@@ -111,3 +111,11 @@ def test_crosshair_lesson_and_duel_sentence():
                                   "neben dich. Dein erster Schuss kam 250 ms nach seinem, bei 160 Units/s.")
     fx["duel"]["err"] = 8.0
     assert lesson_id(fx) == "duel"
+
+
+def test_angle_lesson_for_wrong_direction():
+    from cstaktik.coach_voice import lesson_id
+
+    assert lesson_id({"label": "Duell verloren", "duel": {"err": 120.0}}) == "angle"
+    assert lesson_id({"label": "Ohne Gegenwehr", "a_dist": 300, "duel": {"err": 95.0}}) == "angle"
+    assert lesson_id({"label": "Duell verloren", "duel": {"err": 35.0}}) == "crosshair"
