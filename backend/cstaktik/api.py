@@ -237,7 +237,44 @@ def briefing_page(map_name: str) -> str:
     from cstaktik import pro
 
     b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=pro.load_all(pipeline.PRO_DIR))
-    return _env.get_template("briefing.html").render(b=b, map_lessons=_map_lessons(hist, map_name))
+    return _env.get_template("briefing.html").render(b=b, map_lessons=_map_lessons(hist, map_name),
+                                                     kabine=_kabine(hist, map_name))
+
+
+def _kabine(hist: list[dict], map_name: str) -> dict | None:
+    """Kabine vor dem Match: Auftrag je Spieler und wo auf dieser Map der Auftrags-Fehler passiert ist."""
+    from cstaktik.model import MatchData
+    from cstaktik.report.radar import build_radar
+
+    auftr = _auftrag(hist)
+    if not auftr:
+        return None
+    colors = ["#ff9f1c", "#6f9be8"]
+    scenes = [sc for sc in _all_scenes(hist) if sc.get("map") == map_name and sc.get("pos")]
+    radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
+    img = radar.image_data_uri
+    players = []
+    pts_all = []
+    for i, a in enumerate(auftr):
+        mine = [sc for sc in scenes if sc["lesson"] == a["lesson"] and sc.get("sid") in (a["sid"], None)]
+        pts = []
+        for sc in mine:
+            x, y = sc["pos"]
+            pts.append({"x": x, "y": y, "round": sc["round"], "report": sc.get("report"), "tick": sc.get("from") or sc["tick"]})
+        pts_all += pts
+        players.append({**a, "color": colors[i % len(colors)], "points": pts})
+    if img:
+        for pl in players:
+            for q in pl["points"]:
+                q["px"], q["py"] = radar.to_px(q["x"], q["y"])
+    elif pts_all:  # ohne Radarbild: Punkte in ihrem eigenen Rahmen
+        xs, ys = [q["x"] for q in pts_all], [q["y"] for q in pts_all]
+        span = max(max(xs) - min(xs), max(ys) - min(ys), 500) * 1.3
+        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        for pl in players:
+            for q in pl["points"]:
+                q["px"], q["py"] = 512 + (q["x"] - cx) / span * 1024, 512 - (q["y"] - cy) / span * 1024
+    return {"img": img, "players": players, "has_points": bool(pts_all)}
 
 
 def _map_lessons(hist: list[dict], map_name: str) -> list[dict]:

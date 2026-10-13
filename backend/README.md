@@ -58,6 +58,18 @@ Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern z
 verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,
 Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
+## Version 2: Coaching-Erlebnis
+
+- **Eigener Auftrag je Spieler:** Jeder Fokus-Spieler hat seinen Auftrag mit eigenem Check und eigener Übung
+  (data/coaching.json, Format {"players": {steamid: ...}}; ein alter gemeinsamer Auftrag wird übernommen).
+- **Debrief mit dem Coach:** Knopf oben im Report. Geführte Schritte: Auftrag-Check, Ansage, Verstehen,
+  deine Szene (Replay, danach "Zurück zum Debrief"), Entscheidung "Was hättest du gemacht?", So geht's richtig
+  (eigene Szenen + Pro-Szene), Abmachung bis zum nächsten Match (Merksatz + Übung, "Abgemacht" lokal gemerkt).
+- **Coach zeichnet auf die Karte:** Bei jedem Coach-Halt Marker-Kreise und Pfeile ("Von hier", "Entscheidung",
+  Abstand zum Mitspieler, "So habt ihr gewonnen"); die Kamera zoomt auf die Szene und löst sich beim Weiterspielen.
+- **Kabine** (/briefing/<map>): Auftrag je Spieler mit Merksatz, Warm-up und Radar mit den Orten, an denen genau
+  dieser Fehler auf der Map passiert ist (Punkt antippen = Szene im Replay).
+
 ## Coaching-Kreislauf (coaching.py, curriculum.py)
 
 - **Auftrag:** Eine Lektion gilt über mehrere Matches (Fokus für dich und deinen Bruder zusammen). Ziel: höchstens

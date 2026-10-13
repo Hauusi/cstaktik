@@ -77,3 +77,19 @@ def test_update_all_per_player_and_legacy_migration():
     res = coaching.update_all(st, summ, {"a": ["utility"], "b": ["alone"]})
     assert "focus" not in st and set(st["players"]) == {"a", "b"}  # alter gemeinsamer Auftrag übernommen
     assert res["a"]["check"]["met"] and res["b"]["check"]["met"] is False and res["a"]["name"] == "A"
+
+
+def test_kabine_in_briefing():
+    from fastapi.testclient import TestClient
+
+    from cstaktik import api, history, pipeline
+
+    coaching.save({"players": {"s1": {"focus": {"lesson": "alone", "target": 1.0, "baseline": 2.0,
+                                                "created_at": "2026-10-01T10:00", "matches": [], "status": "aktiv"},
+                                      "done": [], "drills": []}}}, pipeline.COACHING_FILE)
+    sc = {"lesson": "alone", "who": "Ich", "sid": "s1", "round": 3, "tick": 500, "from": 400, "report": "x.html",
+          "map": "de_mirage", "pos": [100, 200], "snap": {}, "aktion": "gehalten", "happened": "", "next": ""}
+    history.save({"id": "a1", "map": "de_mirage", "rounds": 20, "analyzed_at": "2026-10-02T10:00",
+                  "players": {"s1": {"name": "Ich"}}, "scenes": [sc]}, pipeline.HISTORY_DIR)
+    html = TestClient(api.app).get("/briefing/de_mirage").text
+    assert "Kabine" in html and "Nie allein in ein Duell" in html and "/reports/x.html#s3-400" in html

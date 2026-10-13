@@ -255,7 +255,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                                 "mate_place": near_place, "nades": nade_names,
                                 "blind_by": (match.name_of(blind.attacker_steamid) if blind and blind.attacker_steamid
                                              else None), "blind_ago": round((k.tick - blind.tick) / tr, 1) if blind else None,
-                                "shot_speed": round(my_shots[-1].speed) if my_shots and my_shots[-1].speed else None}},
+                                "shot_speed": round(my_shots[-1].speed) if my_shots and my_shots[-1].speed else None,
+                                "vpos": [round(k.victim_pos.x), round(k.victim_pos.y)] if k.victim_pos else None}},
                 overlay=overlay,
             )
         )

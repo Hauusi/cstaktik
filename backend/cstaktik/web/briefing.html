@@ -9,6 +9,14 @@
 .goal { padding: 12px 14px; border-radius: 14px; background: rgba(255,159,28,.1); border: 1px solid rgba(255,159,28,.3); margin-top: 8px; }
 .goal .tp { color: var(--muted); font-size: 13.5px; margin-top: 2px; }
 .empty { color: var(--muted); }
+.kab { padding: 14px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid; margin-top: 10px; }
+.kwho { font-family: var(--cond); font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; }
+.ktitle { font-family: var(--cond); font-weight: 800; font-size: 26px; line-height: 1.05; text-transform: uppercase; margin-top: 2px; }
+.kmantra { font-family: var(--cond); font-weight: 800; font-size: 19px; color: var(--orange); text-transform: uppercase; margin-top: 4px; }
+.kline { font-size: 14.5px; margin-top: 8px; }
+.kmap { position: relative; margin-top: 12px; aspect-ratio: 1; background: #07090d; border: 1px solid var(--line); }
+.kmap img, .kmap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.kmap img { opacity: .85; }
 </style>
 {% endblock %}
 {% block hero %}
@@ -16,13 +24,39 @@
 <p>{% if b.matches %}{{ b.matches }} {{ "Match" if b.matches == 1 else "Matches" }} auf {{ b.label }} ausgewertet, {{ b.won_matches }} gewonnen.{% else %}Noch kein Match auf {{ b.label }} ausgewertet.{% endif %}</p>
 {% endblock %}
 {% block content %}
+{% if kabine %}
+<h2>Kabine</h2>
+{% for a in kabine.players %}
+<div class="kab" style="border-left-color:{{ a.color }}">
+  <div class="kwho" style="color:{{ a.color }}">{{ a.name }} · Auftrag</div>
+  <div class="ktitle">{{ a.title }}</div>
+  <div class="kmantra">„{{ a.mantra }}“</div>
+  <div class="kline"><b>Warm-up ({{ a.routine.minutes }} Min):</b> {{ a.routine.title }}. <b>Im Match:</b> {{ a.in_game }}</div>
+  {% if a.points %}<div class="kline muted">Auf {{ b.label }} ist dir das {{ a.points|length }}x passiert, Punkte auf der Karte.</div>{% endif %}
+</div>
+{% endfor %}
+{% if kabine.has_points %}
+<div class="kmap">
+  {% if kabine.img %}<img src="{{ kabine.img }}" alt="Radar {{ b.label }}">{% endif %}
+  <svg viewBox="0 0 1024 1024" aria-label="Fehler-Orte">
+    {% for a in kabine.players %}{% for q in a.points %}
+    <a href="{% if q.report %}/reports/{{ q.report }}#s{{ q.round }}-{{ q.tick }}{% else %}#{% endif %}">
+      <circle cx="{{ q.px }}" cy="{{ q.py }}" r="16" fill="{{ a.color }}" fill-opacity=".85" stroke="#0c0d0f" stroke-width="5"><title>{{ a.name }} · R{{ q.round }}</title></circle>
+    </a>
+    {% endfor %}{% endfor %}
+  </svg>
+</div>
+<div class="small muted" style="margin-top:6px">Jeder Punkt ist ein Tod mit genau diesem Fehler. Antippen öffnet die Szene im Replay.</div>
+{% endif %}
+{% endif %}
+
 {% if map_lessons %}
 <h2>Eure Baustellen auf {{ b.label }}</h2>
 {% for l in map_lessons %}<div class="note"><b>{{ l.name }}: {{ l.title }}</b> <span class="empty num">· {{ l.rate }} pro 10 Runden hier</span>
   <div class="tp">{{ l.drill }}</div></div>{% endfor %}
 {% endif %}
 <div class="cols"><div class="col">
-{% if b.goals %}
+{% if b.goals and not kabine %}
 <h2>Eure Ziele heute</h2>
 {% for g in b.goals %}<div class="goal"><b>{{ g.title }}</b><div class="tp">{{ g.tip }}</div></div>{% endfor %}
 {% endif %}
