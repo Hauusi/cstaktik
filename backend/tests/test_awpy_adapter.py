@@ -26,6 +26,8 @@ class FakeParser:
                 r = {"tick": t, "steamid": sid, "name": str(sid)}
                 if "inventory" in props:
                     r["inventory"] = ["Glock-18", "Flashbang"]
+                if props == ["X", "Y"]:  # Tempo beim Schuss: A bewegt sich 50 Units/s (Tick-2 -> Tick)
+                    r.update(X=(t * 25 / 32.0) if sid == A else 0.0, Y=0.0)
                 if "velocity_X" in props:
                     r.update(velocity_X=30.0 if sid == A else 0.0, velocity_Y=40.0 if sid == A else 0.0)
                 if "pitch" in props:  # Kontakt-Tick: A schaut nach +y zu B, B nach -y zu A

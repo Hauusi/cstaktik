@@ -136,6 +136,9 @@ def match_timed(
     return out
 
 
+MAX_RUN_SPEED = 450.0  # schneller läuft in CS2 niemand am Boden; höhere Werte = Teleport/Fehler -> unbekannt
+
+
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as fh:
@@ -435,11 +438,20 @@ def parse_demo(
         speed: dict[tuple[int, str], float] = {}
         shot_ticks = sorted({int(r["tick"]) for r in rows})
         if shot_ticks:
-            vel = dem.parser.parse_ticks(["velocity_X", "velocity_Y"], ticks=shot_ticks)
-            for rec in vel.to_dict("records"):
-                sid, vx, vy = _sid(rec.get("steamid")), _num(rec.get("velocity_X")), _num(rec.get("velocity_Y"))
-                if sid is not None and vx is not None and vy is not None:
-                    speed[(int(rec["tick"]), sid)] = math.hypot(vx, vy)
+            # Tempo aus der echten Positionsänderung (Tick-2 -> Tick). Das Demo-Feld velocity lieferte in echten
+            # Demos bei rund einem Drittel der Schüsse Unsinn (über 4000 Units/s).
+            want = sorted(set(shot_ticks) | {t - 2 for t in shot_ticks})
+            xy = {}
+            for rec in dem.parser.parse_ticks(["X", "Y"], ticks=want).to_dict("records"):
+                sid, x, y = _sid(rec.get("steamid")), _num(rec.get("X")), _num(rec.get("Y"))
+                if sid is not None and x is not None and y is not None:
+                    xy[(int(rec["tick"]), sid)] = (x, y)
+            for (t, sid), (x, y) in xy.items():
+                prev = xy.get((t - 2, sid))
+                if prev is not None and t in set(shot_ticks):
+                    v = math.hypot(x - prev[0], y - prev[1]) * tickrate / 2
+                    if v <= MAX_RUN_SPEED:
+                        speed[(t, sid)] = v
         for r in rows:
             sid = _sid(r.get("player_steamid"))
             if sid is None:

@@ -113,7 +113,11 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
         # HP vor dem Duell + Herkunft des Schadens
         hp = None
         if match.damages:
-            prior = [d for d in match.damages if d.round == k.round and d.victim_steamid == sid and d.tick < k.tick]
+            # HP VOR dem Duell: Schaden ab Duell-Beginn (erster Schuss) bzw. vom Killer in den 3 s davor zählt nicht
+            contact = next((d.contact for d in match.duels if d.tick == k.tick and d.loser == sid), None)
+            cut = contact if contact is not None else k.tick
+            prior = [d for d in match.damages if d.round == k.round and d.victim_steamid == sid and d.tick < cut
+                     and not (d.attacker_steamid == k.attacker_steamid and d.tick >= k.tick - 3 * tr)]
             hp = max(0, 100 - sum(d.dmg for d in prior))
             if prior:
                 src: dict[str, int] = {}

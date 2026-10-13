@@ -61,9 +61,9 @@ def test_snapshot_text_category_and_action():
     enrich(m, [f], None, CFG)
     e = f.evidence
     assert e["entscheidung"].startswith("0:14: Du gehst los in SynthA. Lage: 4 gegen 5, du 20 HP, Bombe nicht gelegt")
-    assert "Bruder 2000 Units weg" in e["entscheidung"] and "du hattest Smoke, Flash" in e["entscheidung"]
+    assert "Bruder 2050 Units weg" in e["entscheidung"] and "du hattest Smoke, Flash" in e["entscheidung"]
     assert e["situation"] == "Allein vorrücken (CT)" and e["aktion"] == "Richtung Gegner"
-    assert f.overlay["decision"][2] == m.rounds[0].freeze_end_tick + 14 * TR
+    assert abs(f.overlay["decision"][2] - (m.rounds[0].freeze_end_tick + 14 * TR)) <= TR // 4  # Glättung: 1 Sample
 
 
 def test_win_model_counts_and_cost():
@@ -183,7 +183,7 @@ def test_coach_voice_scene_and_focus():
     coach_voice.apply([f])
     v = f.evidence["coach"]
     assert v["id"] in coach_voice.LESSONS and v["lesson"] == coach_voice.LESSONS[v["id"]][0]
-    assert v["happened"].startswith("Bei 0:14 gehst du in SynthA los: 4 gegen 5, nur 20 HP, Bruder 2000 Units weg.")
+    assert v["happened"].startswith("Bei 0:14 gehst du in SynthA los: 4 gegen 5, nur 20 HP, Bruder 2050 Units weg.")
     assert "Gegner1 aus SynthPalace" in v["happened"]
     foc = coach_voice.focus([f, f])
     assert foc[0]["count"] == 2 and foc[0]["lesson"] == v["lesson"]

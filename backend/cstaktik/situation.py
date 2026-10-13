@@ -144,23 +144,34 @@ def planted_at(match: MatchData, rnd_num: int, tick: int) -> int | None:
 
 
 def decision_tick(idx: PositionIndex, rnd, sid: str, death: int, tr: int, cfg: dict) -> tuple[int, str] | None:
-    """(Tick, Art) des Entscheidungsmoments; Art: 'bewegt' (losgegangen) oder 'gehalten'."""
+    """(Tick, Art) des Entscheidungsmoments; Art: 'bewegt' (losgegangen) oder 'gehalten'.
+
+    Bewertet wird der Zustand ``min_before_s`` vor dem Tod (das Duell selbst zählt nicht). Bewegung geglättet
+    (Mittel zweier Abschnitte) mit Hysterese: bewegt ab ``moving_units_s``, steht unter ``still_units_s``,
+    dazwischen bleibt der vorige Zustand. Entscheidungsmoment = Beginn des aktuellen Zustands."""
     lo = max(rnd.freeze_end_tick or rnd.start_tick, death - int(cfg["lookback_s"] * tr))
-    pts = [p for p in idx.path(rnd.num, sid) if lo <= p.tick <= death]
+    cut = death - int(cfg["min_before_s"] * tr)
+    pts = [p for p in idx.path(rnd.num, sid) if lo <= p.tick <= cut]
     if len(pts) < 3:
         return None
-    speeds = []
+    raw = []
     for a, b in zip(pts, pts[1:]):
         dt = (b.tick - a.tick) / tr
-        speeds.append((b.tick, dist(a.pos, b.pos) / dt if dt > 0 else 0.0))
-    moving_now = speeds[-1][1] > cfg["moving_units_s"]
+        raw.append((b.tick, dist(a.pos, b.pos) / dt if dt > 0 else 0.0))
+    smooth = [(t, (raw[i][1] + raw[i - 1][1]) / 2 if i else v) for i, (t, v) in enumerate(raw)]
+    hi, low = cfg["moving_units_s"], cfg.get("still_units_s", 40)
+    states = []
+    cur = smooth[0][1] > hi
+    for t, v in smooth:
+        cur = True if v > hi else False if v < low else cur
+        states.append((t, cur))
+    moving_now = states[-1][1]
     start = pts[0].tick
-    for tick, sp in reversed(speeds):  # rückwärts bis die Art (bewegt/steht) wechselt
-        if (sp > cfg["moving_units_s"]) != moving_now:
-            start = tick
+    for t, st in reversed(states):
+        if st != moving_now:
+            start = t
             break
-    latest = death - int(cfg["min_before_s"] * tr)
-    return max(lo, min(start, latest)), ("bewegt" if moving_now else "gehalten")
+    return max(lo, start), ("bewegt" if moving_now else "gehalten")
 
 
 def _enemy_dist(idx: PositionIndex, rnd, side: str, alive: dict, pos, tick: int, tr: int) -> float | None:

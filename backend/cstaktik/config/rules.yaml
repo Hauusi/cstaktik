@@ -17,7 +17,7 @@ report:
   smoke_draw_radius_units: 140
   molotov_draw_radius_units: 110
   # Nur wenn die Demo kein Ende-Event liefert: Anzeige-Dauer (CS2-Standard), dann ohne Countdown.
-  smoke_default_s: 18
+  smoke_default_s: 22       # in echten Demos gemessen: 22,1 s
   molotov_default_s: 7
 
 rules:
@@ -32,7 +32,7 @@ rules:
     # Blendung zählt, wenn sie höchstens so lange vor dem Tod war und mindestens so lange dauerte.
     blind_window_s: 3.0
     blind_min_s: 0.5
-    trade_distance_units: 800
+    trade_distance_units: 1000
     trade_window_s: 3.0
     # Gegner näher als das: "nah" (Ecke vorzielen), sonst "langer Blick" (Linie nicht offen kreuzen).
     close_units: 600
@@ -99,7 +99,8 @@ situation:
   # Entscheidungsmoment: so weit vor dem Tod zurückschauen, mindestens so lange vor dem Tod
   lookback_s: 8
   min_before_s: 1.5
-  moving_units_s: 60        # darüber gilt ein Spieler als "in Bewegung"
+  moving_units_s: 100       # darüber gilt ein Spieler als "in Bewegung" (geglättet)
+  still_units_s: 40         # darunter als "steht"; dazwischen bleibt der vorige Zustand
   alone_units: 1200         # nächster Mitspieler weiter weg = "allein"
   # CS2-Standardzeiten (nicht aus der Demo), nur für "noch ca. x:xx" im Lagebild
   round_time_s: 115

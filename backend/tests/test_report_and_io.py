@@ -278,4 +278,4 @@ def test_nade_lands_at_detonation_and_unknown_end_is_capped():
     rr = next(x for x in d["rounds"] if x["n"] == r.num)
     assert rr["nades"][-1]["land"] == f0 + 100
     u = rr["util"][-1]
-    assert u["e"] == f0 + 100 + 18 * m.tickrate and u["ek"] is False
+    assert u["e"] == f0 + 100 + 22 * m.tickrate and u["ek"] is False
