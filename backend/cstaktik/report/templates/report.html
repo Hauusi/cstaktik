@@ -418,6 +418,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .dgrid b { display: block; font-size: 26px; font-weight: 800; line-height: 1.1; }
 .dgrid i { font-style: normal; font-size: 12.5px; color: #9db4e0; }
 @media (min-width: 700px) { .dgrid { grid-template-columns: repeat(4, 1fr); } }
+.exe { padding: 8px 0; border-top: 1px solid var(--line); } .exe > b { font-size: 18px; text-transform: uppercase; }
 .lrow { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
 .lrow b { display: block; font-size: 15px; } .lrow span { font-size: 12.5px; color: var(--muted); }
 .lrow .ldist { font-weight: 800; font-size: 16px; text-transform: uppercase; }
@@ -549,6 +550,38 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     </div>
     {% endfor %}
     <div class="quiet" style="margin-top:6px">Pro-Stelle = Mittel der Landepunkte aus den Pro-Demos dieser Map (gleiche Granate, Seite und Zielort).</div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if setups %}
+  <section class="duelcmp setups">
+    <div class="sh"><span class="t cond">Positionen und Ausführungen</span></div>
+    {% if setups.ct %}
+    <div class="lk cond">CT: wo ihr nach 0:20 steht</div>
+    {% for r in setups.ct %}
+    <div class="lrow {{ 'no' if r.deaths * 2 > r.rounds else 'ok' }}">
+      <div><b>{{ r.place }} · {{ r.who }}</b><span>{{ r.rounds }} Runden · {{ r.deaths }}x gestorben · {{ r.won }} Siege{% if r.pro_share is defined %} · Pros: {{ r.pro_share }} % der Zeit{% if r.pro_won is not none %}, {{ r.pro_won }} % Siege{% endif %}{% endif %}</span></div>
+      <div class="ldist cond">{{ (100 * r.won / r.rounds)|round|int }} %</div>
+      <button class="costgo cond" data-round="{{ r.round_list[0] }}" data-tick="0">▶</button>
+    </div>
+    {% endfor %}
+    {% if setups.ct_pro_top %}<div class="quiet" style="margin-top:6px">Pros auf CT nach 0:20 meist: {% for p in setups.ct_pro_top %}{{ p.place }} {{ p.share }} % ({{ p.won }} % Siege){% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
+    {% endif %}
+    {% if setups.t %}
+    <div class="lk cond" style="margin-top:12px">T: eure Ausführungen gegen Pros</div>
+    {% for x in setups.t %}{% set o = x.own %}{% set q = x.pro %}
+    <div class="exe">
+      <b class="cond">{{ x.site }} · {{ o.n }}x</b>
+      <div class="dgrid num">
+        <div><span>Ankunft</span><b class="cond">{{ (o.at // 60)|int }}:{{ "%02d"|format(o.at % 60) }}</b>{% if q %}<i>Pros {{ (q.at // 60)|int }}:{{ "%02d"|format(q.at % 60) }}</i>{% endif %}</div>
+        <div><span>Spieler zusammen</span><b class="cond">{{ o.players|string|replace(".", ",") }}</b>{% if q %}<i>Pros {{ q.players|string|replace(".", ",") }}</i>{% endif %}</div>
+        <div><span>Granaten vorher</span><b class="cond">{{ o.util|string|replace(".", ",") }}</b>{% if q %}<i>Pros {{ q.util|string|replace(".", ",") }}</i>{% endif %}</div>
+        <div><span>Runden gewonnen</span><b class="cond">{{ o.won }} %</b>{% if q %}<i>Pros {{ q.won }} %</i>{% endif %}</div>
+      </div>
+    </div>
+    {% endfor %}
+    <div class="quiet" style="margin-top:6px">Ausführung = erster Zeitpunkt (5-s-Raster), an dem ein T an einem Bombsite-Ort steht. Granaten = T-Granaten, die in den 15 s davor dort gelandet sind.</div>
     {% endif %}
   </section>
   {% endif %}

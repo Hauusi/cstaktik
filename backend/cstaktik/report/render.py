@@ -302,6 +302,15 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     }
 
 
+def _setups(match: MatchData) -> dict | None:
+    from cstaktik import pipeline, pro, setups
+
+    pros = pro.load_all(pipeline.PRO_DIR)
+    ct, top = setups.ct_positions(match, pros)
+    t = setups.t_executes(match, pros)
+    return {"ct": ct[:6], "ct_pro_top": top, "t": t} if ct or t else None
+
+
 def _util_cmp(match: MatchData) -> dict:
     from cstaktik import pipeline, pro, utility_cmp
 
@@ -387,6 +396,7 @@ def build_context(
         "focus": None,
         "duel_cmp": _duel_cmp(match),
         "util_cmp": _util_cmp(match),
+        "setups": _setups(match),
         "auftraege": auftraege,
         "teach": TEACH,
         "bright": {lid: bright_spots(match, lid)
