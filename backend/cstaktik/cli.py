@@ -42,6 +42,21 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--port", type=int, default=8000)
 
     args = ap.parse_args(argv)
+    f = getattr(args, "file", None)
+    if isinstance(f, Path) and not f.exists():
+        # Upload über die Webseite entpackt .bz2 und löscht das Archiv: dann gibt es die .dem
+        alt = f.with_name(f.name[:-4]) if f.name.lower().endswith(".bz2") else None
+        if alt is not None and alt.exists():
+            args.file = alt
+        else:
+            print(f"Datei nicht gefunden: {f}", file=sys.stderr)
+            stem = f.name.split(".")[0]
+            near = sorted(p.name for p in f.parent.glob(f"*{stem[-8:]}*")) if f.parent.exists() else []
+            if near:
+                print("Passende Dateien im Ordner: " + ", ".join(near), file=sys.stderr)
+            elif f.parent.exists():
+                print(f"Im Ordner {f.parent}: " + ", ".join(sorted(p.name for p in f.parent.iterdir())[:20]), file=sys.stderr)
+            return 1
 
     if args.cmd == "analyze":
         from cstaktik import pipeline
