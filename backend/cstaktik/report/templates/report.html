@@ -765,6 +765,37 @@ function weaponKind(name) {
   if (has('ak47', 'm4a1', 'm4a4', 'famas', 'galil', 'aug', 'sg553', 'sg556')) return 'rifle';
   return 'rifle'; // unbekannte Schusswaffe: neutrale Gewehr-Form
 }
+
+// ---- Coach-Zeichnungen (Marker-Stil wie auf einem Taktikbrett)
+function mkJit(seed) { let a = seed * 9301 + 49297; return () => { a = (a * 9301 + 49297) % 233280; return a / 233280 - .5; }; }
+function mkStroke(pts, col, w, seed) {
+  for (let pass = 0; pass < 2; pass++) { // zwei leicht versetzte Striche = Marker
+    const j = mkJit(seed + pass * 7);
+    ctx.strokeStyle = col; ctx.globalAlpha = pass ? .55 : .95; ctx.lineWidth = w * (pass ? .7 : 1); ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.beginPath(); pts.forEach(([x, y], i) => { const dx = j() * w * .9, dy = j() * w * .9; i ? ctx.lineTo(x + dx, y + dy) : ctx.moveTo(x + dx, y + dy); }); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+function mkLabel(text, x, y, col, u, below) {
+  ctx.font = `800 ${12 * u}px "Barlow Condensed", system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = below ? 'top' : 'bottom';
+  ctx.lineWidth = 4 * u; ctx.strokeStyle = 'rgba(7,9,13,.92)'; ctx.strokeText(text.toUpperCase(), x, y);
+  ctx.fillStyle = col; ctx.fillText(text.toUpperCase(), x, y);
+}
+function mkCircle(x, y, r, col, u, seed) {
+  const pts = [], n = 26, j = mkJit(seed);
+  for (let i = 0; i <= n + 3; i++) { const a = -1.2 + i / n * Math.PI * 2, rr = r * (1 + j() * .12); pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr * .92]); }
+  mkStroke(pts, col, 2.6 * u, seed);
+}
+function mkArrow(x1, y1, x2, y2, col, u, seed, gap) {
+  const L = Math.hypot(x2 - x1, y2 - y1); if (L < 4 * u) return;
+  const ux = (x2 - x1) / L, uy = (y2 - y1) / L, g = gap || 0;
+  const sx = x1 + ux * g, sy = y1 + uy * g, ex = x2 - ux * g, ey = y2 - uy * g;
+  const mx = (sx + ex) / 2 - uy * L * .08, my = (sy + ey) / 2 + ux * L * .08; // leicht gebogen
+  const pts = []; for (let t = 0; t <= 1.0001; t += .1) pts.push([(1 - t) * (1 - t) * sx + 2 * (1 - t) * t * mx + t * t * ex, (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * my + t * t * ey]);
+  mkStroke(pts, col, 2.6 * u, seed);
+  const ang = Math.atan2(ey - pts[pts.length - 2][1], ex - pts[pts.length - 2][0]), h = 9 * u;
+  mkStroke([[ex - Math.cos(ang - .5) * h, ey - Math.sin(ang - .5) * h], [ex, ey], [ex - Math.cos(ang + .5) * h, ey - Math.sin(ang + .5) * h]], col, 2.6 * u, seed + 3);
+}
 const ease = x => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
 // Deterministischer Zufall je Granate: Flammen/Rauchballen bleiben pro Frame an derselben Stelle
 function seeded(seed) { let a = (seed | 0) ^ 0x9e3779b9; return () => { a = Math.imul(a ^ (a >>> 15), 2246822507); a = Math.imul(a ^ (a >>> 13), 3266489909); return ((a ^= a >>> 16) >>> 0) / 4294967296; }; }
@@ -888,6 +919,19 @@ function center() {
   }
   S.cam = clampCam(S.cam || { x: SIZE / 2, y: SIZE / 2 });
   return S.cam;
+}
+// Coach-Halt: Kamera zoomt auf die Szene (Opfer, Killer, Mitspieler, Entscheidungsort). Beim Weiterspielen zurück.
+function coachZoom(id) {
+  const f = id != null ? F[id] : null; if (!f || f.x == null || S.zoom > 1.05) return;
+  const r = R(), kd = r.kills.find(k => k.t === f.tick && k.v === f.sid), pts = [[f.x, f.y]];
+  if (kd && kd.ax != null) pts.push([kd.ax, kd.ay]);
+  if (f.ov && f.ov.line && Math.hypot(f.ov.line[1][0] - f.x, f.ov.line[1][1] - f.y) < SIZE * .3) pts.push(f.ov.line[1]);
+  if (f.ov && f.ov.decision) pts.push([f.ov.decision[0], f.ov.decision[1]]);
+  const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+  const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), SIZE / 8);
+  S.zoom = Math.min(3, Math.max(1.5, SIZE / (span * 1.7)));
+  S.cam = clampCam({ x: (Math.max(...xs) + Math.min(...xs)) / 2, y: (Math.max(...ys) + Math.min(...ys)) / 2 });
+  S.autoZoom = true; draw();
 }
 // Bildschirm (CSS-Pixel im Canvas) -> Radar-Pixel
 function toWorld(sx, sy) { const c = center(), k = SIZE / (cssW * S.zoom); return { x: c.x + (sx - cssW / 2) * k, y: c.y + (sy - cssW / 2) * k }; }
@@ -1160,18 +1204,19 @@ function draw() {
   const ovf = S.coachF != null ? F[S.coachF] : null;
   if (ovf) {
     const col = SEV[ovf.sev];
+    const kd = r.kills.find(k => k.t === ovf.tick && k.v === ovf.sid);
+    const fx = ovf.evidence && ovf.evidence.f;
+    // Gefahr: von wo der Killer kam
+    if (kd && kd.ax != null && ovf.rule === 'death_review') {
+      mkCircle(kd.ax, kd.ay, 13 * u, '#e5484d', u, 11);
+      mkLabel('Von hier' + (fx && fx.aplace ? ': ' + fx.aplace : ''), kd.ax, kd.ay - 16 * u, '#e5484d', u);
+      if (kd.vx != null) mkArrow(kd.ax, kd.ay, kd.vx, kd.vy, 'rgba(229,72,77,.75)', u, 5, 12 * u);
+    }
+    // Abstand zum nächsten Mitspieler (Trade-Reichweite)
     if (ovf.ov && ovf.ov.line) {
       const [[x1, y1], [x2, y2]] = ovf.ov.line;
-      ctx.strokeStyle = col; ctx.lineWidth = 2.5 * u; ctx.setLineDash([7 * u, 5 * u]);
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x2, y2, 4 * u, 0, 7); ctx.fill();
-      if (ovf.ov.label) {
-        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-        ctx.font = `700 ${11 * u}px system-ui`; const w = ctx.measureText(ovf.ov.label).width + 12 * u;
-        ctx.fillStyle = 'rgba(7,9,13,.88)'; ctx.beginPath(); ctx.roundRect(mx - w / 2, my - 10 * u, w, 20 * u, 6 * u); ctx.fill();
-        ctx.strokeStyle = col; ctx.lineWidth = 1.2 * u; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ovf.ov.label, mx, my);
-      }
+      mkArrow(x1, y1, x2, y2, '#ff9f1c', u, 21, 8 * u);
+      if (ovf.ov.label) mkLabel(ovf.ov.label, (x1 + x2) / 2, (y1 + y2) / 2 - 6 * u, '#ff9f1c', u);
     }
     // Vorbild: Position desselben Spielers in einer Siegrunde zur selben Rundenzeit
     if (ovf.ov && ovf.ov.ghost) {
@@ -1179,13 +1224,8 @@ function draw() {
       ctx.setLineDash([3 * u, 3 * u]); ctx.strokeStyle = '#3fbf7f'; ctx.lineWidth = 2.5 * u;
       ctx.beginPath(); ctx.arc(gx, gy, 9 * u, 0, 7); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = 'rgba(63,191,127,.25)'; ctx.fill();
-      if (ovf.x != null) {
-        ctx.strokeStyle = 'rgba(63,191,127,.7)'; ctx.lineWidth = 1.5 * u; ctx.setLineDash([2 * u, 4 * u]);
-        ctx.beginPath(); ctx.moveTo(ovf.x, ovf.y); ctx.lineTo(gx, gy); ctx.stroke(); ctx.setLineDash([]);
-      }
-      ctx.font = `800 ${10 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText('Sieg R' + ovf.ov.ghost_round, gx, gy + 11 * u);
-      ctx.fillStyle = '#3fbf7f'; ctx.fillText('Sieg R' + ovf.ov.ghost_round, gx, gy + 11 * u);
+      if (ovf.x != null) mkArrow(ovf.x, ovf.y, gx, gy, '#46a758', u, 51, 10 * u);
+      mkLabel('So habt ihr gewonnen (R' + ovf.ov.ghost_round + ')', gx, gy + 12 * u, '#46a758', u, true);
     }
     // Häufigster Pro-Wurf in derselben Szene (aus data/pro)
     if (ovf.ov && ovf.ov.pro_nade) {
@@ -1202,11 +1242,9 @@ function draw() {
     // Entscheidungsmoment: wo der Spieler losging bzw. hielt
     if (ovf.ov && ovf.ov.decision) {
       const [dx, dy] = ovf.ov.decision;
-      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2.2 * u; ctx.setLineDash([4 * u, 3 * u]);
-      ctx.beginPath(); ctx.arc(dx, dy, 10 * u, 0, 7); ctx.stroke(); ctx.setLineDash([]);
-      ctx.font = `800 ${10 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText('Entscheidung ' + fmt(ovf.ov.decision[2]), dx, dy - 12 * u);
-      ctx.fillStyle = '#ffd166'; ctx.fillText('Entscheidung ' + fmt(ovf.ov.decision[2]), dx, dy - 12 * u);
+      mkCircle(dx, dy, 11 * u, '#ffd166', u, 31);
+      mkLabel('Entscheidung ' + fmt(ovf.ov.decision[2]), dx, dy + 14 * u, '#ffd166', u, true);
+      if (kd && kd.vx != null && Math.hypot(kd.vx - dx, kd.vy - dy) > 20 * u) mkArrow(dx, dy, kd.vx, kd.vy, 'rgba(255,209,102,.7)', u, 41, 12 * u);
     }
     // Frühere Tode desselben Spielers am selben Ort (Geister)
     const myDeath = r.kills.find(k => k.t === ovf.tick && k.v === ovf.sid);
@@ -1377,6 +1415,7 @@ function buildFindings() {
 
 // ---- Steuerung
 function setPlaying(p) {
+  if (p && S.autoZoom) { S.autoZoom = false; S.zoom = 1; S.cam = null; } // Coach-Zoom beim Weiterspielen lösen
   S.playing = p;
   $('playIcon').innerHTML = p ? '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>' : '<path d="M7 4v16l13-8z"/>';
   $('play').setAttribute('aria-label', p ? 'Pause' : 'Abspielen');
@@ -1804,7 +1843,7 @@ function loop(now) {
     // In einer Tour nur am Tour-Halt stoppen, sonst bei jedem Fehler
     const hit = stop ? (stop.ri === S.ri && stop.tick > prev && stop.tick <= next ? { tick: stop.tick } : null)
       : r.f.map(id => F[id]).find(f => isErr(f) && f.tick != null && f.tick > prev && f.tick <= next && f.id !== S.lastF);
-    if (hit) { S.tick = hit.tick; if (hit.id != null) S.lastF = hit.id; setPlaying(false); }
+    if (hit) { S.tick = hit.tick; if (hit.id != null) S.lastF = hit.id; setPlaying(false); coachZoom(hit.id != null ? hit.id : (stop && stop.f)); }
     else if (next >= r.t1) { S.tick = r.t1; setPlaying(false); }
     else S.tick = next;
     draw();
