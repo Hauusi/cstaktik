@@ -302,6 +302,12 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     }
 
 
+def _util_cmp(match: MatchData) -> dict:
+    from cstaktik import pipeline, pro, utility_cmp
+
+    return utility_cmp.compare(match, pro.load_all(pipeline.PRO_DIR), load_rules_config().get("utility_cmp"))
+
+
 def _duel_cmp(match: MatchData) -> dict | None:
     """Duell-Kennzahlen je Fokus-Spieler gegen den Schnitt aller Pro-Demos (Fadenkreuz, Reaktion, erste Kugel)."""
     from cstaktik import duels, pipeline, pro
@@ -380,6 +386,7 @@ def build_context(
         "memory": memory,
         "focus": None,
         "duel_cmp": _duel_cmp(match),
+        "util_cmp": _util_cmp(match),
         "auftraege": auftraege,
         "teach": TEACH,
         "bright": {lid: bright_spots(match, lid)

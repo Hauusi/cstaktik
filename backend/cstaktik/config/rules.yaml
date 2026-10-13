@@ -90,6 +90,11 @@ rules:
     trade_window_s: 3.0
     multi_kill_min: 3
 
+utility_cmp:
+  lineup_min_pro: 3         # so viele Pro-Würfe auf denselben Ort braucht ein Lineup-Vergleich
+  lineup_good_units: 150    # bis zu diesem Abstand zur Pro-Stelle gilt eine Granate als "sitzt"
+  flash_good_blind_s: 1.5   # ab so viel Blendzeit bei Gegnern "wirkt" eine Flash
+
 situation:
   # Entscheidungsmoment: so weit vor dem Tod zurückschauen, mindestens so lange vor dem Tod
   lookback_s: 8

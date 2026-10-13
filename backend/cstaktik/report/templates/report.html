@@ -418,6 +418,11 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .dgrid b { display: block; font-size: 26px; font-weight: 800; line-height: 1.1; }
 .dgrid i { font-style: normal; font-size: 12.5px; color: #9db4e0; }
 @media (min-width: 700px) { .dgrid { grid-template-columns: repeat(4, 1fr); } }
+.lrow { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.lrow b { display: block; font-size: 15px; } .lrow span { font-size: 12.5px; color: var(--muted); }
+.lrow .ldist { font-weight: 800; font-size: 16px; text-transform: uppercase; }
+.lrow.ok .ldist { color: var(--win); } .lrow.no .ldist { color: var(--loss); }
+.lrow button { width: 36px; height: 36px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
 {% include 'hud.css' %}
 </style>
 </head>
@@ -522,6 +527,29 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     </div>
     {% endfor %}
     <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe genähert).{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>
+  </section>
+  {% endif %}
+
+  {% if util_cmp and (util_cmp.lineups or util_cmp.flash or util_cmp.pre is not none) %}{% set u = util_cmp %}
+  <section class="duelcmp utilcmp">
+    <div class="sh"><span class="t cond">Utility{% if u.lineups or u.flash_pro or u.pre_pro is not none %} gegen Pros{% endif %}</span></div>
+    <div class="dgrid num">
+      {% if u.flash and u.has_blinds %}<div><span>Flashes, die wirken</span><b class="cond">{{ u.flash.good }}/{{ u.flash.n }}</b>{% if u.flash_pro %}<i>Pros {{ u.flash_pro.good_pct }} %</i>{% else %}<i>{{ u.flash.good_pct }} %</i>{% endif %}</div>
+      <div><span>Gegner blind je Flash</span><b class="cond">{{ u.flash.avg_enemy_s|string|replace(".", ",") }} s</b>{% if u.flash_pro %}<i>Pros {{ u.flash_pro.avg_enemy_s|string|replace(".", ",") }} s</i>{% endif %}</div>{% endif %}
+      {% if u.pre is not none %}<div><span>Utility vor dem 1. Duell</span><b class="cond">{{ u.pre|string|replace(".", ",") }}</b>{% if u.pre_pro is not none %}<i>Pros {{ u.pre_pro|string|replace(".", ",") }}</i>{% else %}<i>je Spieler und Runde</i>{% endif %}</div>{% endif %}
+      {% if u.flash and u.flash.team %}<div><span>Team geflasht</span><b class="cond red">{{ u.flash.team }}x</b><i>eigene Leute ≥ 1 s blind</i></div>{% endif %}
+    </div>
+    {% if u.lineups %}
+    <div class="lk cond" style="margin-top:12px">Eure Smokes und Mollys gegen die Pro-Stelle</div>
+    {% for n in u.lineups[:8] %}
+    <div class="lrow {{ 'ok' if n.ok else 'no' }}">
+      <div><b>{{ "Smoke" if n.kind == "smoke" else "Molotov" }} → {{ n.to }}</b><span>{{ n.who }} · R{{ n.r }}{% if n.pro_from %} · Pros werfen meist aus {{ n.pro_from }}{% endif %}</span></div>
+      <div class="ldist cond">{{ "sitzt" if n.ok else n.dist ~ " Units daneben" }}</div>
+      <button class="costgo cond" data-round="{{ n.r }}" data-tick="{{ n.tick }}">▶</button>
+    </div>
+    {% endfor %}
+    <div class="quiet" style="margin-top:6px">Pro-Stelle = Mittel der Landepunkte aus den Pro-Demos dieser Map (gleiche Granate, Seite und Zielort).</div>
+    {% endif %}
   </section>
   {% endif %}
 
