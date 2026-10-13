@@ -2,7 +2,7 @@
    ohne Netz greift die Systemschrift. */
 :root {
   --bg: #0c0d0f; --surface: #15171a; --surface-2: #1d2024; --line: #262a30;
-  --text: #e9e6df; --muted: #8a8f98; --faint: #5b6069;
+  --text: #e9e6df; --muted: #8a8f98; --faint: #80868f;
   --ct: #5d79ae; --t: #de9b35; --accent: #ff9f1c; --orange: #ff9f1c;
   --win: #46a758; --loss: #e5484d; --hoch: #e5484d; --mittel: #ff9f1c; --niedrig: #7d8899; --warn: #ff9f1c;
   --r: 2px;

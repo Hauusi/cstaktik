@@ -47,7 +47,7 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .stack > * + * { margin-top: 10px; }
 
 /* Round strip */
-.rounds { position: sticky; top: 0; z-index: 5; margin: 0 -16px; padding: 10px 16px;
+.rounds { position: sticky; top: var(--tabs-h, 57px); z-index: 5; margin: 0 -16px; padding: 10px 16px;
   background: rgba(11,13,18,.88); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
   display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .rounds::-webkit-scrollbar { display: none; }
@@ -141,13 +141,13 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .f .tip { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(63,191,127,.08); color: #cdeedd; font-size: 14px; }
 .f .tip b { color: var(--win); }
 .f .act { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
-.watch { height: 34px; padding: 0 12px; border-radius: 9px; background: rgba(255,159,28,.18); color: #c5d3ee; font-weight: 600; font-size: 13px; }
+.watch { height: 44px; padding: 0 12px; border-radius: 9px; background: rgba(255,159,28,.18); color: #c5d3ee; font-weight: 600; font-size: 13px; }
 details { font-size: 12.5px; color: var(--muted); }
 summary { cursor: pointer; list-style: none; } summary::-webkit-details-marker { display: none; }
 dl { margin: 6px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 10px; }
 dt { color: var(--faint); } dd { margin: 0; color: var(--text); word-break: break-word; }
 .rlinks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.rlinks button { padding: 4px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; }
+.rlinks button { min-height: 40px; padding: 4px 12px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; }
 .quiet { color: var(--muted); font-size: 13px; }
 .note { border-color: rgba(245,165,36,.4); }
 .note ul { margin: 6px 0 0; padding-left: 18px; }
@@ -188,7 +188,7 @@ details.data summary { cursor: pointer; }
 .lage li::before { content: ""; flex: none; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); transform: translateY(-2px); }
 .also { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .verdict { margin-top: 12px; font-size: 16.5px; line-height: 1.4; font-weight: 600; }
-.linkbtn { display: block; margin: 10px auto 0; color: var(--muted); font-size: 13.5px; text-decoration: underline; }
+.linkbtn { display: block; margin: 4px auto 0; padding: 10px 8px; color: var(--muted); font-size: 14px; text-decoration: underline; }
 .cause { display: flex; gap: 12px; padding: 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
 .crank { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 800;
   background: rgba(240,86,106,.15); color: var(--loss); }
@@ -286,7 +286,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 /* ---- HUD: Kopf, Coach-Ansage, Hauptpunkt ---- */
 .hero.herohud { background: linear-gradient(90deg, rgba(255,159,28,.09), transparent 60%), var(--bg) !important;
   border-bottom: 2px solid var(--orange); padding: 20px 16px 16px; }
-.hero.herohud .eyebrow { font-family: var(--cond); font-weight: 700; letter-spacing: .18em; font-size: 11px; }
+.hero.herohud .eyebrow { font-family: var(--cond); font-weight: 700; letter-spacing: .18em; font-size: 11px; overflow-wrap: anywhere; }
 .hero.herohud .hrow { display: flex; justify-content: space-between; align-items: flex-end; }
 .hero.herohud h1 { font-size: 44px; line-height: 1; margin: 4px 0 0; }
 .hscore { font-size: 44px; font-weight: 800; line-height: 1; } .hscore span { color: var(--faint); margin: 0 4px; }
@@ -408,10 +408,11 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   max-width: 640px; width: 100%; margin: 0 auto; }
 .dbf-back { flex: 1; height: 50px; border: 1px solid var(--line); color: var(--muted); font: 700 16px var(--cond); letter-spacing: .1em; text-transform: uppercase; }
 .dbf-next { flex: 2; height: 50px; background: var(--orange); color: #111; font: 800 17px var(--cond); letter-spacing: .12em; text-transform: uppercase; }
-.dbf-return { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 40;
+.dbf-return { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 60;
   padding: 12px 20px; background: var(--orange); color: #111; font: 800 16px var(--cond); letter-spacing: .1em; text-transform: uppercase;
   box-shadow: 0 6px 24px rgba(0,0,0,.6); white-space: nowrap; }
 .dbf-return[hidden] { display: none; }
+@media (min-width: 960px) { .dbf-return { bottom: calc(14px + env(safe-area-inset-bottom)); } }
 .duelcmp { margin-top: 16px; padding: 14px; border: 1px solid var(--line); background: var(--surface); }
 .dp + .dp { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .dp .who { font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
@@ -431,7 +432,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 
 /* Reiter */
 .rtabs { position: sticky; top: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin: 0 -16px 18px; padding: 6px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
-.rtabs button { font: 600 14px/1 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: .06em; padding: 11px 4px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; }
+.rtabs button { font: 600 14px/1 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: .06em; padding: 14px 4px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; }
 .rtabs button.on { color: var(--text); border-bottom-color: #ff9f1c; }
 .tab[hidden] { display: none !important; }
 .rlist { display: grid; gap: 8px; }
@@ -523,7 +524,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       {% set good = bright[l.id] %}
       <div class="cmpcol good"><div class="lk cond">So geht's · bei euch</div>
         {% if good %}{% for g in good %}<button class="brightgo" data-round="{{ g.round }}" data-tick="{{ g.from }}"><b class="cond">▶ R{{ g.round }} {{ g.when }}</b>{{ g.text }}</button>{% endfor %}
-        {% else %}<div class="quiet">Diesmal keine Szene, in der ihr es sauber umgesetzt habt. Genau deshalb ist es der Punkt.</div>{% endif %}</div>
+        {% else %}<div class="quiet">Diesmal keine Szene gefunden, in der ihr es sauber umgesetzt habt.</div>{% endif %}</div>
     </div>
     <div id="proslot" data-lesson="{{ l.id }}"></div>
 
@@ -601,7 +602,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 <div class="tab" data-tab="analyse" hidden>
   {% if duel_cmp %}{% set pr = duel_cmp.pro %}
   <section class="duelcmp">
-    <div class="sh"><span class="t cond">Deine Duelle{% if pr %} gegen Pros{% endif %}</span></div>
+    <div class="sh"><span class="t cond">Eure Duelle{% if pr %} gegen Pros{% endif %}</span></div>
     {% for d in duel_cmp.players %}
     <div class="dp">
       <div class="who cond">{{ d.name }} · {{ d.n }} Duelle · {{ d.won }} % gewonnen</div>
@@ -649,7 +650,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <div class="lrow {{ 'no' if r.deaths * 2 > r.rounds else 'ok' }}">
       <div><b>{{ r.place }} · {{ r.who }}</b><span>{{ r.rounds }} Runden · {{ r.deaths }}x gestorben · {{ r.won }} Siege{% if r.pro_share is defined %} · Pros: {{ r.pro_share }} % der Zeit{% if r.pro_won is not none %}, {{ r.pro_won }} % Siege{% endif %}{% endif %}</span></div>
       <div class="ldist cond">{{ (100 * r.won / r.rounds)|round|int }} %</div>
-      <button class="costgo cond" data-round="{{ r.round_list[0] }}" data-tick="0">▶</button>
+      <button class="costgo cond" data-round="{{ r.round_list[0] }}" data-offset="20">▶</button>
     </div>
     {% endfor %}
     {% if setups.ct_pro_top %}<div class="quiet" style="margin-top:6px">Pros auf CT nach 0:20 meist: {% for p in setups.ct_pro_top %}{{ p.place }} {{ p.share }} % ({{ p.won }} % Siege){% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
@@ -691,7 +692,6 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     {% endfor %}
   </div>
   {% endif %}
-  <h2>Statistiken</h2>
   <div class="cols3">
   {% if debrief.duo %}<div>{% set d = debrief.duo %}
   <h2>Ihr als Duo</h2>
@@ -805,7 +805,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   <div class="rlist" id="rlist"></div>
 </div>
 
-  <footer>Alle Werte aus der Demo geparst (awpy). Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
+  <footer>Werte aus der Demo geparst (awpy); Pro-Vergleiche aus euren Pro-Demos. Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
   {% if match.source_sha256 %}SHA-256 {{ match.source_sha256[:12] }}…{% endif %}
   Regel-Schwellen: config/rules.yaml (Heuristiken).</footer>
 </main>
@@ -816,7 +816,8 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 (() => {
 const D = JSON.parse(document.getElementById('data').textContent);
 const TR = D.tickrate, SIZE = D.size;
-const COL = { ct: '#4a8ae0', t: '#c47a12' };
+const CSSV = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const COL = { ct: CSSV('--ct') || '#5d79ae', t: CSSV('--t') || '#de9b35' };
 const SEV = { hoch: '#f0566a', mittel: '#f5a524', niedrig: '#7d8899', gut: '#3fbf7f' };
 const NADE = { smoke: '#c8ced8', molotov: '#ff6b2c', flash: '#fff3a8', he: '#ff4d4d', decoy: '#8d97a8', other: '#8d97a8' };
 const NADE_RGB = { smoke: '200,206,216', molotov: '255,107,44', flash: '255,243,168', he: '255,77,77', decoy: '141,151,168', other: '141,151,168' };
@@ -1454,7 +1455,7 @@ function ui() {
     }
     if (!active.length) coach.appendChild(el('div', 'hint', r.f.length
       ? 'Abspielen: das Replay hält bei jedem Fehler an und zeigt hier den Tipp.'
-      : R().pro ? 'Pro-Replay (lila Rahmen): der hervorgehobene Pro ist dein Vergleich. Oben "Zurück zu deinem Tod".' : 'Keine Befunde in dieser Runde.'));
+      : R().pro ? 'Pro-Replay (blauer Rahmen): der hervorgehobene Pro ist dein Vergleich. Oben "Zurück zu deinem Tod".' : 'Keine Befunde in dieser Runde.'));
   }
 
   const dt = deathTicks(r), ro = $('roster'); ro.textContent = '';
@@ -1483,7 +1484,7 @@ function buildTimeline() {
 function evidence(f) {
   const d = el('details'); d.appendChild(el('summary', null, 'Beleg' + (f.tick != null ? ' · Tick ' + f.tick : '')));
   const dl = el('dl');
-  for (const k in f.evidence) { dl.appendChild(el('dt', null, k)); const v = f.evidence[k]; dl.appendChild(el('dd', null, typeof v === 'object' ? JSON.stringify(v) : String(v))); }
+  for (const k in f.evidence) { const v = f.evidence[k]; if (v == null || typeof v === 'object') continue; dl.appendChild(el('dt', null, k)); dl.appendChild(el('dd', null, String(v))); }  // nur einfache Werte, kein Roh-JSON
   d.appendChild(dl); return d;
 }
 function buildFindings() {
@@ -1509,10 +1510,13 @@ function buildFindings() {
 function showTab(t) {
   document.querySelectorAll('#rtabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   document.querySelectorAll('.tab').forEach(d => { d.hidden = d.dataset.tab !== t; });
-  if (t === 'replay') resize();
+  if (t === 'replay') resize(); else if (S.playing) setPlaying(false);
 }
 function toStage(o) { showTab('replay'); requestAnimationFrame(() => stage.scrollIntoView(o || { block: 'start' })); }
 document.querySelectorAll('#rtabs button').forEach(b => b.onclick = () => { showTab(b.dataset.tab); window.scrollTo({ top: 0 }); });
+// Rundenleiste klebt direkt unter den Reitern
+const setTabsH = () => document.documentElement.style.setProperty('--tabs-h', $('rtabs').offsetHeight + 'px');
+setTabsH(); addEventListener('resize', setTabsH);
 function buildRoundList() {
   const box = $('rlist'); if (!box) return;
   D.rounds.forEach((r, i) => {
@@ -1561,7 +1565,7 @@ function hasRef(f) {
 }
 // Pro-Szene: springt in die Pro-Runde (3 s vor dem Vergleichszeitpunkt) und spielt ab; "Zurück" führt zum eigenen Tod
 function openPro(f) {
-  S.tour = null; S.back = { ri: S.ri, tick: f.tick };
+  S.tour = null; S.back = { ri: Math.max(0, D.rounds.findIndex(r => r.n === f.round)), tick: f.tick };
   selectRound(f.ov.pro_clip, true);
   seek(Math.max(R().t0, f.ov.pro_tick - 3 * TR)); setPlaying(true);
   toStage({ behavior: 'smooth', block: 'start' });
@@ -1674,7 +1678,7 @@ document.querySelectorAll('.brightgo[data-round]').forEach(b => b.onclick = () =
 });
 document.querySelectorAll('.costgo').forEach(b => b.onclick = () => {
   const ri = D.rounds.findIndex(r => r.n === +b.dataset.round); if (ri < 0) return;
-  S.tour = null; selectRound(ri); seek(+b.dataset.tick - TR); setPlaying(true);
+  S.tour = null; selectRound(ri); seek(b.dataset.offset ? R().t0 + (+b.dataset.offset - 1) * TR : +b.dataset.tick - TR); setPlaying(true);
   toStage({ behavior: 'smooth', block: 'start' });
 });
 if (TOURS.key.length) { $('tourBtn').hidden = false; $('tourN').textContent = '(' + TOURS.key.length + ')'; $('tourBtn').onclick = () => goTour('key', 0); }
@@ -1818,7 +1822,7 @@ function dbBuild() {
       if (L.bright && L.bright.length) {
         d.appendChild(el('p', null, 'Ihr könnt es schon. Hier habt ihr es richtig gemacht:'));
         L.bright.forEach(g => { const b = el('div', 'box good'); b.append(el('div', null, g.text), dbPlayBtn(`▶ R${g.round} ${g.when} ansehen`, g.round, g.from)); d.appendChild(b); });
-      } else d.appendChild(el('p', null, 'In diesem Match gab es keine Szene, in der ihr es sauber umgesetzt habt. Genau deshalb ist es der Punkt.'));
+      } else d.appendChild(el('p', null, 'In diesem Match keine Szene gefunden, in der ihr es sauber umgesetzt habt.'));
       const pf = L.scenes.map(x => F[x.finding]).find(x => x && x.ov && x.ov.pro_clip != null && D.rounds[x.ov.pro_clip]);
       if (pf) {
         const b = el('div', 'box pro'); b.append(el('div', 'k', 'So spielt es ein Pro'), el('div', null, pf.evidence.pro_clip || ''));
@@ -1871,7 +1875,7 @@ $('dbfNext').onclick = () => DBS.i === DBS.steps.length - 1 ? dbClose() : dbShow
 $('dbfRet').onclick = () => dbOpen(DBS.i);
 if (TOURS.all.length && $('allTour')) { $('allTour').hidden = false; $('allTour').textContent = 'Oder alle ' + TOURS.all.length + ' Fehler durchgehen ›'; $('allTour').onclick = () => goTour('all', 0); }
 function jumpFinding(dir) {
-  const r = R(), list = r.f.map(id => F[id]).filter(f => f.tick != null).sort((a, b) => a.tick - b.tick);
+  const r = R(), list = r.f.map(id => F[id]).filter(f => f.tick != null && isErr(f)).sort((a, b) => a.tick - b.tick);
   const target = dir > 0 ? list.find(f => f.tick > S.tick + TR) : [...list].reverse().find(f => f.tick < S.tick - TR);
   if (target) { S.lastF = target.id; setPlaying(false); seek(target.tick); }
 }

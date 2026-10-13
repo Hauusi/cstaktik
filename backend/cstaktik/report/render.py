@@ -402,6 +402,7 @@ def build_context(
         "util_cmp": _util_cmp(match),
         "setups": _setups(match),
         "auftraege": auftraege,
+        "checks": [a for a in auftraege if a.get("check")],
         "teach": TEACH,
         "bright": {lid: bright_spots(match, lid, _trade_units())
                    for lid in {l["id"] for l in lessons[:1]} | {a["focus"]["lesson"] for a in auftraege if a.get("focus")}},
