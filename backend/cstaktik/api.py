@@ -10,8 +10,9 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -30,6 +31,11 @@ async def _password(request: Request, call_next):
 
     Aktiv, wenn die Umgebungsvariable CSTAKTIK_PASSWORD gesetzt ist (Benutzer: CSTAKTIK_USER, Standard "coach").
     """
+    if request.method == "POST":
+        origin = request.headers.get("origin") or request.headers.get("referer") or ""
+        host = request.headers.get("host", "")
+        if origin and urlparse(origin).netloc != host:
+            return Response("Fremde Herkunft", status_code=403)
     password = os.environ.get("CSTAKTIK_PASSWORD")
     if not password:
         return await call_next(request)
@@ -155,6 +161,13 @@ def _all_scenes(hist: list[dict]) -> list[dict]:
     return out
 
 
+def _default_sid(players: dict, names: dict, want: str = "") -> str | None:
+    """Gewählter Spieler, sonst der erste mit Auftrag (nach Name sortiert), überall gleich."""
+    if want in players:
+        return want
+    return next((s for s in sorted(players, key=lambda s: names.get(s, s)) if players[s].get("focus")), None)
+
+
 def _players_state() -> dict:
     from cstaktik import coaching
 
@@ -172,14 +185,14 @@ def _auftrag(hist: list[dict]) -> list[dict]:
     out = []
     for sid, slot in sorted(_players_state().items(), key=lambda kv: names.get(kv[0], kv[0])):
         f = slot.get("focus")
-        if not f:
-            continue
+        if not f or f["lesson"] not in LESSONS or f["lesson"] not in TEACH:
+            continue  # Lektion gibt es nicht mehr (alte coaching.json)
         t = TEACH[f["lesson"]]
         out.append({"sid": sid, "name": names.get(sid, sid), "lesson": f["lesson"], "title": LESSONS[f["lesson"]][0],
                     "target": f["target"], "baseline": f["baseline"], "matches": f.get("matches", []),
                     "mantra": t["mantra"], "routine": t["routine"], "in_game": t["in_game"],
                     "drills": coaching.drills_since(slot, f.get("created_at")),
-                    "scenes": sum(1 for sc in scenes if sc["lesson"] == f["lesson"] and sc.get("sid") in (sid, None)),
+                    "scenes": min(12, sum(1 for sc in scenes if sc["lesson"] == f["lesson"] and sc.get("sid") == sid)),
                     "mastered": len(slot.get("done", []))})
     return out
 
@@ -188,10 +201,20 @@ def _auftrag(hist: list[dict]) -> list[dict]:
 def training_done(p: str = "") -> RedirectResponse:
     from cstaktik import coaching
 
+    from cstaktik import weekplan
+
     state = coaching.load(pipeline.COACHING_FILE)
     slot = state.get("players", {}).get(p)
     if slot and slot.get("focus"):
         coaching.drill_done(slot, slot["focus"]["lesson"])
+        # dieselbe Übung im Wochenplan abhaken, damit sie nicht doppelt gezählt wird
+        key = weekplan.week_key(date.today())
+        plan = slot.get("weeks", {}).get(key)
+        if plan:
+            open_ = next((t["id"] for t in plan["tasks"] if t["id"].startswith("routine") and t["id"] not in plan["done"]),
+                         None)
+            if open_:
+                weekplan.toggle(slot, key, open_)
         coaching.save(state, pipeline.COACHING_FILE)
     return RedirectResponse("/", status_code=303)
 
@@ -206,9 +229,10 @@ def quiz_page(p: str = "") -> str:
 
     hist = _load_hist()
     players = _players_state()
-    sid = p if p in players else next((s for s, v in players.items() if v.get("focus")), None)
+    names = _names(hist)
+    sid = _default_sid(players, names, p)
     f = (players.get(sid) or {}).get("focus")
-    scenes = [sc for sc in _all_scenes(hist) if sid is None or sc.get("sid") in (sid, None)]
+    scenes = [sc for sc in _all_scenes(hist) if sid is None or sc.get("sid") == sid]
     lesson = f["lesson"] if f else None
     pick = [sc for sc in scenes if sc["lesson"] == lesson] if lesson else []
     if len(pick) < 6:  # auffüllen mit den teuersten anderen Szenen
@@ -217,10 +241,9 @@ def quiz_page(p: str = "") -> str:
     pick = pick[:12]
     data = _json.dumps([{**sc, "lesson_title": LESSONS.get(sc["lesson"], ("?",))[0]} for sc in pick],
                        ensure_ascii=False).replace("</", "<\\/")
-    names = {s: pp["name"] for h in hist for s, pp in h.get("players", {}).items()}
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
-    return _env.get_template("quiz.html").render(nav_active="training", title=LESSONS[lesson][0] if lesson else None, n=len(pick),
-                                                     data_json=data, tabs=tabs, who=names.get(sid))
+    return _env.get_template("quiz.html").render(nav_active="training", title=LESSONS.get(lesson, ("?",))[0] if lesson else None, n=len(pick),
+                                                 data_json=data, tabs=tabs, who=names.get(sid), sid=sid)
 
 
 _CACHE: dict[str, tuple] = {}
@@ -278,7 +301,7 @@ def _plan_ctx(hist: list[dict], pro_all: list[dict], sid: str, focus: dict) -> d
             allx = lineups.build(pro_all, m)
             cands = [l for l in allx if side is None or l["side"] == side] or allx
         lineup = cands[0] if cands else None
-    scenes = sum(1 for sc in _all_scenes(hist) if sc.get("sid") in (sid, None))
+    scenes = sum(1 for sc in _all_scenes(hist) if sc.get("sid") == sid)
     t = TEACH[focus["lesson"]]
     return {"sid": sid, "lesson": focus["lesson"], "routine": t["routine"], "map": m,
             "map_label": m.removeprefix("de_").capitalize() if m else None, "spot": spot, "lineup": lineup,
@@ -295,8 +318,7 @@ def training_page(p: str = "") -> str:
     names = _names(hist)
     state = coaching.load(pipeline.COACHING_FILE)
     players = state.get("players", {})
-    sid = p if p in players else next((s for s, v in sorted(players.items(), key=lambda kv: names.get(kv[0], kv[0]))
-                                       if v.get("focus")), None)
+    sid = _default_sid(players, names, p)
     slot = players.get(sid) or {}
     focus = slot.get("focus")
     plan = chk = key = None
@@ -313,7 +335,7 @@ def training_page(p: str = "") -> str:
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
     return _env.get_template("training.html").render(
         nav_active="training", tabs=tabs, sid=sid, who=names.get(sid), plan=plan, week=key, chk=chk, past=past[:4],
-        title=LESSONS[focus["lesson"]][0] if focus else None, maps=_player_maps(hist, sid) or ["de_mirage"],
+        title=LESSONS.get(focus["lesson"], ("?",))[0] if focus else None, maps=_player_maps(hist, sid) or ["de_mirage"],
         pro_maps=sorted({d.get("map") for d in _load_pro() if d.get("map")}))
 
 
@@ -325,8 +347,11 @@ def plan_toggle(p: str = "", task: str = "", week: str = "") -> RedirectResponse
     slot = state.get("players", {}).get(p)
     if slot:
         now = weekplan.toggle(slot, week, task)
-        if now and task.startswith("routine") and slot.get("focus"):
-            coaching.drill_done(slot, slot["focus"]["lesson"])
+        if task.startswith("routine") and slot.get("focus") and now is not None:
+            if now:
+                coaching.drill_done(slot, slot["focus"]["lesson"])
+            else:
+                coaching.drill_undo(slot, slot["focus"]["lesson"])
         if now is not None:
             coaching.save(state, pipeline.COACHING_FILE)
     return RedirectResponse(f"/training?p={p}#plan", status_code=303)
@@ -342,7 +367,8 @@ def mapbook_page(map_name: str, p: str = "") -> str:
     names = _names(hist)
     focus_ids = sorted({s for h in hist if h.get("map") == map_name for t in h.get("timeline", []) for s in [t["sid"]]},
                        key=lambda s: names.get(s, s))
-    sid = p if p in focus_ids else (focus_ids[0] if focus_ids else None)
+    pref = _default_sid(_players_state(), names, p)
+    sid = p if p in focus_ids else pref if pref in focus_ids else (focus_ids[0] if focus_ids else None)
     book = mapbook.build(hist, _load_pro(), map_name, sid, load_rules_config()["mapbook"]) \
         if sid else None
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in focus_ids]
@@ -352,7 +378,7 @@ def mapbook_page(map_name: str, p: str = "") -> str:
 
 
 @app.get("/lineups/{map_name}", response_class=HTMLResponse)
-def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "") -> str:
+def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "", p: str = "") -> str:
     import json as _json
 
     from cstaktik import lineups, pro
@@ -383,7 +409,7 @@ def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "") -> 
     return _env.get_template("lineups.html").render(
         nav_active="training", items=sel, data_json=data, img=radar.image_data_uri, map_name=map_name,
         label=map_name.removeprefix("de_").capitalize(), side=side, kind=kind, sel=l, total=len(allx),
-        kinds=lineups.KIND_DE, n_demos=sum(1 for d in _load_pro() if d.get("map") == map_name))
+        kinds=lineups.KIND_DE, sid=re.sub(r"[^0-9]", "", p), n_demos=sum(1 for d in _load_pro() if d.get("map") == map_name))
 
 
 def _baustellen(hist: list[dict]) -> list[dict]:
@@ -437,7 +463,7 @@ def _kabine(hist: list[dict], map_name: str) -> dict | None:
     players = []
     pts_all = []
     for i, a in enumerate(auftr):
-        mine = [sc for sc in scenes if sc["lesson"] == a["lesson"] and sc.get("sid") in (a["sid"], None)]
+        mine = [sc for sc in scenes if sc["lesson"] == a["lesson"] and sc.get("sid") == a["sid"]]
         pts = []
         for sc in mine:
             x, y = sc["pos"]
@@ -510,9 +536,18 @@ async def analyze_upload(
     folder.mkdir(parents=True, exist_ok=True)
     suffix = ".dem.bz2" if filename.lower().endswith(".bz2") else ".dem"
     target = folder / f"{_safe_name(filename)}{suffix}"
-    with target.open("wb") as fh:
-        while chunk := await demo.read(1 << 20):
-            fh.write(chunk)
+    part = target.with_name(f"{target.name}.{uuid.uuid4().hex[:8]}.part")
+    size = 0
+    try:
+        with part.open("wb") as fh:
+            while chunk := await demo.read(1 << 20):
+                size += len(chunk)
+                if size > pipeline.MAX_DEMO_BYTES:
+                    raise HTTPException(413, "Datei zu groß.")
+                fh.write(chunk)
+        part.replace(target)  # erst die fertige Datei sichtbar machen
+    finally:
+        part.unlink(missing_ok=True)
     focus = {s.strip() for s in steamids.split(",") if s.strip()} or None
     job_id = uuid.uuid4().hex[:12]
     with _jobs_lock:

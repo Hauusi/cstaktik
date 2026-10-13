@@ -33,7 +33,7 @@
   <div class="who">{{ p.name }}</div>
   {% for l in p.lessons %}
   <div class="rl"><div><b>{{ l.title }}</b><span>{{ l.count }}x{% if l.rounds_lost %} · ≈{{ l.rounds_lost|string|replace(".", ",") }} Runden{% endif %}{% if l.rate is not none %} · {{ l.rate|string|replace(".", ",") }} pro 10 Runden{% if l.rate_before is not none %} (vorher {{ l.rate_before|string|replace(".", ",") }}){% endif %}{% endif %}</span></div>
-    <div class="tr {{ l.trend or '' }}">{{ {"besser": "▼ besser", "schlechter": "▲ schlechter", "gleich": "■ gleich"}.get(l.trend, "neu") }}</div></div>
+    <div class="tr {{ l.trend or '' }}">{{ {"besser": "▼ besser", "schlechter": "▲ schlechter", "gleich": "■ gleich"}.get(l.trend, "neu" if r.has_before else "") }}</div></div>
   {% endfor %}
   {% if p.duels.n %}{% set d = p.duels %}{% set o = p.duels_before %}
   <div class="kv num">

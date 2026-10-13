@@ -22,7 +22,7 @@
 </style>
 {% endblock %}
 {% block hero %}
-<a class="back" href="/training">‹ Training</a>
+<a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Map-Buch {{ label }}</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/mapbook/{{ map_name }}?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
 <p>{% if book %}{{ who }} · {{ book.matches }} Match{{ "es" if book.matches != 1 }} auf {{ label }}. Spot = wo du nach {{ book.at }} Rundenzeit stehst.{% else %}Noch keine Matches auf {{ label }}.{% endif %}</p>
@@ -49,7 +49,7 @@
   <div class="prol"><b class="h">Pros auf {{ label }} ({{ sd.label }})</b>
     {% if s.pro.n %}Stehen nach {{ book.at }} in {{ s.pro.share }} % der Runden hier{% if s.pro.won_pct is not none %} · gewinnen {{ s.pro.won_pct }} %{% endif %}{% if s.pro.first_pct is not none %} · sterben hier in {{ s.pro.first_pct }} % als Erster{% endif %}.
     {% else %}Kein Pro stand in euren Pro-Demos nach {{ book.at }} hier.{% endif %}
-    {% if s.lineups %}<div class="chips">{% for l in s.lineups %}<a href="/lineups/{{ map_name }}?l={{ l.id }}">{{ l.kind_de }} → {{ l.to or "?" }} ({{ l.n }}x)</a>{% endfor %}</div>{% endif %}
+    {% if s.lineups %}<div class="chips">{% for l in s.lineups %}<a href="/lineups/{{ map_name }}?l={{ l.id }}&p={{ sid }}">{{ l.kind_de }} → {{ l.to or "?" }} ({{ l.n }}x)</a>{% endfor %}</div>{% endif %}
   </div>
   {% endif %}
   <div class="chips">{% for r in s.rounds %}{% if r.report %}<a class="{{ 'W' if r.won else 'L' }}" href="/reports/{{ r.report }}#r{{ r.round }}">{{ r.date[8:10] }}.{{ r.date[5:7] }}. R{{ r.round }}</a>{% endif %}{% endfor %}</div>
@@ -59,7 +59,7 @@
 <h2>So stehen Pros nach {{ book.at }} · {{ sd.pro_rounds }} Pro-Runden</h2>
 <div class="card"><table class="prot num">
   <tr><th>Spot</th><th>Anteil</th><th>Siege</th><th>Erster tot</th><th>Lineups</th></tr>
-  {% for p in sd.pro_spots %}<tr><td><b>{{ p.place }}</b></td><td>{{ p.share }} %</td><td>{{ p.won_pct ~ " %" if p.won_pct is not none else "–" }}</td><td>{{ p.first_pct ~ " %" if p.first_pct is not none else "–" }}</td><td>{% if p.lineups %}<a href="/lineups/{{ map_name }}?side={{ side }}" style="color:var(--orange)">{{ p.lineups }}</a>{% else %}–{% endif %}</td></tr>{% endfor %}
+  {% for p in sd.pro_spots %}<tr><td><b>{{ p.place }}</b></td><td>{{ p.share }} %</td><td>{{ p.won_pct ~ " %" if p.won_pct is not none else "–" }}</td><td>{{ p.first_pct ~ " %" if p.first_pct is not none else "–" }}</td><td>{% if p.lineups %}<a href="/lineups/{{ map_name }}?side={{ side }}&p={{ sid }}" style="color:var(--orange)">{{ p.lineups }}</a>{% else %}–{% endif %}</td></tr>{% endfor %}
 </table></div>
 {% elif sd.spots %}
 <p class="small muted">Pro-Vergleich ab {{ cfg.min_pro_rounds }} Pro-Runden auf dieser Map und Seite. <a href="/pro" style="color:var(--orange)">Pro-Demos hochladen ›</a></p>

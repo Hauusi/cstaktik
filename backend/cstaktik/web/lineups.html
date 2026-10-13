@@ -18,17 +18,17 @@
 </style>
 {% endblock %}
 {% block hero %}
-<a class="back" href="/training">‹ Training</a>
+<a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Lineups {{ label }}</h1>
 <p>{{ total }} Würfe, die Pros in {{ n_demos }} Demo{{ "s" if n_demos != 1 }} mindestens zweimal gleich gemacht haben.</p>
 {% endblock %}
 {% block content %}
 {% if img %}<svg width="0" height="0" style="position:absolute"><defs><image id="rad" href="{{ img }}" width="1024" height="1024"/></defs></svg>{% endif %}
 <div class="filters">
-  <a href="?kind={{ kind }}" class="{{ 'on' if not side }}">Beide Seiten</a><a href="?side=ct&kind={{ kind }}" class="{{ 'on' if side == 'ct' }}">CT</a><a href="?side=t&kind={{ kind }}" class="{{ 'on' if side == 't' }}">T</a>
+  <a href="?kind={{ kind }}&p={{ sid }}" class="{{ 'on' if not side }}">Beide Seiten</a><a href="?side=ct&kind={{ kind }}&p={{ sid }}" class="{{ 'on' if side == 'ct' }}">CT</a><a href="?side=t&kind={{ kind }}&p={{ sid }}" class="{{ 'on' if side == 't' }}">T</a>
 </div>
 <div class="filters">
-  <a href="?side={{ side }}" class="{{ 'on' if not kind }}">Alle</a>{% for k, v in kinds.items() %}<a href="?side={{ side }}&kind={{ k }}" class="{{ 'on' if kind == k }}">{{ v }}</a>{% endfor %}
+  <a href="?side={{ side }}&p={{ sid }}" class="{{ 'on' if not kind }}">Alle</a>{% for k, v in kinds.items() %}<a href="?side={{ side }}&kind={{ k }}&p={{ sid }}" class="{{ 'on' if kind == k }}">{{ v }}</a>{% endfor %}
 </div>
 <p class="note">Üben: eigener Server mit <code>sv_cheats 1</code>, Befehl in die Konsole, dann werfen. Die Demo verrät nicht, ob links oder rechts geworfen wurde. Sprung und Laufen sind aus dem Tempo gemessen{% if items and items[0].tech.duck is none %}, Ducken liefert diese Demo nicht{% endif %}.</p>
 {% if items %}

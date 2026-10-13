@@ -45,7 +45,7 @@ def tasks_for(ctx: dict) -> list[dict]:
                     "title": f"{lu['kind_de']} lernen: {lu['from'] or '?'} → {lu['to'] or '?'}",
                     "steps": ["Eigener Server, sv_cheats 1, Position mit dem Befehl setzen.",
                               "10x werfen, bis sie jedes Mal sitzt. Dann 5x ohne Befehl von Hand anstellen."],
-                    "link": f"/lineups/{m}?l={lu['id']}"})
+                    "link": f"/lineups/{m}?l={lu['id']}&p={sid}"})
     if ctx.get("scenes"):
         out.append({"id": "quiz", "kind": "Situationen", "title": "Situations-Training: eigene Szenen entscheiden",
                     "steps": ["Jede Szene: erst entscheiden, dann auflösen."], "link": f"/training/situationen?p={sid}"})

@@ -72,11 +72,16 @@ def test_training_pages_and_drill_done():
     assert c.post(f"/training/plan?p=s1&week={week}&task={tid}", follow_redirects=False).status_code == 303
     st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
     assert tid in st["weeks"][week]["done"] and len(st["drills"]) == 1  # Übung zählt auch als Drill
-    c.post(f"/training/plan?p=s1&week={week}&task={tid}")  # Haken wieder weg
-    assert tid not in coaching.load(pipeline.COACHING_FILE)["players"]["s1"]["weeks"][week]["done"]
+    c.post(f"/training/plan?p=s1&week={week}&task={tid}")  # Haken wieder weg: Übung zurückgenommen
+    st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
+    assert tid not in st["weeks"][week]["done"] and st["drills"] == []
+    # Start-Button: zählt einmal und hakt dieselbe Übung im Wochenplan ab
     assert c.post("/training/done?p=s1", follow_redirects=False).status_code == 303
-    assert len(coaching.load(pipeline.COACHING_FILE)["players"]["s1"]["drills"]) == 2
-    assert "(2x bisher)" in c.get("/").text
+    st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
+    assert len(st["drills"]) == 1 and tid in st["weeks"][week]["done"]
+    assert "(1x bisher)" in c.get("/").text
+    # Formular von fremder Seite wird abgelehnt
+    assert c.post("/training/done?p=s1", headers={"origin": "https://evil.example"}).status_code == 403
 
 
 def test_update_all_per_player_and_legacy_migration():

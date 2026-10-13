@@ -25,7 +25,7 @@
 </style>
 {% endblock %}
 {% block hero %}
-<a class="back" href="/training">‹ Training</a>
+<a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Situationen</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training/situationen?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
 <p>{% if title %}{% if who and who != "Ich" %}Auftrag {{ who }}:{% else %}Dein Auftrag:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Entscheide, bevor du siehst, was passiert ist.</p>

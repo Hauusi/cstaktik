@@ -46,7 +46,7 @@
     {% endfor %}{% endfor %}
   </svg>
 </div>
-<div class="small muted" style="margin-top:6px">Jeder Punkt ist ein Tod mit genau diesem Fehler. Antippen öffnet die Szene im Replay.</div>
+<div class="small muted" style="margin-top:6px">Jeder Punkt ist eine Szene zu diesem Auftrag. Antippen öffnet sie im Replay.</div>
 {% endif %}
 {% endif %}
 
@@ -63,7 +63,7 @@
 
 </div><div class="col">
 {% if b.win_spots %}
-<h2>So gewinnt ihr hier</h2>
+<h2>Wo ihr in Siegrunden steht</h2>
 {% for w in b.win_spots %}<div class="note"><span class="side {{ w.side }}">{{ w.side }}</span>{{ w.name }}: in Siegrunden nach {{ w.at }} meist in <b>{{ w.place }}</b> <span class="empty num">({{ w.n }} von {{ w.total }})</span></div>{% endfor %}
 {% endif %}
 
@@ -77,7 +77,7 @@
 <h2>Pro-Utility auf {{ b.label }}</h2>
 {% for pu in b.pro_util %}{% for it in pu.items %}<div class="note"><span class="side {{ pu.side }}">{{ pu.side }}</span><b>{{ it.kind }}</b> aus {{ it.from }} nach <b>{{ it.to }}</b>
   <span class="empty num">({{ it.n }}x in {{ it.rounds }} Siegrunden)</span></div>{% endfor %}{% endfor %}
-<div class="tp" style="color:var(--muted)">Wurf- und Landeort als Callout aus den Pro-Demos. Genaue Lineups (Blickwinkel) sind noch nicht erfasst.</div>
+<div class="tp" style="color:var(--muted)">Wurf- und Landeort als Callout aus den Pro-Demos. <a href="/lineups/{{ b.map }}" style="color:var(--orange)">Lineups mit Befehl zum Üben ›</a></div>
 {% endif %}
 
 {% if b.notes %}

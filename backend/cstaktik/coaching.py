@@ -129,6 +129,15 @@ def drill_done(slot: dict, lesson: str, when: str | None = None) -> None:
     slot.setdefault("drills", []).append({"lesson": lesson, "date": when or datetime.now().isoformat(timespec="minutes")})
 
 
+def drill_undo(slot: dict, lesson: str) -> None:
+    """Letzte erledigte Übung dieser Lektion zurücknehmen (Haken im Wochenplan entfernt)."""
+    d = slot.get("drills", [])
+    for i in range(len(d) - 1, -1, -1):
+        if d[i]["lesson"] == lesson:
+            del d[i]
+            return
+
+
 def drills_since(slot: dict, since: str | None) -> int:
     f = slot.get("focus")
     return sum(1 for d in slot.get("drills", []) if f and d["lesson"] == f["lesson"] and (not since or d["date"] >= since))

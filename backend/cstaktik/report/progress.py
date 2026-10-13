@@ -45,7 +45,7 @@ def _lessons(histories: list[dict], sid: str) -> list[dict]:
     from cstaktik.coach_voice import LESSONS
 
     hs = [h for h in histories if "lessons" in h and sid in h.get("players", {}) and h.get("rounds")]
-    ids = {lid for h in hs for lid in h["lessons"].get(sid, {})} - {"duel"}
+    ids = {lid for h in hs for lid in h["lessons"].get(sid, {}) if lid in LESSONS} - {"duel"}
     in_hs = {id(h) for h in hs}  # Identität statt Vergleich ganzer Verlaufs-Einträge (langsam)
     out = []
     for lid in ids:
