@@ -100,11 +100,11 @@ def report(match: MatchData, findings: list, config: dict) -> str:
     allv = [side_of(d, sid) for d in match.duels for sid in (d.winner, d.loser) if sid in focus]
     if allv:
         add(f"Alle Duelle der Fokus-Spieler: Fadenkreuz Grad {_q([v['err'] for v in allv])}")
-        add(f"  Reaktion ms (Gegner schoss zuerst) {_q([v['react'] for v in allv if v['react']])}")
+        add(f"  Reaktion ms (Gegner schoss zuerst) {_q([v['react'] for v in allv if v['react'] and v['react'] <= 1500])}")
         add(f"  Erste Kugel trifft {_pct(sum(bool(v['hit']) for v in allv), sum(v['hit'] is not None for v in allv))}"
             f" · zuerst geschossen {_pct(sum(v['react'] == 0 for v in allv), sum(v['react'] is not None for v in allv))}")
     if duels:
         add(f"Duell: Fadenkreuz-Abweichung Grad {_q([d.get('err') for d in duels])}")
-        add(f"Duell: Reaktion ms {_q([d.get('react') for d in duels if d.get('react')])}")
+        add(f"Duell: Reaktion ms {_q([d.get('react') for d in duels if d.get('react') and d['react'] <= 1500])}")
     add("\nBitte diese Ausgabe komplett an Claude schicken.")
     return "\n".join(L)
