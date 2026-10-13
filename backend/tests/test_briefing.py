@@ -30,14 +30,14 @@ def test_start_page_and_briefing_route():
     from cstaktik import api
 
     c = TestClient(api.app)
-    assert "Lade eine verlorene Demo hoch" in c.get("/").text  # noch keine Ziele
+    assert "Noch kein Auftrag" in c.get("/").text
     for s in _hist(1):
         history.save(s, pipeline.HISTORY_DIR)
     st = {"active": [], "done": []}
     goals.update(st, history.load_all(pipeline.HISTORY_DIR)[0], load_rules_config()["goals"])
     goals.save(st, pipeline.GOALS_FILE)
     home = c.get("/").text
-    assert "Eure Ziele" in home and "/briefing/de_mirage" in home and "Letztes Match" in home
+    assert "/briefing/de_mirage" in home and "Letztes Match" in home and 'class="gnav"' in home
     b = c.get("/briefing/de_mirage")
     assert b.status_code == 200 and "Briefing Mirage" in b.text and "SynthMid" in b.text
     assert c.get("/briefing/..%2Fetc").status_code in (400, 404)

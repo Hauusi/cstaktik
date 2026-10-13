@@ -106,22 +106,39 @@ def _job_view(job_id: str, job: dict) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    with _jobs_lock:
-        jobs = [_job_view(i, j) for i, j in _jobs.items() if j["status"] in ("wartet", "läuft")]
-    from cstaktik import goals, history
+    jobs = _running_jobs()
+    from cstaktik import history
 
     hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
-    state = goals.load(pipeline.GOALS_FILE)
     played = [h.get("map") for h in reversed(hist) if h.get("map")]
     maps = list(dict.fromkeys(played + ["de_mirage", "de_dust2", "de_inferno"]))
     return _env.get_template("index.html").render(
-        jobs=jobs, reports=_report_entries(), n_history=len(hist), goals=state["active"],
-        done_count=len(state["done"]), last=hist[-1] if hist else None, briefing_maps=maps,
-        pro_overview=__import__("cstaktik.pro", fromlist=["stats"]).stats(pipeline.PRO_DIR),
-        faceit_ready=bool(os.environ.get("FACEIT_API_KEY")),
-        baustellen=_baustellen(hist),
+        nav_active="coach", jobs=jobs, n_history=len(hist), last=hist[-1] if hist else None, briefing_maps=maps,
         auftrag=_auftrag(hist),
     )
+
+
+def _running_jobs() -> list[dict]:
+    with _jobs_lock:
+        return [_job_view(i, j) for i, j in _jobs.items() if j["status"] in ("wartet", "läuft")]
+
+
+@app.get("/matches", response_class=HTMLResponse)
+def matches_page() -> str:
+    from cstaktik import history
+
+    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    return _env.get_template("matches.html").render(nav_active="matches", jobs=_running_jobs(),
+                                                    reports=_report_entries(), n_history=len(hist))
+
+
+@app.get("/pro", response_class=HTMLResponse)
+def pro_page() -> str:
+    from cstaktik import pro
+
+    return _env.get_template("pro.html").render(nav_active="pro", jobs=_running_jobs(),
+                                                pro_overview=pro.stats(pipeline.PRO_DIR),
+                                                faceit_ready=bool(os.environ.get("FACEIT_API_KEY")))
 
 
 def _all_scenes(hist: list[dict]) -> list[dict]:
@@ -201,7 +218,7 @@ def training_page(p: str = "") -> str:
                        ensure_ascii=False).replace("</", "<\\/")
     names = {s: pp["name"] for h in hist for s, pp in h.get("players", {}).items()}
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
-    return _env.get_template("training.html").render(title=LESSONS[lesson][0] if lesson else None, n=len(pick),
+    return _env.get_template("training.html").render(nav_active="training", title=LESSONS[lesson][0] if lesson else None, n=len(pick),
                                                      data_json=data, tabs=tabs, who=names.get(sid))
 
 
@@ -237,7 +254,7 @@ def briefing_page(map_name: str) -> str:
     from cstaktik import pro
 
     b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=pro.load_all(pipeline.PRO_DIR))
-    return _env.get_template("briefing.html").render(b=b, map_lessons=_map_lessons(hist, map_name),
+    return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
                                                      kabine=_kabine(hist, map_name))
 
 
@@ -364,7 +381,7 @@ def review_page(n: int = 5) -> str:
     from cstaktik import history, review
 
     hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
-    return _env.get_template("review.html").render(r=review.build(hist, max(1, min(n, 20))))
+    return _env.get_template("review.html").render(nav_active="matches", r=review.build(hist, max(1, min(n, 20))))
 
 
 @app.get("/progress", response_class=HTMLResponse)
@@ -421,4 +438,4 @@ def job_json(job_id: str) -> dict:
 @app.get("/jobs/{job_id}", response_class=HTMLResponse)
 def job_page(job_id: str) -> str:
     job = _get_job(job_id)
-    return _env.get_template("job.html").render(job_id=job_id, name=job["name"])
+    return _env.get_template("job.html").render(nav_active="matches", job_id=job_id, name=job["name"])

@@ -25,10 +25,9 @@
 </style>
 {% endblock %}
 {% block hero %}
-<a class="back" href="/">‹ Startseite</a>
 <h1>Training</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if title %}{{ who or "Dein" }}{{ "s" if who and not who.endswith("s") }} Auftrag: <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Entscheide, bevor du siehst, was passiert ist.</p>
+<p>{% if title %}{% if who and who != "Ich" %}Auftrag {{ who }}:{% else %}Dein Auftrag:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Entscheide, bevor du siehst, was passiert ist.</p>
 {% endblock %}
 {% block content %}
 <div id="list"></div>

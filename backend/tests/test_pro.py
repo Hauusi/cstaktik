@@ -68,7 +68,8 @@ def test_run_pro_and_upload(tmp_path, monkeypatch):
     assert j["report"] is None and "Pro-Demo gespeichert: Mirage, 24 Runden, 180 Granaten" in j["message"]
     assert "2 eigene Mirage-Reports" in j["message"]
     assert list((tmp_path / "pro_demos").glob("navi*")) and not (tmp_path / "demos").exists()  # getrennt abgelegt
-    assert "Pro-Referenz" in c.get("/").text
+    pro_html = c.get("/pro").text
+    assert "Pro-Referenz" in pro_html and "Mirage" in pro_html and 'name="pro" value="1"' in pro_html
 
 
 def test_pro_summary_has_nades_and_deaths():

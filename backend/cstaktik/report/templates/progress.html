@@ -95,9 +95,9 @@ details.more { margin-top: 26px; } details.more summary { cursor: pointer; color
 </style>
 </head>
 <body>
+{% set nav_active = "progress" %}{% include "nav.html" %}
 <main>
   <header class="hero">
-    <a class="back" href="/">‹ Startseite</a>
     <h1>Fortschritt</h1>
     <p class="num">{{ data.matches|length }} Matches ausgewertet ·
       {{ data.matches|map(attribute="won")|sum }}:{{ data.matches|map(attribute="lost")|sum }} Runden gesamt</p>

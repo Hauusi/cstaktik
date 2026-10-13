@@ -200,7 +200,9 @@ def test_index_lists_reports_with_score(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "REPORTS_DIR", tmp_path)
     m = build_match()
     (tmp_path / "match.html").write_text(render_report(m, analyze(m, load_rules_config()), maps_dirs=[]))
-    html = TestClient(api.app).get("/").text
+    e = api._report_entries()[0]
+    assert (e["map"], e["won"], e["lost"]) == ("Mirage", 3, 3)  # Titel steht vor den eingebetteten Schriften
+    html = TestClient(api.app).get("/matches").text
     assert "Mirage" in html and 'href="/reports/match.html"' in html
 
 

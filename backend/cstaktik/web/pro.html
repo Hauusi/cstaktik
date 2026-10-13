@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Pro · cstaktik{% endblock %}
+{% block hero %}
+<h1>Pro-Referenz</h1>
+<p>Pro-Demos sind die Vergleichsbasis: Wie spielen Pros dieselbe Situation, in der ihr gestorben seid?</p>
+{% endblock %}
+{% block content %}
+<div class="cols">
+<div class="col">
+<h2>Datenbasis</h2>
+<div class="card">
+  {% if pro_overview %}
+  {% for m, st in pro_overview.items() %}<div class="num" style="margin-top:4px"><b>{{ m.removeprefix("de_")|capitalize }}</b>
+    {{ st.demos }} Demo{{ "s" if st.demos != 1 }} · {{ st.rounds }} Runden · {{ st.nades }} Granaten{% if st.demos < 3 %} <span class="muted small">(noch dünn, ab 3 Demos belastbarer)</span>{% endif %}{% if st.old %} <span class="muted small">({{ st.old }} nur Positionen)</span>{% endif %}</div>{% endfor %}
+  <div class="muted small" style="margin-top:8px">Jede Pro-Demo wird gespeichert und erweitert die Datenbasis. Eure Tod-Analysen zeigen dann, wie Pros dieselbe Situation spielen (Utility, Trade-Quote, häufigster Wurf). Eigene Reports der Map werden automatisch aktualisiert.</div>
+  {% else %}<div class="muted small">Noch keine Pro-Demos. Pro-Demo hochladen: jede Demo wird gespeichert und fließt in alle Coach-Vergleiche ein.</div>{% endif %}
+  {% if faceit_ready %}
+  <form action="/pro/sync" method="post" style="margin-top:10px"><button class="btn" type="submit" style="height:44px;font-size:15px">Pro-Demos von FACEIT holen</button></form>
+  {% else %}<div class="muted small" style="margin-top:6px">Automatisch holen: FACEIT_API_KEY auf dem Server setzen (siehe README).</div>{% endif %}
+</div>
+</div>
+<div class="col">
+<h2>Pro-Demo hochladen</h2>
+{% set pro_mode = True %}
+{% include "upload.html" %}
+{% include "jobs.html" %}
+</div>
+</div>
+{% endblock %}

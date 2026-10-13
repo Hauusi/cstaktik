@@ -64,11 +64,13 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .card, .item { background: var(--surface); border: 1px solid var(--line); }
 .mapbtn { font-family: var(--cond); font-weight: 700; font-size: 17px; letter-spacing: .06em; text-transform: uppercase; }
 .bst .brow b, .goal b, .note b { font-family: var(--cond); font-size: 20px; text-transform: uppercase; letter-spacing: .01em; }
+{% include 'ui.css' %}
 {% include 'hud.css' %}
 </style>
 {% block head %}{% endblock %}
 </head>
 <body class="{% block bodyclass %}wide{% endblock %}">
+{% include "nav.html" %}
   <header class="hero"><div class="hero-in">
     <a class="brand" href="/"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>cstaktik</a>
     {% block hero %}{% endblock %}

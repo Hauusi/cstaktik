@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Matches · cstaktik{% endblock %}
+{% block hero %}
+<h1>Matches</h1>
+<p>{{ reports|length }} Report{{ "s" if reports|length != 1 }}{% if n_history %} · {{ n_history }} im Verlauf{% endif %}</p>
+{% endblock %}
+{% block content %}
+{% include "jobs.html" %}
+{% if n_history >= 2 %}
+<h2>Rückblick</h2>
+<a class="item" href="/review"><div class="map">↺</div><div class="meta"><b>Review der letzten Matches</b>
+  <span class="muted small">Was wurde besser, was nicht, was als Nächstes</span></div></a>
+{% endif %}
+<h2>Alle Reports</h2>
+{% if reports %}
+<div class="list">
+  {% for r in reports %}
+  <a class="item" href="/reports/{{ r.file }}">
+    <div class="map">{{ r.map[:2] if r.map else "?" }}</div>
+    <div class="meta"><b>{{ r.map or r.name }}</b><span class="muted small">{{ r.date }}</span></div>
+    {% if r.won is not none %}<div class="score num"><span class="w">{{ r.won }}</span><span class="muted">:</span><span class="l">{{ r.lost }}</span></div>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card empty">Noch keine Reports. <a href="/" style="color:var(--orange)">Match hochladen ›</a></div>
+{% endif %}
+{% endblock %}

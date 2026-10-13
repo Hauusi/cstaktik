@@ -1,0 +1,53 @@
+{# Upload-Formular, pro_mode=True speichert als Pro-Referenz #}
+<form class="card" id="form" action="/analyze" method="post" enctype="multipart/form-data">
+  <label class="drop" id="drop">
+    <input type="file" name="demo" id="file" accept=".dem,.bz2" required>
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#ffc46b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></div>
+    <b id="fname">Datei wählen</b>
+    <span class="muted small" id="fsize">.dem oder .dem.bz2</span>
+  </label>
+  {% if pro_mode %}<input type="hidden" name="pro" value="1">{% endif %}
+  {% if not pro_mode %}<details><summary>Andere Spieler als in players.yaml</summary>
+    <input class="field" type="text" name="steamids" placeholder="SteamID64, kommagetrennt"></details>{% endif %}
+  <button class="btn" id="go" type="submit" disabled>{{ "Als Pro-Referenz speichern" if pro_mode else "Analysieren" }}</button>
+  <div id="up">
+    <div class="bar"><i id="upbar"></i></div>
+    <div class="stats num"><span id="uppct">Upload 0 %</span><span id="uprate"></span><span id="upeta"></span></div>
+    <p class="muted small" style="margin:10px 0 0">Während des Uploads Handy wach lassen. Danach läuft alles auf dem Server weiter.</p>
+  </div>
+  <div class="err" id="uperr" hidden></div>
+</form>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const fmtMB = b => (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB';
+const fmtT = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' min' : s + ' s'; };
+$('file').onchange = e => {
+  const f = e.target.files[0];
+  $('fname').textContent = f ? f.name : 'Datei wählen';
+  $('fsize').textContent = f ? fmtMB(f.size) : '.dem oder .dem.bz2';
+  $('drop').classList.toggle('has', !!f); $('go').disabled = !f;
+};
+$('form').onsubmit = e => {
+  e.preventDefault();
+  const xhr = new XMLHttpRequest(), t0 = performance.now();
+  $('go').disabled = true; $('go').textContent = 'Lädt hoch …'; $('up').classList.add('show'); $('uperr').hidden = true;
+  xhr.upload.onprogress = ev => {
+    if (!ev.lengthComputable) return;
+    const p = ev.loaded / ev.total, dt = (performance.now() - t0) / 1000, rate = ev.loaded / Math.max(dt, .001);
+    $('upbar').style.width = (p * 100) + '%';
+    $('uppct').textContent = 'Upload ' + Math.floor(p * 100) + ' %';
+    $('uprate').textContent = fmtMB(rate) + '/s';
+    $('upeta').textContent = p < 1 ? 'noch ' + fmtT((ev.total - ev.loaded) / rate) : 'wird gespeichert …';
+  };
+  xhr.onload = () => {
+    if (xhr.status < 400) { location.href = xhr.responseURL; return; }
+    let msg = 'Fehler ' + xhr.status; try { msg = JSON.parse(xhr.responseText).detail || msg; } catch (_) {}
+    fail(msg);
+  };
+  xhr.onerror = () => fail('Verbindung abgebrochen. Handy während des Uploads wach lassen und erneut versuchen.');
+  function fail(msg) { $('uperr').textContent = msg; $('uperr').hidden = false; $('go').disabled = false; $('go').textContent = 'Erneut versuchen'; }
+  xhr.open('POST', '/analyze'); xhr.send(new FormData($('form')));
+};
+})();
+</script>

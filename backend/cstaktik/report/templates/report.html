@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<style>{{ font_css|safe }}</style>
 <title>{{ map_label }} {{ score.won }}:{{ score.lost }} – cstaktik</title>
+<style>{{ font_css|safe }}</style>
 <style>
 :root {
   --bg: #0b0d12; --surface: #141821; --surface-2: #1b202b; --line: rgba(255,255,255,.07);
@@ -63,6 +63,9 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 @media (min-width: 1000px) {
   main, .hero-in { max-width: 1280px; }
   main { padding: 0 32px 64px; }
+  .rtabs { margin: 0 -32px 22px; padding: 6px 32px; }
+  .hero.herohud .hero-in { display: block; }
+  .tab[data-tab=coach], .tab[data-tab=runden] { max-width: 860px; margin: 0 auto; }
   .hero { padding: 36px 0 30px; }
   .hero-in { padding: 0 32px; box-sizing: border-box; }
   .hero-in { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 0 40px; align-items: end; }
@@ -425,9 +428,27 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .lrow.ok .ldist { color: var(--win); } .lrow.no .ldist { color: var(--loss); }
 .lrow button { width: 36px; height: 36px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); }
 {% include 'hud.css' %}
+
+/* Reiter */
+.rtabs { position: sticky; top: 0; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin: 0 -16px 18px; padding: 6px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.rtabs button { font: 600 14px/1 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: .06em; padding: 11px 4px; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; }
+.rtabs button.on { color: var(--text); border-bottom-color: #ff9f1c; }
+.tab[hidden] { display: none !important; }
+.rlist { display: grid; gap: 8px; }
+.rrow { text-align: left; width: 100%; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 2px; color: var(--text); cursor: pointer; font: inherit; }
+.rrow.W { border-left-color: #46a758; } .rrow.L { border-left-color: #e5484d; }
+.rrow .rh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rrow .rh b { font-size: 17px; text-transform: uppercase; }
+.rrow .rs { font-size: 13px; color: var(--muted); }
+.rrow .rf { margin-top: 6px; display: grid; gap: 3px; font-size: 13px; }
+.rrow .ri { color: var(--muted); padding-left: 10px; position: relative; }
+.rrow .ri::before { content: ''; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; background: var(--muted); }
+.rrow .ri.hoch::before { background: #e5484d; } .rrow .ri.mittel::before { background: #ff9f1c; }
+.rrow .ri.gut::before { background: #46a758; }
 </style>
 </head>
 <body>
+{% set nav_active = "matches" %}{% include "nav.html" %}
   <header class="hero herohud"><div class="hero-in">
     <div class="eyebrow">{{ match.source_file or "Demo" }}</div>
     <div class="hrow"><h1>{{ map_label }}</h1>
@@ -441,7 +462,16 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 </div>
 <button class="dbf-return" id="dbfRet" hidden>‹ Zurück zum Debrief</button>
 <main>
-  {% set checks = auftraege|selectattr("check")|list %}
+<nav class="rtabs" id="rtabs" aria-label="Bereiche">
+  <button data-tab="coach" class="on">Coach</button><button data-tab="replay">Replay</button><button data-tab="analyse">Analyse</button><button data-tab="runden">Runden</button>
+</nav>
+
+<div class="tab" data-tab="coach">
+  <section class="coachsay">
+    <div class="av cond">C</div>
+    <div class="say">{% for line in intro %}{{ line }} {% endfor %}</div>
+  </section>
+
   {% if checks %}
   <section class="auftraege">
     <div class="sh"><span class="t cond">Auftrag-Check</span></div>
@@ -463,10 +493,13 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </section>
   {% endif %}
 
-  <section class="coachsay">
-    <div class="av cond">C</div>
-    <div class="say">{% for line in intro %}{{ line }} {% endfor %}</div>
-  </section>
+  <div class="ctas">
+    <button class="tour" id="dbfBtn" hidden>▶ Debrief mit dem Coach <small id="dbfN"></small></button>
+    <button class="linkbtn" id="tourBtn" hidden>Schlüsselmomente im Replay <span id="tourN"></span></button>
+    <div class="subctas"><button class="linkbtn" id="quizBtn" hidden>Training: Was machst du? <span id="quizN"></span></button>
+      <button class="linkbtn" id="allTour" hidden></button></div>
+  </div>
+
 
   {% if lessons %}{% set l = lessons[0] %}{% set t = teach[l.id] %}
   <section class="mainpoint">
@@ -513,6 +546,59 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   {% endif %}
   {% elif memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
 
+  {% if praise %}<section class="praise"><b class="cond">Gut gemacht</b>{% for p in praise %}<div>{{ p }}</div>{% endfor %}</section>{% endif %}
+  {% set nexts = auftraege|selectattr("focus")|list %}
+  {% if nexts %}
+  <section class="nextfocus">
+    <div class="sh"><span class="t cond">Eure Aufträge ab jetzt</span></div>
+    {% for a in nexts %}{% set nf = a.focus %}
+    <div class="nf">
+      <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
+      <div class="atitle cond">{{ nf.title }}</div>
+      <div class="anote">Ziel: höchstens {{ nf.target|string|replace(".", ",") }}x pro 10 Runden ({% if a.new %}heute {{ nf.baseline|string|replace(".", ",") }}{% else %}Start {{ nf.baseline|string|replace(".", ",") }}{% if a.check %}, zuletzt {{ a.check.rate|string|replace(".", ",") }}{% endif %}{% endif %}), {{ nf.need }} Matches in Folge. Merksatz: <b>„{{ teach[nf.lesson].mantra }}“</b></div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+</div>
+
+<div class="tab" data-tab="replay" hidden>
+  <nav class="rounds" id="rounds" aria-label="Runden"></nav>
+
+  <section class="card replay" aria-label="2D-Replay">
+    <div class="rhead"><b id="rtitle">Runde</b><span><button id="rback" class="vbtn" hidden>‹ Zurück zu deinem Tod</button> <span id="rres" class="res"></span></span></div>
+    <div class="story" id="story"></div>
+    <div class="rbody">
+    <div class="stage" id="stage">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hud"></div>
+      <div class="feed" id="feed"></div>
+    </div>
+    <div class="rside">
+    <div class="quiz" id="quiz" hidden aria-live="polite"></div>
+    <div class="coach" id="coach" aria-live="polite"></div>
+    <div class="timeline" id="tl"><div class="bar"></div><div class="fill" id="tlfill"></div><input type="range" id="scrub" min="0" max="1" step="1" aria-label="Zeit"></div>
+    <div class="controls">
+      <button class="cbtn" id="prevF" aria-label="Vorheriger Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button class="cbtn play" id="play" aria-label="Abspielen"><svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M7 4v16l13-8z"/></svg></button>
+      <button class="cbtn" id="nextF" aria-label="Nächster Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+      <button class="cbtn num" id="speed" aria-label="Geschwindigkeit">1x</button>
+      <span class="spacer"></span>
+      <button class="cbtn" id="zoom" aria-label="Kamera folgt Fokus-Spielern">Folgen</button>
+      <button class="cbtn" id="trail" aria-label="Spuren">Spur</button>
+      <span class="clock num" id="clock">0:00</span>
+    </div>
+    <div class="roster" id="roster"></div>
+    <div class="ulegend"><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:#ff4d4d"></i>HE</span><span style="color:var(--faint)">Ring = Restdauer</span></div>
+    </div></div>
+  </section>
+
+  <h2>Befunde dieser Runde</h2>
+  <div class="stack" id="rfind"></div>
+</div>
+
+<div class="tab" data-tab="analyse" hidden>
   {% if duel_cmp %}{% set pr = duel_cmp.pro %}
   <section class="duelcmp">
     <div class="sh"><span class="t cond">Deine Duelle{% if pr %} gegen Pros{% endif %}</span></div>
@@ -586,61 +672,26 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </section>
   {% endif %}
 
-  {% set nexts = auftraege|selectattr("focus")|list %}
-  {% if nexts %}
-  <section class="nextfocus">
-    <div class="sh"><span class="t cond">Eure Aufträge ab jetzt</span></div>
-    {% for a in nexts %}{% set nf = a.focus %}
-    <div class="nf">
-      <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
-      <div class="atitle cond">{{ nf.title }}</div>
-      <div class="anote">Ziel: höchstens {{ nf.target|string|replace(".", ",") }}x pro 10 Runden ({% if a.new %}heute {{ nf.baseline|string|replace(".", ",") }}{% else %}Start {{ nf.baseline|string|replace(".", ",") }}{% if a.check %}, zuletzt {{ a.check.rate|string|replace(".", ",") }}{% endif %}{% endif %}), {{ nf.need }} Matches in Folge. Merksatz: <b>„{{ teach[nf.lesson].mantra }}“</b></div>
+  {% if debrief.causes %}
+  <h2>Warum verloren (Runden-Muster)</h2>
+  <div class="stack">
+    {% for c in debrief.causes %}
+    <div class="cause">
+      <div class="crank">{{ loop.index }}</div>
+      <div class="cbody">
+        <div class="ct">{{ c.title }}</div>
+        <div class="cmeter num"><span style="width:{{ (100 * c.share)|round|int }}%"></span></div>
+        <div class="cnum num">in {{ c.lost_rounds|length }} von {{ debrief.lost }} verlorenen Runden
+          {%- if c.won_rounds %} · in Siegrunden nur {{ c.won_rounds|length }}x{% else %} · in keiner Siegrunde{% endif %}</div>
+        <div class="cx">{{ c.explain }}</div>
+        <div class="tip"><b>Was tun</b> · {{ c.tip }}</div>
+        <div class="rlinks">{% for r in c.lost_rounds[:10] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>
+      </div>
     </div>
     {% endfor %}
-  </section>
-  {% endif %}
-
-  {% if goal_check and goal_check.checks and not nexts %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
-
-  <div class="ctas">
-    <button class="tour" id="dbfBtn" hidden>▶ Debrief mit dem Coach <small id="dbfN"></small></button>
-    <button class="linkbtn" id="tourBtn" hidden>Schlüsselmomente im Replay <span id="tourN"></span></button>
-    <div class="subctas"><button class="linkbtn" id="quizBtn" hidden>Training: Was machst du? <span id="quizN"></span></button>
-      <button class="linkbtn" id="allTour" hidden></button></div>
   </div>
-
-  <h2>Replay</h2>
-  <nav class="rounds" id="rounds" aria-label="Runden"></nav>
-
-  <section class="card replay" aria-label="2D-Replay">
-    <div class="rhead"><b id="rtitle">Runde</b><span><button id="rback" class="vbtn" hidden>‹ Zurück zu deinem Tod</button> <span id="rres" class="res"></span></span></div>
-    <div class="story" id="story"></div>
-    <div class="rbody">
-    <div class="stage" id="stage">
-      <canvas id="cv"></canvas>
-      <div class="hud" id="hud"></div>
-      <div class="feed" id="feed"></div>
-    </div>
-    <div class="rside">
-    <div class="quiz" id="quiz" hidden aria-live="polite"></div>
-    <div class="coach" id="coach" aria-live="polite"></div>
-    <div class="timeline" id="tl"><div class="bar"></div><div class="fill" id="tlfill"></div><input type="range" id="scrub" min="0" max="1" step="1" aria-label="Zeit"></div>
-    <div class="controls">
-      <button class="cbtn" id="prevF" aria-label="Vorheriger Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
-      <button class="cbtn play" id="play" aria-label="Abspielen"><svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M7 4v16l13-8z"/></svg></button>
-      <button class="cbtn" id="nextF" aria-label="Nächster Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
-      <button class="cbtn num" id="speed" aria-label="Geschwindigkeit">1x</button>
-      <span class="spacer"></span>
-      <button class="cbtn" id="zoom" aria-label="Kamera folgt Fokus-Spielern">Folgen</button>
-      <button class="cbtn" id="trail" aria-label="Spuren">Spur</button>
-      <span class="clock num" id="clock">0:00</span>
-    </div>
-    <div class="roster" id="roster"></div>
-    <div class="ulegend"><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:#ff4d4d"></i>HE</span><span style="color:var(--faint)">Ring = Restdauer</span></div>
-    </div></div>
-  </section>
-
-  <details class="more"><summary>Mehr: Duo, Mechanik, Utility, Runden-Muster, alle Befunde</summary>
+  {% endif %}
+  <h2>Statistiken</h2>
   <div class="cols3">
   {% if debrief.duo %}<div>{% set d = debrief.duo %}
   <h2>Ihr als Duo</h2>
@@ -702,42 +753,6 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   {% if debrief.utility %}</div>{% endif %}
   </div>
 
-  {% if debrief.causes %}
-  <h2>Warum verloren (Runden-Muster)</h2>
-  <div class="stack">
-    {% for c in debrief.causes %}
-    <div class="cause">
-      <div class="crank">{{ loop.index }}</div>
-      <div class="cbody">
-        <div class="ct">{{ c.title }}</div>
-        <div class="cmeter num"><span style="width:{{ (100 * c.share)|round|int }}%"></span></div>
-        <div class="cnum num">in {{ c.lost_rounds|length }} von {{ debrief.lost }} verlorenen Runden
-          {%- if c.won_rounds %} · in Siegrunden nur {{ c.won_rounds|length }}x{% else %} · in keiner Siegrunde{% endif %}</div>
-        <div class="cx">{{ c.explain }}</div>
-        <div class="tip"><b>Was tun</b> · {{ c.tip }}</div>
-        <div class="rlinks">{% for r in c.lost_rounds[:10] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
-  {% if goal_check and (goal_check.checks or goal_check.new) %}
-  <h2>Ziel-Check</h2>
-  <div class="stack">
-    {% for c in goal_check.checks %}
-    <div class="gcheck {{ 'ok' if c.met else 'no' }}">
-      <span class="gi">{{ '✓' if c.met else '✗' }}</span>
-      <div><b>{{ c.title }}</b>
-        <div class="num">diesmal {{ c.pct }} % · Ziel ≤ {{ c.target }} %{% if c.status == 'geschafft' %} · <b>Ziel geschafft!</b>{% elif c.met %} · {{ c.streak }}x in Folge{% endif %}</div></div>
-    </div>
-    {% endfor %}
-    {% if goal_check.new %}<div class="quiet">Neue Ziele: {{ goal_check.new|join(", ") }}</div>{% endif %}
-  </div>
-  {% endif %}
-
-  <h2>Befunde dieser Runde</h2>
-  <div class="stack" id="rfind"></div>
-
   {% if stats %}
   <h2>Spieler</h2>
   <div class="players">
@@ -757,22 +772,6 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
         <span><i style="background:#ff4d4d"></i>{{ p.utility_thrown.get("he", 0) }} HE</span></div>
     </div>
     {% endfor %}
-  </div>
-  {% endif %}
-
-  {% if homework %}
-  <h2>Hausaufgaben fürs nächste Match</h2>
-  <div class="stack">
-    {% for h in homework %}{% if h["items"] %}
-    <div class="pcard"><h3>{{ h.name }}</h3>
-      <ol class="hw" style="padding:0;margin:0">
-        {% for it in h["items"] %}
-        <li><div class="t">{{ it.title }} <span class="num" style="color:var(--muted);font-weight:500">· {{ it.count }}x</span></div>
-          <div class="tp">{{ it.tip }}</div>
-          {% if it.rounds %}<div class="rlinks">{% for r in it.rounds[:8] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>{% endif %}</li>
-        {% endfor %}
-      </ol></div>
-    {% endif %}{% endfor %}
   </div>
   {% endif %}
 
@@ -799,7 +798,12 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </ul></div>
   {% endif %}
 
-  </details>
+</div>
+
+<div class="tab" data-tab="runden" hidden>
+  <h2>Alle Runden</h2>
+  <div class="rlist" id="rlist"></div>
+</div>
 
   <footer>Alle Werte aus der Demo geparst (awpy). Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
   {% if match.source_sha256 %}SHA-256 {{ match.source_sha256[:12] }}…{% endif %}
@@ -1501,6 +1505,33 @@ function buildFindings() {
   });
 }
 
+// ---- Reiter: Coach / Replay / Analyse / Runden
+function showTab(t) {
+  document.querySelectorAll('#rtabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('.tab').forEach(d => { d.hidden = d.dataset.tab !== t; });
+  if (t === 'replay') resize();
+}
+function toStage(o) { showTab('replay'); requestAnimationFrame(() => stage.scrollIntoView(o || { block: 'start' })); }
+document.querySelectorAll('#rtabs button').forEach(b => b.onclick = () => { showTab(b.dataset.tab); window.scrollTo({ top: 0 }); });
+function buildRoundList() {
+  const box = $('rlist'); if (!box) return;
+  D.rounds.forEach((r, i) => {
+    if (r.pro) return;
+    const fs = r.f.map(id => F[id]).sort((a, b) => isErr(b) - isErr(a));
+    const row = el('button', 'rrow ' + (r.out || ''));
+    const head = el('div', 'rh');
+    head.append(el('b', 'cond', 'Runde ' + r.n), el('span', 'rs', (r.side ? r.side.toUpperCase() + ' · ' : '') + (r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '')));
+    row.appendChild(head);
+    if (fs.length) {
+      const ul = el('div', 'rf');
+      fs.slice(0, 3).forEach(f => ul.appendChild(el('div', 'ri ' + f.sev, f.title + (f.who ? ' · ' + f.who : ''))));
+      if (fs.length > 3) ul.appendChild(el('div', 'ri more', '+' + (fs.length - 3) + ' weitere'));
+      row.appendChild(ul);
+    } else row.appendChild(el('div', 'rf quiet', 'Kein Befund'));
+    row.onclick = () => { selectRound(i); toStage(); };
+    box.appendChild(row);
+  });
+}
 // ---- Steuerung
 function setPlaying(p) {
   if (p && S.autoZoom) { S.autoZoom = false; S.zoom = 1; S.cam = null; } // Coach-Zoom beim Weiterspielen lösen
@@ -1509,7 +1540,7 @@ function setPlaying(p) {
   $('play').setAttribute('aria-label', p ? 'Pause' : 'Abspielen');
 }
 function seek(t) { const r = R(); S.tick = Math.max(r.t0, Math.min(r.t1, t)); draw(); }
-function watch(id) { S.lastF = null; seek(F[id].tick - 3 * TR); setPlaying(true); $('stage').scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+function watch(id) { S.lastF = null; seek(F[id].tick - 3 * TR); setPlaying(true); toStage({ behavior: 'smooth', block: 'center' }); }
 function selectRound(i, keep) {
   if (!keep) S.tour = null;
   if (!keep && S.quiz) { S.quiz = null; $('quiz').hidden = true; }
@@ -1533,7 +1564,7 @@ function openPro(f) {
   S.tour = null; S.back = { ri: S.ri, tick: f.tick };
   selectRound(f.ov.pro_clip, true);
   seek(Math.max(R().t0, f.ov.pro_tick - 3 * TR)); setPlaying(true);
-  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toStage({ behavior: 'smooth', block: 'start' });
 }
 function backFromPro() {
   const b = S.back; if (!b) return; S.back = null;
@@ -1559,7 +1590,7 @@ function vorbild(f) {
     const ri = D.rounds.findIndex(r => r.n === f.ov.ghost_round);
     if (ri >= 0) {
       const b = el('button', 'vbtn', 'Siegrunde ' + f.ov.ghost_round + ' an dieser Stelle ansehen ›');
-      b.onclick = () => { S.tour = null; selectRound(ri); seek(D.rounds[ri].t0 + f.ov.ghost_offset_s * TR); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      b.onclick = () => { S.tour = null; selectRound(ri); seek(D.rounds[ri].t0 + f.ov.ghost_offset_s * TR); toStage({ behavior: 'smooth', block: 'start' }); };
       box.appendChild(b);
     }
   }
@@ -1578,7 +1609,7 @@ function showMe(f) {
     const ri = D.rounds.findIndex(r => r.n === f.ov.ghost_round);
     if (ri >= 0) {
       const b = el('button', 'sbtn win', '▶ So habt ihr gewonnen (R' + f.ov.ghost_round + ')');
-      b.onclick = () => { S.tour = null; selectRound(ri); seek(D.rounds[ri].t0 + f.ov.ghost_offset_s * TR); stage.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+      b.onclick = () => { S.tour = null; selectRound(ri); seek(D.rounds[ri].t0 + f.ov.ghost_offset_s * TR); toStage({ behavior: 'smooth', block: 'start' }); };
       btns.appendChild(b);
     }
   }
@@ -1619,7 +1650,7 @@ function goTour(name, i) {
   const st = TOURS[name][i];
   selectRound(st.ri, true); S.tour = { name, i };
   S.lastF = null; seek(Math.min(st.tick - 4 * TR, st.from != null ? st.from - TR : Infinity)); setPlaying(true);
-  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toStage({ behavior: 'smooth', block: 'start' });
 }
 function endTour() { S.tour = null; $('coach').dataset.key = ''; draw(); }
 // Pro-Szene zur Lektion: erste Szene dieser Lektion mit Pro-Clip
@@ -1639,12 +1670,12 @@ function endTour() { S.tour = null; $('coach').dataset.key = ''; draw(); }
 document.querySelectorAll('.brightgo[data-round]').forEach(b => b.onclick = () => {
   const ri = D.rounds.findIndex(r => r.n === +b.dataset.round); if (ri < 0) return;
   S.tour = null; selectRound(ri); seek(+b.dataset.tick); setPlaying(true);
-  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toStage({ behavior: 'smooth', block: 'start' });
 });
 document.querySelectorAll('.costgo').forEach(b => b.onclick = () => {
   const ri = D.rounds.findIndex(r => r.n === +b.dataset.round); if (ri < 0) return;
   S.tour = null; selectRound(ri); seek(+b.dataset.tick - TR); setPlaying(true);
-  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toStage({ behavior: 'smooth', block: 'start' });
 });
 if (TOURS.key.length) { $('tourBtn').hidden = false; $('tourN').textContent = '(' + TOURS.key.length + ')'; $('tourBtn').onclick = () => goTour('key', 0); }
 else if (TOURS.all.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.all.length + ' Fehler'; $('tourBtn').onclick = () => goTour('all', 0); }
@@ -1671,7 +1702,7 @@ function quizShow(i) {
   const opts = el('div', 'qopts');
   QOPTS.forEach(([key, label]) => { const b = el('button', 'qopt', label); b.dataset.k = key; b.onclick = () => quizAnswer(f, key); opts.appendChild(b); });
   q.appendChild(opts);
-  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toStage({ behavior: 'smooth', block: 'start' });
 }
 function quizAnswer(f, pick) {
   const q = $('quiz'), ev = f.evidence, rates = ev.pro_rates || {}, best = ev.pro_best, mine = ev.aktion;
@@ -1712,7 +1743,7 @@ function dbWatch(round, tick) {
   const ri = D.rounds.findIndex(r => r.n === round); if (ri < 0) return;
   $('dbf').hidden = true; $('dbfRet').hidden = false; document.body.style.overflow = '';
   S.tour = null; selectRound(ri); seek(tick - TR); setPlaying(true);
-  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toStage({ behavior: 'smooth', block: 'start' });
 }
 function dbPlayBtn(label, round, tick, big) { const b = el('button', 'play' + (big ? ' big' : ''), label); b.onclick = () => dbWatch(round, tick); return b; }
 function dbBuild() {
@@ -1914,7 +1945,7 @@ stage.addEventListener('wheel', e => { // Desktop: Mausrad zoomt die Karte
 $('trail').onclick = e => { S.trailFull = !S.trailFull; e.currentTarget.classList.toggle('on', S.trailFull); e.currentTarget.textContent = S.trailFull ? 'Runde' : 'Spur'; draw(); };
 $('scrub').oninput = e => { setPlaying(false); seek(+e.target.value); };
 document.querySelectorAll('[data-round]:not(.costgo):not(.brightgo)').forEach(b => b.onclick = () => {
-  const i = D.rounds.findIndex(r => r.n === +b.dataset.round); if (i >= 0) { selectRound(i); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  const i = D.rounds.findIndex(r => r.n === +b.dataset.round); if (i >= 0) { selectRound(i); toStage({ behavior: 'smooth', block: 'center' }); }
 });
 
 function utilActive() {
@@ -1944,8 +1975,10 @@ const sceneHash = /^#s(\d+)-(\d+)$/.exec(location.hash); // Sprung aus dem Train
 const fromHash = sceneHash ? D.rounds.findIndex(r => r.n === +sceneHash[1]) : D.rounds.findIndex(r => '#r' + r.n === location.hash);
 const firstF = D.rounds.findIndex(r => r.f.length);
 selectRound(fromHash >= 0 ? fromHash : Math.max(0, firstF), true);
+buildRoundList();
+if (fromHash >= 0) showTab('replay');
 resize();
-if (sceneHash && fromHash >= 0) { seek(+sceneHash[2] - TR); setTimeout(() => stage.scrollIntoView({ block: 'start' }), 50); }
+if (sceneHash && fromHash >= 0) { seek(+sceneHash[2] - TR); toStage({ block: 'start' }); }
 requestAnimationFrame(loop);
 })();
 {% endraw %}

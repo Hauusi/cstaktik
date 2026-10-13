@@ -1,72 +1,13 @@
 {% extends "base.html" %}
-{% block head %}
-<style>
-.drop { display: block; border: 1.5px dashed rgba(255,159,28,.5); border-radius: 16px; padding: 22px 16px; text-align: center;
-  background: rgba(255,159,28,.06); cursor: pointer; transition: .2s; }
-.drop.has { border-style: solid; border-color: var(--accent); background: rgba(255,159,28,.12); }
-.drop input { display: none; }
-.drop .ic { width: 44px; height: 44px; margin: 0 auto 8px; border-radius: 12px; display: grid; place-items: center; background: rgba(255,159,28,.18); }
-.drop .ic svg { width: 22px; height: 22px; }
-.drop b { display: block; font-size: 16px; word-break: break-all; }
-details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; cursor: pointer; }
-.field { width: 100%; margin-top: 8px; height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line);
-  background: var(--bg); color: var(--text); font: inherit; }
-#up { display: none; margin-top: 14px; } #up.show { display: block; }
-.list { display: grid; gap: 8px; }
-.item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
-.item .map { width: 42px; height: 42px; border-radius: 11px; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 13px;
-  background: linear-gradient(135deg, rgba(255,159,28,.25), rgba(255,159,28,.2)); }
-.item .meta { flex: 1; min-width: 0; }
-.item .meta b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.item .score { font-weight: 800; font-size: 17px; }
-.score .w { color: var(--win); } .score .l { color: var(--loss); }
-.item .mini { margin-top: 6px; height: 6px; }
-.goalcard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
-.goalcard summary { list-style: none; padding: 12px 14px; cursor: pointer; }
-.goalcard summary::-webkit-details-marker { display: none; }
-.gtop { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-.dots { display: flex; gap: 4px; align-items: center; }
-.dots i { width: 10px; height: 10px; border-radius: 50%; }
-.dots i.ok { background: var(--win); } .dots i.no { background: var(--loss); }
-.gbody { padding: 0 14px 12px; font-size: 14px; color: #d7dce5; }
-.gbody p { margin: 0 0 8px; } .gtip { color: #cdeedd; }
-.gbody ul { margin: 4px 0 0; padding-left: 18px; color: var(--muted); }
-.bst { display: block; text-decoration: none; color: inherit; }
-.bst .brow { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
-.bst .brow b { font-size: 17px; line-height: 1.25; }
-.tb { font-weight: 700; margin-left: 6px; white-space: nowrap; } .tb.besser { color: #3fbf7f; } .tb.schlechter { color: #f0566a; } .tb.gleich { color: #f5a524; } .tb.wenig { color: #8d97a8; }
-.auf + .auf { margin-top: 12px; }
-.auf .who { font-family: var(--cond); font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
-.pre summary { cursor: pointer; list-style: none; } .pre summary::-webkit-details-marker { display: none; }
-.auf .atitle { font-family: var(--cond); font-weight: 800; font-size: 28px; line-height: 1.02; text-transform: uppercase; }
-.auf .mantra { font-family: var(--cond); font-weight: 800; font-size: 19px; color: var(--orange); text-transform: uppercase; margin-top: 6px; }
-.dots { display: flex; gap: 6px; margin-top: 10px; }
-.dot { width: 30px; height: 30px; display: grid; place-items: center; font-weight: 800; border: 1px solid var(--line); }
-.dot.ok { color: #46a758; border-color: #46a758; } .dot.no { color: #e5484d; border-color: #e5484d; } .dot.open { color: var(--faint); }
-.pre { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14.5px; }
-.pre .pk { font-family: var(--cond); font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
-.pre > b { font-family: var(--cond); font-size: 19px; text-transform: uppercase; }
-.pre ol { margin: 6px 0 8px; padding-left: 20px; } .pre li { margin: 2px 0; }
-.btn2 { margin-top: 10px; width: 100%; height: 44px; font: inherit; font-family: var(--cond); font-weight: 800; font-size: 16px; letter-spacing: .1em;
-  text-transform: uppercase; color: #46a758; background: rgba(70,167,88,.1); border: 1px solid #46a758; cursor: pointer; }
-.tlink { display: block; margin-top: 12px; padding: 12px; text-align: center; background: #ff9f1c; color: #111; font-family: var(--cond);
-  font-weight: 800; font-size: 16px; letter-spacing: .1em; text-transform: uppercase; }
-.prochk { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 13.5px; color: var(--muted); }
-.prochk input { width: 18px; height: 18px; accent-color: #ff9f1c; }
-.maps { display: flex; flex-wrap: wrap; gap: 8px; }
-.mapbtn { padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-weight: 650; }
-.empty { text-align: center; padding: 26px 16px; color: var(--muted); }
-</style>
-{% endblock %}
 {% block hero %}
 <h1>Dein Coach</h1>
-<p>{% if auftrag %}Dein Auftrag läuft. Erst üben, dann spielen, dann Demo hochladen.{% elif goals %}{{ goals|length }} {{ "Ziel" if goals|length == 1 else "Ziele" }} aktiv{% if done_count %} · {{ done_count }} geschafft{% endif %}.{% else %}Lade eine verlorene Demo hoch, der Coach setzt daraus eure ersten Ziele.{% endif %}</p>
+<p>{% if auftrag %}Erst üben, dann spielen, dann Demo hochladen.{% else %}Lade ein Match hoch. Der Coach gibt jedem von euch einen Auftrag.{% endif %}</p>
 {% endblock %}
 {% block content %}
 <div class="cols">
 <div class="col">
-{% if auftrag %}
 <h2>Eure Aufträge</h2>
+{% if auftrag %}
 {% for a in auftrag %}
 <div class="card auf">
   <div class="who">{{ a.name }}</div>
@@ -84,153 +25,23 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
   {% if a.mastered %}<div class="small muted" style="margin-top:8px">{{ a.mastered }} Auftrag{{ "e" if a.mastered != 1 }} schon gemeistert.</div>{% endif %}
 </div>
 {% endfor %}
+{% else %}
+<div class="card empty">Noch kein Auftrag. Ladet ein Match hoch, dann bekommt jeder von euch genau einen Punkt zum Üben.</div>
 {% endif %}
-{% if n_history >= 2 %}<a class="tlink" style="margin-top:12px;background:var(--surface);color:var(--text);border:1px solid var(--orange)" href="/review">Review der letzten Matches ›</a>{% endif %}
-{% if baustellen %}
-<h2>Deine Baustellen</h2>
-<a class="card bst" href="/progress">
-  {% for b in baustellen %}
-  <div class="brow"><span class="muted small">{{ b.name }}</span>
-    <b>{{ b.title }}</b>
-    <span class="small num">{{ b.now }} pro 10 Runden{% if b.worst_map %} · am meisten auf {{ b.worst_map }}{% endif %}
-      <span class="tb {{ b.state }}">{{ {"besser": "▼ besser", "schlechter": "▲ schlechter", "gleich": "■ gleich", "wenig": "… offen"}[b.state] }}</span></span></div>
-  {% endfor %}
-  <span class="muted small">Alle Baustellen und Fehler je Map ›</span>
-</a>
-{% endif %}
-{% if goals and not auftrag %}
-<h2>Eure Ziele</h2>
-<div class="list">
-  {% for g in goals %}
-  <details class="goalcard">
-    <summary>
-      <div class="gtop"><b>{{ g.title }}</b><span class="dots">{% for c in g.checks[-5:] %}<i class="{{ 'ok' if c.met else 'no' }}" title="{{ c.pct }} %"></i>{% endfor %}{% if not g.checks %}<span class="muted small">noch kein Check</span>{% endif %}</span></div>
-      <div class="muted small num">{{ g.label or "Runden mit diesem Fehler" }}: {{ g.baseline_pct }} % → Ziel ≤ {{ g.target_pct }} %{% if g.checks %} · zuletzt {{ g.checks[-1].pct }} %{% endif %}</div>
-    </summary>
-    <div class="gbody">
-      <p>{{ g.why }}</p>
-      <p class="gtip">{{ g.tip }}</p>
-      <b class="small">Training</b>
-      <ul>{% for d in g.drills %}<li>{{ d }}</li>{% endfor %}</ul>
-    </div>
-  </details>
-  {% endfor %}
-</div>
-{% endif %}
-
-<h2>Vor dem Match</h2>
-<div class="maps">
-  {% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}
-</div>
-
-{% if last %}
-<h2>Letztes Match</h2>
-<a class="item" href="{% if last.report_file %}/reports/{{ last.report_file }}{% else %}#{% endif %}">
-  <div class="map">{{ (last.map or "?").removeprefix("de_")[:2]|capitalize }}</div>
-  <div class="meta"><b class="num">{{ (last.map or "?").removeprefix("de_")|capitalize }} {{ last.won }}:{{ last.lost }}</b>
-    <span class="muted small" style="white-space:normal">{{ last.verdict }}</span></div>
-</a>
-{% endif %}
-
 </div>
 <div class="col">
-<h2>Neues Match auswerten</h2>
-<form class="card" id="form" action="/analyze" method="post" enctype="multipart/form-data">
-  <label class="drop" id="drop">
-    <input type="file" name="demo" id="file" accept=".dem,.bz2" required>
-    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#ffc46b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></div>
-    <b id="fname">Datei wählen</b>
-    <span class="muted small" id="fsize">.dem oder .dem.bz2</span>
-  </label>
-  <label class="prochk"><input type="checkbox" name="pro" value="1"> Pro-Demo (nur als Referenz speichern, kein Report)</label>
-  <details><summary>Andere Spieler als in players.yaml</summary>
-    <input class="field" type="text" name="steamids" placeholder="SteamID64, kommagetrennt"></details>
-  <button class="btn" id="go" type="submit" disabled>Analysieren</button>
-  <div id="up">
-    <div class="bar"><i id="upbar"></i></div>
-    <div class="stats num"><span id="uppct">Upload 0 %</span><span id="uprate"></span><span id="upeta"></span></div>
-    <p class="muted small" style="margin:10px 0 0">Während des Uploads Handy wach lassen. Danach läuft alles auf dem Server weiter.</p>
-  </div>
-  <div class="err" id="uperr" hidden></div>
-</form>
-
-{% if jobs %}
-<h2>In Arbeit</h2>
-<div class="list">
-  {% for j in jobs %}
-  <a class="item" href="/jobs/{{ j.id }}"><div class="map">…</div><div class="meta"><b>{{ j.name }}</b>
-    <span class="muted small">{{ j.stage }}</span><div class="bar mini"><i style="width:{{ (j.frac * 100)|round }}%"></i></div></div></a>
-  {% endfor %}
-</div>
-{% endif %}
-
-{% if n_history %}
-<a class="item" href="/progress" style="margin-top:16px;background:linear-gradient(135deg,rgba(255,159,28,.18),rgba(63,191,127,.12))">
-  <div class="map">↗</div><div class="meta"><b>Fortschritt</b><span class="muted small">{{ n_history }} Matches im Verlauf · Trends und Todes-Karte</span></div></a>
-{% endif %}
-
-<h2>Pro-Referenz</h2>
+<h2>Vor dem Match</h2>
 <div class="card">
-  {% if pro_overview %}
-  {% for m, st in pro_overview.items() %}<div class="num" style="margin-top:4px"><b>{{ m.removeprefix("de_")|capitalize }}</b>
-    {{ st.demos }} Demo{{ "s" if st.demos != 1 }} · {{ st.rounds }} Runden · {{ st.nades }} Granaten{% if st.demos < 3 %} <span class="muted small">(noch dünn, ab 3 Demos belastbarer)</span>{% endif %}{% if st.old %} <span class="muted small">({{ st.old }} nur Positionen)</span>{% endif %}</div>{% endfor %}
-  <div class="muted small" style="margin-top:8px">Jede Pro-Demo wird gespeichert und erweitert die Datenbasis. Eure Tod-Analysen zeigen dann, wie Pros dieselbe Situation spielen (Utility, Trade-Quote, häufigster Wurf). Eigene Reports der Map werden automatisch aktualisiert.</div>
-  {% else %}<div class="muted small">Noch keine Pro-Demos. Oben hochladen mit Haken bei "Pro-Demo": jede Demo wird gespeichert und fließt in alle Coach-Vergleiche ein.</div>{% endif %}
-  {% if faceit_ready %}
-  <form action="/pro/sync" method="post" style="margin-top:10px"><button class="btn" type="submit" style="height:44px;font-size:15px">Pro-Demos von FACEIT holen</button></form>
-  {% else %}<div class="muted small" style="margin-top:6px">Automatisch holen: FACEIT_API_KEY auf dem Server setzen (siehe README).</div>{% endif %}
+  <div class="small muted" style="margin-bottom:10px">Map wählen: Kabinenansprache mit euren Fehlern auf dieser Map.</div>
+  <div class="maps">
+    {% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}
+  </div>
 </div>
 
-<h2>Reports</h2>
-{% if reports %}
-<div class="list">
-  {% for r in reports %}
-  <a class="item" href="/reports/{{ r.file }}">
-    <div class="map">{{ r.map[:2] if r.map else "?" }}</div>
-    <div class="meta"><b>{{ r.map or r.name }}</b><span class="muted small">{{ r.date }}</span></div>
-    {% if r.won is not none %}<div class="score num"><span class="w">{{ r.won }}</span><span class="muted">:</span><span class="l">{{ r.lost }}</span></div>{% endif %}
-  </a>
-  {% endfor %}
-</div>
-{% else %}
-<div class="card empty">Noch keine Reports. Lade deine erste Demo hoch.</div>
-{% endif %}
+<h2>Match hochladen</h2>
+{% include "upload.html" %}
+{% include "jobs.html" %}
+{% if last %}<a class="more-link" href="/matches">Letztes Match: {{ (last.map or "?").removeprefix("de_")|capitalize }} {{ last.won }}:{{ last.lost }} ›</a>{% endif %}
 </div>
 </div>
-{% endblock %}
-{% block script %}
-<script>
-(() => {
-const $ = id => document.getElementById(id);
-const fmtMB = b => (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB';
-const fmtT = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' min' : s + ' s'; };
-$('file').onchange = e => {
-  const f = e.target.files[0];
-  $('fname').textContent = f ? f.name : 'Datei wählen';
-  $('fsize').textContent = f ? fmtMB(f.size) : '.dem oder .dem.bz2';
-  $('drop').classList.toggle('has', !!f); $('go').disabled = !f;
-};
-$('form').onsubmit = e => {
-  e.preventDefault();
-  const xhr = new XMLHttpRequest(), t0 = performance.now();
-  $('go').disabled = true; $('go').textContent = 'Lädt hoch …'; $('up').classList.add('show'); $('uperr').hidden = true;
-  xhr.upload.onprogress = ev => {
-    if (!ev.lengthComputable) return;
-    const p = ev.loaded / ev.total, dt = (performance.now() - t0) / 1000, rate = ev.loaded / Math.max(dt, .001);
-    $('upbar').style.width = (p * 100) + '%';
-    $('uppct').textContent = 'Upload ' + Math.floor(p * 100) + ' %';
-    $('uprate').textContent = fmtMB(rate) + '/s';
-    $('upeta').textContent = p < 1 ? 'noch ' + fmtT((ev.total - ev.loaded) / rate) : 'wird gespeichert …';
-  };
-  xhr.onload = () => {
-    if (xhr.status < 400) { location.href = xhr.responseURL; return; }
-    let msg = 'Fehler ' + xhr.status; try { msg = JSON.parse(xhr.responseText).detail || msg; } catch (_) {}
-    fail(msg);
-  };
-  xhr.onerror = () => fail('Verbindung abgebrochen. Handy während des Uploads wach lassen und erneut versuchen.');
-  function fail(msg) { $('uperr').textContent = msg; $('uperr').hidden = false; $('go').disabled = false; $('go').textContent = 'Erneut versuchen'; }
-  xhr.open('POST', '/analyze'); xhr.send(new FormData($('form')));
-};
-})();
-</script>
 {% endblock %}

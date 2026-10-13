@@ -49,4 +49,5 @@ def test_pipeline_writes_goals_and_report_shows_check(tmp_path):
     out = pipeline.run(src, {ME, BRO}, tmp_path / "out")
     state = goals.load(pipeline.GOALS_FILE)
     assert state["active"]  # Economy-Ursache -> Ziel
-    assert "Ziel-Check" in out.read_text()  # "Neue Ziele" werden angezeigt
+    html = out.read_text()
+    assert 'data-tab="coach"' in html and 'data-tab="runden"' in html and 'class="gnav"' in html

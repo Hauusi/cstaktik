@@ -1,0 +1,9 @@
+{% if jobs %}
+<h2>In Arbeit</h2>
+<div class="list">
+  {% for j in jobs %}
+  <a class="item" href="/jobs/{{ j.id }}"><div class="map">…</div><div class="meta"><b>{{ j.name }}</b>
+    <span class="muted small">{{ j.stage }}</span><div class="bar mini"><i style="width:{{ (j.frac * 100)|round }}%"></i></div></div></a>
+  {% endfor %}
+</div>
+{% endif %}

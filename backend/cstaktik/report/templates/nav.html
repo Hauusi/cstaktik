@@ -1,0 +1,26 @@
+{# Globale Navigation: unten am Handy, oben am PC. nav_active = coach|matches|training|progress|pro #}
+<style>
+.gnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: grid; grid-template-columns: repeat(5, 1fr);
+  background: #0c0d0f; border-top: 1px solid #262a30; padding-bottom: env(safe-area-inset-bottom); }
+.gnav a { display: grid; justify-items: center; gap: 3px; padding: 8px 2px 7px; color: #8a8f98; text-decoration: none;
+  font: 600 11px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; border-top: 2px solid transparent; }
+.gnav a svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.gnav a.on { color: #e9e6df; border-top-color: #ff9f1c; }
+.gnav a.on svg { stroke: #ff9f1c; }
+body { padding-bottom: calc(62px + env(safe-area-inset-bottom)); }
+@media (min-width: 960px) {
+  .gnav { position: static; display: flex; justify-content: center; gap: 4px; border-top: 0; border-bottom: 1px solid #262a30; padding: 0 16px; }
+  .gnav a { display: flex; gap: 8px; padding: 14px 18px 12px; font-size: 15px; border-top: 0; border-bottom: 2px solid transparent; }
+  .gnav a svg { width: 18px; height: 18px; }
+  .gnav a.on { border-bottom-color: #ff9f1c; }
+  .gnav a:hover { color: #e9e6df; }
+  body { padding-bottom: 0; }
+}
+</style>
+<nav class="gnav" aria-label="Navigation">
+  <a href="/" class="{{ 'on' if nav_active == 'coach' }}"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Coach</a>
+  <a href="/matches" class="{{ 'on' if nav_active == 'matches' }}"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18M8 4v16"/></svg>Matches</a>
+  <a href="/training" class="{{ 'on' if nav_active == 'training' }}"><svg viewBox="0 0 24 24"><path d="M4 12h3M17 12h3M7 8v8M17 8v8M7 12h10"/></svg>Training</a>
+  <a href="/progress" class="{{ 'on' if nav_active == 'progress' }}"><svg viewBox="0 0 24 24"><path d="M4 19h16M6 16l4-5 3 3 5-7"/></svg>Fortschritt</a>
+  <a href="/pro" class="{{ 'on' if nav_active == 'pro' }}"><svg viewBox="0 0 24 24"><path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/></svg>Pro</a>
+</nav>
