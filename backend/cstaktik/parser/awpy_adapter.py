@@ -107,6 +107,37 @@ def thin_path(points: list[tuple[int, float, float, float]], every: int) -> list
     return out
 
 
+def blinds_from_flash_duration(dem, utility: list, missing: list[str]) -> list[Blind]:
+    """Ersatz, wenn das Event player_blind nichts liefert: Spieler, deren flash_duration kurz nach einer
+    Flash-Detonation steigt (Wert aus der Demo, Tick-2 gegen Tick+3). Angreifer = Werfer der Flash."""
+    dets = [u for u in utility if u.kind == "flash"]
+    if not dets:
+        return []
+    ticks = sorted({u.start_tick - 2 for u in dets} | {u.start_tick + 3 for u in dets})
+    try:
+        df = dem.parser.parse_ticks(["flash_duration"], ticks=ticks)
+        recs = df.to_dicts() if hasattr(df, "to_dicts") else df.to_dict("records")
+    except Exception as exc:  # noqa: BLE001
+        missing.append(f"Blendungen nicht lesbar (flash_duration: {type(exc).__name__})")
+        return []
+    fd: dict[tuple[int, str], float] = {}
+    for rec in recs:
+        sid, v = _sid(rec.get("steamid")), _num(rec.get("flash_duration"))
+        if sid is not None and v is not None:
+            fd[(int(rec["tick"]), sid)] = v
+    out = []
+    for u in dets:
+        after_t = u.start_tick + 3
+        for (t, sid), v in fd.items():
+            if t != after_t or v <= 0:
+                continue
+            if v > fd.get((u.start_tick - 2, sid), 0.0) + 0.1:
+                out.append(Blind(round=u.round, tick=u.start_tick, victim_steamid=sid,
+                                 attacker_steamid=u.thrower_steamid, duration=round(v, 2)))
+    missing.append(f"Blendungen aus flash_duration abgeleitet (player_blind leer): {len(out)}")
+    return out
+
+
 THROW_MAX_GAP = 150  # Units zwischen Werfer und erstem Flugpunkt, darüber gilt die Wurfposition als unsicher
 THROW_GAP_TICKS = 16  # größere Lücke in den Ticks einer Entity-ID: neuer Wurf
 
@@ -499,8 +530,12 @@ def parse_demo(
                 Blind(round=rnd, tick=int(rec["tick"]), victim_steamid=victim,
                       attacker_steamid=_sid(rec.get("attacker_steamid")), duration=round(dur, 2))
             )
+        if recs and not blinds:
+            missing.append(f"player_blind: {len(recs)} Events, keins nutzbar (Felder: {', '.join(sorted(recs[0]))[:120]})")
     except Exception as exc:  # noqa: BLE001
         missing.append(f"Blendungen nicht lesbar ({type(exc).__name__}: {str(exc)[:80]})")
+    if not blinds:
+        blinds = blinds_from_flash_duration(dem, utility, missing)
 
     # --- Bombe -------------------------------------------------------------------------
     bomb: list[BombEvent] = []

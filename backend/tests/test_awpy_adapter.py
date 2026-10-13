@@ -140,3 +140,26 @@ def test_split_throws_reused_entity_id():
     c = [{"tick": t, "thrower_steamid": 1, "grenade_type": "smokegrenade", "round_num": 1} for t in range(400, 420, 2)]
     parts = split_throws(a + b + c)
     assert [len(p) for p in parts] == [20, 10, 10]  # anderer Werfer und Tick-Lücke trennen
+
+
+def test_blinds_from_flash_duration_fallback():
+    from cstaktik.model import UtilityArea, Vec
+    from cstaktik.parser.awpy_adapter import blinds_from_flash_duration
+
+    class P:
+        def parse_ticks(self, props, ticks=None):
+            assert props == ["flash_duration"]
+            rows = []
+            for t in ticks:  # A wird geblendet (0 -> 2.4), B war schon geblendet (3.0 -> 3.0)
+                rows.append({"tick": t, "steamid": A, "flash_duration": 2.4 if t > 500 else 0.0})
+                rows.append({"tick": t, "steamid": B, "flash_duration": 3.0})
+            return pd.DataFrame(rows)
+
+    class D:
+        parser = P()
+
+    flash = UtilityArea(round=1, kind="flash", start_tick=501, end_tick=501, thrower_steamid=str(B), pos=Vec(x=0, y=0))
+    missing = []
+    bl = blinds_from_flash_duration(D(), [flash], missing)
+    assert [(b.victim_steamid, b.attacker_steamid, b.duration) for b in bl] == [(str(A), str(B), 2.4)]
+    assert "abgeleitet" in missing[0]
