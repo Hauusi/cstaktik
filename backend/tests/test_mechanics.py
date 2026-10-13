@@ -168,3 +168,11 @@ def test_death_review_other_deaths_blind_and_duel_damage():
     k.weapon = "hegrenade"
     f = next(f for f in death_review.run(m, cfg) if f.tick == k.tick)
     assert f.rule_id == "death_other" and f.title == "Tod: HE"
+
+
+def test_lesson_ids_count_every_issue_once():
+    from cstaktik.coach_voice import lesson_ids
+
+    fx = {"label": "Geblendet", "issues": ["Geblendet", "Allein, kein Trade", "Utility nicht genutzt", "Allein, kein Trade"]}
+    assert lesson_ids(fx, "blind") == ["blind", "alone", "utility"]
+    assert lesson_ids({"issues": []}, "duel") == ["duel"]

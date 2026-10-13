@@ -66,7 +66,7 @@ S.forEach((sc, i) => {
       });
       const res = el('div', 'res');
       if (best) { n++; if (k === best) ok++; }
-      const v = best ? (k === best ? el('div', 'v ok', 'Wie die Pros') : el('div', 'v no', 'Pros wählen hier: ' + OPTS.find(o => o[0] === best)[1]))
+      const v = best ? (k === best ? el('div', 'v ok', 'Höchste Pro-Siegquote') : el('div', 'v no', 'Höchste Pro-Siegquote hat: ' + OPTS.find(o => o[0] === best)[1]))
                      : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage');
       res.append(v, el('div', null, sc.happened));
       const nx = el('div', 'nx'); nx.append(el('b', null, 'Nächstes Mal'), sc.next); res.appendChild(nx);

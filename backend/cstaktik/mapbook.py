@@ -117,10 +117,10 @@ def _verdict(row: dict, cfg: dict) -> dict:
     bad = False
     if row["first_pct"] >= cfg.get("first_death_bad_pct", 40):
         bad = True
-        why.append(f"In {row['first']} von {n} Runden hier als Erster gestorben.")
+        why.append(f"In {row['first']} von {n} Runden von diesem Spot aus als Erster gestorben.")
     if row["untraded_pct"] is not None and row["untraded_pct"] >= cfg.get("untraded_bad_pct", 40):
         bad = True
-        why.append(f"In {row['untraded']} von {n} Runden hier ohne Trade gestorben.")
+        why.append(f"In {row['untraded']} von {n} Runden von diesem Spot aus ohne Trade gestorben.")
     if bad:
         return {"verdict": "problem", "why": why}
     if row["won_pct"] >= cfg.get("win_good_pct", 55) and row["first_pct"] <= cfg.get("first_death_good_pct", 25):

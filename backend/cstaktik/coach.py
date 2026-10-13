@@ -154,6 +154,9 @@ def diagnose(match: MatchData, result: AnalysisResult, cfg: dict, mech_cfg: dict
         in_won = sorted(r for r in won_rounds if per.get(r, {}).get(cid))
         if len(in_lost) < cfg["cause_min_lost_rounds"]:
             continue
+        # nur, wenn die Ursache in verlorenen Runden häufiger ist als in gewonnenen (sonst kein Grund fürs Verlieren)
+        if won_rounds and lost_rounds and len(in_won) / len(won_rounds) >= len(in_lost) / len(lost_rounds):
+            continue
         causes.append({"id": cid, **meta, "lost_rounds": in_lost, "won_rounds": in_won,
                        "share": round(len(in_lost) / len(lost_rounds), 2) if lost_rounds else 0})
     # Wirkung: mehr verlorene Runden zuerst; bei Gleichstand die Ursache, die in Siegrunden seltener ist
@@ -163,7 +166,8 @@ def diagnose(match: MatchData, result: AnalysisResult, cfg: dict, mech_cfg: dict
     good = [f for f in result.findings if f.severity == "gut"]
     won, lost = len(won_rounds), len(lost_rounds)
     if top:
-        parts = [f"{c['title']} ({len(c['lost_rounds'])} von {lost} verlorenen Runden)" for c in top[:2]]
+        parts = [f"{c['title']} ({len(c['lost_rounds'])} von {lost} verlorenen Runden"
+                 + (f", {len(c['won_rounds'])} von {won} gewonnenen" if won else "") + ")" for c in top[:2]]
         sentence = "Hauptgründe: " + "; ".join(parts) + "."
     elif lost:
         sentence = "Kein klares Muster in den verlorenen Runden gefunden."
@@ -256,8 +260,8 @@ def duo(match: MatchData, cfg: dict) -> dict | None:
         if side is None or r.winner is None or r.sides.get(a) != r.sides.get(b):
             continue
         pa, pb = idx.path(r.num, a), idx.path(r.num, b)
-        pb_by_tick = {p.tick: p for p in pb}
-        d = [dist(p.pos, pb_by_tick[p.tick].pos) for p in pa if p.tick in pb_by_tick]
+        pb_by_tick = {p.tick: p for p in pb if p.alive}
+        d = [dist(p.pos, pb_by_tick[p.tick].pos) for p in pa if p.alive and p.tick in pb_by_tick]  # nur beide lebend
         if not d:
             continue
         avg = mean(d)

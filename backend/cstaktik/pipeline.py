@@ -168,10 +168,10 @@ def _coach(match: MatchData, config: dict):
     enrich(match, result.findings, hist)
     pro = _pro.load_all(PRO_DIR)
     enrich_pro(match, result.findings, pro)
-    # Gewinnchance je Lage: eure anderen Matches + Pro-Demos + dieses Match
+    # Gewinnchance je Lage: eure anderen Matches + Pro-Demos. Dieses Match nicht, sonst bewertet es sich selbst.
     me = match.source_sha256 or match.source_file
     states = [s for h in hist if h.get("id") != me for s in h.get("states", [])]
-    states += [s for d in pro for s in d.get("states", [])] + situation.round_states(match)
+    states += [s for d in pro for s in d.get("states", [])]
     model = situation.WinModel(states, config["situation"]["win_min_rounds"])
     situation.enrich(match, result.findings, model, config["situation"], config["coach"]["trade_window_s"])
     situation.enrich_pro(match, result.findings, pro, config["situation"]["pro_min_cases"])

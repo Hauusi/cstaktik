@@ -1716,7 +1716,7 @@ function quizAnswer(f, pick) {
     if (k === mine) b.appendChild(el('small', null, 'Das hast du gemacht: Tod' + (ev.cost_pct > 0 ? `, -${ev.cost_pct} % Rundenchance` : '')));
   });
   let verdict;
-  if (best) verdict = pick === best ? 'Wie die Pros: Diese Option gewinnt in dieser Lage am häufigsten.'
+  if (best) verdict = pick === best ? 'Richtig: Mit dieser Option gewinnen Pros diese Lage am häufigsten (Siegquote).'
                                      : 'Die Pros gewinnen in dieser Lage am häufigsten mit: ' + QOPTS.find(o => o[0] === best)[1] + '.';
   else verdict = 'Zu wenige Pro-Daten, um Optionen in dieser Lage zu vergleichen. Sieh dir an, was passiert ist.';
   const res = el('div', 'qres'); res.append(el('b', null, verdict));
@@ -1804,7 +1804,7 @@ function dbBuild() {
             if (r) o.appendChild(el('small', null, `Pros: ${r[1]}x, ${Math.round(100 * r[0] / r[1])} % Siege`));
           });
           const res = el('div', 'box ' + (best && k === best ? 'good' : 'bad'));
-          res.appendChild(el('div', null, best ? (k === best ? 'Richtig gedacht. Genau so spielen es Pros hier am erfolgreichsten.' : 'Pros gewinnen diese Lage am häufigsten mit: ' + ACT[best] + '.') : 'Für diese Lage fehlen Pro-Daten. Entscheidend ist, was der Coach dir sagt:'));
+          res.appendChild(el('div', null, best ? (k === best ? 'Richtig gedacht: Mit dieser Option gewinnen Pros diese Lage am häufigsten.' : 'Pros gewinnen diese Lage am häufigsten mit: ' + ACT[best] + '.') : 'Für diese Lage fehlen Pro-Daten. Entscheidend ist, was der Coach dir sagt:'));
           if (cv) { const nx = el('div'); nx.style.marginTop = '8px'; nx.append(el('b', null, 'Nächstes Mal: '), cv.next); res.appendChild(nx); }
           d.appendChild(res);
         };

@@ -371,7 +371,14 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
         if model is None:
             continue
         before = alive_at(match, rnd, f.tick)
-        after = alive_at(match, rnd, f.tick + int(trade_window_s * tr) + 1)
+        # Danach = nur dieser Tod und ein echter Trade (Killer stirbt durch das Team des Opfers); andere Tode
+        # im Fenster gehören zu anderen Spielern und würden sonst doppelt gezählt.
+        opp_side = "t" if side == "ct" else "ct"
+        trade = death.attacker_steamid and any(
+            x.round == rnd.num and x.victim_steamid == death.attacker_steamid and x.attacker_side == side
+            and f.tick < x.tick <= f.tick + trade_window_s * tr for x in match.kills)
+        after = {side: [s for s in before[side] if s != f.steamid],
+                 opp_side: [s for s in before[opp_side] if not (trade and s == death.attacker_steamid)]}
         pl_b = planted_at(match, rnd.num, f.tick) is not None
         pl_a = planted_at(match, rnd.num, f.tick + int(trade_window_s * tr)) is not None
         eq = eq_bucket(rnd)
@@ -383,7 +390,7 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
             continue
         cost = round(100 * (pb[0] - pa[0]))
         f.evidence["cost_pct"] = cost
-        traded = len(after["t" if side == "ct" else "ct"]) < len(before["t" if side == "ct" else "ct"])
+        traded = bool(trade)
         rough = " (grobe Lage, wenig Daten)" if pb[2] or pa[2] else ""
         f.evidence["chance"] = (f"Rundenchance vorher {_pct(pb[0])}, danach {_pct(pa[0])}"
                                 + (" (inkl. Trade)" if traded else "") + rough

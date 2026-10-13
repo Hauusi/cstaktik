@@ -105,13 +105,17 @@ def death_rows(match: MatchData, trade_window_s: float = 3.0) -> list[dict]:
 
 
 def lessons(result: AnalysisResult) -> dict[str, dict[str, int]]:
-    """Je Fokus-Spieler: Anzahl je Coach-Lektion (coach_voice) in diesem Match."""
+    """Je Fokus-Spieler: Anzahl je Coach-Lektion (coach_voice) in diesem Match. Jeder Fehler eines Todes
+    zählt (nicht nur der Titel), damit Raten nicht springen, wenn sich die Reihenfolge der Probleme ändert."""
+    from cstaktik.coach_voice import lesson_ids
+
     out: dict[str, dict[str, int]] = {}
     for f in result.findings:
         v = f.evidence.get("coach")
         if v and f.steamid:
             d = out.setdefault(f.steamid, {})
-            d[v["id"]] = d.get(v["id"], 0) + 1
+            for lid in lesson_ids(f.evidence.get("f") or {}, v["id"]):
+                d[lid] = d.get(lid, 0) + 1
     return out
 
 

@@ -94,6 +94,17 @@ def _trade_units() -> float:
     return load_rules_config()["rules"]["death_review"]["trade_distance_units"]
 
 
+def lesson_ids(fx: dict, main: str, close_units: int = 600) -> list[str]:
+    """Alle Lektionen eines Todes: die Haupt-Lektion und die der weiteren Probleme (ohne Doppelte).
+    Für Raten und Trends; sonst wandert ein Tod beim Besserwerden einer Lektion in die nächste."""
+    out = [main]
+    for lbl in (fx.get("issues") or [])[1:]:
+        lid = lesson_id({**fx, "label": lbl}, close_units)
+        if lid not in out and lid != "duel":
+            out.append(lid)
+    return out
+
+
 def _lage_sentence(snap: dict | None) -> str | None:
     if not snap:
         return None
@@ -205,7 +216,7 @@ def _pro_line(ev: dict) -> str | None:
     if not best or best not in rates:
         return None
     won, n = rates[best]
-    line = f"Pros in dieser Lage: meist {ACTION_SHORT[best]} ({round(100 * won / n)} % Siege)."
+    line = f"Pros in dieser Lage: höchste Siegquote mit {ACTION_SHORT[best]} ({round(100 * won / n)} % von {n} Fällen)."
     if mine and mine != best and mine in rates:
         w2, n2 = rates[mine]
         line += f" {ACTION_SHORT[mine].capitalize()} wie du: {round(100 * w2 / n2)} %."

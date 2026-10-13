@@ -56,7 +56,7 @@ def test_mapbook_rates_spots_and_compares_with_pros():
     ct = book["sides"]["ct"]
     con = ct["spots"][0]
     assert con["place"] == "Connector" and con["n"] == 5 and con["first"] == 3 and con["untraded"] == 3
-    assert con["verdict"] == "problem" and "In 3 von 5 Runden hier als Erster gestorben." in con["why"]
+    assert con["verdict"] == "problem" and "In 3 von 5 Runden von diesem Spot aus als Erster gestorben." in con["why"]
     assert con["pro"]["share"] == 33 and con["pro"]["n"] == 4  # 4 von 12 Pro-Runden
     assert con["lineups"] and con["lineups"][0]["to"] == "Mid"
     assert ct["spots"][1]["verdict"] == "offen"  # Jungle: nur 1 Runde

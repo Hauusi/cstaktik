@@ -18,9 +18,12 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
         for k in match.kills:
             if k.victim_steamid != sid:
                 continue
-            dealt = sum(
+            rnd = match.round_by_num(k.round)
+            sides = rnd.sides if rnd else {}
+            dealt = sum(  # nur Schaden an Gegnern (Teamschaden zählt nicht)
                 d.dmg for d in match.damages
-                if d.round == k.round and d.attacker_steamid == sid and d.victim_steamid != sid and d.tick <= k.tick
+                if d.round == k.round and d.attacker_steamid == sid and d.tick <= k.tick
+                and sides.get(d.victim_steamid) not in (None, k.victim_side)
             )
             if dealt == 0:
                 rounds.append(k.round)

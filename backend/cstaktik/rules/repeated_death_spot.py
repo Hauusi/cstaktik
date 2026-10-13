@@ -40,7 +40,10 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
     findings: list[Finding] = []
     for sid in sorted(match.focus_ids()):
         deaths = [k for k in match.kills if k.victim_steamid == sid]
-        for place, group in _clusters(deaths, cfg["radius_units"]):
+        # je Seite getrennt: als CT-Anker und als T-Entry am selben Ort sterben ist nicht "gelesen"
+        groups = [(pl, side, g) for side in ("ct", "t")
+                  for pl, g in _clusters([k for k in deaths if k.victim_side == side], cfg["radius_units"])]
+        for place, side, group in groups:
             if len(group) < cfg["min_deaths"]:
                 continue
             rounds = sorted({k.round for k in group})
@@ -54,7 +57,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                     steamid=sid,
                     player_name=match.name_of(sid),
                     severity="hoch" if len(group) >= 3 else "mittel",
-                    text=f"{len(group)}x gestorben in {place} (Runden {', '.join(map(str, rounds))}).",
+                    text=f"{len(group)}x als {side.upper()} gestorben in {place} (Runden {', '.join(map(str, rounds))}).",
                     tip="Die Position ist gelesen: Spot wechseln, anders timen oder nur mit Utility spielen.",
                     evidence={
                         "ort": place,
