@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     pp = sub.add_parser("pro", help="Pro-Demo als Referenz speichern (kein Report)")
     pp.add_argument("file", type=Path)
 
+    dg = sub.add_parser("diagnose", help="Echtdaten-Check einer Demo (Text zum Kalibrieren der Schwellen)")
+    dg.add_argument("file", type=Path)
     cs = sub.add_parser("check-spotted", help="Prüfen, ob eine Demo die Radar-Sichtbarkeit (spotted) liefert")
     cs.add_argument("file", type=Path)
     sub.add_parser("pro-update", help="Alte Pro-Daten nachrüsten und alle eigenen Reports neu bauen")
@@ -83,6 +85,21 @@ def main(argv: list[str] | None = None) -> int:
         info = pipeline.run_pro(args.file)
         print(f"Pro-Demo gespeichert: {info['map']}, {info['rounds']} Runden, {info['nades']} Granaten; "
               f"{info['reports']} eigene Reports aktualisiert")
+        return 0
+
+    if args.cmd == "diagnose":
+        from cstaktik import diagnose, pipeline
+        from cstaktik.config import load_focus_steamids, load_rules_config
+
+        config = load_rules_config()
+        match = pipeline.load_any(pipeline.prepare_demo(args.file), load_focus_steamids(), config)
+        result, _clips = pipeline._coach(match, config)
+        text = diagnose.report(match, result.findings, config)
+        print(text)
+        out = pipeline.REPORTS_DIR / f"diagnose-{pipeline.demo_stem(args.file.name)}.txt"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        print(f"\nGespeichert: {out} (im Browser: /reports/{out.name})")
         return 0
 
     if args.cmd == "check-spotted":
