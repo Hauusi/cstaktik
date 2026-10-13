@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Map-Buch {{ label }} – cstaktik{% endblock %}
+{% block head %}
+<style>
+.spot { padding: 14px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line); scroll-margin-top: 16px; }
+.spot + .spot { margin-top: 10px; }
+.spot.problem { border-left-color: #e5484d; } .spot.stark { border-left-color: #46a758; } .spot.okay { border-left-color: #ff9f1c; }
+.spot .hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.spot .pl { font-family: var(--cond); font-weight: 800; font-size: 22px; text-transform: uppercase; line-height: 1.1; }
+.spot .kpis { margin-top: 10px; grid-template-columns: repeat(4, 1fr); }
+.spot .kpis b { font-size: 20px; }
+.why { margin: 10px 0 0; padding-left: 18px; font-size: 14.5px; }
+.prol { margin-top: 10px; padding: 10px 12px; border-left: 3px solid #9db4e0; background: rgba(157,180,224,.07); font-size: 14px; }
+.prol b.h { display: block; font-family: var(--cond); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #9db4e0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips a { padding: 5px 9px; border: 1px solid var(--line); font-size: 13px; font-weight: 650; }
+.chips a.W { border-color: #46a758; } .chips a.L { border-color: #e5484d; }
+.sidebar { display: flex; gap: 6px; margin: 4px 0 4px; }
+.prot { width: 100%; border-collapse: collapse; font-size: 14px; }
+.prot td, .prot th { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+.prot th { font-family: var(--cond); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+</style>
+{% endblock %}
+{% block hero %}
+<a class="back" href="/training">‹ Training</a>
+<h1>Map-Buch {{ label }}</h1>
+{% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/mapbook/{{ map_name }}?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<p>{% if book %}{{ who }} · {{ book.matches }} Match{{ "es" if book.matches != 1 }} auf {{ label }}. Spot = wo du nach {{ book.at }} Rundenzeit stehst.{% else %}Noch keine Matches auf {{ label }}.{% endif %}</p>
+{% endblock %}
+{% block content %}
+{% if book %}
+<div class="sidebar"><a class="mapbtn" href="#side-ct">CT-Seite</a><a class="mapbtn" href="#side-t">T-Seite</a></div>
+<div class="cols">
+{% for side, sd in book.sides.items() %}
+<div class="col">
+<h2 id="side-{{ side }}">{{ sd.label }}-Seite · {{ sd.rounds }} Runden</h2>
+{% for s in sd.spots %}
+<div class="spot {{ s.verdict }}" id="spot-{{ side }}-{{ s.place }}">
+  <div class="hd"><span class="pl">{{ s.place }}</span><span class="vtag {{ s.verdict }}">{{ {"problem": "Anpassen", "stark": "Halten", "okay": "Okay", "offen": "Zu wenig Daten"}[s.verdict] }}</span></div>
+  <div class="kpis num">
+    <div><b>{{ s.n }}</b><span>Runden</span></div>
+    <div><b>{{ s.won_pct }} %</b><span>gewonnen</span></div>
+    <div><b>{{ s.first }}</b><span>als Erster tot</span></div>
+    <div><b>{{ s.untraded if s.untraded is not none else "–" }}</b><span>ohne Trade tot</span></div>
+  </div>
+  <ul class="why">{% for w in s.why %}<li>{{ w }}</li>{% endfor %}
+    {% if s.death_places %}<li>Gestorben in: {% for p, n in s.death_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}</li>{% endif %}</ul>
+  {% if s.pro is defined %}
+  <div class="prol"><b class="h">Pros auf {{ label }} ({{ sd.label }})</b>
+    {% if s.pro.n %}Stehen nach {{ book.at }} in {{ s.pro.share }} % der Runden hier{% if s.pro.won_pct is not none %} · gewinnen {{ s.pro.won_pct }} %{% endif %}{% if s.pro.first_pct is not none %} · sterben hier in {{ s.pro.first_pct }} % als Erster{% endif %}.
+    {% else %}Kein Pro stand in euren Pro-Demos nach {{ book.at }} hier.{% endif %}
+    {% if s.lineups %}<div class="chips">{% for l in s.lineups %}<a href="/lineups/{{ map_name }}?l={{ l.id }}">{{ l.kind_de }} → {{ l.to or "?" }} ({{ l.n }}x)</a>{% endfor %}</div>{% endif %}
+  </div>
+  {% endif %}
+  <div class="chips">{% for r in s.rounds %}{% if r.report %}<a class="{{ 'W' if r.won else 'L' }}" href="/reports/{{ r.report }}#r{{ r.round }}">{{ r.date[8:10] }}.{{ r.date[5:7] }}. R{{ r.round }}</a>{% endif %}{% endfor %}</div>
+</div>
+{% else %}<div class="card empty">Noch keine Runden auf dieser Seite.</div>{% endfor %}
+{% if sd.pro_spots %}
+<h2>So stehen Pros nach {{ book.at }} · {{ sd.pro_rounds }} Pro-Runden</h2>
+<div class="card"><table class="prot num">
+  <tr><th>Spot</th><th>Anteil</th><th>Siege</th><th>Erster tot</th><th>Lineups</th></tr>
+  {% for p in sd.pro_spots %}<tr><td><b>{{ p.place }}</b></td><td>{{ p.share }} %</td><td>{{ p.won_pct ~ " %" if p.won_pct is not none else "–" }}</td><td>{{ p.first_pct ~ " %" if p.first_pct is not none else "–" }}</td><td>{% if p.lineups %}<a href="/lineups/{{ map_name }}?side={{ side }}" style="color:var(--orange)">{{ p.lineups }}</a>{% else %}–{% endif %}</td></tr>{% endfor %}
+</table></div>
+{% elif sd.spots %}
+<p class="small muted">Pro-Vergleich ab {{ cfg.min_pro_rounds }} Pro-Runden auf dieser Map und Seite. <a href="/pro" style="color:var(--orange)">Pro-Demos hochladen ›</a></p>
+{% endif %}
+</div>
+{% endfor %}
+</div>
+<p class="small muted" style="margin-top:20px">Bewertung: „Anpassen“ ab {{ cfg.first_death_bad_pct }} % der Runden als Erster bzw. {{ cfg.untraded_bad_pct }} % ohne Trade gestorben, „Halten“ ab {{ cfg.win_good_pct }} % Siegen und höchstens {{ cfg.first_death_good_pct }} % als Erster tot, ab {{ cfg.min_rounds }} Runden (rules.yaml, mapbook). Zahlen aus euren Demos.</p>
+{% else %}
+<div class="card empty">Noch keine Matches auf {{ label }}.</div>
+{% endif %}
+{% endblock %}

@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from cstaktik import pipeline
+from cstaktik.config import load_rules_config
 
 app = FastAPI(title="cstaktik")
 
@@ -195,12 +196,12 @@ def training_done(p: str = "") -> RedirectResponse:
     return RedirectResponse("/", status_code=303)
 
 
-@app.get("/training", response_class=HTMLResponse)
-def training_page(p: str = "") -> str:
+@app.get("/training/situationen", response_class=HTMLResponse)
+def quiz_page(p: str = "") -> str:
     """Entscheidungs-Training mit eigenen Situationen aus allen Matches, zuerst zum laufenden Auftrag."""
     import json as _json
 
-    from cstaktik import coaching, history
+    from cstaktik import history
     from cstaktik.coach_voice import LESSONS
 
     hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
@@ -218,8 +219,149 @@ def training_page(p: str = "") -> str:
                        ensure_ascii=False).replace("</", "<\\/")
     names = {s: pp["name"] for h in hist for s, pp in h.get("players", {}).items()}
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
-    return _env.get_template("training.html").render(nav_active="training", title=LESSONS[lesson][0] if lesson else None, n=len(pick),
+    return _env.get_template("quiz.html").render(nav_active="training", title=LESSONS[lesson][0] if lesson else None, n=len(pick),
                                                      data_json=data, tabs=tabs, who=names.get(sid))
+
+
+def _load_hist() -> list[dict]:
+    from cstaktik import history
+
+    return history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+
+
+def _names(hist: list[dict]) -> dict[str, str]:
+    return {s: pp["name"] for h in hist for s, pp in h.get("players", {}).items()}
+
+
+def _player_maps(hist: list[dict], sid: str | None) -> list[str]:
+    """Maps des Spielers, zuletzt gespielte zuerst."""
+    played = [h.get("map") for h in reversed(hist) if h.get("map") and (sid is None or sid in h.get("players", {}))]
+    return list(dict.fromkeys(played))
+
+
+def _plan_ctx(hist: list[dict], pro_all: list[dict], sid: str, focus: dict) -> dict:
+    from cstaktik import lineups, mapbook
+    from cstaktik.curriculum import TEACH
+
+    cfg = load_rules_config()["mapbook"]
+    maps = _player_maps(hist, sid)
+    m = maps[0] if maps else None
+    spot = lineup = None
+    if m:
+        book = mapbook.build(hist, pro_all, m, sid, cfg)
+        spot = mapbook.worst_spot(book)
+        cands = (spot or {}).get("lineups") or []
+        if not cands:
+            side = (spot or {}).get("side")
+            allx = lineups.build(pro_all, m)
+            cands = [l for l in allx if side is None or l["side"] == side] or allx
+        lineup = cands[0] if cands else None
+    scenes = sum(1 for sc in _all_scenes(hist) if sc.get("sid") in (sid, None))
+    t = TEACH[focus["lesson"]]
+    return {"sid": sid, "lesson": focus["lesson"], "routine": t["routine"], "map": m,
+            "map_label": m.removeprefix("de_").capitalize() if m else None, "spot": spot, "lineup": lineup,
+            "scenes": scenes}
+
+
+@app.get("/training", response_class=HTMLResponse)
+def training_page(p: str = "") -> str:
+    """Trainings-Zentrale: Wochenplan je Spieler, Map-Buch, Lineups, Situationen."""
+    from cstaktik import coaching, pro, weekplan
+    from cstaktik.coach_voice import LESSONS
+
+    hist = _load_hist()
+    names = _names(hist)
+    state = coaching.load(pipeline.COACHING_FILE)
+    players = state.get("players", {})
+    sid = p if p in players else next((s for s, v in sorted(players.items(), key=lambda kv: names.get(kv[0], kv[0]))
+                                       if v.get("focus")), None)
+    slot = players.get(sid) or {}
+    focus = slot.get("focus")
+    plan = chk = key = None
+    past = []
+    if sid and focus:
+        key, plan, changed = weekplan.ensure(slot, _plan_ctx(hist, pro.load_all(pipeline.PRO_DIR), sid, focus))
+        if changed:
+            coaching.save(state, pipeline.COACHING_FILE)
+        chk = weekplan.check(key, plan, hist, sid, focus)
+        for k in sorted(slot.get("weeks", {}), reverse=True):
+            if k != key:
+                past.append(weekplan.check(k, slot["weeks"][k], hist, sid, None)
+                            | {"title": LESSONS.get(slot["weeks"][k]["lesson"], ("?",))[0]})
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
+    return _env.get_template("training.html").render(
+        nav_active="training", tabs=tabs, sid=sid, who=names.get(sid), plan=plan, week=key, chk=chk, past=past[:4],
+        title=LESSONS[focus["lesson"]][0] if focus else None, maps=_player_maps(hist, sid) or ["de_mirage"],
+        pro_maps=sorted({d.get("map") for d in pro.load_all(pipeline.PRO_DIR) if d.get("map")}))
+
+
+@app.post("/training/plan")
+def plan_toggle(p: str = "", task: str = "", week: str = "") -> RedirectResponse:
+    from cstaktik import coaching, weekplan
+
+    state = coaching.load(pipeline.COACHING_FILE)
+    slot = state.get("players", {}).get(p)
+    if slot:
+        now = weekplan.toggle(slot, week, task)
+        if now and task.startswith("routine") and slot.get("focus"):
+            coaching.drill_done(slot, slot["focus"]["lesson"])
+        if now is not None:
+            coaching.save(state, pipeline.COACHING_FILE)
+    return RedirectResponse(f"/training?p={p}#plan", status_code=303)
+
+
+@app.get("/mapbook/{map_name}", response_class=HTMLResponse)
+def mapbook_page(map_name: str, p: str = "") -> str:
+    from cstaktik import mapbook, pro
+
+    if not re.fullmatch(r"[a-z0-9_]+", map_name):
+        raise HTTPException(400, "Ungültiger Mapname.")
+    hist = _load_hist()
+    names = _names(hist)
+    focus_ids = sorted({s for h in hist if h.get("map") == map_name for t in h.get("timeline", []) for s in [t["sid"]]},
+                       key=lambda s: names.get(s, s))
+    sid = p if p in focus_ids else (focus_ids[0] if focus_ids else None)
+    book = mapbook.build(hist, pro.load_all(pipeline.PRO_DIR), map_name, sid, load_rules_config()["mapbook"]) \
+        if sid else None
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in focus_ids]
+    return _env.get_template("mapbook.html").render(nav_active="training", book=book, cfg=load_rules_config()["mapbook"], tabs=tabs, sid=sid,
+                                                    who=names.get(sid), map_name=map_name,
+                                                    label=map_name.removeprefix("de_").capitalize())
+
+
+@app.get("/lineups/{map_name}", response_class=HTMLResponse)
+def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "") -> str:
+    import json as _json
+
+    from cstaktik import lineups, pro
+    from cstaktik.model import MatchData
+    from cstaktik.report.radar import build_radar
+
+    if not re.fullmatch(r"[a-z0-9_]+", map_name):
+        raise HTTPException(400, "Ungültiger Mapname.")
+    allx = lineups.build(pro.load_all(pipeline.PRO_DIR), map_name)
+    if l and not any(x["id"] == l for x in allx):
+        l = ""
+    sel = [x for x in allx if (not side or x["side"] == side) and (not kind or x["kind"] == kind)]
+    if l:  # gewähltes Lineup zuerst
+        sel.sort(key=lambda x: x["id"] != l)
+    radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
+    for x in sel:
+        if radar.image_data_uri:
+            x["px"], x["py"] = radar.to_px(x["x"], x["y"])
+            x["tpx"], x["tpy"] = radar.to_px(x["tx"], x["ty"])
+            lo_x, hi_x = min(x["px"], x["tpx"]), max(x["px"], x["tpx"])
+            lo_y, hi_y = min(x["py"], x["tpy"]), max(x["py"], x["tpy"])
+            size = max(hi_x - lo_x, hi_y - lo_y) + 160
+            size = max(size, 320)
+            cx, cy = (lo_x + hi_x) / 2, (lo_y + hi_y) / 2
+            x["vb"] = f"{cx - size / 2:.0f} {cy - size / 2:.0f} {size:.0f} {size:.0f}"
+            x["sw"] = round(size / 300, 2)  # Strichstärke passend zum Ausschnitt
+    data = _json.dumps(sel, ensure_ascii=False).replace("</", "<\\/")
+    return _env.get_template("lineups.html").render(
+        nav_active="training", items=sel, data_json=data, img=radar.image_data_uri, map_name=map_name,
+        label=map_name.removeprefix("de_").capitalize(), side=side, kind=kind, sel=l, total=len(allx),
+        kinds=lineups.KIND_DE, n_demos=sum(1 for d in pro.load_all(pipeline.PRO_DIR) if d.get("map") == map_name))
 
 
 def _baustellen(hist: list[dict]) -> list[dict]:

@@ -25,7 +25,7 @@ COACHING_FILE = DATA_DIR / "coaching.json"
 PRO_DIR = DATA_DIR / "pro"
 PRO_DEMOS_DIR = DATA_DIR / "pro_demos"  # hochgeladene Pro-Demos, getrennt von den eigenen
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
-CACHE_SCHEMA = 10
+CACHE_SCHEMA = 11
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
 MAX_DEMO_BYTES = 2 * 1024**3
 
@@ -297,6 +297,8 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         h["scenes"] = history.scenes(result, h.get("report_file"), h.get("map"))
         h["duel_stats"] = history.duel_stats(match)
         h["util_stats"] = history.util_stats(match)
+        h["deaths"] = history.death_rows(match)  # mit "getradet" (Map-Buch)
+        h["timeline"] = history.timeline(match)
         if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
             h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], config["goals"]["target_factor"],
                                                    config["goals"]["done_after"])

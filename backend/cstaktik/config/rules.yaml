@@ -95,6 +95,15 @@ utility_cmp:
   lineup_good_units: 150    # bis zu diesem Abstand zur Pro-Stelle gilt eine Granate als "sitzt"
   flash_good_blind_s: 1.5   # ab so viel Blendzeit bei Gegnern "wirkt" eine Flash
 
+mapbook:
+  at_s: 20                  # Spot = Ort nach so vielen Sekunden Rundenzeit (nach dem Aufstellen)
+  min_rounds: 3             # so viele Runden braucht ein Spot für eine Bewertung
+  first_death_bad_pct: 40   # ab so viel Prozent "als Erster gestorben" ist der Spot ein Problem
+  untraded_bad_pct: 40      # ab so viel Prozent der Runden "ohne Trade gestorben" ebenso
+  win_good_pct: 55          # stark: Siegquote mindestens so hoch ...
+  first_death_good_pct: 25  # ... und höchstens so oft als Erster gestorben
+  min_pro_rounds: 10        # so viele Pro-Runden (Map + Seite) braucht der Pro-Vergleich
+
 situation:
   # Entscheidungsmoment: so weit vor dem Tod zurückschauen, mindestens so lange vor dem Tod
   lookback_s: 8

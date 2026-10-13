@@ -62,11 +62,21 @@ def test_training_pages_and_drill_done():
     c = TestClient(api.app)
     home = c.get("/").text
     assert "Eure Aufträge" in home and "Nie allein in ein Duell" in home and "1 eigene Situationen" in home
-    t = c.get("/training").text
+    t = c.get("/training/situationen").text
     assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situationen" in t
+    hub = c.get("/training").text  # Wochenplan wird beim ersten Aufruf angelegt
+    assert "Wochenplan" in hub and "Zu zweit peeken" in hub and "Situations-Training" in hub
+    st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
+    (week, plan), = st["weeks"].items()
+    tid = plan["tasks"][0]["id"]
+    assert c.post(f"/training/plan?p=s1&week={week}&task={tid}", follow_redirects=False).status_code == 303
+    st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
+    assert tid in st["weeks"][week]["done"] and len(st["drills"]) == 1  # Übung zählt auch als Drill
+    c.post(f"/training/plan?p=s1&week={week}&task={tid}")  # Haken wieder weg
+    assert tid not in coaching.load(pipeline.COACHING_FILE)["players"]["s1"]["weeks"][week]["done"]
     assert c.post("/training/done?p=s1", follow_redirects=False).status_code == 303
-    assert len(coaching.load(pipeline.COACHING_FILE)["players"]["s1"]["drills"]) == 1
-    assert "(1x bisher)" in c.get("/").text
+    assert len(coaching.load(pipeline.COACHING_FILE)["players"]["s1"]["drills"]) == 2
+    assert "(2x bisher)" in c.get("/").text
 
 
 def test_update_all_per_player_and_legacy_migration():

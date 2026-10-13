@@ -84,6 +84,8 @@ class GrenadeThrow(BaseModel):
     grenade_type: str  # Rohwert aus der Demo
     kind: NadeKind
     points: list[tuple[int, float, float, float]]  # (tick, x, y, z)
+    # Werfer im Tick vor dem Abwurf: [tick, x, y, z, yaw, pitch, tempo_xy, tempo_z, duck] (duck None = unbekannt)
+    throw: list[float | None] | None = None
 
 
 class PositionSample(BaseModel):

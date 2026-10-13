@@ -521,7 +521,62 @@ def parse_demo(
     )
     step("Duelle", 0.995)
     _add_duels(dem, match)
+    _add_throws(dem, match)
     return match
+
+
+def _add_throws(dem, match: MatchData) -> None:
+    """Wurfposition und Blickwinkel des Werfers im Tick vor dem ersten Projektil-Punkt (Lineups).
+
+    Tempo aus der Positionsänderung über 2 Ticks; tempo_z deutlich über 0 heißt: in der Luft (Sprungwurf).
+    Ducken nur, wenn die Demo ``duck_amount`` liefert, sonst None."""
+    tr = match.tickrate
+    want: dict[int, set[str]] = {}
+    for g in match.grenades:
+        if g.thrower_steamid and g.points:
+            t = g.points[0][0] - 1
+            want.setdefault(t, set()).add(g.thrower_steamid)
+            want.setdefault(t - 2, set()).add(g.thrower_steamid)
+    if not want:
+        return
+    ticks = sorted(want)
+    try:
+        df = dem.parser.parse_ticks(["X", "Y", "Z", "yaw", "pitch"], ticks=ticks)
+    except Exception as exc:  # noqa: BLE001
+        match.missing.append(f"Wurfpositionen nicht lesbar ({type(exc).__name__}): keine Lineups")
+        return
+    view: dict[tuple[int, str], list] = {}
+    for rec in df.to_dict("records"):
+        sid = _sid(rec.get("steamid"))
+        vals = [_num(rec.get(k)) for k in ("X", "Y", "Z", "yaw", "pitch")]
+        if sid is not None and None not in vals:
+            view[(int(rec["tick"]), sid)] = vals
+    duck: dict[tuple[int, str], float] = {}
+    try:
+        for rec in dem.parser.parse_ticks(["duck_amount"], ticks=ticks).to_dict("records"):
+            v, sid = _num(rec.get("duck_amount")), _sid(rec.get("steamid"))
+            if v is not None and sid is not None:
+                duck[(int(rec["tick"]), sid)] = v
+    except Exception:  # noqa: BLE001 - Ducken ist optional
+        pass
+    n = 0
+    for g in match.grenades:
+        if not g.thrower_steamid or not g.points:
+            continue
+        t = g.points[0][0] - 1
+        cur, prev = view.get((t, g.thrower_steamid)), view.get((t - 2, g.thrower_steamid))
+        if cur is None:
+            continue
+        sxy = sz = None
+        if prev is not None:
+            sxy = round(math.hypot(cur[0] - prev[0], cur[1] - prev[1]) * tr / 2, 1)
+            sz = round((cur[2] - prev[2]) * tr / 2, 1)
+        d = duck.get((t, g.thrower_steamid))
+        g.throw = [t, round(cur[0], 2), round(cur[1], 2), round(cur[2], 2), round(cur[3], 2), round(cur[4], 2),
+                   sxy, sz, None if d is None else round(d, 2)]
+        n += 1
+    if match.grenades and not n:
+        match.missing.append("Wurfpositionen fehlen: keine Lineups aus dieser Demo")
 
 
 def _add_duels(dem, match: MatchData) -> None:

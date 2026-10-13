@@ -21,7 +21,8 @@
     <div class="small"><b>Im Match:</b> {{ a.in_game }}</div>
   </details>
   <form action="/training/done?p={{ a.sid }}" method="post"><button class="btn2" type="submit">✓ Übung gemacht{% if a.drills %} ({{ a.drills }}x bisher){% endif %}</button></form>
-  {% if a.scenes %}<a class="tlink" href="/training?p={{ a.sid }}">▶ Training: {{ a.scenes }} eigene Situationen</a>{% endif %}
+  {% if a.scenes %}<a class="tlink" href="/training/situationen?p={{ a.sid }}">▶ Training: {{ a.scenes }} eigene Situationen</a>{% endif %}
+  <a class="more-link" href="/training?p={{ a.sid }}#plan">Wochenplan ansehen ›</a>
   {% if a.mastered %}<div class="small muted" style="margin-top:8px">{{ a.mastered }} Auftrag{{ "e" if a.mastered != 1 }} schon gemeistert.</div>{% endif %}
 </div>
 {% endfor %}

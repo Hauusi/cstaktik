@@ -34,9 +34,6 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         # Muster-Findings zählen ihre Runden, Einzel-Findings einmal
         issues[f.steamid][f.title] += len(f.rounds) if f.round is None and f.rounds else 1
 
-    _first_tick = {}
-    for k in sorted(match.kills, key=lambda k: k.tick):
-        _first_tick.setdefault(k.round, k.tick)
     from cstaktik.coach import diagnose
     from cstaktik.config import load_rules_config
 
@@ -79,15 +76,32 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "mech": {m["steamid"]: {k: m[k] for k in ("moving_pct", "hit_pct", "hs_pct", "deaths_no_shot_pct",
                                                    "spray_early_pct", "spray_late_pct", "shots")}
                  for m in debrief["mechanics"]},
-        "deaths": [
-            {"sid": k.victim_steamid, "x": round(k.victim_pos.x), "y": round(k.victim_pos.y), "place": k.victim_place,
-             "round": k.round, "side": k.victim_side, "first": k.tick == _first_tick.get(k.round)}
-            for k in match.kills
-            if k.victim_steamid in focus and k.victim_pos is not None
-        ],
+        "deaths": death_rows(match),
         "floor": [[i, j, c] for (i, j), c in floor.items()],
         "timeline": timeline(match),  # Ortsname je 5 s Rundenzeit (Vorbild aus Siegrunden)
     }
+
+
+def death_rows(match: MatchData, trade_window_s: float = 3.0) -> list[dict]:
+    """Tode der Fokus-Spieler: Ort, Runde, Seite, erster Tod der Runde, getradet (Killer stirbt binnen
+    ``trade_window_s`` durch das Team des Opfers)."""
+    focus = match.focus_ids()
+    tr = match.tickrate
+    kills = sorted(match.kills, key=lambda k: k.tick)
+    first: dict[int, int] = {}
+    for k in kills:
+        first.setdefault(k.round, k.tick)
+    out = []
+    for k in kills:
+        if k.victim_steamid not in focus or k.victim_pos is None:
+            continue
+        traded = bool(k.attacker_steamid) and k.attacker_side != k.victim_side and any(
+            x.round == k.round and x.victim_steamid == k.attacker_steamid and x.attacker_side == k.victim_side
+            and k.tick < x.tick <= k.tick + trade_window_s * tr for x in kills)
+        out.append({"sid": k.victim_steamid, "x": round(k.victim_pos.x), "y": round(k.victim_pos.y),
+                    "place": k.victim_place, "round": k.round, "side": k.victim_side,
+                    "first": k.tick == first.get(k.round), "traded": traded})
+    return out
 
 
 def lessons(result: AnalysisResult) -> dict[str, dict[str, int]]:

@@ -21,7 +21,8 @@ from cstaktik.reference import timeline
 from cstaktik.situation import pro_decisions, round_states
 from cstaktik.utility_cmp import flash_effect, pre_contact
 
-VERSION = 6  # 1: timeline; 2: + nades, deaths; 3: + states; 4: + decisions; 5: + duels; 6: + flashes, pre_util
+VERSION = 7  # 1: timeline; 2: + nades, deaths; 3: + states; 4: + decisions; 5: + duels; 6: + flashes, pre_util;
+#             7: + Wurfposition/Blick je Granate (Lineups), sid bei Toden (Map-Buch)
 _CELL = 128  # Rastergröße für die Ortsbestimmung von Granaten-Punkten
 
 
@@ -71,8 +72,9 @@ def nades(match: MatchData) -> list[dict]:
         (t0, fx, fy, fz), (_t1, tx, ty, tz) = g.points[0], g.points[-1]
         out.append({"r": g.round, "side": side, "won": rnd.winner == side, "kind": g.kind,
                     "t": round((t0 - rnd.freeze_end_tick) / tr, 1),
-                    "from": find(fx, fy, fz), "to": find(tx, ty, tz),
-                    "fx": round(fx), "fy": round(fy), "tx": round(tx), "ty": round(ty)})
+                    "from": find(*g.throw[1:4]) if g.throw else find(fx, fy, fz), "to": find(tx, ty, tz),
+                    "fx": round(fx), "fy": round(fy), "tx": round(tx), "ty": round(ty), "tz": round(tz),
+                    **({"p": g.throw[1:]} if g.throw else {})})
     return out
 
 
@@ -93,7 +95,7 @@ def deaths(match: MatchData, trade_window_s: float = 3.0) -> list[dict]:
         traded = bool(k.attacker_steamid) and any(
             x.round == k.round and x.victim_steamid == k.attacker_steamid and x.attacker_side == k.victim_side
             and k.tick < x.tick <= k.tick + trade_window_s * tr for x in kills)
-        out.append({"r": k.round, "side": k.victim_side, "won": rnd.winner == k.victim_side,
+        out.append({"r": k.round, "sid": k.victim_steamid, "side": k.victim_side, "won": rnd.winner == k.victim_side,
                     "t": round((k.tick - rnd.freeze_end_tick) / tr, 1), "place": k.victim_place,
                     "first": first[k.round] == k.tick, "traded": traded})
     return out

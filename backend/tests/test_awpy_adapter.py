@@ -103,6 +103,8 @@ def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
     assert m.kills[0].victim_inventory == ["Glock-18", "Flashbang"]
     assert m.rounds[0].economy and m.rounds[0].economy[0].equip_value == 4200
     assert len(m.grenades) == 1 and m.grenades[0].kind == "smoke" and len(m.grenades[0].points) < 50
+    # Wurf: Werfer im Tick vor dem ersten Projektil-Punkt (300), Tempo aus Tick 297 -> 299, Ducken unbekannt
+    assert m.grenades[0].throw == [299, 299.0, 0.0, 0.0, 90.0, 0.0, 64.0, 0.0, None]
     assert {u.kind for u in m.utility} == {"smoke", "flash"}
     smoke = next(u for u in m.utility if u.kind == "smoke")
     assert (smoke.end_tick, smoke.end_known) == (1800, True)

@@ -49,6 +49,10 @@ def report(match: MatchData, findings: list, config: dict) -> str:
     ut = [u for u in match.utility if u.kind in ("smoke", "molotov")]
     add(f"Smoke/Molotov mit echtem Ende: {_pct(sum(u.end_known for u in ut), len(ut))}"
         f" · Dauer Smoke s: {_q([(u.end_tick - u.start_tick) / tr for u in ut if u.kind == 'smoke' and u.end_known and u.end_tick])}")
+    th = [g.throw for g in match.grenades if g.throw]
+    add(f"Granaten mit Wurfposition (Lineups): {_pct(len(th), len(match.grenades))}"
+        f" · Tempo z beim Wurf: {_q([abs(t[7]) for t in th if t[7] is not None])}"
+        f" · Ducken lesbar: {'ja' if any(t[8] is not None for t in th) else 'nein'}")
     eco = [e for r in match.rounds for e in r.economy]
     add(f"Economy-Werte: {len(eco)} (Runden mit Economy {_pct(sum(bool(r.economy) for r in match.rounds), len(match.rounds))})")
 
