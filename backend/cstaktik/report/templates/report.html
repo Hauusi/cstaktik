@@ -333,6 +333,42 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .rchip { font-family: var(--cond); font-size: 16px; font-weight: 700; }
 .rchip.on { background: var(--orange); color: #111; }
 .rounds { background: rgba(12,13,15,.94); }
+
+.auftrag { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-left: 4px solid var(--muted); background: var(--surface); }
+.auftrag.ok { border-left-color: var(--win); } .auftrag.no { border-left-color: var(--loss); }
+.arow2 { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.atitle { font-weight: 800; font-size: 24px; line-height: 1.05; text-transform: uppercase; }
+.astamp { flex: none; font-weight: 800; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; padding: 3px 8px;
+  border: 2px solid currentColor; transform: rotate(-3deg); }
+.auftrag.ok .astamp { color: var(--win); } .auftrag.no .astamp { color: var(--loss); }
+.ameter { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 12px; border: 1px solid var(--line); }
+.ameter > div { padding: 7px 8px; border-right: 1px solid var(--line); } .ameter > div:last-child { border-right: 0; }
+.ameter b { display: block; font-size: 22px; font-weight: 800; line-height: 1.1; }
+.ameter span { font-family: var(--cond); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.anote { margin-top: 10px; font-size: 14.5px; color: #c4c1ba; } .anote b { color: var(--text); }
+.amaster { margin-top: 10px; font-family: var(--cond); font-weight: 800; font-size: 18px; text-transform: uppercase; color: var(--win); }
+.learn { margin-top: 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); }
+.learn p { margin: 4px 0 0; font-size: 15px; line-height: 1.5; }
+.lk { font-weight: 700; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--orange); }
+.mantra { margin-top: 10px; font-weight: 800; font-size: 22px; text-transform: uppercase; color: var(--orange); }
+.cmp { display: grid; gap: 10px; margin-top: 12px; }
+.cmpcol { padding: 12px; border: 1px solid var(--line); background: var(--surface); }
+.cmpcol.bad { border-left: 3px solid var(--loss); } .cmpcol.good { border-left: 3px solid var(--win); }
+.cmpcol.bad .lk { color: var(--loss); } .cmpcol.good .lk { color: var(--win); }
+.cmpcol .scenes { margin-top: 8px; }
+.brightgo { display: block; width: 100%; text-align: left; margin-top: 8px; padding: 8px 10px; background: rgba(70,167,88,.08);
+  border: 1px solid rgba(70,167,88,.3); color: var(--text); font-size: 14px; line-height: 1.4; border-radius: 2px; }
+.brightgo b { display: block; color: var(--win); font-size: 14px; letter-spacing: .04em; }
+.hw .rt { font-weight: 800; font-size: 20px; text-transform: uppercase; margin-top: 2px; }
+.routine ol { margin: 8px 0 0; padding-left: 22px; display: block; }
+.routine ol li { list-style: decimal; padding: 0; background: none; margin: 4px 0; border-radius: 0; }
+.routine ol li::before { content: none; }
+.hw .ig { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.hw .ig b { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
+.nextfocus { margin-top: 16px; padding: 14px; border: 1px solid var(--orange); background: rgba(255,159,28,.06); }
+.nextfocus .sh { margin-bottom: 4px; }
+#proslot .sbtn { margin-top: 10px; }
+@media (min-width: 700px) { .cmp { grid-template-columns: 1fr 1fr; } }
 {% include 'hud.css' %}
 </style>
 </head>
@@ -344,12 +380,28 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <span class="restag {{ 'win' if score.won > score.lost else 'loss' if score.lost > score.won else '' }}">{{ "Sieg" if score.won > score.lost else "Niederlage" if score.lost > score.won else "Unentschieden" }}</span>
   </div></header>
 <main>
+  {% if focus and focus.check %}{% set c = focus.check %}
+  <section class="auftrag {{ 'ok' if c.met else 'no' }}">
+    <div class="sh"><span class="t cond">Dein Auftrag</span></div>
+    <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Nicht geschafft" }}</div></div>
+    <div class="ameter num">
+      <div><b class="cond">{{ c.count }}x</b><span>heute</span></div>
+      <div><b class="cond">{{ c.rate|string|replace(".", ",") }}</b><span>pro 10 Runden</span></div>
+      <div><b class="cond">≤ {{ c.target|string|replace(".", ",") }}</b><span>Ziel</span></div>
+      <div><b class="cond">{{ c.streak }}/{{ c.need }}</b><span>in Folge</span></div>
+    </div>
+    {% if focus.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel. Das sitzt.</div>
+    {% elif c.met %}<div class="anote">Gut umgesetzt. Noch {{ c.need - c.streak }} Match in Folge, dann ist es gemeistert.</div>
+    {% else %}<div class="anote">Noch nicht umgesetzt. Der Auftrag bleibt, bis er {{ c.need }} Matches in Folge sitzt.</div>{% endif %}
+  </section>
+  {% endif %}
+
   <section class="coachsay">
     <div class="av cond">C</div>
     <div class="say">{% for line in intro %}{{ line }} {% endfor %}</div>
   </section>
 
-  {% if lessons %}{% set l = lessons[0] %}
+  {% if lessons %}{% set l = lessons[0] %}{% set t = teach[l.id] %}
   <section class="mainpoint">
     <div class="sh"><span class="n cond">01</span><span class="t cond">Der eine Punkt</span></div>
     <div class="big cond">{{ l.lesson }}</div>
@@ -358,10 +410,30 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       {% if l.cost and l.cost >= 30 %}<div><b class="cond red">≈{{ "%.1f"|format(l.cost / 100)|replace(".", ",") }}</b><span>Runden gekostet</span></div>{% endif %}
       <div><b class="cond">{{ (l.players[0] if l.players|length == 1 else l.players|length ~ " Spieler") if l.players else "–" }}</b><span>{{ "wer" if l.players|length == 1 else "betroffen" }}</span></div>
     </div>
-    <div class="why">{{ l.why }}</div>
-    <div class="scenes">{% for sc in l.scenes[:6] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div>
-    {% if memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
-    <div class="hw"><div class="k cond">Hausaufgabe fürs nächste Match</div>{{ l.drill }}</div>
+
+    <div class="learn">
+      <div class="lk cond">Verstehen</div>
+      <p>{{ t.principle }}</p>
+      <div class="mantra cond">„{{ t.mantra }}“</div>
+    </div>
+
+    <div class="cmp">
+      <div class="cmpcol bad"><div class="lk cond">So nicht · bei euch</div>
+        <div class="scenes">{% for sc in l.scenes[:4] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div></div>
+      {% set good = bright[l.id] %}
+      <div class="cmpcol good"><div class="lk cond">So geht's · bei euch</div>
+        {% if good %}{% for g in good %}<button class="brightgo" data-round="{{ g.round }}" data-tick="{{ g.from }}"><b class="cond">▶ R{{ g.round }} {{ g.when }}</b>{{ g.text }}</button>{% endfor %}
+        {% else %}<div class="quiet">Diesmal keine Szene, in der ihr es sauber umgesetzt habt. Genau deshalb ist es der Punkt.</div>{% endif %}</div>
+    </div>
+    <div id="proslot" data-lesson="{{ l.id }}"></div>
+
+    {% if memory and not (focus and focus.check) %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
+    <div class="hw routine">
+      <div class="k cond">Training vor dem nächsten Match · {{ t.routine.minutes }} Min</div>
+      <div class="rt cond">{{ t.routine.title }}</div>
+      <ol>{% for st in t.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+      <div class="ig"><b class="cond">Im Match</b>{{ t.in_game }}</div>
+    </div>
   </section>
   {% if lessons|length > 1 %}
   <section class="also">
@@ -374,9 +446,17 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   {% endif %}
   {% elif memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
 
+  {% if focus and focus.focus %}{% set nf = focus.focus %}
+  <section class="nextfocus">
+    <div class="sh"><span class="t cond">{{ "Neuer Auftrag ab jetzt" if focus.new else "Dein Auftrag bleibt" }}</span></div>
+    <div class="atitle cond">{{ nf.title }}</div>
+    <div class="anote">Ziel: höchstens {{ nf.target|string|replace(".", ",") }}x pro 10 Runden ({% if focus.new %}heute {{ nf.baseline|string|replace(".", ",") }}{% else %}Start {{ nf.baseline|string|replace(".", ",") }}{% if focus.check %}, zuletzt {{ focus.check.rate|string|replace(".", ",") }}{% endif %}{% endif %}), {{ nf.need }} Matches in Folge. Merksatz: <b>„{{ teach[nf.lesson].mantra }}“</b></div>
+  </section>
+  {% endif %}
+
   {% if praise %}<section class="praise"><b class="cond">Gut</b>{% for p in praise %}<div>{{ p }}</div>{% endfor %}</section>{% endif %}
 
-  {% if goal_check and goal_check.checks %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
+  {% if goal_check and goal_check.checks and not (focus and focus.focus) %}<div class="goalrow">{% for c in goal_check.checks %}<span class="gpill {{ 'ok' if c.met else 'no' }}">{{ '✓' if c.met else '✗' }} {{ c.title }}</span>{% endfor %}</div>{% endif %}
 
   <div class="ctas">
     <button class="tour" id="tourBtn" hidden>▶ Debrief starten <small id="tourN"></small></button>
@@ -1358,6 +1438,25 @@ function goTour(name, i) {
   stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 function endTour() { S.tour = null; $('coach').dataset.key = ''; draw(); }
+// Pro-Szene zur Lektion: erste Szene dieser Lektion mit Pro-Clip
+{
+  const slot = document.getElementById('proslot');
+  const f = slot && D.findings.find(x => x.evidence && x.evidence.coach && x.evidence.coach.id === slot.dataset.lesson
+                                    && x.ov && x.ov.pro_clip != null && D.rounds[x.ov.pro_clip]);
+  if (f) {
+    const box = el('div', 'cmpcol'); box.style.borderLeft = '3px solid #9db4e0';
+    const k = el('div', 'lk cond', 'So spielt es ein Pro'); k.style.color = '#9db4e0';
+    const b = el('button', 'brightgo'); b.style.background = 'rgba(157,180,224,.08)'; b.style.borderColor = 'rgba(157,180,224,.3)';
+    b.append(el('b', 'cond', '▶ Pro-Szene'), f.evidence.pro_clip || ''); b.querySelector('b').style.color = '#9db4e0';
+    b.onclick = () => openPro(f);
+    box.append(k, b); slot.appendChild(box);
+  }
+}
+document.querySelectorAll('.brightgo[data-round]').forEach(b => b.onclick = () => {
+  const ri = D.rounds.findIndex(r => r.n === +b.dataset.round); if (ri < 0) return;
+  S.tour = null; selectRound(ri); seek(+b.dataset.tick); setPlaying(true);
+  stage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 document.querySelectorAll('.costgo').forEach(b => b.onclick = () => {
   const ri = D.rounds.findIndex(r => r.n === +b.dataset.round); if (ri < 0) return;
   S.tour = null; selectRound(ri); seek(+b.dataset.tick - TR); setPlaying(true);
@@ -1495,7 +1594,7 @@ stage.addEventListener('wheel', e => { // Desktop: Mausrad zoomt die Karte
 }, { passive: false });
 $('trail').onclick = e => { S.trailFull = !S.trailFull; e.currentTarget.classList.toggle('on', S.trailFull); e.currentTarget.textContent = S.trailFull ? 'Runde' : 'Spur'; draw(); };
 $('scrub').oninput = e => { setPlaying(false); seek(+e.target.value); };
-document.querySelectorAll('[data-round]:not(.costgo)').forEach(b => b.onclick = () => {
+document.querySelectorAll('[data-round]:not(.costgo):not(.brightgo)').forEach(b => b.onclick = () => {
   const i = D.rounds.findIndex(r => r.n === +b.dataset.round); if (i >= 0) { selectRound(i); stage.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 });
 
@@ -1522,10 +1621,12 @@ function loop(now) {
 }
 
 new ResizeObserver(resize).observe(stage);
-const fromHash = D.rounds.findIndex(r => '#r' + r.n === location.hash);
+const sceneHash = /^#s(\d+)-(\d+)$/.exec(location.hash); // Sprung aus dem Training: #s<Runde>-<Tick>
+const fromHash = sceneHash ? D.rounds.findIndex(r => r.n === +sceneHash[1]) : D.rounds.findIndex(r => '#r' + r.n === location.hash);
 const firstF = D.rounds.findIndex(r => r.f.length);
 selectRound(fromHash >= 0 ? fromHash : Math.max(0, firstF), true);
 resize();
+if (sceneHash && fromHash >= 0) { seek(+sceneHash[2] - TR); setTimeout(() => stage.scrollIntoView({ block: 'start' }), 50); }
 requestAnimationFrame(loop);
 })();
 {% endraw %}

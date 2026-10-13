@@ -58,6 +58,21 @@ Steuerung: Play, Fehler vor/zurück, Tempo (0.5x–4x), Karte mit zwei Fingern z
 verschieben (Doppeltipp = zurück, am PC Mausrad), "Folgen" hält die Fokus-Spieler im Bild,
 Spur (3 s oder ganze Runde). Direktlink auf eine Runde: `report.html#r12`.
 
+## Coaching-Kreislauf (coaching.py, curriculum.py)
+
+- **Auftrag:** Eine Lektion gilt über mehrere Matches (Fokus für dich und deinen Bruder zusammen). Ziel: höchstens
+  Ausgangswert x 0,6 pro 10 Runden (rules.yaml: goals.target_factor). Gemeistert nach 2 Matches in Folge
+  (goals.done_after), dann wird der größte Fehler des aktuellen Matches der neue Auftrag. Datei: data/coaching.json.
+- **Report:** beginnt mit dem Auftrag-Check (geschafft / nicht geschafft, Serie), dann Coach-Ansage, "Der eine Punkt"
+  mit Verstehen (Prinzip + Merksatz), "So nicht" (eure Szenen), "So geht's" (eure Szenen, in denen ihr es richtig
+  gemacht habt: Kill mit Mitspieler in Trade-Reichweite, Kill nach eigener Flash/Molotov, ...), Pro-Szene,
+  Trainingsroutine vor dem nächsten Match und "Im Match"-Ansage. Am Ende: welcher Auftrag jetzt gilt.
+- **Startseite:** Auftrag mit Merksatz, Verlauf (✓/✗ je Match), Übung zum Abhaken und Link zum Training.
+- **Training (/training):** Entscheidungs-Quiz mit euren eigenen Situationen aus allen Matches, zuerst zum Auftrag;
+  Auflösung mit Pro-Quoten, "Nächstes Mal" und Sprung in die Szene im Replay (#s<Runde>-<Tick>).
+- Ältere Matches: `cstaktik pro-update` baut Lektionen, Szenen und den Auftrags-Verlauf aus dem Cache nach
+  (nur wenn data/coaching.json noch nicht existiert).
+
 ## Coach-Stimme, Lektionen, Fortschritt
 
 - **Design:** HUD-Stil (dunkel, CS-Orange, Barlow/Barlow Condensed). Die Schriften (SIL OFL) werden einmal nach

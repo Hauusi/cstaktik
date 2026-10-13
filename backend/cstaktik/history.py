@@ -55,6 +55,8 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "states": round_states(match),
         "lessons": lessons(result),
         "main_lesson": main_lesson(result),
+        "lesson_rank": lesson_rank(result),
+        "scenes": scenes(result, report_file, match.map_name),
         "won": won,
         "lost": lost,
         "players": {
@@ -101,6 +103,28 @@ def main_lesson(result: AnalysisResult) -> str | None:
 
     top = focus(result.findings, 1)
     return top[0]["id"] if top else None
+
+
+def lesson_rank(result: AnalysisResult) -> list[str]:
+    """Lektionen dieses Matches, wichtigste zuerst (verlorene Rundenchance, dann Häufigkeit)."""
+    from cstaktik.coach_voice import focus
+
+    return [x["id"] for x in focus(result.findings, 10)]
+
+
+def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None) -> list[dict]:
+    """Tod-Szenen mit Lagebild fürs Training über mehrere Matches (Entscheidung nachspielen)."""
+    out = []
+    for f in result.findings:
+        v, ev = f.evidence.get("coach"), f.evidence
+        if not v or not ev.get("snap") or not ev.get("aktion"):
+            continue
+        out.append({"lesson": v["id"], "who": f.player_name, "round": f.round, "tick": f.tick,
+                    "from": (f.overlay.get("decision") or [None, None, None])[2], "report": report_file,
+                    "map": map_name, "snap": ev["snap"], "info": ev.get("info"), "aktion": ev["aktion"],
+                    "pro_rates": ev.get("pro_rates"), "pro_best": ev.get("pro_best"), "cost": ev.get("cost_pct"),
+                    "happened": v["happened"], "next": v["next"]})
+    return out
 
 
 def previous(histories: list[dict], current: dict) -> dict | None:

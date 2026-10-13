@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Training – cstaktik{% endblock %}
+{% block head %}
+<style>
+.back { font-size: 13px; color: var(--muted); }
+.tq { margin-top: 12px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--orange); }
+.tq .meta { font-family: var(--cond); font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.tq .q { font-family: var(--cond); font-weight: 800; font-size: 22px; text-transform: uppercase; margin: 4px 0 6px; }
+.tq .lage { font-size: 15px; line-height: 1.45; }
+.opts { display: grid; gap: 8px; margin-top: 12px; }
+.opt { font: inherit; font-weight: 700; text-align: left; padding: 11px 12px; background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--line); cursor: pointer; }
+.opt small { display: block; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.opt.mine { border-color: var(--loss); } .opt.best { border-color: var(--win); background: rgba(70,167,88,.1); }
+.res { margin-top: 12px; font-size: 14.5px; line-height: 1.45; }
+.res .v { font-family: var(--cond); font-weight: 800; font-size: 18px; text-transform: uppercase; }
+.res .v.ok { color: var(--win); } .res .v.no { color: var(--orange); }
+.res .nx { margin-top: 8px; padding: 10px 12px; background: rgba(70,167,88,.1); border-left: 3px solid var(--win); }
+.res .nx b { display: block; font-family: var(--cond); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--win); }
+.res a { display: inline-block; margin-top: 10px; font-family: var(--cond); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--orange); }
+.score { margin-top: 16px; font-family: var(--cond); font-weight: 800; font-size: 20px; text-transform: uppercase; }
+</style>
+{% endblock %}
+{% block hero %}
+<a class="back" href="/">‹ Startseite</a>
+<h1>Training</h1>
+<p>{% if title %}Dein Auftrag: <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Entscheide, bevor du siehst, was passiert ist.</p>
+{% endblock %}
+{% block content %}
+<div id="list"></div>
+<div class="score num" id="score"></div>
+{% if not n %}<p class="muted">Noch keine Situationen. Nach der nächsten Auswertung (oder "cstaktik pro-update") stehen hier eure Szenen.</p>{% endif %}
+<script type="application/json" id="data">{{ data_json|safe }}</script>
+<script>
+(() => {
+const S = JSON.parse(document.getElementById('data').textContent);
+const OPTS = [['gehalten', 'Position halten'], ['zurückgezogen', 'Zurückziehen'], ['Richtung Gegner', 'Richtung Gegner gehen / peeken']];
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const clock = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+let ok = 0, n = 0;
+S.forEach((sc, i) => {
+  const s = sc.snap, c = el('div', 'tq');
+  c.append(el('div', 'meta', `${i + 1} · ${(sc.map || '').replace('de_', '')} R${sc.round} · ${sc.who} · ${sc.lesson_title}`));
+  c.append(el('div', 'q', 'Was machst du?'));
+  const parts = [`${clock(s.secs)}`, `${s.own} gegen ${s.enemy}`];
+  if (s.hp != null) parts.push(s.hp >= 100 ? 'volle HP' : `${s.hp} HP`);
+  parts.push(s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt');
+  if (s.place) parts.push(`du bist in ${s.place}`);
+  if (s.mate && s.mate_d != null) parts.push(`${s.mate} ${s.mate_d} Units weg`);
+  c.append(el('div', 'lage', parts.join(' · ') + (sc.info ? ' · ' + sc.info.replace(/^Info: /, '') : '')));
+  const opts = el('div', 'opts');
+  OPTS.forEach(([k, label]) => {
+    const b = el('button', 'opt', label);
+    b.onclick = () => {
+      if (c.dataset.done) return; c.dataset.done = 1;
+      const rates = sc.pro_rates || {}, best = sc.pro_best;
+      opts.querySelectorAll('.opt').forEach((o, j) => {
+        const key = OPTS[j][0], r = rates[key];
+        if (key === sc.aktion) { o.classList.add('mine'); o.appendChild(el('small', null, 'Das wurde gemacht: Tod' + (sc.cost > 0 ? `, -${sc.cost} % Rundenchance` : ''))); }
+        if (key === best) o.classList.add('best');
+        if (r) o.appendChild(el('small', null, `Pros: ${r[1]}x, ${Math.round(100 * r[0] / r[1])} % Siege`));
+      });
+      const res = el('div', 'res');
+      if (best) { n++; if (k === best) ok++; }
+      const v = best ? (k === best ? el('div', 'v ok', 'Wie die Pros') : el('div', 'v no', 'Pros wählen hier: ' + OPTS.find(o => o[0] === best)[1]))
+                     : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage');
+      res.append(v, el('div', null, sc.happened));
+      const nx = el('div', 'nx'); nx.append(el('b', null, 'Nächstes Mal'), sc.next); res.appendChild(nx);
+      if (sc.report) { const a = el('a', null, '▶ Szene im Replay'); a.href = `/reports/${sc.report}#s${sc.round}-${sc.from || sc.tick}`; res.appendChild(a); }
+      c.appendChild(res);
+      document.getElementById('score').textContent = n ? `${ok} von ${n} wie die Pros` : '';
+    };
+    opts.appendChild(b);
+  });
+  c.appendChild(opts);
+  document.getElementById('list').appendChild(c);
+});
+})();
+</script>
+{% endblock %}

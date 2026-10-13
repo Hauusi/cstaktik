@@ -120,7 +120,74 @@ def index() -> str:
         pro_overview=__import__("cstaktik.pro", fromlist=["stats"]).stats(pipeline.PRO_DIR),
         faceit_ready=bool(os.environ.get("FACEIT_API_KEY")),
         baustellen=_baustellen(hist),
+        auftrag=_auftrag(hist),
     )
+
+
+def _all_scenes(hist: list[dict]) -> list[dict]:
+    """Trainings-Szenen aller Matches, neueste zuerst, jede Szene nur einmal."""
+    seen: set = set()
+    out = []
+    for h in reversed(hist):
+        for sc in h.get("scenes", []):
+            key = (sc.get("report"), sc["round"], sc["tick"])
+            if key not in seen:
+                seen.add(key)
+                out.append(sc)
+    return out
+
+
+def _auftrag(hist: list[dict]) -> dict | None:
+    """Laufender Auftrag für die Startseite: Lektion, Merksatz, Übung, Verlauf der Checks, Übungen erledigt."""
+    from cstaktik import coaching
+    from cstaktik.curriculum import TEACH
+
+    state = coaching.load(pipeline.COACHING_FILE)
+    f = state.get("focus")
+    if not f:
+        return None
+    from cstaktik.coach_voice import LESSONS
+
+    t = TEACH[f["lesson"]]
+    n_scenes = sum(1 for sc in _all_scenes(hist) if sc["lesson"] == f["lesson"])
+    return {"lesson": f["lesson"], "title": LESSONS[f["lesson"]][0], "target": f["target"], "baseline": f["baseline"],
+            "matches": f.get("matches", []), "mantra": t["mantra"], "routine": t["routine"], "in_game": t["in_game"],
+            "drills": coaching.drills_since(state, f.get("created_at")), "scenes": n_scenes,
+            "mastered": len(state.get("done", []))}
+
+
+@app.post("/training/done")
+def training_done() -> RedirectResponse:
+    from cstaktik import coaching
+
+    state = coaching.load(pipeline.COACHING_FILE)
+    if state.get("focus"):
+        coaching.drill_done(state, state["focus"]["lesson"])
+        coaching.save(state, pipeline.COACHING_FILE)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.get("/training", response_class=HTMLResponse)
+def training_page() -> str:
+    """Entscheidungs-Training mit eigenen Situationen aus allen Matches, zuerst zum laufenden Auftrag."""
+    import json as _json
+
+    from cstaktik import coaching, history
+    from cstaktik.coach_voice import LESSONS
+
+    hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    f = coaching.load(pipeline.COACHING_FILE).get("focus")
+    scenes = _all_scenes(hist)
+    lesson = f["lesson"] if f else None
+    pick = [sc for sc in scenes if sc["lesson"] == lesson] if lesson else []
+    if len(pick) < 6:  # auffüllen mit den teuersten anderen Szenen
+        rest = sorted((sc for sc in scenes if sc not in pick), key=lambda sc: -(sc.get("cost") or 0))
+        pick += rest[: 12 - len(pick)]
+    pick = pick[:12]
+    data = _json.dumps([{**sc, "lesson_title": LESSONS.get(sc["lesson"], ("?",))[0]} for sc in pick],
+                       ensure_ascii=False).replace("</", "<\\/")
+    return _env.get_template("training.html").render(title=LESSONS[lesson][0] if lesson else None, n=len(pick),
+                                                     data_json=data)
 
 
 def _baustellen(hist: list[dict]) -> list[dict]:

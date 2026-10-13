@@ -21,6 +21,7 @@ REPORTS_DIR = DATA_DIR / "reports"
 CACHE_DIR = DATA_DIR / "cache"
 HISTORY_DIR = DATA_DIR / "history"
 GOALS_FILE = DATA_DIR / "goals.json"
+COACHING_FILE = DATA_DIR / "coaching.json"
 PRO_DIR = DATA_DIR / "pro"
 PRO_DEMOS_DIR = DATA_DIR / "pro_demos"  # hochgeladene Pro-Demos, getrennt von den eigenen
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
@@ -242,6 +243,13 @@ def run(
     goals.save(state, GOALS_FILE)
     # Ziel-Check mitspeichern, damit der Report später (z. B. nach neuen Pro-Demos) neu gebaut werden kann
     summary["goal_check"] = goal_check if goal_check.get("checks") or not old else old.get("goal_check", goal_check)
+    # Auftrag (Fokus-Lektion) prüfen und ggf. neu setzen; mitspeichern für spätere Neubauten des Reports
+    from cstaktik import coaching
+
+    cstate = coaching.load(COACHING_FILE)
+    summary["focus_check"] = coaching.update(cstate, summary, summary.get("lesson_rank") or [],
+                                             config["goals"]["target_factor"], config["goals"]["done_after"])
+    coaching.save(cstate, COACHING_FILE)
     history.save(summary, HISTORY_DIR)
     report("Report bauen", 0.96)
     from cstaktik import coach_voice
@@ -249,7 +257,7 @@ def run(
     prev = history.previous(history.load_all(HISTORY_DIR), summary)
     mem = coach_voice.memory(prev, summary.get("lessons") or {}, summary.get("rounds") or 0)
     out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"], pro_clips=clips,
-                       memory=mem)
+                       memory=mem, focus=summary["focus_check"])
     report("Fertig", 1.0)
     return out
 
@@ -266,6 +274,12 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
     todo = [h for h in (history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else [])
             if h.get("report_file") and (maps is None or h.get("map") in maps)
             and cache_file(h["id"]) is not None]
+    from cstaktik import coaching
+
+    # Ohne Auftrags-Verlauf (erstes Update) und bei allen Matches: Aufträge aus dem Verlauf neu aufbauen
+    rebuild = coaching.load(COACHING_FILE) if maps is None and not COACHING_FILE.exists() else None
+    if rebuild is not None:
+        rebuild = {"focus": None, "done": [], "drills": []}
     done = 0
     for i, h in enumerate(todo):
         report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
@@ -278,14 +292,21 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         result, clips = _coach(match, config)
         h["lessons"] = history.lessons(result)  # Lektionen nachrüsten (Fortschritt je Map)
         h["main_lesson"] = history.main_lesson(result)
+        h["lesson_rank"] = history.lesson_rank(result)
+        h["scenes"] = history.scenes(result, h.get("report_file"), h.get("map"))
+        if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
+            h["focus_check"] = coaching.update(rebuild, h, h["lesson_rank"], config["goals"]["target_factor"],
+                                               config["goals"]["done_after"])
         history.save(h, HISTORY_DIR)
         from cstaktik import coach_voice
 
         prev = history.previous(history.load_all(HISTORY_DIR), h)
         mem = coach_voice.memory(prev, h["lessons"], h.get("rounds") or 0)
         write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips,
-                     memory=mem)
+                     memory=mem, focus=h.get("focus_check"))
         done += 1
+    if rebuild is not None and done:
+        coaching.save(rebuild, COACHING_FILE)
     return done
 
 

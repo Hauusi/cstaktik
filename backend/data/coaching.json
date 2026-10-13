@@ -1,0 +1,13 @@
+{
+ "focus": {
+  "lesson": "alone",
+  "baseline": 1.7,
+  "target": 1.0,
+  "created_at": "2026-10-13T06:44",
+  "created_from": "synth.json",
+  "matches": [],
+  "status": "aktiv"
+ },
+ "done": [],
+ "drills": []
+}
