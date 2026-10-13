@@ -107,3 +107,21 @@ def test_mapbook_and_lineup_pages():
     assert "Connector → Mid" in lp and "setpos " in lp and "Kopieren" in lp
     assert "Kein Lineup" in c.get("/lineups/de_mirage?side=t").text
     assert c.get("/mapbook/..%2Fx").status_code in (400, 404)
+
+
+def test_diagnose_without_focus_reports_throws():
+    from synth import build_match
+
+    from cstaktik import diagnose
+    from cstaktik.model import GrenadeThrow
+
+    m = build_match(focus=())
+    r = m.rounds[0]
+    for i in range(2):
+        m.grenades.append(GrenadeThrow(round=r.num, entity_id=90 + i, thrower_steamid=next(iter(r.sides)),
+                                       grenade_type="smokegrenade", kind="smoke",
+                                       points=[(r.freeze_end_tick + 100, 10.0, 0.0, 0.0), (r.freeze_end_tick + 200, 900.0, 0.0, 0.0)],
+                                       throw=[r.freeze_end_tick + 99, 0.0, 0.0, 0.0, 90.0, -10.0, 0.0, 0.0, None]))
+    text = diagnose.report(m, [], load_rules_config())
+    assert "Granaten mit Wurfposition (Lineups): 100 %" in text and "Abstand Werfer" in text
+    assert "Lineups in dieser Demo (mind. 2x gleich): 1" in text and "setpos 0.00 0.00 0.00" in text

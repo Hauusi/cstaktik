@@ -13,6 +13,10 @@ from cstaktik.model import MatchData
 from cstaktik.rules.base import PositionIndex, dist
 
 
+def dist_xy(a, b) -> float:
+    return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** .5
+
+
 def _pct(a: int, b: int) -> str:
     return f"{round(100 * a / b)} %" if b else "–"
 
@@ -53,6 +57,18 @@ def report(match: MatchData, findings: list, config: dict) -> str:
     add(f"Granaten mit Wurfposition (Lineups): {_pct(len(th), len(match.grenades))}"
         f" · Tempo z beim Wurf: {_q([abs(t[7]) for t in th if t[7] is not None])}"
         f" · Ducken lesbar: {'ja' if any(t[8] is not None for t in th) else 'nein'}")
+    if th:
+        gap = [dist_xy((t[1], t[2]), g.points[0][1:3]) for g in match.grenades if g.throw for t in [g.throw]]
+        add(f"  Abstand Werfer -> erster Granaten-Punkt (Units, plausibel unter ~100): {_q(gap)}")
+        add(f"  Tempo xy beim Wurf: {_q([t[6] for t in th if t[6] is not None])}"
+            f" · in der Luft (|z| > 120): {sum(1 for t in th if t[7] is not None and abs(t[7]) > 120)}")
+    if not focus:
+        from cstaktik import lineups, pro
+
+        ls = lineups.build([{**pro.summarize(match), "id": "x"}], match.map_name)
+        add(f"  Lineups in dieser Demo (mind. 2x gleich): {len(ls)}")
+        for lu in ls[:5]:
+            add(f"    {lu['kind_de']} {lu['side'].upper()} {lu['from']} -> {lu['to']} {lu['n']}x · {lu['tech']['label']} · {lu['cmd']}")
     eco = [e for r in match.rounds for e in r.economy]
     add(f"Economy-Werte: {len(eco)} (Runden mit Economy {_pct(sum(bool(r.economy) for r in match.rounds), len(match.rounds))})")
 

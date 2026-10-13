@@ -108,8 +108,9 @@ def main(argv: list[str] | None = None) -> int:
 
         config = load_rules_config()
         match = pipeline.load_any(pipeline.prepare_demo(args.file), load_focus_steamids(), config)
-        result, _clips = pipeline._coach(match, config)
-        text = diagnose.report(match, result.findings, config)
+        # Pro-Demo ohne eure SteamIDs: nur Datenfelder und Wurfdaten prüfen, keine Coach-Analyse
+        findings = pipeline._coach(match, config)[0].findings if match.focus_ids() else []
+        text = diagnose.report(match, findings, config)
         print(text)
         out = pipeline.REPORTS_DIR / f"diagnose-{pipeline.demo_stem(args.file.name)}.txt"
         out.parent.mkdir(parents=True, exist_ok=True)
