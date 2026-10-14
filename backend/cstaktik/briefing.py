@@ -27,14 +27,26 @@ def build(map_name: str, histories: list[dict], goals_state: dict, min_count: in
                          if d.get("side") == side and d.get("place"))
         firsts = Counter((d["sid"], d["place"]) for h in hs for d in h.get("deaths", [])
                          if d.get("side") == side and d.get("place") and d.get("first"))
+        untraded = Counter((d["sid"], d["place"]) for h in hs for d in h.get("deaths", [])
+                           if d.get("side") == side and d.get("place") and d.get("traded") is False)
+        all_side = Counter(d["sid"] for h in hs for d in h.get("deaths", []) if d.get("side") == side)
         for (sid, place), n in deaths.most_common(4):
             if n < min_count:
                 break
             f = firsts.get((sid, place), 0)
+            u = untraded.get((sid, place), 0)
+            # Tipp aus dem, was dort am häufigsten schiefging (statt eines Standard-Satzes)
+            if u * 2 > n:
+                tip = f"In {place} meist ohne Trade: nur mit Mitspieler in Reichweite spielen oder früher zurückfallen."
+            elif f * 2 > n:
+                tip = f"In {place} meist der erste Tod der Runde: nicht als Erster ohne Info oder Utility zeigen."
+            else:
+                tip = f"{place} ist gelesen: Timing ändern, mit Utility nehmen oder Position wechseln."
             notes.append({
                 "side": SIDE_DE[side],
-                "text": f"{names.get(sid, sid)}: {n}x in {place} gestorben" + (f", davon {f}x als Erster" if f else ""),
-                "tip": f"{place} anders spielen: Timing ändern, mit Utility nehmen oder Position wechseln.",
+                "text": f"{names.get(sid, sid)}: {n}x in {place} gestorben (von {all_side[sid]} {SIDE_DE[side]}-Toden)"
+                        + (f", davon {f}x als Erster" if f else "") + (f", {u}x ohne Trade" if u else ""),
+                "tip": tip,
             })
 
     rounds = sum(h.get("rounds", 0) for h in hs)
