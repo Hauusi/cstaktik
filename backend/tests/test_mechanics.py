@@ -193,3 +193,16 @@ def test_focus_prefers_recurring_pattern_over_one_off():
     assert top[0]["id"] == "alone" and top[0]["seen_in"] == 3 and top[0]["of_matches"] == 3
     util = next(x for x in focus(fs) if x["id"] == "utility")
     assert util["count"] == 1 and util["main"] == 0  # beteiligt, aber nicht Hauptfehler
+
+
+def test_why_follows_the_data_not_assumed_intent():
+    from cstaktik.coach_voice import _next, _why
+
+    fx = {"attacker": "G1", "aplace": "Palace", "mate": "Bruder", "mate_dist": 1400}
+    held = {"kind": "gehalten"}
+    assert _why("alone", fx, held, "gehalten").startswith("Du hast allein gehalten, Bruder war 1400 Units weg")
+    assert "peeken" not in _next("alone", fx, held, "gehalten")
+    assert _why("alone", fx, {"kind": "bewegt"}, "Richtung Gegner").startswith("Du bist ins Duell gegangen")
+    w = _why("no_shot_close", {**fx, "duel": {"err": 4.0}}, held, "gehalten")
+    assert w.startswith("Dein Fadenkreuz lag richtig (4,0° neben ihm)")
+    assert _why("no_shot_close", fx, {"kind": "bewegt"}, "Richtung Gegner") is None  # allgemeiner Satz passt

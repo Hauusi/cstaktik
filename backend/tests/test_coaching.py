@@ -153,3 +153,18 @@ def test_compare_rates_only_claims_clear_differences():
     assert coaching.compare_rates(3, 40, 9, 40)["state"] == "schlechter"
     assert coaching.compare_rates(4, 40, 2, 40)["state"] == "gleich"
     assert coaching.compare_rates(2, 20, 0, 20)["state"] == "wenig"  # zu wenig Runden
+
+
+def test_bright_spots_from_duels_and_honest_none():
+    from cstaktik.model import Duel
+
+    m = build_match()
+    k = next(k for k in m.kills if k.attacker_steamid == MATES[1])
+    m.duels = [Duel(round=k.round, tick=k.tick, contact=k.tick - 20, winner=MATES[1], loser=k.victim_steamid,
+                    w_err=3.5, l_err=30.0, w_react_ms=0, l_react_ms=200, w_first_hit=True, l_first_hit=False,
+                    w_speed=10, l_speed=200, w_shots=2, l_shots=3)]
+    spots = coaching.bright_spots(m, "crosshair")
+    assert spots and "Fadenkreuz 3,5° neben dem Gegner, zuerst geschossen" in spots[0]["text"]
+    assert "steht beim ersten Schuss (10 Units/s)" in coaching.bright_spots(m, "moving")[0]["text"]
+    assert coaching.bright_spots(m, "blind") is None  # keine Suche für diese Lektion
+    assert coaching.bright_spots(m, "crosshair", sid=ME) == []  # nur Szenen dieses Spielers

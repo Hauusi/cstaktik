@@ -242,6 +242,7 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .coach .cmeta .chip { margin-left: 0; }
 .coach .lesson-h { margin-top: 6px; font-size: 21px; font-weight: 800; line-height: 1.2; letter-spacing: -.01em; }
 .coach .happened { margin-top: 8px; font-size: 15px; line-height: 1.5; color: #d5dbe5; }
+.coach .happened.why { color: var(--text); border-left: 2px solid var(--orange); padding-left: 10px; }
 .coach .nextbox { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(63,191,127,.12); font-size: 15px; line-height: 1.45; }
 .coach .nextbox b { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--win); margin-bottom: 2px; }
 .coach .proline { margin-top: 8px; font-size: 13.5px; color: #c5d3ee; }
@@ -527,6 +528,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       {% set good = bright[l.id] %}
       <div class="cmpcol good"><div class="lk cond">So geht's · bei euch</div>
         {% if good %}{% for g in good %}<button class="brightgo" data-round="{{ g.round }}" data-tick="{{ g.from }}"><b class="cond">▶ R{{ g.round }} {{ g.when }}</b>{{ g.text }}</button>{% endfor %}
+        {% elif good is none %}<div class="quiet">Für diese Lektion sucht der Coach keine Gegenbeispiele in den Daten.</div>
         {% else %}<div class="quiet">Diesmal keine Szene gefunden, in der ihr es sauber umgesetzt habt.</div>{% endif %}</div>
     </div>
     <div id="proslot" data-lesson="{{ l.id }}"></div>
@@ -1429,6 +1431,7 @@ function ui() {
       if (cv) {
         it.appendChild(el('div', 'lesson-h', cv.lesson));
         it.appendChild(el('div', 'happened', cv.happened));
+        if (cv.why) it.appendChild(el('div', 'happened why', cv.why));
         const nx = el('div', 'nextbox'); nx.append(el('b', null, 'Nächstes Mal'), cv.next); it.appendChild(nx);
         if (cv.pro) it.appendChild(el('div', 'proline', cv.pro));
       } else {
@@ -1785,6 +1788,7 @@ function dbBuild() {
     if (sc) st.push(() => {
       const d = el('div'); d.append(el('div', 'k', `Deine Szene · R${sc.round} · ${sc.who || ''}`), el('h3', null, 'So ist es passiert'));
       if (cv) d.appendChild(el('p', null, cv.happened));
+      if (cv && cv.why) d.appendChild(el('p', null, cv.why));
       d.appendChild(dbPlayBtn('▶ Szene im Replay ansehen', sc.round, sc.from || sc.tick, true));
       if (L.scenes.length > 1) {
         const more = (L.count || L.scenes.length) - 1;
@@ -1826,7 +1830,8 @@ function dbBuild() {
       if (L.bright && L.bright.length) {
         d.appendChild(el('p', null, 'Ihr könnt es schon. Hier habt ihr es richtig gemacht:'));
         L.bright.forEach(g => { const b = el('div', 'box good'); b.append(el('div', null, g.text), dbPlayBtn(`▶ R${g.round} ${g.when} ansehen`, g.round, g.from)); d.appendChild(b); });
-      } else d.appendChild(el('p', null, 'In diesem Match keine Szene gefunden, in der ihr es sauber umgesetzt habt.'));
+      } else d.appendChild(el('p', null, L.bright === null ? 'Für diese Lektion sucht der Coach keine Gegenbeispiele in den Daten.'
+                                                            : 'In diesem Match keine Szene gefunden, in der ihr es sauber umgesetzt habt.'));
       const pf = L.scenes.map(x => F[x.finding]).find(x => x && x.ov && x.ov.pro_clip != null && D.rounds[x.ov.pro_clip]);
       if (pf) {
         const b = el('div', 'box pro'); b.append(el('div', 'k', 'So spielt es ein Pro'), el('div', null, pf.evidence.pro_clip || ''));

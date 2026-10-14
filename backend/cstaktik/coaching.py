@@ -231,9 +231,17 @@ def drills_since(slot: dict, since: str | None) -> int:
 
 # ---------------------------------------------------------------- "So geht's richtig" aus dem Match
 
-def bright_spots(match: MatchData, lid: str, trade_units: float = 800, max_n: int = 3) -> list[dict]:
-    """Szenen, in denen ein Fokus-Spieler das Prinzip der Lektion umgesetzt hat. Je Szene: Runde, Tick, Text."""
-    focus = match.focus_ids()
+BRIGHT_LESSONS = {"alone", "outnumbered", "utility", "no_shot_close", "moving", "moving_shot", "no_shot_far",
+                  "crosshair"}  # nur für diese sucht der Coach Gegenbeispiele
+
+
+def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: int = 3,
+                 sid: str | None = None) -> list[dict] | None:
+    """Szenen, in denen ein Fokus-Spieler das Prinzip der Lektion umgesetzt hat. Je Szene: Runde, Tick, Text.
+    ``sid``: nur dieser Spieler (sein Auftrag). None = für diese Lektion gibt es keine Suche (nicht "nichts gefunden")."""
+    if lid not in BRIGHT_LESSONS:
+        return None
+    focus = {sid} if sid else match.focus_ids()
     tr = match.tickrate
     idx = PositionIndex(match.positions)
     out: list[dict] = []
@@ -275,10 +283,14 @@ def bright_spots(match: MatchData, lid: str, trade_units: float = 800, max_n: in
                 kind = {"flash": "Flash", "molotov": "Molotov"}[nade.kind]
                 secs = f"{(k.tick - nade.points[0][0]) / tr:.1f}".replace(".", ",")
                 text = f"{name} wirft eine {kind} und holt {secs} s später den Kill."
-        elif lid in ("no_shot_close", "moving"):
-            if k.attacker_pos and k.victim_pos and dist(k.attacker_pos, k.victim_pos) < 600:
-                text = (f"{name} gewinnt das Nahduell in {k.victim_place or 'diesem Spot'} "
-                        f"({round(dist(k.attacker_pos, k.victim_pos))} Units).")
+        elif lid in ("no_shot_close", "crosshair", "moving"):
+            # aus den Duell-Daten: vorgezielt (kleine Abweichung) bzw. gestoppt beim ersten Schuss
+            d = next((d for d in match.duels if d.tick == k.tick and d.winner == k.attacker_steamid), None)
+            if d is not None and lid in ("no_shot_close", "crosshair") and d.w_err is not None and d.w_err < 10:
+                text = (f"{name} hat {k.victim_place or 'den Spot'} vorgezielt: Fadenkreuz {str(d.w_err).replace('.', ',')}° "
+                        f"neben dem Gegner" + (", zuerst geschossen" if d.w_react_ms == 0 else "") + ", Kill.")
+            elif d is not None and lid == "moving" and d.w_speed is not None and d.w_speed < 40:
+                text = f"{name} steht beim ersten Schuss ({d.w_speed} Units/s) und gewinnt das Duell."
         elif lid == "moving_shot":
             last = max((s for s in match.shots if s.steamid == k.attacker_steamid and s.round == k.round
                         and s.tick <= k.tick), key=lambda s: s.tick, default=None)

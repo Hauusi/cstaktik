@@ -173,9 +173,13 @@ def _info_sentence(info: dict | None, fx: dict) -> str | None:
     return f"{att} war {info['killer_seen_s']} s vorher auf dem Radar zu sehen."
 
 
-def _next(lid: str, fx: dict, snap: dict | None) -> str:
+def _next(lid: str, fx: dict, snap: dict | None, aktion: str | None = None) -> str:
     nades = fx.get("nades") or []
     aplace = fx.get("aplace")
+    held = _held(snap, aktion)
+    if lid == "no_shot_close" and held:
+        return (f"Beim Halten: Fadenkreuz auf die Kante, an der {aplace or 'er'} auftaucht, und nach einem Kontakt "
+                "die Position wechseln, statt am selben Spot zu warten.")
     if lid == "no_shot_close":
         util = [n for n in ("Flash", "Molotov") if n in nades]
         return (f"{aplace or 'Den Spot'} vorher anvisieren, Fadenkreuz auf Kopfhöhe"
@@ -185,6 +189,10 @@ def _next(lid: str, fx: dict, snap: dict | None) -> str:
                 + (" (du hattest eine dabei)" if "Smoke" in nades else "") + " oder einen anderen Weg nehmen.")
     if lid == "blind":
         return "Flash hören, sofort wegdrehen, einen Schritt zurück. Erst danach wieder peeken."
+    if lid == "alone" and held:
+        mate = fx.get("mate")
+        return (f"So stellen, dass {mate} nachziehen kann, oder nach dem ersten Kontakt zurückfallen und callen."
+                if mate else "Nach dem ersten Kontakt zurückfallen und callen, statt allein weiter zu halten.")
     if lid == "alone":
         mate = fx.get("mate")
         return (f"Erst callen und warten, bis {mate} bei dir ist, dann zusammen peeken." if mate
@@ -223,6 +231,38 @@ def _pro_line(ev: dict) -> str | None:
     return line
 
 
+def _held(snap: dict | None, aktion: str | None) -> bool:
+    """Hat der Spieler im Entscheidungsmoment gehalten (nicht gepeekt)? Nur aus den Positionsdaten."""
+    return bool(snap) and snap.get("kind") != "bewegt" and aktion in (None, "gehalten")
+
+
+def _why(lid: str, fx: dict, snap: dict | None, aktion: str | None) -> str | None:
+    """Warum es in DIESER Szene gekostet hat, passend zu dem, was die Daten zeigen (statt eines festen Satzes,
+    der z. B. 'reinlaufen' unterstellt, obwohl gehalten wurde). None = allgemeiner Satz der Lektion passt."""
+    att = fx.get("attacker") or "der Gegner"
+    src = f" aus {fx['aplace']}" if fx.get("aplace") else ""
+    d = fx.get("duel") or {}
+    err = d.get("err")
+    held = _held(snap, aktion)
+    if lid in ("no_shot_close", "no_shot_far"):
+        if err is not None and err < CROSSHAIR_BAD_DEG:
+            return (f"Dein Fadenkreuz lag richtig ({_de(err)}° neben ihm), {att}{src} hat trotzdem zuerst getroffen. "
+                    "Hier entscheidet nicht das Zielen, sondern wer die Position zuerst hat.")
+        if held:
+            return (f"Du hast gehalten, {att} kam{src}, und du kamst nicht zum Schuss. "
+                    "Er wusste, wo du stehst, du nicht, wann er kommt.")
+        return None
+    if lid == "alone":
+        mate, md = fx.get("mate"), fx.get("mate_dist")
+        far = f"{mate} war {md} Units weg" if mate and md is not None else "kein Mitspieler war in Reichweite"
+        if held:
+            return f"Du hast allein gehalten, {far}. Nach dem ersten Kontakt konnte dich niemand traden."
+        return f"Du bist ins Duell gegangen, {far}. Dein Tod blieb ohne Antwort."
+    if lid == "moving" and aktion == "zurückgezogen":
+        return "Du warst auf dem Rückzug, als er dich erwischt hat: rückwärts laufen ist auch ein bewegtes Ziel."
+    return None
+
+
 def voice(f: Finding, close_units: int = 600) -> dict | None:
     fx = f.evidence.get("f")
     if f.rule_id != "death_review" or not fx:
@@ -232,8 +272,10 @@ def voice(f: Finding, close_units: int = 600) -> dict | None:
                             _info_sentence(f.evidence.get("info_raw"), fx)) if s]
     if fx.get("traded"):
         happened.append("Immerhin wurdest du getradet.")
+    snap, aktion = f.evidence.get("snap"), f.evidence.get("aktion")
     return {"id": lid, "lesson": LESSONS[lid][0], "happened": " ".join(happened),
-            "next": _next(lid, fx, f.evidence.get("snap")), "pro": _pro_line(f.evidence)}
+            "why": _why(lid, fx, snap, aktion),
+            "next": _next(lid, fx, snap, aktion), "pro": _pro_line(f.evidence)}
 
 
 def apply(findings: list[Finding], close_units: int = 600) -> None:

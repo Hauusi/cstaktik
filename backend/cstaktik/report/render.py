@@ -405,8 +405,7 @@ def build_context(
         "auftraege": auftraege,
         "checks": [a for a in auftraege if a.get("check")],
         "teach": TEACH,
-        "bright": {lid: bright_spots(match, lid, _trade_units())
-                   for lid in {l["id"] for l in lessons[:1]} | {a["focus"]["lesson"] for a in auftraege if a.get("focus")}},
+        "bright": {lid: bright_spots(match, lid, _trade_units()) for lid in {l["id"] for l in lessons[:1]}},
         "praise": coach_voice.praise(result.findings),
         "goal_check": goal_check,
         "mech_cfg": load_rules_config()["mechanics"],
