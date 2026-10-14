@@ -700,10 +700,11 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8, d.first_n) }}
       {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8, d.hit_n) }}
       {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60, d.react_n) }}
+      {% if d.tts_n %}{{ cmpbar("Vom Sehen zum ersten Schuss", d.tts, pr.tts if pr else none, " ms", true, 1200, 80, d.tts_n) }}{% endif %}
       {{ seenblock(d, pr) }}
     </div>
     {% endfor %}
-    <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe stehend genähert; duckt er, wirkt dein Fadenkreuz zu tief). Seitlich/Höhe nur aus Duellen mit Fadenkreuz unter 20° am Gegner. Wer sah zuerst: Sichtbarkeit laut Spiel (Radar-Sichtung) bis 3 s vor dem ersten Schuss, unter 0,15 s Abstand gilt als gleich.{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>
+    <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe stehend genähert; duckt er, wirkt dein Fadenkreuz zu tief). Seitlich/Höhe nur aus Duellen mit Fadenkreuz unter 20° am Gegner. Vom Sehen zum Schuss: ab dem Moment, in dem das Spiel ihn für dich sichtbar macht, bis zu deinem ersten Schuss. Wer sah zuerst: Sichtbarkeit laut Spiel (Radar-Sichtung) bis 3 s vor dem ersten Schuss, unter 0,15 s Abstand gilt als gleich.{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>
   </section>
   {% endif %}
 

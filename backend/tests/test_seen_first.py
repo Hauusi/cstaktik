@@ -74,3 +74,25 @@ def test_seen_first_why_and_next_name_the_lead():
     snap = {"kind": "gehalten", "place": "Ramp"}
     assert "Gegner1 aus Palace hat dich gesehen, 0,7 s bevor du ihn gesehen hast" in _why("seen_first", fx, snap, "gehalten")
     assert _next("seen_first", fx, snap).startswith("In Ramp nicht an der offenen Kante warten")
+
+
+def test_time_to_shot_from_sighting():
+    from cstaktik.duels import side_of, tts_stats
+    from cstaktik.model import Duel
+
+    # Kontakt 1000, Sieger sah ab 936 (1 s vorher) und schoss 0 ms nach Kontakt; Verlierer sah ab 990, schoss 250 ms
+    d = Duel(round=1, tick=1100, contact=1000, winner="w", loser="l", w_react_ms=0, l_react_ms=250,
+             seen_known=True, w_seen=936, l_seen=990)
+    assert side_of(d, "w", 64)["tts"] == 1000 and side_of(d, "l", 64)["tts"] == 406
+    # Prefire (Schuss vor der Sichtung) und unbekannte Sichtung: kein Wert
+    assert side_of(d.model_copy(update={"w_seen": 1010}), "w", 64)["tts"] is None
+    assert side_of(d.model_copy(update={"seen_known": False}), "w", 64)["tts"] is None
+    assert tts_stats([{"tts": 300}, {"tts": 500}, {"tts": None}]) == {"tts": 400, "tts_n": 2}
+
+
+def test_reading_time_to_shot():
+    from cstaktik.coach_voice import duel_reading
+
+    pro = {"err": 3.0, "shot_first": 60, "first_hit": 30, "tts": 380, "tts_n": 500}
+    me = {"n": 30, "err": 3.4, "shot_first": 55, "first_hit": 30, "tts": 520, "tts_n": 20}
+    assert "520 ms" in duel_reading(me, pro) and "Pros 380 ms" in duel_reading(me, pro)

@@ -164,6 +164,8 @@ def _duel_sentence(fx: dict) -> str | None:
                      + (" und trotzdem verloren." if d.get("won") is False else "."))
     elif seen == "gleich":
         parts.append("Ihr habt euch gleichzeitig gesehen.")
+    if d.get("tts") is not None and seen in ("ich", "gleich"):
+        parts.append(f"Vom Sehen bis zu deinem ersten Schuss: {d['tts']} ms.")
     if d.get("err") is not None:
         s = f"Im Moment des ersten Schusses zeigte dein Fadenkreuz {_de1(d['err'])}° neben {att}"
         h = d.get("height")
@@ -488,6 +490,11 @@ def duel_reading(d: dict, pro: dict | None, min_duels: int = 15) -> str | None:
     seen = _seen_reading(d, pro)
     if seen:
         return seen
+    tts, ptts = d.get("tts"), pro.get("tts")
+    if (tts is not None and ptts is not None and (d.get("tts_n") or 0) >= 10 and (pro.get("tts_n") or 0) >= 10
+            and tts - ptts >= 80):
+        return (f"Wenn du ihn siehst, brauchst du {tts} ms bis zum ersten Schuss, Pros {ptts} ms. In der Zeit schießt "
+                "er. Das ist Fadenkreuz-Platzierung: Liegt es schon auf Kopfhöhe an der Kante, musst du nur klicken.")
     if aim_ok and first is not None and first <= -8:
         return (f"Dein Zielen ist auf Pro-Niveau, aber du schießt seltener zuerst ({d['shot_first']} % gegen "
                 f"{pro['shot_first']} %): Du siehst den Gegner später. Der Hebel ist Position und Timing, nicht Aim.")

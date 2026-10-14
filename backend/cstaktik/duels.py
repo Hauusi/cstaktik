@@ -174,13 +174,27 @@ def side_of(d: Duel, sid: str, tickrate: int = 64) -> dict | None:
         return {"won": True, "err": d.w_err, "react": d.w_react_ms, "hit": d.w_first_hit, "speed": d.w_speed,
                 "opp_err": d.l_err, "opp_react": d.l_react_ms, "opp": d.loser,
                 "seen": seen_first(d.w_seen, d.l_seen, d.seen_known, tickrate),
-                "seen_ms": _lead_ms(d.w_seen, d.l_seen, tickrate), "side": d.w_side, "height": d.w_height}
+                "seen_ms": _lead_ms(d.w_seen, d.l_seen, tickrate), "side": d.w_side, "height": d.w_height,
+                "tts": _tts(d, d.w_seen, d.w_react_ms, tickrate)}
     if sid == d.loser:
         return {"won": False, "err": d.l_err, "react": d.l_react_ms, "hit": d.l_first_hit, "speed": d.l_speed,
                 "opp_err": d.w_err, "opp_react": d.w_react_ms, "opp": d.winner,
                 "seen": seen_first(d.l_seen, d.w_seen, d.seen_known, tickrate),
-                "seen_ms": _lead_ms(d.l_seen, d.w_seen, tickrate), "side": d.l_side, "height": d.l_height}
+                "seen_ms": _lead_ms(d.l_seen, d.w_seen, tickrate), "side": d.l_side, "height": d.l_height,
+                "tts": _tts(d, d.l_seen, d.l_react_ms, tickrate)}
     return None
+
+
+TTS_MAX_MS = 2000  # länger: meist kein echtes Duell ab Sichtung (z. B. erst andere Gegner, dann dieser)
+
+
+def _tts(d: Duel, seen: int | None, react_ms: int | None, tickrate: int) -> int | None:
+    """Vom Sehen zum Schuss (ms): eigene Sichtung des Gegners bis zum eigenen ersten Schuss im Duell.
+    None, wenn nicht gesehen, nicht geschossen, vor der Sichtung geschossen (Prefire) oder über TTS_MAX_MS."""
+    if seen is None or react_ms is None or not d.seen_known:
+        return None
+    ms = round((d.contact - seen) * 1000 / tickrate) + react_ms
+    return ms if 0 <= ms <= TTS_MAX_MS else None
 
 
 def _lead_ms(mine: int | None, theirs: int | None, tickrate: int) -> int | None:
@@ -210,7 +224,15 @@ def stats(rows: list[dict]) -> dict:
             "err_n": len(errs), "react_n": len(reacts), "hit_n": len(hits), "first_n": len(first),
             # erster Schuss aus der Bewegung (über 80 Units/s), nur wo das Tempo bekannt ist
             "moving_pct": round(100 * sum(v > 80 for v in speeds) / len(speeds)) if speeds else None,
-            "moving_n": len(speeds), **seen_stats(rows), **aim_parts(rows)}
+            "moving_n": len(speeds), **seen_stats(rows), **aim_parts(rows), **tts_stats(rows)}
+
+
+def tts_stats(rows: list[dict]) -> dict:
+    """Median 'vom Sehen zum Schuss' (ms) über die Duelle, in denen man den Gegner sah und schoss."""
+    import statistics
+
+    v = [r["tts"] for r in rows if r.get("tts") is not None]
+    return {"tts": round(statistics.median(v)) if v else None, "tts_n": len(v)}
 
 
 AIM_NEAR_DEG = 20.0  # Zerlegung nur, wenn das Fadenkreuz ungefähr auf den Gegner zeigte (sonst ist es nur "Seite")
