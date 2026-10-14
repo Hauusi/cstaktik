@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block head %}
+<style>.more-map { margin-top: 22px; } .more-map > summary { cursor: pointer; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }</style>
 <style>
 .sec { margin-top: 16px; }
 .note { padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); margin-top: 8px; }
@@ -31,8 +32,10 @@
   <div class="kwho" style="color:{{ a.color }}">{{ a.name }} · Auftrag</div>
   <div class="ktitle">{{ a.title }}</div>
   <div class="kmantra">„{{ a.mantra }}“</div>
-  <div class="kline"><b>Warm-up ({{ a.routine.minutes }} Min):</b> {{ a.routine.title }}. <b>Im Match:</b> {{ a.in_game }}</div>
-  {% if a.points %}<div class="kline muted">Auf {{ b.label }} ist dir das {{ a.points|length }}x passiert, Punkte auf der Karte.</div>{% endif %}
+  <div class="kline"><b>Im Match:</b> {{ a.in_game }}</div>
+  {% if a.top_place %}<div class="kline"><b>Achtung in {{ a.top_place[0] }}:</b> dort {{ a.top_place[1] }} deiner Szenen zu diesem Auftrag auf {{ b.label }}.</div>{% endif %}
+  {% if a.points %}<div class="kline muted">{{ a.points|length }} Szene{{ "n" if a.points|length != 1 }} auf {{ b.label }}, Punkte auf der Karte.</div>{% endif %}
+  <div class="kline muted">Vorher geübt? {{ a.routine.title }} ({{ a.routine.minutes }} Min){% if a.drills %}, bisher {{ a.drills }}x{% endif %}.</div>
 </div>
 {% endfor %}
 {% if kabine.has_points %}
@@ -50,6 +53,7 @@
 {% endif %}
 {% endif %}
 
+<details class="more-map"{% if not kabine %} open{% endif %}><summary class="cond">Mehr zu {{ b.label }}</summary>
 {% if map_lessons %}
 <h2>Eure Baustellen auf {{ b.label }}</h2>
 {% for l in map_lessons %}<div class="note"><b>{{ l.name }}: {{ l.title }}</b> <span class="empty num">· {{ l.rate }} pro 10 Runden hier ({{ l.count }}x in {{ l.rounds }} Runden)</span>
@@ -82,4 +86,5 @@
 <p class="empty sec">Für diese Map gibt es noch keine Muster. Nach der ersten ausgewerteten Demo auf {{ b.label }} steht hier euer Briefing.</p>
 {% endif %}
 </div></div>
+</details>
 {% endblock %}

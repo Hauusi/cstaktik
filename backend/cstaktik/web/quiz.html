@@ -44,7 +44,7 @@ const KEY = sc => `cstq-${sc.report || ''}-${sc.round}-${sc.tick}`;
 const load = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ohne Speicher */ } };
 const DAY = 864e5, now = Date.now();
-const prio = sc => { const r = load(KEY(sc)); if (!r) return 1; if (!r.ok) return 0; return now - r.date > 3 * DAY ? 2 : 3; };
+const prio = sc => { const r = load(KEY(sc)); if (!r) return 1; if (r.ok === false) return 0; return now - r.date > 3 * DAY ? 2 : 3; };
 // falsch beantwortete zuerst, dann neue, dann richtige von vor über 3 Tagen, kürzlich richtige zuletzt
 const S = ALL.map((sc, i) => [prio(sc), i, sc]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, 12).map(x => x[2]);
 const QUIZ_OPEN = {{ 'true' if quiz_open else 'false' }};
@@ -56,7 +56,7 @@ S.forEach((sc, i) => {
   const s = sc.snap, c = el('div', 'tq');
   const seen = load(KEY(sc));
   c.append(el('div', 'meta', `${i + 1} · ${(sc.map || '').replace('de_', '')} R${sc.round} · ${sc.who}`
-                             + (seen ? (seen.ok ? ' · schon richtig' : ' · letztes Mal daneben') : '')));
+                             + (seen ? (seen.ok ? ' · schon richtig' : seen.ok === false ? ' · letztes Mal daneben' : ' · schon beantwortet') : '')));
   c.append(el('div', 'q', 'Was machst du?'));
   const parts = [`${clock(s.secs)}`, `${s.own} gegen ${s.enemy}`];
   if (s.hp != null) parts.push(s.hp >= 100 ? 'volle HP' : `${s.hp} HP`);
@@ -79,7 +79,7 @@ S.forEach((sc, i) => {
       });
       const res = el('div', 'res');
       if (best) { n++; if (k === best) ok++; }
-      save(KEY(sc), { ok: best ? k === best : true, date: Date.now() });
+      save(KEY(sc), { ok: best ? k === best : null, date: Date.now() });  // ohne Pro-Vergleich kein richtig/falsch
       answered++;
       const v = best ? (k === best ? el('div', 'v ok', 'Höchste Pro-Siegquote') : el('div', 'v no', 'Höchste Pro-Siegquote hat: ' + OPTS.find(o => o[0] === best)[1]))
                      : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage');

@@ -485,9 +485,14 @@ def _kabine(hist: list[dict], map_name: str) -> dict | None:
         pts = []
         for sc in mine:
             x, y = sc["pos"]
-            pts.append({"x": x, "y": y, "round": sc["round"], "report": sc.get("report"), "tick": sc.get("from") or sc["tick"]})
+            pts.append({"x": x, "y": y, "round": sc["round"], "report": sc.get("report"), "tick": sc.get("from") or sc["tick"],
+                        "place": (sc.get("snap") or {}).get("place")})
         pts_all += pts
-        players.append({**a, "color": colors[i % len(colors)], "points": pts})
+        from collections import Counter
+
+        top = Counter(q["place"] for q in pts if q["place"]).most_common(1)
+        players.append({**a, "color": colors[i % len(colors)], "points": pts,
+                        "top_place": top[0] if top and top[0][1] >= 2 else None})
     if img:
         for pl in players:
             for q in pl["points"]:
@@ -508,10 +513,12 @@ def _map_lessons(hist: list[dict], map_name: str) -> list[dict]:
 
     names = {sid: p["name"] for h in hist for sid, p in h.get("players", {}).items()}
     out = []
+    focus_titles = {a["title"] for a in _auftrag(hist)}
     for sid, name in names.items():
         # erst ab 3 Vorkommen und 30 Runden auf der Map: ein einzelner Tod ist keine Baustelle
         ls = [l for l in _lessons(hist, sid) if (l["by_map"].get(map_name) or {}).get("count", 0) >= 3
               and l["by_map"][map_name]["rounds"] >= 30]
+        ls = [l for l in ls if l["title"] not in focus_titles]  # Auftrag steht schon oben in der Kabine
         ls.sort(key=lambda l: -l["by_map"][map_name]["rate"])
         out += [{"name": name, "title": l["title"], "drill": l["drill"],
                  "rate": str(l["by_map"][map_name]["rate"]).replace(".", ","),
