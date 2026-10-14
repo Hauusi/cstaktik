@@ -10,7 +10,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -114,7 +114,6 @@ def _job_view(job_id: str, job: dict) -> dict:
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     jobs = _running_jobs()
-    from cstaktik import history
 
     hist = _load_hist()
     played = [h.get("map") for h in reversed(hist) if h.get("map")]
@@ -132,7 +131,6 @@ def _running_jobs() -> list[dict]:
 
 @app.get("/matches", response_class=HTMLResponse)
 def matches_page() -> str:
-    from cstaktik import history
 
     hist = _load_hist()
     return _env.get_template("matches.html").render(nav_active="matches", jobs=_running_jobs(),
@@ -190,6 +188,8 @@ def _auftrag(hist: list[dict]) -> list[dict]:
         t = TEACH[f["lesson"]]
         out.append({"sid": sid, "name": names.get(sid, sid), "lesson": f["lesson"], "title": LESSONS[f["lesson"]][0],
                     "target": f["target"], "baseline": f["baseline"], "matches": f.get("matches", []),
+                    "baseline_n": f.get("baseline_n"), "baseline_rounds": f.get("baseline_rounds"),
+                    "rueckfall": f.get("rueckfall"),
                     "mantra": t["mantra"], "routine": t["routine"], "in_game": t["in_game"],
                     "drills": coaching.drills_since(slot, f.get("created_at")),
                     "scenes": min(12, sum(1 for sc in scenes if sc["lesson"] == f["lesson"] and sc.get("sid") == sid)),
@@ -199,16 +199,14 @@ def _auftrag(hist: list[dict]) -> list[dict]:
 
 @app.post("/training/done")
 def training_done(p: str = "") -> RedirectResponse:
-    from cstaktik import coaching
-
-    from cstaktik import weekplan
+    from cstaktik import coaching, weekplan
 
     state = coaching.load(pipeline.COACHING_FILE)
     slot = state.get("players", {}).get(p)
     if slot and slot.get("focus"):
         coaching.drill_done(slot, slot["focus"]["lesson"])
         # dieselbe Übung im Wochenplan abhaken, damit sie nicht doppelt gezählt wird
-        key = weekplan.week_key(date.today())
+        key = weekplan.week_key(weekplan.local_today())
         plan = slot.get("weeks", {}).get(key)
         if plan:
             open_ = next((t["id"] for t in plan["tasks"] if t["id"].startswith("routine") and t["id"] not in plan["done"]),
@@ -224,7 +222,6 @@ def quiz_page(p: str = "") -> str:
     """Entscheidungs-Training mit eigenen Situationen aus allen Matches, zuerst zum laufenden Auftrag."""
     import json as _json
 
-    from cstaktik import history
     from cstaktik.coach_voice import LESSONS
 
     hist = _load_hist()
@@ -311,7 +308,7 @@ def _plan_ctx(hist: list[dict], pro_all: list[dict], sid: str, focus: dict) -> d
 @app.get("/training", response_class=HTMLResponse)
 def training_page(p: str = "") -> str:
     """Trainings-Zentrale: Wochenplan je Spieler, Map-Buch, Lineups, Situationen."""
-    from cstaktik import coaching, pro, weekplan
+    from cstaktik import coaching, weekplan
     from cstaktik.coach_voice import LESSONS
 
     hist = _load_hist()
@@ -359,7 +356,7 @@ def plan_toggle(p: str = "", task: str = "", week: str = "") -> RedirectResponse
 
 @app.get("/mapbook/{map_name}", response_class=HTMLResponse)
 def mapbook_page(map_name: str, p: str = "") -> str:
-    from cstaktik import mapbook, pro
+    from cstaktik import mapbook
 
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
@@ -381,7 +378,7 @@ def mapbook_page(map_name: str, p: str = "") -> str:
 def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "", p: str = "") -> str:
     import json as _json
 
-    from cstaktik import lineups, pro
+    from cstaktik import lineups
     from cstaktik.model import MatchData
     from cstaktik.report.radar import build_radar
 
@@ -436,12 +433,11 @@ def _baustellen(hist: list[dict]) -> list[dict]:
 
 @app.get("/briefing/{map_name}", response_class=HTMLResponse)
 def briefing_page(map_name: str) -> str:
-    from cstaktik import briefing, goals, history
+    from cstaktik import briefing, goals
 
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
     hist = _load_hist()
-    from cstaktik import pro
 
     b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=_load_pro())
     return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
@@ -577,7 +573,7 @@ def _get_job(job_id: str) -> dict:
 
 @app.get("/review", response_class=HTMLResponse)
 def review_page(n: int = 5) -> str:
-    from cstaktik import history, review
+    from cstaktik import review
 
     hist = _load_hist()
     return _env.get_template("review.html").render(nav_active="matches", r=review.build(hist, max(1, min(n, 20))))
@@ -585,7 +581,6 @@ def review_page(n: int = 5) -> str:
 
 @app.get("/progress", response_class=HTMLResponse)
 def progress() -> str:
-    from cstaktik import history
     from cstaktik.report.progress import render_progress
 
     return render_progress(_load_hist())

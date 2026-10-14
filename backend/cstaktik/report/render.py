@@ -340,8 +340,8 @@ def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], 
         lesson = {"id": l0["id"], "title": l0["lesson"], "why": l0["why"], "count": l0["count"], "cost": l0["cost"],
                   "scenes": l0["scenes"][:4], "principle": t["principle"], "mantra": t["mantra"],
                   "routine": t["routine"], "in_game": t["in_game"], "bright": bright_spots(match, l0["id"], _trade_units())}
-    checks = [{"name": a["name"], **{k: a["check"][k] for k in ("title", "count", "rate", "target", "met", "streak",
-                                                                 "need")}, "mastered": bool(a.get("mastered"))}
+    checks = [{"name": a["name"], **{k: a["check"].get(k) for k in ("title", "count", "rate", "target", "met", "streak",
+                                                                     "need", "rounds", "streak_rounds", "need_rounds")}, "mastered": bool(a.get("mastered"))}
               for a in auftraege if a.get("check")]
     nexts = [{"name": a["name"], "sid": a.get("sid"), "lesson": a["focus"]["lesson"], "title": a["focus"]["title"],
               "target": a["focus"]["target"], "new": a.get("new"), "mantra": TEACH[a["focus"]["lesson"]]["mantra"],

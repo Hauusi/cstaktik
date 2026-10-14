@@ -10,7 +10,14 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
+from cstaktik.coaching import now_local
+
 MATCHES_PER_WEEK = 2
+
+
+def local_today() -> date:
+    """Heutiges Datum in deutscher Zeit (Server läuft oft in UTC: Montag 0-2 Uhr wäre sonst noch Vorwoche)."""
+    return datetime.fromisoformat(now_local()).date()
 
 
 def week_key(d: date) -> str:
@@ -57,14 +64,14 @@ def tasks_for(ctx: dict) -> list[dict]:
 def ensure(slot: dict, ctx: dict, today: date | None = None) -> tuple[str, dict, bool]:
     """Plan der aktuellen Woche; neu bauen, wenn er fehlt oder der Auftrag gewechselt hat (Häkchen bleiben,
     soweit die Aufgabe gleich ist). Rückgabe: (Woche, Plan, geändert)."""
-    key = week_key(today or date.today())
+    key = week_key(today or local_today())
     weeks = slot.setdefault("weeks", {})
     plan = weeks.get(key)
     if plan and plan.get("lesson") == ctx["lesson"]:
         return key, plan, False
     done = (plan or {}).get("done", {})
     tasks = tasks_for(ctx)
-    weeks[key] = plan = {"lesson": ctx["lesson"], "created": datetime.now().isoformat(timespec="minutes"),
+    weeks[key] = plan = {"lesson": ctx["lesson"], "created": now_local(),
                          "tasks": tasks, "done": {t["id"]: done[t["id"]] for t in tasks if t["id"] in done}}
     return key, plan, True
 
@@ -77,23 +84,35 @@ def toggle(slot: dict, key: str, task_id: str) -> bool | None:
     if task_id in plan["done"]:
         del plan["done"][task_id]
         return False
-    plan["done"][task_id] = datetime.now().isoformat(timespec="minutes")
+    plan["done"][task_id] = now_local()
     return True
 
 
-def check(key: str, plan: dict, hist: list[dict], sid: str, focus: dict | None) -> dict:
-    """Wochen-Check: Aufgaben, Matches dieser Woche, Rate des Auftrags-Fehlers gegen Start und Ziel."""
+def check(key: str, plan: dict, hist: list[dict], sid: str, focus: dict | None, min_rounds: int = 40) -> dict:
+    """Wochen-Check: Aufgaben, Matches dieser Woche, Rate des Auftrags-Fehlers gegen das Ziel.
+
+    Gezählt werden die Matches dieser Woche nach dem Start des Auftrags (dieselben wie im Auftrag-Check), pro
+    gespielter Runde des Spielers. Unter ``min_rounds`` Runden gibt es kein Urteil, nur die Zahlen."""
     start, end = week_range(key)
-    ms = [h for h in hist if sid in h.get("players", {}) and h.get("analyzed_at")
-          and start <= datetime.fromisoformat(h["analyzed_at"]).date() <= end]
+
+    def in_week(stamp: str | None) -> bool:
+        return bool(stamp) and start <= datetime.fromisoformat(stamp).date() <= end
+
     lesson = plan["lesson"]
-    n = sum((h.get("lessons", {}).get(sid) or {}).get(lesson, 0) for h in ms)
-    rounds = sum(h.get("rounds") or 0 for h in ms)
+    if focus and focus.get("lesson") == lesson:
+        rows = [m for m in focus.get("matches", []) if in_week(m.get("date"))]
+        n, rounds = sum(m.get("count") or 0 for m in rows), sum(m.get("rounds") or 0 for m in rows)
+        n_matches = len(rows)
+    else:  # vergangene Wochen: aus dem Verlauf
+        ms = [h for h in hist if sid in h.get("players", {}) and in_week(h.get("analyzed_at"))]
+        n = sum((h.get("lessons", {}).get(sid) or {}).get(lesson, 0) for h in ms)
+        rounds = sum((h["players"][sid].get("rounds") or h.get("rounds") or 0) for h in ms)
+        n_matches = len(ms)
     rate = round(10 * n / rounds, 1) if rounds else None
     out = {"key": key, "from": start.strftime("%d.%m."), "to": end.strftime("%d.%m."),
-           "done": len(plan["done"]), "total": len(plan["tasks"]), "matches": len(ms), "need": MATCHES_PER_WEEK,
-           "count": n, "rate": rate}
+           "done": len(plan["done"]), "total": len(plan["tasks"]), "matches": n_matches, "need": MATCHES_PER_WEEK,
+           "count": n, "rounds": rounds, "rate": rate}
     if focus and focus.get("lesson") == lesson:
         out["target"], out["baseline"] = focus["target"], focus["baseline"]
-        out["met"] = None if rate is None else rate <= focus["target"]
+        out["met"] = None if rate is None or rounds < min_rounds else 10 * n / rounds <= focus["target"]
     return out

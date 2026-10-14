@@ -246,9 +246,13 @@ def run(
     # Auftrag (Fokus-Lektion) prüfen und ggf. neu setzen; mitspeichern für spätere Neubauten des Reports
     from cstaktik import coaching
 
+    if old and old.get("analyzed_at"):  # erneut ausgewertet: zählt zum ursprünglichen Zeitpunkt, nicht als neuestes
+        summary["analyzed_at"] = old["analyzed_at"]
     cstate = coaching.load(COACHING_FILE)
+    past = [h for h in history.load_all(HISTORY_DIR) if h.get("id") != summary["id"]
+            and (h.get("analyzed_at") or "") <= (summary.get("analyzed_at") or "")] if HISTORY_DIR.exists() else []
     summary["focus_check"] = coaching.update_all(cstate, summary, summary.get("lesson_rank_by") or {},
-                                                 config["goals"]["target_factor"], config["goals"]["done_after"])
+                                                 past=past, **goal_kw(config))
     coaching.save(cstate, COACHING_FILE)
     history.save(summary, HISTORY_DIR)
     report("Report bauen", 0.96)
@@ -260,6 +264,14 @@ def run(
                        memory=mem, focus=summary["focus_check"])
     report("Fertig", 1.0)
     return out
+
+
+def goal_kw(config: dict) -> dict:
+    """Auftrags-Schwellen aus rules.yaml (goals) für coaching.update_all."""
+    g = config["goals"]
+    return {"target_factor": g["target_factor"], "done_after": g["done_after"],
+            "min_master_rounds": g.get("min_master_rounds", 40), "min_check_rounds": g.get("min_check_rounds", 12),
+            "pool_matches": g.get("pool_matches", 5), "min_count": g.get("min_count", 3)}
 
 
 def rerender_reports(maps: set[str] | None = None, progress: Progress | None = None) -> int:
@@ -276,10 +288,16 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
             and cache_file(h["id"]) is not None]
     from cstaktik import coaching
 
-    # Ohne Auftrags-Verlauf (erstes Update) und bei allen Matches: Aufträge aus dem Verlauf neu aufbauen
-    # Neu aufbauen, wenn es noch keine Datei gibt oder sie im alten Format (gemeinsamer Auftrag) ist
+    # Aufträge aus dem Verlauf neu aufbauen (nur beim Neubau aller Matches), wenn es noch keine Datei gibt, sie im
+    # alten Format ist oder mit einer älteren Zählweise der Lektionen entstand. Übungen und Wochenpläne bleiben.
     old_state = coaching.load(COACHING_FILE)
-    rebuild = {"players": {}} if maps is None and (not COACHING_FILE.exists() or "players" not in old_state) else None
+    stale = (not COACHING_FILE.exists() or "players" not in old_state
+             or old_state.get("count_version") != coaching.COUNT_VERSION)
+    rebuild = None
+    if maps is None and stale:
+        rebuild = {"players": {sid: {"focus": None, "done": [], "drills": slot.get("drills", []),
+                                     "weeks": slot.get("weeks", {})}
+                               for sid, slot in old_state.get("players", {}).items()}}
     done = 0
     for i, h in enumerate(todo):
         report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
@@ -300,8 +318,8 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         h["deaths"] = history.death_rows(match)  # mit "getradet" (Map-Buch)
         h["timeline"] = history.timeline(match)
         if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
-            h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], config["goals"]["target_factor"],
-                                                   config["goals"]["done_after"])
+            past = [x for x in todo[:i]]
+            h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], past=past, **goal_kw(config))
         history.save(h, HISTORY_DIR)
         from cstaktik import coach_voice
 

@@ -87,8 +87,13 @@ def test_weekplan_tasks_toggle_and_check():
     weekplan.toggle(slot, key, plan2["tasks"][1]["id"])  # Map-Buch-Aufgabe bleibt bei Wechsel erhalten
     _, plan3, _ = weekplan.ensure(slot, ctx, day)
     assert plan2["tasks"][1]["id"] in plan3["done"]
-    chk = weekplan.check(key, plan3, _hist(), "me", {"lesson": "alone", "target": 0.6, "baseline": 2.0})
-    assert chk["matches"] == 1 and chk["rate"] == 1.0 and chk["met"] is False and chk["from"] == "12.10."
+    foc = {"lesson": "alone", "target": 0.6, "baseline": 2.0,
+           "matches": [{"date": "2026-10-12T20:00", "count": 2, "rounds": 20}, {"date": "2026-10-13T20:00", "count": 4, "rounds": 22},
+                       {"date": "2026-10-01T20:00", "count": 9, "rounds": 20}]}  # letzte Woche zählt nicht
+    chk = weekplan.check(key, plan3, _hist(), "me", foc)
+    assert chk["matches"] == 2 and chk["count"] == 6 and chk["rounds"] == 42 and chk["met"] is False and chk["from"] == "12.10."
+    foc["matches"] = foc["matches"][:1]
+    assert weekplan.check(key, plan3, _hist(), "me", foc)["met"] is None  # 20 Runden: noch kein Urteil
 
 
 def test_mapbook_and_lineup_pages():

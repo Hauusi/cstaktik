@@ -477,16 +477,18 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   <section class="auftraege">
     <div class="sh"><span class="t cond">Auftrag-Check</span></div>
     {% for a in checks %}{% set c = a.check %}
-    <div class="auftrag {{ 'ok' if c.met else 'no' }}">
+    <div class="auftrag {{ 'ok' if c.met else '' if c.met is none else 'no' }}">
       <div class="who cond">{{ a.name }}</div>
-      <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Nicht geschafft" }}</div></div>
+      <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Zu wenig Runden" if c.met is none else "Nicht geschafft" }}</div></div>
       <div class="ameter num">
-        <div><b class="cond">{{ c.count }}x</b><span>heute</span></div>
+        <div><b class="cond">{{ c.count }}x</b><span>in {{ c.rounds }} Runden</span></div>
         <div><b class="cond">{{ c.rate|string|replace(".", ",") }}</b><span>pro 10 Runden</span></div>
         <div><b class="cond">≤ {{ c.target|string|replace(".", ",") }}</b><span>Ziel</span></div>
         <div><b class="cond">{{ c.streak }}/{{ c.need }}</b><span>in Folge</span></div>
       </div>
-      {% if a.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel. Das sitzt.</div>
+      {% if a.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel, zusammen {{ c.streak_rounds }} Runden. Das sitzt.</div>
+      {% elif c.met is none %}<div class="anote">Nur {{ c.rounds }} Runden gespielt: zählt weder für noch gegen den Auftrag.</div>
+      {% elif c.met and c.streak >= c.need %}<div class="anote">Ziel erreicht, aber erst {{ c.streak_rounds }} von {{ c.need_rounds }} Runden. Noch ein Match, dann ist es sicher kein Zufall.</div>
       {% elif c.met %}<div class="anote">Gut umgesetzt. Noch {{ c.need - c.streak }} Match in Folge, dann ist es gemeistert.</div>
       {% else %}<div class="anote">Noch nicht umgesetzt. Der Auftrag bleibt, bis er {{ c.need }} Matches in Folge sitzt.</div>{% endif %}
     </div>
@@ -1755,11 +1757,11 @@ function dbBuild() {
   if (DB.checks && DB.checks.length) st.push(() => {
     const d = el('div'); d.append(el('div', 'k', 'Auftrag-Check'), el('h3', null, DB.checks.length > 1 ? 'Eure Aufträge' : 'Dein Auftrag'));
     DB.checks.forEach(c => {
-      const b = el('div', 'box ' + (c.met ? 'good' : 'bad'));
+      const b = el('div', 'box ' + (c.met ? 'good' : c.met == null ? '' : 'bad'));
       b.append(el('div', 'k', c.name), el('div', null, c.title));
       b.firstChild.style.color = 'var(--muted)'; b.lastChild.style.cssText = 'font:800 22px var(--cond);text-transform:uppercase';
-      b.append(el('div', null, `Heute ${c.count}x (${String(c.rate).replace('.', ',')} pro 10 Runden), Ziel ≤ ${String(c.target).replace('.', ',')}.`));
-      b.append(el('div', 'stamp ' + (c.met ? 'ok' : 'no'), c.mastered ? 'Gemeistert' : c.met ? `Geschafft · ${c.streak}/${c.need}` : 'Nicht geschafft'));
+      b.append(el('div', null, `Heute ${c.count}x in ${c.rounds} Runden (${String(c.rate).replace('.', ',')} pro 10 Runden), Ziel ≤ ${String(c.target).replace('.', ',')}.`));
+      b.append(el('div', 'stamp ' + (c.met ? 'ok' : c.met == null ? '' : 'no'), c.mastered ? 'Gemeistert' : c.met == null ? 'Zu wenig Runden' : c.met ? `Geschafft · ${c.streak}/${c.need}` : 'Nicht geschafft'));
       d.appendChild(b);
     });
     return d;

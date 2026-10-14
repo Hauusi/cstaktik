@@ -108,3 +108,41 @@ def test_kabine_in_briefing():
                   "players": {"s1": {"name": "Ich"}}, "scenes": [sc]}, pipeline.HISTORY_DIR)
     html = TestClient(api.app).get("/briefing/de_mirage").text
     assert "Kabine" in html and "Nie allein in ein Duell" in html and "/reports/x.html#s3-400" in html
+
+
+def _ps(mid, n, rounds=20, lid="alone", played=None):
+    s = _sum(mid, n, rounds, lid)
+    s["players"] = {"a": {"name": "A", "rounds": played if played is not None else rounds}}
+    return s
+
+
+def test_baseline_pooled_over_recent_matches_and_min_count():
+    past = [_ps("1", 1), _ps("2", 1)]
+    st = {"focus": None, "done": [], "drills": []}
+    r = coaching.update(st, _ps("3", 4), ["alone"], sid="a", past=past)
+    # nicht nur das schlechte Match (2,0), sondern 6 in 60 Runden = 1,0 pro 10 Runden
+    assert r["focus"]["baseline"] == 1.0 and r["focus"]["baseline_n"] == 6 and r["focus"]["baseline_rounds"] == 60
+    st2 = {"focus": None, "done": [], "drills": []}
+    assert coaching.update(st2, _ps("1", 2), ["alone"], sid="a")["focus"] is None  # 2 Vorkommen: zu wenig
+
+
+def test_short_match_does_not_count_and_mastery_needs_rounds():
+    st = {"focus": None, "done": [], "drills": []}
+    coaching.update(st, _ps("1", 4), ["alone"], sid="a")  # Ziel 1,2
+    short = coaching.update(st, _ps("2", 0, played=8), ["alone"], sid="a")
+    assert short["check"]["met"] is None and short["check"]["streak"] == 0  # 8 Runden: weder für noch gegen
+    r3 = coaching.update(st, _ps("3", 0, rounds=13), ["alone"], sid="a")
+    r4 = coaching.update(st, _ps("4", 0, rounds=13), ["alone"], sid="a")
+    assert r4["check"]["streak"] == 2 and r4["mastered"] is None  # 2x geschafft, aber nur 26 Runden
+    r5 = coaching.update(st, _ps("5", 1, rounds=20), ["alone"], sid="a")
+    assert r5["mastered"] == "alone" and r5["check"]["streak_rounds"] == 46
+    assert r3["check"]["rounds"] == 13
+
+
+def test_relapse_brings_mastered_lesson_back():
+    st = {"focus": None, "done": [{"lesson": "alone", "baseline": 1.5, "done_at": "2026-10-02T20:00"}], "drills": []}
+    hist = [_ps("1", 1), _ps("2", 1)]
+    assert coaching.update(st, _ps("3", 3), ["alone"], sid="a", past=hist)["focus"] is None  # 5/60 < 1,5
+    hist = [_ps("1", 4), _ps("2", 3)]
+    r = coaching.update(st, _ps("4", 4), ["alone"], sid="a", past=hist)
+    assert r["focus"]["lesson"] == "alone" and r["focus"]["rueckfall"] == "2026-10-02T20:00"

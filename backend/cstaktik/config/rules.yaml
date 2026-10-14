@@ -135,8 +135,15 @@ goals:
   max_active: 3
   # Zielwert = Ausgangswert x target_factor (Anteil Runden mit dieser Ursache).
   target_factor: 0.6
-  # Ziel gilt als geschafft, wenn es so viele Matches in Folge erreicht wurde.
+  # Ziel gilt als geschafft, wenn es so viele Matches in Folge erreicht wurde ...
   done_after: 2
+  # ... und diese Matches zusammen mindestens so viele Runden hatten (sonst ist "0x" oft Glück).
+  min_master_rounds: 40
+  # Matches, in denen ein Spieler weniger Runden spielte, zählen nicht für oder gegen die Serie.
+  min_check_rounds: 12
+  # Ausgangswert eines Auftrags: Rate über die letzten so vielen Matches, mindestens so viele Vorkommen.
+  pool_matches: 5
+  min_count: 3
 
 mechanics:
   # Schuss gilt als "bewegt", wenn schneller als das (Units/s, aus velocity im Schuss-Tick).

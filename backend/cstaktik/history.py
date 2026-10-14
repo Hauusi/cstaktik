@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from cstaktik.model import AnalysisResult, MatchData
+from cstaktik.coaching import now_local
 from cstaktik.reference import timeline
 from cstaktik.situation import round_states
 
@@ -46,7 +47,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "id": match.source_sha256 or match.source_file,
         "source_file": match.source_file,
         "report_file": report_file,
-        "analyzed_at": datetime.now().isoformat(timespec="minutes"),
+        "analyzed_at": now_local(),  # deutsche Zeit (Wochenplan, Verlauf)
         "map": match.map_name,
         "rounds": len(match.rounds),
         "states": round_states(match),

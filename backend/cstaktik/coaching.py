@@ -24,6 +24,16 @@ from cstaktik.rules.base import PositionIndex, dist
 
 # ---------------------------------------------------------------- Auftrag (Fokus) über Matches
 
+COUNT_VERSION = 2  # 2: jede Lektion eines Todes zählt (history.lessons); ältere Ausgangswerte neu berechnen
+
+
+def now_local() -> str:
+    """Jetzt in deutscher Zeit (Wochengrenzen und Datumsangaben wie bei euch, nicht wie auf dem Server)."""
+    from zoneinfo import ZoneInfo
+
+    return datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None).isoformat(timespec="minutes")
+
+
 def load(path: Path) -> dict:
     if path.exists():
         try:
@@ -38,10 +48,18 @@ def save(state: dict, path: Path) -> None:
     path.write_text(json.dumps(state, ensure_ascii=False, indent=1))
 
 
-def _rate(summary: dict, lid: str, sid: str | None = None) -> tuple[float, int] | None:
-    """Rate pro 10 Runden: für einen Spieler (sid) oder alle Fokus-Spieler zusammen."""
-    rounds = summary.get("rounds") or 0
-    if not rounds or "lessons" not in summary:
+def _rounds(summary: dict, sid: str | None) -> int:
+    """Gespielte Runden: die des Spielers (wer später einsteigt, hat weniger), sonst die des Matches."""
+    if sid is not None:
+        r = (summary.get("players", {}).get(sid) or {}).get("rounds")
+        if r:
+            return int(r)
+    return int(summary.get("rounds") or 0)
+
+
+def _rate(summary: dict, lid: str, sid: str | None = None) -> tuple[float, int, int] | None:
+    """(Rate pro 10 Runden ungerundet, Anzahl, Runden) für einen Spieler (sid) oder alle Fokus-Spieler."""
+    if "lessons" not in summary:
         return None
     if sid is not None:
         if sid not in summary.get("players", {}) and sid not in summary["lessons"]:
@@ -49,74 +67,119 @@ def _rate(summary: dict, lid: str, sid: str | None = None) -> tuple[float, int] 
         n = summary["lessons"].get(sid, {}).get(lid, 0)
     else:
         n = sum(d.get(lid, 0) for d in summary["lessons"].values())
-    return round(10 * n / rounds, 1), n
+    rounds = _rounds(summary, sid)
+    if not rounds:
+        return None
+    return 10 * n / rounds, n, rounds
+
+
+def _pooled(matches: list[dict], lid: str, sid: str | None) -> tuple[float, int, int] | None:
+    """Rate über mehrere Matches zusammen (Summe Vorkommen / Summe Runden): ruhiger als ein einzelnes Match."""
+    n = rounds = 0
+    for h in matches:
+        r = _rate(h, lid, sid)
+        if r:
+            n += r[1]
+            rounds += r[2]
+    return (10 * n / rounds, n, rounds) if rounds else None
 
 
 def update(state: dict, summary: dict, top_lessons: list[str], target_factor: float = 0.6,
-           done_after: int = 2, sid: str | None = None) -> dict:
+           done_after: int = 2, sid: str | None = None, past: list[dict] | None = None,
+           min_check_rounds: int = 12, min_master_rounds: int = 40, min_count: int = 3,
+           pool_matches: int = 5) -> dict:
     """Prüft den laufenden Auftrag gegen dieses Match und setzt bei Bedarf einen neuen.
 
-    ``top_lessons``: Lektionen dieses Matches, wichtigste zuerst (coach_voice.focus).
+    Statistisch ehrlich, damit "gemeistert" nicht Glück ist:
+    - Ausgangswert = Rate über die letzten ``pool_matches`` Matches des Spielers (nicht nur das schlechte Match,
+      das den Auftrag ausgelöst hat); ein Auftrag braucht dort mindestens ``min_count`` Vorkommen.
+    - Gezählt wird pro gespielter Runde des Spielers; Matches unter ``min_check_rounds`` Runden zählen nicht
+      (weder für noch gegen die Serie).
+    - Gemeistert: ``done_after`` Matches in Folge unter dem Ziel und zusammen mindestens ``min_master_rounds`` Runden.
+    - Ein gemeisterter Auftrag kommt zurück, wenn die Rate wieder auf den alten Ausgangswert steigt (Rückfall).
+    ``past``: frühere Verlaufs-Einträge (ohne dieses Match), älteste zuerst.
     Rückgabe (für den Report): {"check": {...} | None, "focus": {...} | None, "new": bool, "mastered": str | None}.
     Dieselbe Demo zweimal auszuwerten zählt nicht doppelt."""
     mid = summary.get("id")
     from cstaktik.coach_voice import LESSONS
 
+    past = [h for h in (past or []) if h.get("id") != mid]
+    mine = [h for h in past + [summary] if sid is None or sid in h.get("players", {})]
     out = {"check": None, "focus": None, "new": False, "mastered": None}
     f = state.get("focus")
-    if f and f.get("created_from") != mid:
+    if f and f.get("created_from") != mid and (summary.get("analyzed_at") or "") >= (f.get("created_at") or ""):
         r = _rate(summary, f["lesson"], sid)
         if r is not None:
-            rate, n = r
-            entry = {"match": mid, "date": summary.get("analyzed_at"), "map": summary.get("map"), "rate": rate,
-                     "count": n, "rounds": summary.get("rounds"), "met": rate <= f["target"],
-                     "report": summary.get("report_file")}
-            f["matches"] = [m for m in f.get("matches", []) if m["match"] != mid] + [entry]
-            streak = 0
+            rate, n, rounds = r
+            enough = rounds >= min_check_rounds
+            entry = {"match": mid, "date": summary.get("analyzed_at"), "map": summary.get("map"),
+                     "rate": round(rate, 1), "count": n, "rounds": rounds,
+                     "met": (rate <= f["target"]) if enough else None, "report": summary.get("report_file")}
+            f["matches"] = sorted([m for m in f.get("matches", []) if m["match"] != mid] + [entry],
+                                  key=lambda m: m.get("date") or "")
+            streak = streak_rounds = 0
             for m in reversed(f["matches"]):
+                if m["met"] is None:
+                    continue  # zu kurz gespielt: zählt weder für noch gegen die Serie
                 if not m["met"]:
                     break
                 streak += 1
+                streak_rounds += m.get("rounds") or 0
             out["check"] = {**entry, "lesson": f["lesson"], "title": LESSONS[f["lesson"]][0], "target": f["target"],
-                            "baseline": f["baseline"], "streak": streak, "need": done_after}
-            if streak >= done_after:
+                            "baseline": f["baseline"], "streak": streak, "need": done_after,
+                            "streak_rounds": streak_rounds, "need_rounds": min_master_rounds}
+            if streak >= done_after and streak_rounds >= min_master_rounds:
                 f["status"] = "gemeistert"
                 f["done_at"] = summary.get("analyzed_at")
                 state.setdefault("done", []).append(f)
                 out["mastered"] = f["lesson"]
                 state["focus"] = f = None
     if not state.get("focus"):
-        recent_done = {d["lesson"] for d in state.get("done", [])[-3:]}
+        recent = state.get("done", [])[-3:]
         for lid in top_lessons:
-            if lid in recent_done or lid == "duel":
+            if lid == "duel" or lid not in LESSONS:
                 continue
-            r = _rate(summary, lid, sid)
-            if not r or not r[1]:
-                continue
-            state["focus"] = {"lesson": lid, "baseline": r[0], "target": round(max(0.3, r[0] * target_factor), 1),
-                              "created_at": summary.get("analyzed_at") or datetime.now().isoformat(timespec="minutes"),
-                              "created_from": mid, "matches": [], "status": "aktiv"}
+            base = _pooled(mine[-pool_matches:], lid, sid)
+            if not base or base[1] < min_count:
+                continue  # zu selten für einen belastbaren Auftrag
+            relapse = None
+            done_same = [d for d in recent if d["lesson"] == lid]
+            if done_same:
+                # gerade gemeistert: nur zurück, wenn die letzten Matches wieder so schlecht sind wie früher
+                last3 = _pooled(mine[-3:], lid, sid)
+                if not last3 or last3[0] < done_same[-1]["baseline"]:
+                    continue
+                relapse = done_same[-1].get("done_at")
+            state["focus"] = {"lesson": lid, "baseline": round(base[0], 1),
+                              "target": round(max(0.3, base[0] * target_factor), 1),
+                              "baseline_n": base[1], "baseline_rounds": base[2],
+                              "created_at": summary.get("analyzed_at") or now_local(),
+                              "created_from": mid, "matches": [], "status": "aktiv",
+                              **({"rueckfall": relapse} if relapse else {})}
             out["new"] = True
             break
     if state.get("focus"):
         fo = state["focus"]
         out["focus"] = {"lesson": fo["lesson"], "title": LESSONS[fo["lesson"]][0], "target": fo["target"],
-                        "baseline": fo["baseline"], "matches": fo.get("matches", []), "need": done_after}
+                        "baseline": fo["baseline"], "matches": fo.get("matches", []), "need": done_after,
+                        "baseline_n": fo.get("baseline_n"), "baseline_rounds": fo.get("baseline_rounds"),
+                        "rueckfall": fo.get("rueckfall")}
     return out
 
 
 def update_all(state: dict, summary: dict, tops: dict[str, list[str]], target_factor: float = 0.6,
-               done_after: int = 2) -> dict[str, dict]:
+               done_after: int = 2, past: list[dict] | None = None, **kw) -> dict[str, dict]:
     """Eigener Auftrag je Fokus-Spieler. ``tops``: steamid -> Lektionen dieses Spielers, wichtigste zuerst.
     Alter gemeinsamer Auftrag (Version davor) wird beim ersten Mal für jeden Spieler übernommen."""
     players = state.setdefault("players", {})
+    state["count_version"] = COUNT_VERSION
     legacy = state.get("focus")
     out = {}
     for sid in sorted(set(tops) | set(summary.get("players", {}))):
         if sid not in players:
             players[sid] = {"focus": json.loads(json.dumps(legacy)) if legacy else None,
                             "done": list(state.get("done", [])), "drills": []}
-        res = update(players[sid], summary, tops.get(sid, []), target_factor, done_after, sid=sid)
+        res = update(players[sid], summary, tops.get(sid, []), target_factor, done_after, sid=sid, past=past, **kw)
         res["name"] = (summary.get("players", {}).get(sid) or {}).get("name", sid)
         out[sid] = res
     if legacy is not None:
@@ -126,7 +189,7 @@ def update_all(state: dict, summary: dict, tops: dict[str, list[str]], target_fa
 
 
 def drill_done(slot: dict, lesson: str, when: str | None = None) -> None:
-    slot.setdefault("drills", []).append({"lesson": lesson, "date": when or datetime.now().isoformat(timespec="minutes")})
+    slot.setdefault("drills", []).append({"lesson": lesson, "date": when or now_local()})
 
 
 def drill_undo(slot: dict, lesson: str) -> None:

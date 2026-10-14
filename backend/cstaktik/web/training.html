@@ -15,6 +15,7 @@
   <div><b class="{{ 'ok' if chk.matches >= chk.need }}">{{ chk.matches }}/{{ chk.need }}</b><span>Matches</span></div>
   <div><b class="{{ '' if chk.met is none else ('ok' if chk.met else 'no') }}">{{ chk.rate|string|replace(".", ",") if chk.rate is not none else "–" }}</b><span>Fehler / 10 Runden</span>{% if chk.target is defined %}<span style="display:block">Ziel ≤ {{ chk.target|string|replace(".", ",") }}</span>{% endif %}</div>
 </div>
+<div class="small muted num" style="margin-top:6px">Diese Woche: {{ chk.count }}x in {{ chk.rounds }} Runden{% if chk.met is defined and chk.met is none %} · ein Urteil gibt es ab 40 Runden{% endif %}.</div>
 <div style="margin-top:10px">
 {% for t in plan.tasks %}{% set d = t.id in plan.done %}
 <div class="task {{ 'done' if d }}">
