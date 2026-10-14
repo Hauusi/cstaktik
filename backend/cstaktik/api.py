@@ -524,6 +524,18 @@ def playbook_page(map_name: str, who: str = "pro", side: str = "t") -> str:
         if img:  # bis zu 8 Runden je Taktik zum Durchblättern, die Beispielrunde zuerst
             tac["draws"] = [d for d in (draw(r) for r in tac["rounds"][:8]) if d]
     side = "ct" if side == "ct" else "t"
+    from cstaktik import lineups as lu
+
+    # Granaten-Set mit Lineups verknüpfen: gleiche Art, Seite und Landeort, häufigster Wurf zuerst
+    lines = lu.build(pro, map_name)
+
+    def link(items: list[dict], sd: str) -> None:
+        for c in items:
+            hit = next((x for x in lines if x["side"] == sd and x["kind"] == c["kind"] and x.get("to") == c.get("to")), None)
+            c["lineup"] = hit["id"] if hit else None
+
+    for tac in book["tactics"]:
+        link(tac["common"], "t")
     ct = None
     if side == "ct":  # Aufstellungen: Bombsite-Mitten aus allen Plants dieser Map (Pros und eure)
         ct = playbook.ct_build(own if who == "ihr" else pro, map_name, playbook.site_centers(pro + own, map_name), cfg)
@@ -538,6 +550,8 @@ def playbook_page(map_name: str, who: str = "pro", side: str = "t") -> str:
                 st["draws"].append({"pts": pts, "nades": nades, "r": r["r"], "won": r["won"], "demo": r.get("demo"),
                                     "plant": radar.to_px(*r["plant"]) if r.get("plant") else None,
                                     "plant_site": r.get("plant_site")})
+        for st in ct["setups"]:
+            link(st["util"], "ct")
         ct["zones_px"] = {k: [*radar.to_px(*v), units / radar.scale] for k, v in ct["centers"].items()} if img else {}
     maps = sorted({d.get("map") for d in pro + own if d.get("map")} | {map_name})
     data = _json.dumps({t["id"]: t.get("draws") for t in book["tactics"]} if side == "t" else

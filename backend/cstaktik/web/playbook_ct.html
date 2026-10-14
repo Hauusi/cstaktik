@@ -19,7 +19,7 @@
   {% if s.draws|length > 1 %}<div class="prnd"><button class="pprev" type="button" aria-label="Vorige Runde">‹</button><span class="rlbl num"></span><button class="pnext" type="button" aria-label="Nächste Runde">›</button></div>{% endif %}
   <svg class="cmap" viewBox="0 0 1024 1024" data-id="{{ s.id }}"><use href="#pbrad" opacity=".85"/><g class="ctg"></g></svg>
   {% endif %}
-  {% if s.util %}<div class="pset">{% for c in s.util %}<span><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to }} <b class="num">{{ c.n }}/{{ s.n }}</b></span>{% endfor %}</div>{% endif %}
+  {% if s.util %}<div class="pset">{% for c in s.util %}<{{ 'a' if c.lineup else 'span' }}{% if c.lineup %} class="lu" href="/lineups/{{ map_name }}?l={{ c.lineup }}" title="Lineup ansehen"{% endif %}><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to }} <b class="num">{{ c.n }}/{{ s.n }}</b>{% if c.lineup %} ›{% endif %}</{{ 'a' if c.lineup else 'span' }}>{% endfor %}</div>{% endif %}
   <details><summary>Wie liest man das?</summary><p>Die Zahlen sind, wie viele CT nach 20 s nah an Bombsite A, in der Mitte (Rotation, Info-Positionen) und nah an B stehen. Ein Stack (4 oder mehr auf einem Bombsite) riskiert den anderen Bombsite, um einen sicher zu halten. "T planten" zeigt, wohin die T gegen diese Aufstellung gegangen sind.</p></details>
   <div class="pex" data-who="{{ who }}"></div>
 </article>

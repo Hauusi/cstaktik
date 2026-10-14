@@ -70,6 +70,7 @@
 .prnd .rlbl b { color: var(--text); } .prnd .rlbl .w { color: var(--win); } .prnd .rlbl .l { color: var(--loss); }
 .pset { display: flex; flex-wrap: wrap; gap: 6px; }
 .pset span { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+.pset a.lu { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; background: rgba(255,154,31,.1); border: 1px solid rgba(255,154,31,.45); }
 .pset i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .play details { margin: 0; } .play details p { margin: 6px 0 0; font-size: 14px; color: #cfd5de; }
 .cmap { display: block; width: 100%; height: auto; border-radius: 12px; background: #07090d; }
@@ -145,7 +146,7 @@
   <div class="pctl"><button class="pplay" type="button">▶ Abspielen</button><div class="ptrack"><i></i></div><span class="ptime">0:00</span></div>
   <div class="pcap"><span class="hint">Abspielen: Die Runde hält an jeder Granate, jedem Kill und beim Plant an. Punkte auf der Zeitleiste springen direkt dorthin.</span></div>
   {% endif %}
-  {% if t.common %}<div class="pset">{% for c in t.common %}<span><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to }} <b class="num">{{ c.n }}/{{ t.n }}</b></span>{% endfor %}</div>
+  {% if t.common %}<div class="pset">{% for c in t.common %}<{{ 'a' if c.lineup else 'span' }}{% if c.lineup %} class="lu" href="/lineups/{{ map_name }}?l={{ c.lineup }}" title="Lineup ansehen"{% endif %}><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to }} <b class="num">{{ c.n }}/{{ t.n }}</b>{% if c.lineup %} ›{% endif %}</{{ 'a' if c.lineup else 'span' }}>{% endfor %}</div>
   {% else %}<div class="pmeta">Kein festes Granaten-Set: Die Pros haben hier jedes Mal andere Granaten geworfen.</div>{% endif %}
   <details><summary>Was ist ein {{ t.style_label }}?</summary><p>{{ t.explain }}</p></details>
   <div class="pex" data-who="{{ who }}">Gezeichnet: Runde {{ t.example.r }}{% if t.example.demo %} {{ "vom" if who == "ihr" else "aus" }} {{ t.example.demo }}{% endif %}, {{ "gewonnen" if t.example.won else "verloren" }}. Granaten im Fenster 20 s vor bis 5 s nach Ankunft am Bombsite.</div>

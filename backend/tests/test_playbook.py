@@ -174,3 +174,20 @@ def test_gameplan_picks_best_with_enough_rounds():
     assert plan["t_own"]["name"] == "A-Split über Palace + Ramp"
     assert plan["t_weak"]["label"] == "Rush" and plan["t_weak"]["won_pct"] == 0
     assert playbook.gameplan([], [], "de_mirage") is None
+
+
+def test_nade_set_links_to_lineup(tmp_path, monkeypatch):
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from cstaktik import api, lineups, pipeline
+
+    monkeypatch.setattr(pipeline, "PRO_DIR", tmp_path)
+    monkeypatch.setattr(lineups, "build", lambda pro, m: [{"id": "lu7", "side": "t", "kind": "smoke", "to": "CT"}])
+    p1 = {k: v for k, v in playbook.plays(_match(5, _split_route(), plant_s=48))[0].items() if k not in ("nades", "kills")}
+    nades = [{"r": r, "side": "t", "kind": "smoke", "t": 30, "to": "CT", "from": "TSpawn", "fx": 0, "fy": 0, "tx": 1, "ty": 1}
+             for r in (5, 6)]
+    (tmp_path / "a.json").write_text(json.dumps({"map": "de_mirage", "plays": [p1, {**p1, "r": 6}], "nades": nades}))
+    t = TestClient(api.app).get("/playbook/de_mirage").text
+    assert 'href="/lineups/de_mirage?l=lu7"' in t
