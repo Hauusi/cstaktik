@@ -71,7 +71,8 @@ def tasks_for(ctx: dict) -> list[dict]:
                     "steps": ["Jede Szene: erst entscheiden, dann auflösen."], "link": f"/training/situationen?p={sid}"})
     out.append({"id": f"routine2:{ctx['lesson']}", "kind": "Übung", "title": f"{r['title']} (Wiederholung)",
                 "minutes": r["minutes"],
-                "steps": r["steps"] + ["Diesmal direkt danach ein Match spielen: Der Auftrag-Check zeigt, ob es dort klappt."]})
+                "steps": ["Wie die erste Übung oben.",
+                          "Diesmal direkt danach ein Match spielen: Der Auftrag-Check zeigt, ob es dort klappt."]})
     return out
 
 

@@ -14,10 +14,21 @@
   <div class="atitle">{{ a.title }}</div>
   <div class="mantra">„{{ a.mantra }}“</div>
   {% if a.rueckfall %}<div class="small" style="margin-top:6px;color:#e5484d">Kommt zurück: war am {{ a.rueckfall[8:10] }}.{{ a.rueckfall[5:7] }}. gemeistert, jetzt wieder so oft wie vorher.</div>{% endif %}
-  <div class="small muted num" style="margin-top:6px">Ziel: höchstens {{ a.target|string|replace(".", ",") }}x pro 10 Runden, 2 Matches in Folge · Start: {{ a.baseline|string|replace(".", ",") }}{% if a.baseline_n %} ({{ a.baseline_n }}x in {{ a.baseline_rounds }} Runden){% endif %}</div>
-  <div class="dots">{% for m in a.matches[-6:] %}<span class="dot {{ 'ok' if m.met else 'open' if m.met is none else 'no' }}" title="{{ (m.map or '')|replace('de_','') }}: {{ m.count }}x in {{ m.rounds }} Runden{% if m.drills is defined %}, vorher {{ m.drills }}x geübt{% endif %}">{{ '✓' if m.met else '–' if m.met is none else '✗' }}</span>{% endfor %}
-    {% for _ in range(2 - (a.matches|length if a.matches|length < 2 else 2)) %}<span class="dot open">?</span>{% endfor %}</div>
-  {% if a.matches %}{% set lm = a.matches[-1] %}<div class="small muted num" style="margin-top:6px">Letztes Match: {{ lm.count }}x in {{ lm.rounds }} Runden{% if lm.drills is defined %}, vorher {{ lm.drills }}x geübt{% endif %}.</div>{% endif %}
+  {% set ms = a.matches[-6:] %}
+  {% set top = ((ms|map(attribute="rate")|list) + [a.baseline, a.target])|max * 1.15 or 1 %}
+  <svg class="achart" viewBox="0 0 300 74" role="img" aria-label="Fehler pro 10 Runden je Match, Linie = Ziel">
+    {% set w = 300 / 7 %}
+    <line x1="0" x2="300" y1="{{ 60 - 52 * a.baseline / top }}" y2="{{ 60 - 52 * a.baseline / top }}" class="base"/>
+    <line x1="0" x2="300" y1="{{ 60 - 52 * a.target / top }}" y2="{{ 60 - 52 * a.target / top }}" class="goal"/>
+    <text x="298" y="{{ 60 - 52 * a.target / top - 3 }}" class="lbl end">Ziel {{ a.target|string|replace(".", ",") }}</text>
+    <text x="298" y="{{ 60 - 52 * a.baseline / top - 3 }}" class="lbl end">Start {{ a.baseline|string|replace(".", ",") }}</text>
+    {% for m in ms %}{% set h = 52 * m.rate / top %}
+    <rect x="{{ loop.index0 * w + 6 }}" y="{{ 60 - h }}" width="{{ w - 12 }}" height="{{ [h, 1]|max }}" class="{{ 'ok' if m.met else 'na' if m.met is none else 'no' }}"><title>{{ (m.map or '')|replace('de_','') }}: {{ m.count }}x in {{ m.rounds }} Runden{% if m.drills is defined %}, vorher {{ m.drills }}x geübt{% endif %}</title></rect>
+    <text x="{{ loop.index0 * w + w / 2 }}" y="72" class="lbl">{{ m.rate|string|replace(".", ",") }}</text>
+    {% endfor %}
+    {% if not ms %}<text x="150" y="40" class="lbl">noch kein Match seit dem Auftrag</text>{% endif %}
+  </svg>
+  <div class="small muted num">Fehler pro 10 Runden je Match · {{ goal_cfg.done_after or 2 }}x in Folge unter dem Ziel = gemeistert</div>
   <details class="pre"><summary><span class="pk">Vor dem nächsten Match · {{ a.routine.minutes }} Min</span> <b>{{ a.routine.title }}</b></summary>
     <ol>{% for st in a.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
     <div class="small"><b>Im Match:</b> {{ a.in_game }}</div>

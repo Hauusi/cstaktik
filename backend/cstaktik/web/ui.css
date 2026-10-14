@@ -86,3 +86,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .filters a { padding: 6px 10px; border: 1px solid var(--line); font-size: 13px; font-weight: 650; }
 .filters a.on { border-color: var(--orange); color: var(--orange); }
+.achart { display: block; width: 100%; height: auto; margin-top: 12px; }
+.achart rect.ok { fill: #46a758; } .achart rect.no { fill: #e5484d; } .achart rect.na { fill: var(--faint); }
+.achart line.goal { stroke: var(--text); stroke-width: 1.5; } .achart line.base { stroke: var(--muted); stroke-dasharray: 4 4; }
+.achart .lbl { fill: var(--muted); font-size: 10px; text-anchor: middle; } .achart .lbl.end { text-anchor: end; }
