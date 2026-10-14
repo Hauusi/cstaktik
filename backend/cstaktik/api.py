@@ -484,18 +484,17 @@ def playbook_page(map_name: str, who: str = "pro") -> str:
     mix["text"] = playbook.compare(mix["ihr"], mix["pro"])
     radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
     img = radar.image_data_uri
-    for tac in book["tactics"]:
-        ex = tac["example"]
-        if not img:
-            continue
+    def draw(ex: dict) -> dict | None:
+        """Eine Runde fürs Radar: Laufwege, Granaten, Plant, Schlüsselmomente, Ausschnitt."""
         px = lambda x, y: [round(v, 1) for v in radar.to_px(x, y)]  # noqa: E731
         paths = [[px(*q) for q in pts] for pts in ex["paths"].values()]
-        nades = [{"kind": n["kind"], "t": n["t"], "to": n.get("to"), "a": px(*(n["p"][:2] if n.get("p") else (n["fx"], n["fy"]))),
-                  "b": px(n["tx"], n["ty"])} for n in ex["nades"]]
+        nades = [{"kind": n["kind"], "t": n["t"], "to": n.get("to"),
+                  "a": px(*(n["p"][:2] if n.get("p") else (n["fx"], n["fy"]))), "b": px(n["tx"], n["ty"])}
+                 for n in ex["nades"]]
         plant = px(*ex["plant"]) if ex.get("plant") else None
         pts = [q for p in paths for q in p] + [q for n in nades for q in (n["a"], n["b"])] + ([plant] if plant else [])
         if not pts:
-            continue
+            return None
         xs, ys = [q[0] for q in pts], [q[1] for q in pts]
         size = min(1024, max(max(xs) - min(xs), max(ys) - min(ys)) + 120)
         cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
@@ -506,10 +505,15 @@ def playbook_page(map_name: str, who: str = "pro") -> str:
             for it in ev["items"]:
                 if it["kind"] == "death" and it.get("sid") in sids:
                     it["p"] = paths[sids.index(it["sid"])][-1]
-        tac["draw"] = {"paths": paths, "nades": nades, "plant": plant, "step": playbook.PATH_STEP_S, "events": evs,
-                       "plant_t": ex.get("plant_t"), "vb": [round(x0), round(y0), round(size)], "sw": round(size / 400, 2)}
+        return {"paths": paths, "nades": nades, "plant": plant, "step": playbook.PATH_STEP_S, "events": evs,
+                "plant_t": ex.get("plant_t"), "vb": [round(x0), round(y0), round(size)], "sw": round(size / 400, 2),
+                "r": ex["r"], "demo": ex.get("demo"), "won": ex["won"], "via": ex.get("via_all") or []}
+
+    for tac in book["tactics"]:
+        if img:  # bis zu 8 Runden je Taktik zum Durchblättern, die Beispielrunde zuerst
+            tac["draws"] = [d for d in (draw(r) for r in tac["rounds"][:8]) if d]
     maps = sorted({d.get("map") for d in pro + own if d.get("map")} | {map_name})
-    data = _json.dumps({t["id"]: t.get("draw") for t in book["tactics"]}, ensure_ascii=False).replace("</", "<\\/")
+    data = _json.dumps({t["id"]: t.get("draws") for t in book["tactics"]}, ensure_ascii=False).replace("</", "<\\/")
     return _env.get_template("playbook.html").render(nav_active="training", book=book, img=img, maps=maps,
                                                      map_name=map_name, data=data, who=who, mix=mix,
                                                      label=map_name.removeprefix("de_").capitalize())

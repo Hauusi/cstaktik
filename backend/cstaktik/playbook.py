@@ -147,12 +147,26 @@ def classify(p: dict, cfg: dict) -> dict:
              else tempo)
     if buy == "pistol" and tempo != "default":
         style = "pistol"
-    via = " + ".join(groups) if groups else None
+    main = main_via(p.get("approach") or {}, style)
+    via = " + ".join(main) if main else None
     if style == "default":
         name = f"Default, spät auf {site}" if site else "Default ohne Bombsite"
     else:
         name = f"{site}-{STYLE_TEXT[style][0]}" + (f" über {via}" if via else "")
-    return {"buy": buy, "tempo": tempo, "style": style, "via": groups, "name": name}
+    return {"buy": buy, "tempo": tempo, "style": style, "via": main, "via_all": groups, "name": name}
+
+
+def main_via(approach: dict, style: str) -> list[str]:
+    """Hauptzugänge, nach denen Runden gruppiert werden: Ein einzelner Spieler auf einem Nebenweg macht keine
+    neue Taktik. Split: alle Orte mit mindestens 2 Spielern, aufgefüllt auf 2 Orte (meiste Spieler zuerst).
+    Sonst: der Ort mit den meisten Spielern."""
+    cnt = Counter(approach.values())
+    order = sorted(cnt, key=lambda pl: (-cnt[pl], pl))
+    if style == "split":
+        main = [pl for pl in order if cnt[pl] >= 2]
+        main += [pl for pl in order if pl not in main][:max(0, 2 - len(main))]
+        return sorted(main)
+    return order[:1]
 
 
 KIND_DE = {"smoke": "Smoke", "flash": "Flash", "molotov": "Molotov", "he": "HE"}
@@ -219,8 +233,9 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
         common = [{"kind": k, "to": to, "n": m} for (k, to), m in cnt.most_common() if m / n >= c["common_share"]]
         # Beispielrunde: gewonnen, mit den meisten typischen Granaten und Wegen
         keys = {(x["kind"], x["to"]) for x in common}
-        ex = max(rows, key=lambda r: (r["won"], sum((y["kind"], y["to"]) in keys for y in r["nades"]),
-                                      len(r["paths"])))
+        score = lambda r: (r["won"], sum((y["kind"], y["to"]) in keys for y in r["nades"]), len(r["paths"]))  # noqa: E731
+        ex = max(rows, key=score)
+        ordered = [ex] + sorted((r for r in rows if r is not ex), key=score, reverse=True)
         plants = [r["plant_t"] for r in rows if r.get("plant_t") is not None]
         arr = [r["arrive"] for r in rows if r.get("arrive") is not None]
         tactics.append({
@@ -231,7 +246,7 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
             "buys": dict(Counter(r["buy"] for r in rows if r["buy"])),
             "arrive": round(statistics.median(arr)) if arr else None,
             "plant_t": round(statistics.median(plants)) if plants else None, "plants": len(plants),
-            "common": common, "example": ex, "share": None,
+            "common": common, "example": ex, "rounds": ordered, "share": None,
         })
     for t in tactics:
         t["share"] = round(100 * t["n"] / total) if total else None

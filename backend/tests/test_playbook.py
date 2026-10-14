@@ -105,3 +105,23 @@ def test_own_plays_only_with_team_and_compare_to_pros():
     s = playbook.compare(own, pro)
     assert s.startswith("Ihr spielt Split deutlich öfter als Pros: 100 % eurer T-Runden, Pros 33 %.")
     assert playbook.compare({**own, "total": 5}, pro) is None  # zu wenig eigene Runden
+
+
+def test_main_via_ignores_single_side_paths():
+    assert playbook.main_via({"a": "Palace", "b": "Palace", "c": "Ramp", "d": "Ramp", "e": "Underpass"}, "split") \
+        == ["Palace", "Ramp"]
+    # nur ein Ort mit 2+: auf zwei auffüllen (meiste Spieler, dann alphabetisch)
+    assert playbook.main_via({"a": "Ramp", "b": "Ramp", "c": "Ramp", "d": "Palace", "e": "Underpass"}, "split") \
+        == ["Palace", "Ramp"]
+    assert playbook.main_via({"a": "Ramp", "b": "Ramp", "c": "Palace"}, "execute") == ["Ramp"]
+
+
+def test_variant_with_one_other_path_joins_same_tactic():
+    p1 = playbook.plays(_match(5, _split_route(), plant_s=48))[0]
+    route = _split_route()
+    route["t5"] = [(0, "TSpawn", 0, 0), (20, "Underpass", 10, 10), (40, "BombsiteA", 20, 20)]
+    p2 = {**playbook.plays(_match(6, route, plant_s=48))[0], "won": False}
+    t = playbook.build([{"map": "de_mirage", "plays": [p1, p2]}], "de_mirage")["tactics"]
+    assert len(t) == 1 and t[0]["name"] == "A-Split über Palace + Ramp" and t[0]["n"] == 2
+    assert [r["r"] for r in t[0]["rounds"]] == [5, 6]  # Beispielrunde (gewonnen) zuerst
+    assert t[0]["rounds"][1]["via_all"] == ["Palace", "Ramp", "Underpass"]
