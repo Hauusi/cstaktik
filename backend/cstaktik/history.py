@@ -31,8 +31,8 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
 
     issues: dict[str, Counter] = {sid: Counter() for sid in focus}
     for f in result.findings:
-        if f.severity == "gut" or f.steamid not in issues:
-            continue
+        if f.severity == "gut" or f.steamid not in issues or f.rule_id == "death_other":
+            continue  # Tode ohne Duell (Bombe, Granate, Welt) sind keine Baustelle
         # Muster-Findings zählen ihre Runden, Einzel-Findings einmal
         issues[f.steamid][f.title] += len(f.rounds) if f.round is None and f.rounds else 1
 
@@ -55,8 +55,8 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "lessons": lessons(result),
         "duel_stats": duel_stats(match),
         "util_stats": util_stats(match),
-        "main_lesson": main_lesson(result),
-        "lesson_rank": lesson_rank(result, past),
+        "lesson_rank": (rank := lesson_rank(result, past)),
+        "main_lesson": rank[0] if rank else None,  # wie "Der eine Punkt" im Report (mit Gedächtnis)
         "lesson_rank_by": lesson_rank_by(result, past),
         "scenes": scenes(result, report_file, match.map_name),
         "won": won,

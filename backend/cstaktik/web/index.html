@@ -29,7 +29,7 @@
 </div>
 {% endfor %}
 {% else %}
-<div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler über eure letzten Matches mindestens 3x vorkommt. Einzelne Fehler sind noch kein Muster. Ladet weitere Matches hoch.</div>
+<div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster. Ladet weitere Matches hoch.</div>
 {% endif %}
 </div>
 <div class="col">

@@ -130,6 +130,8 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
     mine = [h for h in past + [summary] if sid is None or sid in h.get("players", {})]
     out = {"check": None, "focus": None, "new": False, "mastered": None}
     f = state.get("focus")
+    if f and f.get("lesson") not in LESSONS:  # Lektion gibt es nicht mehr (alte Datei): Auftrag neu wählen
+        state["focus"] = f = None
     if f and f.get("created_from") != mid and (summary.get("analyzed_at") or "") >= (f.get("created_at") or ""):
         r = _rate(summary, f["lesson"], sid)
         if r is not None:
@@ -201,7 +203,6 @@ def update_all(state: dict, summary: dict, tops: dict[str, list[str]], target_fa
     """Eigener Auftrag je Fokus-Spieler. ``tops``: steamid -> Lektionen dieses Spielers, wichtigste zuerst.
     Alter gemeinsamer Auftrag (Version davor) wird beim ersten Mal für jeden Spieler übernommen."""
     players = state.setdefault("players", {})
-    state["count_version"] = COUNT_VERSION
     legacy = state.get("focus")
     out = {}
     for sid in sorted(set(tops) | set(summary.get("players", {}))):

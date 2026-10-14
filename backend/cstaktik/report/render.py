@@ -414,6 +414,7 @@ def build_context(
         "setups": _setups(match),
         "auftraege": auftraege,
         "checks": [a for a in auftraege if a.get("check")],
+        "goal_cfg": load_rules_config()["goals"],
         "teach": TEACH,
         "bright": {lid: bright_spots(match, lid, _trade_units()) for lid in {l["id"] for l in lessons[:1]}},
         "praise": coach_voice.praise(result.findings) + coach_voice.strengths(

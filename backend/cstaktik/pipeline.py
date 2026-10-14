@@ -236,10 +236,13 @@ def run(
     report("Ziele prüfen", 0.95)
     stem = demo_stem(path.name)
     my_id = match.source_sha256 or match.source_file
-    before = [h for h in history.load_all(HISTORY_DIR) if h.get("id") != my_id] if HISTORY_DIR.exists() else []
-    summary = history.summarize(match, result, f"{stem}.html", past=before)
-    old = next((h for h in history.load_all(HISTORY_DIR) if h.get("id") == summary["id"]), None) \
-        if HISTORY_DIR.exists() else None
+    all_hist = history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []
+    old = next((h for h in all_hist if h.get("id") == my_id), None)
+    # erneut ausgewertet: zählt zum ursprünglichen Zeitpunkt; "vorher" sind nur Matches bis dahin
+    when = (old or {}).get("analyzed_at") or coaching_now()
+    past = [h for h in all_hist if h.get("id") != my_id and (h.get("analyzed_at") or "") <= when]
+    summary = history.summarize(match, result, f"{stem}.html", past=past)
+    summary["analyzed_at"] = when
     state = goals.load(GOALS_FILE)
     goal_check = goals.update(state, summary, config["goals"], config.get("mechanics"))
     goals.save(state, GOALS_FILE)
@@ -248,11 +251,15 @@ def run(
     # Auftrag (Fokus-Lektion) prüfen und ggf. neu setzen; mitspeichern für spätere Neubauten des Reports
     from cstaktik import coaching
 
-    if old and old.get("analyzed_at"):  # erneut ausgewertet: zählt zum ursprünglichen Zeitpunkt, nicht als neuestes
-        summary["analyzed_at"] = old["analyzed_at"]
     cstate = coaching.load(COACHING_FILE)
-    past = [h for h in history.load_all(HISTORY_DIR) if h.get("id") != summary["id"]
-            and (h.get("analyzed_at") or "") <= (summary.get("analyzed_at") or "")] if HISTORY_DIR.exists() else []
+    if cstate.get("count_version") != coaching.COUNT_VERSION:
+        if past:  # Aufträge stammen aus der alten Zählweise: einmal alles neu berechnen, bevor geprüft wird
+            report("Aufträge neu berechnen (einmalig)", 0.95)
+            rerender_reports()
+            cstate = coaching.load(COACHING_FILE)
+            past = [h for h in history.load_all(HISTORY_DIR) if h.get("id") != my_id
+                    and (h.get("analyzed_at") or "") <= when]
+        cstate["count_version"] = coaching.COUNT_VERSION
     summary["focus_check"] = coaching.update_all(cstate, summary, summary.get("lesson_rank_by") or {},
                                                  past=past, **goal_kw(config))
     coaching.save(cstate, COACHING_FILE)
@@ -269,6 +276,12 @@ def run(
                        memory=mem, focus=summary["focus_check"])
     report("Fertig", 1.0)
     return out
+
+
+def coaching_now() -> str:
+    from cstaktik.coaching import now_local
+
+    return now_local()
 
 
 def goal_kw(config: dict) -> dict:
@@ -304,6 +317,14 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
                                      "weeks": slot.get("weeks", {})}
                                for sid, slot in old_state.get("players", {}).items()}}
     done = 0
+    in_todo = {h["id"]: h for h in todo}
+    everything = [in_todo.get(h.get("id"), h) for h in (history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else [])]
+
+    def before(h: dict) -> list[dict]:
+        """Matches vor diesem (alle Maps), mit den in diesem Lauf schon neu gezählten Einträgen."""
+        return [x for x in everything if x.get("id") != h.get("id")
+                and (x.get("analyzed_at") or "") <= (h.get("analyzed_at") or "")]
+
     for i, h in enumerate(todo):
         report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
         match = load_match(cache_file(h["id"]))
@@ -314,27 +335,27 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
             continue
         result, clips = _coach(match, config)
         h["lessons"] = history.lessons(result)  # Lektionen nachrüsten (Fortschritt je Map)
-        h["main_lesson"] = history.main_lesson(result)
-        h["lesson_rank"] = history.lesson_rank(result, todo[:i])
-        h["lesson_rank_by"] = history.lesson_rank_by(result, todo[:i])
+        h["lesson_rank"] = history.lesson_rank(result, before(h))
+        h["main_lesson"] = h["lesson_rank"][0] if h["lesson_rank"] else None  # wie "Der eine Punkt" im Report
+        h["lesson_rank_by"] = history.lesson_rank_by(result, before(h))
         h["scenes"] = history.scenes(result, h.get("report_file"), h.get("map"))
         h["duel_stats"] = history.duel_stats(match)
         h["util_stats"] = history.util_stats(match)
         h["deaths"] = history.death_rows(match)  # mit "getradet" (Map-Buch)
         h["timeline"] = history.timeline(match)
         if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
-            past = [x for x in todo[:i]]
-            h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], past=past, **goal_kw(config))
+            h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], past=before(h), **goal_kw(config))
         history.save(h, HISTORY_DIR)
         from cstaktik import coach_voice
 
         prev = history.previous(history.load_all(HISTORY_DIR), h)
         mem = coach_voice.memory(prev, h["lessons"], h.get("rounds") or 0)
         write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips,
-                     recur=coach_voice.recurrence(todo[:i]), past=todo[:i],
+                     recur=coach_voice.recurrence(before(h)), past=before(h),
                      memory=mem, focus=h.get("focus_check"))
         done += 1
     if rebuild is not None and done:
+        rebuild["count_version"] = coaching.COUNT_VERSION
         coaching.save(rebuild, COACHING_FILE)
     return done
 

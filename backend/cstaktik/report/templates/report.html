@@ -568,7 +568,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   </section>
   {% elif not checks %}
   <section class="nextfocus"><div class="sh"><span class="t cond">Auftrag</span></div>
-    <div class="anote">Noch kein Auftrag: Ein Auftrag entsteht erst, wenn ein Fehler über eure letzten Matches mindestens 3x vorkommt. Einzelne Fehler sind noch kein Muster.</div></section>
+    <div class="anote">Noch kein Auftrag: Ein Auftrag entsteht erst, wenn ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div></section>
   {% endif %}
 
 </div>

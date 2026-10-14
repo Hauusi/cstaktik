@@ -71,7 +71,9 @@ def _other_death(match: MatchData, k, sid: str, name: str) -> Finding:
     by = k.attacker_name if k.attacker_steamid else None
     if any(x in w for x in ("knife", "bayonet", "taser")):
         what = "Zeus" if "taser" in w else "Messer"
-    if k.attacker_steamid and k.attacker_side == k.victim_side:
+    if k.attacker_steamid == sid:
+        title, tip = "Eigener Schaden", f"Durch die eigene {what} gestorben: Abstand zur eigenen Granate halten."
+    elif k.attacker_steamid and k.attacker_side == k.victim_side:
         title, tip = "Teamschaden", f"Getötet von Mitspieler {by} ({what})."
     elif what in ("Messer", "Zeus"):
         title, tip = what, f"{by} kam unbemerkt bis auf Nahkampf-Distanz: Rücken und Sound im Blick behalten."

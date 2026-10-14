@@ -82,6 +82,10 @@ def test_training_pages_and_drill_done():
     assert "(1x bisher)" in c.get("/").text
     # Formular von fremder Seite wird abgelehnt
     assert c.post("/training/done?p=s1", headers={"origin": "https://evil.example"}).status_code == 403
+    # hinter einem Proxy: Origin = öffentliche Adresse, Host = intern
+    assert c.post("/training/done?p=s1", headers={"origin": "https://coach.example", "host": "127.0.0.1:8000",
+                                                   "x-forwarded-host": "coach.example"},
+                  follow_redirects=False).status_code == 303
 
 
 def test_update_all_per_player_and_legacy_migration():
@@ -180,3 +184,31 @@ def test_check_counts_drills_before_match():
     assert r["check"]["drills"] == 2
     coaching.drill_done(st, "alone", "2026-10-03T10:00")
     assert coaching.update(st, _ps("3", 1), ["alone"], sid="a")["check"]["drills"] == 1  # nur seit dem letzten Match
+
+
+def test_old_counting_is_recomputed_on_next_upload(tmp_path, monkeypatch):
+    """Alte coaching.json (andere Zählweise): beim nächsten Upload werden die Aufträge neu berechnet."""
+    from synth import BRO
+
+    from cstaktik import pipeline
+    from cstaktik.parser.loader import save_match
+
+    monkeypatch.setattr(pipeline, "REPORTS_DIR", tmp_path / "reports")
+    for i in range(2):
+        m = build_match()
+        m.source_sha256 = f"match{i}"
+        src = tmp_path / f"m{i}.json"
+        save_match(m, src)
+        pipeline.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        save_match(m, pipeline.CACHE_DIR / f"match{i}.v{pipeline.CACHE_SCHEMA}.json")
+        if i == 1:  # Zustand wie vor dem Update: alte Zählweise, unpassender Ausgangswert
+            st = coaching.load(pipeline.COACHING_FILE)
+            st.pop("count_version", None)
+            for slot in st["players"].values():
+                if slot.get("focus"):
+                    slot["focus"]["baseline"] = 99.0
+            coaching.save(st, pipeline.COACHING_FILE)
+        pipeline.run(src, {ME, BRO}, tmp_path / "reports")
+    st = coaching.load(pipeline.COACHING_FILE)
+    assert st["count_version"] == coaching.COUNT_VERSION
+    assert all((s.get("focus") or {}).get("baseline") != 99.0 for s in st["players"].values())

@@ -33,8 +33,10 @@ async def _password(request: Request, call_next):
     """
     if request.method == "POST":
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
-        host = request.headers.get("host", "")
-        if origin and urlparse(origin).netloc != host:
+        # eigene Adresse: Host, hinter einem Proxy auch X-Forwarded-Host, zusätzlich CSTAKTIK_ALLOWED_HOSTS
+        hosts = {request.headers.get("host", ""), request.headers.get("x-forwarded-host", "")}
+        hosts |= {h.strip() for h in os.environ.get("CSTAKTIK_ALLOWED_HOSTS", "").split(",") if h.strip()}
+        if origin and urlparse(origin).netloc not in hosts - {""}:  # "null" (Sandbox) gilt als fremd
             return Response("Fremde Herkunft", status_code=403)
     password = os.environ.get("CSTAKTIK_PASSWORD")
     if not password:
@@ -57,6 +59,16 @@ app.mount("/reports", StaticFiles(directory=pipeline.REPORTS_DIR, html=True), na
 _env = Environment(loader=FileSystemLoader([Path(__file__).parent / "web", Path(__file__).parent / "report" / "templates"]),
                    autoescape=select_autoescape(["html"]))
 _env.globals["font_css"] = lambda: __import__("cstaktik.fonts", fromlist=["font_css"]).font_css()
+
+
+class _GoalCfg:
+    """Auftrags-Schwellen aus rules.yaml für die Texte (immer aktuell, keine festen Zahlen im Template)."""
+
+    def __getattr__(self, name: str):
+        return load_rules_config()["goals"].get(name, {"min_count": 3, "min_master_rounds": 40}.get(name))
+
+
+_env.globals["goal_cfg"] = _GoalCfg()
 
 # Auswertung läuft im Hintergrund: Der Browser muss nach dem Upload nicht offen bleiben.
 _executor = ThreadPoolExecutor(max_workers=1)
@@ -333,7 +345,8 @@ def training_page(p: str = "") -> str:
         key, plan, changed = weekplan.ensure(slot, _plan_ctx(hist, _load_pro(), sid, focus))
         if changed:
             coaching.save(state, pipeline.COACHING_FILE)
-        chk = weekplan.check(key, plan, hist, sid, focus)
+        chk = weekplan.check(key, plan, hist, sid, focus,
+                             min_rounds=load_rules_config()["goals"].get("min_master_rounds", 40))
         for k in sorted(slot.get("weeks", {}), reverse=True):
             if k != key:
                 past.append(weekplan.check(k, slot["weeks"][k], hist, sid, None)

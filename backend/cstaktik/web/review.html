@@ -43,7 +43,7 @@
     <div><span>Erste Kugel</span><b>{{ d.first_hit|int if d.first_hit is not none else "–" }} %</b>{% if o.first_hit is not none %}<i>vorher {{ o.first_hit|int }} %</i>{% endif %}</div>
   </div>
   {% endif %}
-  {% if p.checks %}<div style="margin-top:10px" class="small muted">Auftrag-Checks: {% for c in p.checks %}<span class="ck {{ 'ok' if c.met else 'no' }}" title="{{ c.title }}: {{ c.rate }} (Ziel {{ c.target }})">{{ '✓' if c.met else '✗' }}</span>{% endfor %}</div>{% endif %}
+  {% if p.checks %}<div style="margin-top:10px" class="small muted">Auftrag-Checks: {% for c in p.checks %}<span class="ck {{ 'ok' if c.met else '' if c.met is none else 'no' }}" title="{{ c.title }}: {{ c.count }}x in {{ c.rounds }} Runden (Ziel {{ c.target }})">{{ '✓' if c.met else '–' if c.met is none else '✗' }}</span>{% endfor %}</div>{% endif %}
 </div>
 {% endfor %}
 {% if not r.players %}<p class="muted">Noch keine Matches im Verlauf.</p>{% endif %}
