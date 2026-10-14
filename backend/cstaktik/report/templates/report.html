@@ -474,6 +474,9 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 .learn .ig { margin-top: 10px; } .learn .ig b { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
 .trainlink b { color: var(--text); }
 
+.takeaway { margin-top: 22px; padding: 14px 16px; border-radius: 16px; background: rgba(255,154,31,.07); border: 1px solid rgba(255,154,31,.35); }
+.takeaway .tk { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+.takeaway .tk:first-of-type { border-top: 0; } .takeaway .tk span { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); padding-top: 2px; }
 .trow2 { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .trow2 .tn b { display: block; font-size: 15px; } .trow2 .tn > span { display: block; font-size: 12.5px; color: var(--muted); }
 .trow2 .tr { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
@@ -661,6 +664,23 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   {% elif not checks %}
   <section class="nextfocus"><div class="sh"><span class="t cond">Auftrag</span></div>
     <div class="anote">Noch kein Auftrag: Ein Auftrag entsteht erst, wenn ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div></section>
+  {% endif %}
+
+  {# Fazit wie am Ende einer Besprechung: höchstens ein Punkt je Thema, nur aus Werten, die oben schon stehen #}
+  {% set take = [] %}
+  {% for a in auftraege if a.focus %}{% set _ = take.append(("Auftrag", a.name ~ ": „" ~ teach[a.focus.lesson].mantra ~ "“")) %}{% endfor %}
+  {% if duel_cmp %}{% for d in duel_cmp.players if d.reading %}{% set _ = take.append(("Duell", d.name ~ ": " ~ d.reading)) %}{% endfor %}{% endif %}
+  {% if tactics %}
+    {% set good_t = tactics.t|selectattr("n", "ge", 2)|selectattr("won_pct", "ge", 60)|list %}
+    {% set bad_t = tactics.t|selectattr("n", "ge", 2)|selectattr("won_pct", "le", 34)|list %}
+    {% if good_t %}{% set g = good_t[0] %}{% set _ = take.append(("Taktik", "Weiter so: " ~ g.name ~ " (" ~ g.won ~ " von " ~ g.n ~ " gewonnen).")) %}{% endif %}
+    {% if bad_t %}{% set b = bad_t[0] %}{% set _ = take.append(("Taktik", "Nicht wiederholen: " ~ b.name ~ " (" ~ b.won ~ " von " ~ b.n ~ " gewonnen)" ~ (", Pros gewinnen damit " ~ b.pro.won_pct ~ " %. Ablauf im Playbook vergleichen." if b.pro else ". Im Playbook eine Pro-Taktik für diesen Bombsite ansehen."))) %}{% endif %}
+  {% endif %}
+  {% if take %}
+  <section class="takeaway">
+    <div class="sh"><span class="t cond">Zum Mitnehmen</span></div>
+    {% for k, v in take[:5] %}<div class="tk"><span class="cond">{{ k }}</span><div>{{ v }}</div></div>{% endfor %}
+  </section>
   {% endif %}
 
 </div>
