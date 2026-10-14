@@ -256,10 +256,13 @@ def _why(lid: str, fx: dict, snap: dict | None, aktion: str | None) -> str | Non
         return None
     if lid == "alone":
         mate, md = fx.get("mate"), fx.get("mate_dist")
-        far = f"{mate} war {md} Units weg" if mate and md is not None else "kein Mitspieler war in Reichweite"
+        # Abstand nur nennen, wenn der Lage-Satz davor ihn nicht schon nennt
+        said = bool(snap) and snap.get("mate_d") is not None
+        far = "" if said else (f", {mate} war {md} Units weg" if mate and md is not None
+                               else ", kein Mitspieler war in Reichweite")
         if held:
-            return f"Du hast allein gehalten, {far}. Nach dem ersten Kontakt konnte dich niemand traden."
-        return f"Du bist ins Duell gegangen, {far}. Dein Tod blieb ohne Antwort."
+            return f"Du hast allein gehalten{far}. Nach dem ersten Kontakt konnte dich niemand traden."
+        return f"Du bist ins Duell gegangen{far}. Dein Tod blieb ohne Antwort."
     if lid == "moving" and aktion == "zurückgezogen":
         return "Du warst auf dem Rückzug, als er dich erwischt hat: rückwärts laufen ist auch ein bewegtes Ziel."
     return None

@@ -448,6 +448,18 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .rrow .ri::before { content: ''; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; background: var(--muted); }
 .rrow .ri.hoch::before { background: #e5484d; } .rrow .ri.mittel::before { background: #ff9f1c; }
 .rrow .ri.gut::before { background: #46a758; }
+
+/* kompakte Befundliste */
+.frow { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 12px; margin-top: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.frow.hoch { border-left-color: var(--loss); } .frow.mittel { border-left-color: var(--orange); } .frow.gut { border-left-color: var(--win); }
+.frow .fr-w { flex: none; width: 36px; color: var(--muted); font-size: 13px; }
+.frow .fr-t { flex: 1; min-width: 0; font-weight: 650; }
+.frow .fr-who { color: var(--muted); font-size: 13px; }
+.frow .fr-go { color: var(--orange); font-weight: 800; }
+div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; font-size: 14px; color: #d5dbe5; }
+.coach .lesson-tag { display: inline-block; margin-top: 6px; padding: 3px 8px; font-family: var(--cond); font-weight: 800; font-size: 13px;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--orange); border: 1px solid rgba(255,159,28,.45); }
 </style>
 </head>
 <body>
@@ -1433,7 +1445,7 @@ function ui() {
       meta.querySelector('.k').style.color = SEV[f.sev];
       it.appendChild(meta);
       if (cv) {
-        it.appendChild(el('div', 'lesson-h', cv.lesson));
+        it.appendChild(el('div', 'lesson-tag', cv.lesson));
         it.appendChild(el('div', 'happened', cv.happened));
         if (cv.why) it.appendChild(el('div', 'happened why', cv.why));
         const nx = el('div', 'nextbox'); nx.append(el('b', null, 'Nächstes Mal'), cv.next); it.appendChild(nx);
@@ -1447,7 +1459,6 @@ function ui() {
       if (f.rule === 'death_review') {
         const d = dataBox(f);
         const more = ev.weitere_punkte;
-        if (ev.entscheidung) d.insertBefore(el('div', 'lage', ev.entscheidung), d.children[1]);
         if (more && more.length) d.insertBefore(el('div', 'also', 'Außerdem: ' + more.join(' · ')), d.children[1]);
         it.appendChild(d);
       }
@@ -1490,29 +1501,27 @@ function buildTimeline() {
   r.f.forEach(id => { const f = F[id]; if (f.tick == null) return; const m = el('span', 'fm ' + f.sev); m.style.left = ((f.tick - r.t0) / span * 100) + '%'; tl.insertBefore(m, scrub); });
 }
 
-// ---- Befundliste
-function evidence(f) {
-  const d = el('details'); d.appendChild(el('summary', null, 'Beleg' + (f.tick != null ? ' · Tick ' + f.tick : '')));
-  const dl = el('dl');
-  for (const k in f.evidence) { const v = f.evidence[k]; if (v == null || typeof v === 'object') continue; dl.appendChild(el('dt', null, k)); dl.appendChild(el('dd', null, String(v))); }  // nur einfache Werte, kein Roh-JSON
-  d.appendChild(dl); return d;
-}
 function buildFindings() {
+  // Kompakte Liste: die Erklärung steht nur an einer Stelle (Coach-Feld an der Karte). Antippen springt hin.
   const box = $('rfind'); box.textContent = '';
   const r = R();
   if (!r.f.length) { box.appendChild(el('p', 'quiet', 'Kein Befund in dieser Runde.')); return; }
   r.f.forEach(id => {
-    const f = F[id], c = el('div', 'f ' + f.sev);
-    const top = el('div', 'top'); top.append(el('span', 't', f.title), el('span', 'who', f.who || 'Team'));
-    const tip = el('div', 'tip'); tip.append(el('b', null, isErr(f) ? 'Besser: ' : ''), f.tip);
-    const act = el('div', 'act');
-    if (f.tick != null) { const w = el('button', 'watch', '▶ Im Replay ansehen'); w.onclick = () => watch(id); act.appendChild(w); }
-    act.appendChild(evidence(f));
-    c.append(top, el('div', 'txt', f.text));
-    c.append(tip);
-    if (hasRef(f)) c.appendChild(vorbild(f));
-    if (f.rule === 'death_review') { const d = el('details', 'data'); d.appendChild(el('summary', null, 'Daten')); d.appendChild(lageList(f)); c.appendChild(d); }
-    c.append(act); box.appendChild(c);
+    const f = F[id], ev = f.evidence || {}, cv = ev.coach;
+    const name = cv ? cv.lesson : f.title.replace(/^Tod: /, '');
+    if (f.tick == null) {  // Runden-Befund ohne Zeitpunkt: kein Coach-Feld, daher hier kurz mit Tipp
+      const c = el('div', 'frow ' + f.sev);
+      c.append(el('div', 'fr-t', name), el('div', 'fr-x', f.tip));
+      box.appendChild(c); return;
+    }
+    const c = el('button', 'frow ' + f.sev);
+    const when = ev.f && ev.f.when ? ev.f.when : '';
+    c.append(el('span', 'fr-w num', when), el('span', 'fr-t', (isErr(f) ? '' : 'Stark: ') + name),
+             el('span', 'fr-who', f.who || 'Team'));
+    if (ev.cost_pct != null && ev.cost_pct > 0) c.appendChild(el('span', 'chip', '-' + ev.cost_pct + ' %'));
+    c.appendChild(el('span', 'fr-go', '▶'));
+    c.onclick = () => watch(id);
+    box.appendChild(c);
   });
 }
 
@@ -1569,10 +1578,6 @@ function selectRound(i, keep) {
   buildTimeline(); buildFindings(); story(); draw();
   if (!keep && !r.pro) history.replaceState(null, '', '#r' + r.n);
 }
-// Vorbild aus eigenen Siegrunden + Sprung in die Siegrunde zur selben Rundenzeit
-function hasRef(f) {
-  return !!(f.evidence && ['vorbild', 'pro', 'pro_util', 'pro_lineup', 'pro_trade', 'pro_clip'].some(k => f.evidence[k]));
-}
 // Pro-Szene: springt in die Pro-Runde (3 s vor dem Vergleichszeitpunkt) und spielt ab; "Zurück" führt zum eigenen Tod
 function openPro(f) {
   S.tour = null; S.back = { ri: Math.max(0, D.rounds.findIndex(r => r.n === f.round)), tick: f.tick };
@@ -1583,32 +1588,6 @@ function openPro(f) {
 function backFromPro() {
   const b = S.back; if (!b) return; S.back = null;
   selectRound(b.ri); seek(b.tick - 3 * TR);
-}
-function vorbild(f) {
-  const box = el('div', 'vorbild');
-  if (f.evidence.vorbild) box.append(el('b', null, 'Vorbild aus euren Siegrunden: '), f.evidence.vorbild);
-  if (f.ov && f.ov.pro_clip != null && D.rounds[f.ov.pro_clip]) {
-    const pc = el('div', 'proclip');
-    pc.append(el('b', null, 'Pro in derselben Situation: '), f.evidence.pro_clip || '');
-    const b = el('button', 'vbtn pbtn', '▶ Pro-Szene ansehen');
-    b.onclick = () => openPro(f);
-    pc.appendChild(b); box.appendChild(pc);
-  }
-  const pros = ['pro_util', 'pro_lineup', 'pro_trade', 'pro'].map(k => f.evidence[k]).filter(Boolean);
-  if (pros.length) {
-    const pr = el('div', 'pro'); pr.append(el('b', null, 'So spielen Pros das: '));
-    pros.forEach((t, i) => { if (i) pr.append(el('br')); pr.append(t); });
-    box.appendChild(pr);
-  }
-  if (f.ov && f.ov.ghost_round != null) {
-    const ri = D.rounds.findIndex(r => r.n === f.ov.ghost_round);
-    if (ri >= 0) {
-      const b = el('button', 'vbtn', 'Siegrunde ' + f.ov.ghost_round + ' an dieser Stelle ansehen ›');
-      b.onclick = () => { S.tour = null; selectRound(ri); seek(D.rounds[ri].t0 + f.ov.ghost_offset_s * TR); toStage({ behavior: 'smooth', block: 'start' }); };
-      box.appendChild(b);
-    }
-  }
-  return box;
 }
 // Coach-Panel kompakt: nur das, was man ansehen kann (Pro-Szene, Siegrunde), plus Vorbild wenn es einen anderen Ort nennt
 function showMe(f) {

@@ -201,6 +201,8 @@ def test_why_follows_the_data_not_assumed_intent():
     fx = {"attacker": "G1", "aplace": "Palace", "mate": "Bruder", "mate_dist": 1400}
     held = {"kind": "gehalten"}
     assert _why("alone", fx, held, "gehalten").startswith("Du hast allein gehalten, Bruder war 1400 Units weg")
+    # steht der Abstand schon im Lage-Satz, wird er nicht wiederholt
+    assert _why("alone", fx, {**held, "mate_d": 1400}, "gehalten").startswith("Du hast allein gehalten. Nach")
     assert "peeken" not in _next("alone", fx, held, "gehalten")
     assert _why("alone", fx, {"kind": "bewegt"}, "Richtung Gegner").startswith("Du bist ins Duell gegangen")
     w = _why("no_shot_close", {**fx, "duel": {"err": 4.0}}, held, "gehalten")
