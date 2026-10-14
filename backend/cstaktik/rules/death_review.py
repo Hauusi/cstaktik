@@ -260,11 +260,15 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             facts.append("Utility geworfen: " + (", ".join(f"{n}x {_NADE_DE[t]}" for t, n in thrown.items()) or "keine"))
         if k.victim_inventory is None:
             unchecked.append("Inventar")
+        # Fehler nur bei Granaten, die das Duell entscheiden (Flash, Molotov). Smoke/HE für später aufzuheben ist
+        # oft richtig: steht als Fakt in der Lage, zählt aber nicht als Fehler.
+        duel_nades = [n for n in nade_names if n in ("Flash", "Molotov")]
         if unused:
             facts.append("beim Tod im Inventar: " + ", ".join(unused))
-            issues["Utility nicht genutzt"] = (f"Du bist mit {_list_de(nade_names)} gestorben: "
-                                               "mindestens eine davon vor dem Duell werfen.")
-        elif match.grenades and opening and not thrown:
+        if duel_nades:
+            issues["Utility nicht genutzt"] = (f"Du bist mit {_list_de(duel_nades)} gestorben: "
+                                               "vor dem Duell werfen, genau dafür ist sie da.")
+        elif match.grenades and opening and not thrown and k.victim_inventory is None:  # Inventar unbekannt
             issues["Utility nicht genutzt"] = "Erstes Duell ganz ohne Utility: Flash oder Molotov vor dem ersten Kontakt."
 
         # Unterzahl nur, wenn sie in der Runde entstanden ist

@@ -24,7 +24,7 @@ from cstaktik.rules.base import PositionIndex, dist
 
 # ---------------------------------------------------------------- Auftrag (Fokus) über Matches
 
-COUNT_VERSION = 2  # 2: jede Lektion eines Todes zählt (history.lessons); ältere Ausgangswerte neu berechnen
+COUNT_VERSION = 3  # 2: jede Lektion eines Todes zählt; 3: 'Utility' nur bei ungenutzter Flash/Molotov
 
 
 def now_local() -> str:

@@ -228,3 +228,22 @@ def test_mantra_is_not_just_the_lesson_title():
 
     norm = lambda s: re.sub(r"[^a-zäöüß]", "", s.lower())  # noqa: E731
     assert all(norm(TEACH[k]["mantra"]) != norm(LESSONS[k][0]) for k in TEACH)
+
+
+def test_utility_issue_only_for_flash_or_molotov():
+    from synth import ENEMIES, ME, build_match
+
+    from cstaktik.config import load_rules_config
+    from cstaktik.rules import death_review
+
+    cfg = {**load_rules_config()["rules"]["death_review"], "mech": load_rules_config()["mechanics"]}
+    m = build_match()
+    k = next(k for k in m.kills if k.victim_steamid == ME and k.attacker_steamid in ENEMIES)
+    k.weapon = "ak47"
+    k.victim_inventory = ["AK-47", "Smoke Grenade", "High Explosive Grenade"]
+    f = next(f for f in death_review.run(m, cfg) if f.tick == k.tick)
+    assert "Utility nicht genutzt" not in f.evidence["f"]["issues"]  # Smoke/HE aufheben ist kein Fehler
+    assert any("Smoke Grenade" in x for x in f.evidence["lage"])  # steht aber als Fakt da
+    k.victim_inventory = ["AK-47", "Flashbang"]
+    f = next(f for f in death_review.run(m, cfg) if f.tick == k.tick)
+    assert "Utility nicht genutzt" in f.evidence["f"]["issues"] and "Flash" in f.tip + str(f.evidence["f"])
