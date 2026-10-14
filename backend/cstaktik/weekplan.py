@@ -39,9 +39,20 @@ def tasks_for(ctx: dict) -> list[dict]:
             "steps": r["steps"]}]
     if m and ctx.get("spot"):
         s = ctx["spot"]
+        do = []
+        if s.get("alt"):
+            a = s["alt"]
+            do.append(f"Nächste {s['side'].upper()}-Runden: nach {s.get('at') or '0:20'} statt {s['place']} in {a['place']} "
+                      f"stehen (Pros dort: {a['won_pct']} % Siege, {a['share']} % der Runden).")
+        if s.get("lineups"):
+            lu = s["lineups"][0]
+            do.append(f"Oder bleiben, aber vorher die Pro-{lu['kind_de']} von {s['place']} nach {lu['to'] or '?'} werfen.")
+        if not do:
+            do.append("Im Map-Buch ansehen, was an diesem Spot schiefgeht, und Timing oder Position ändern.")
+        check = f"Erfolg: 'als Erster tot' von {s['place']} aus steigt nicht weiter (jetzt {s['first']} von {s['n']} Runden)."
         out.append({"id": f"spot:{m}:{s['side']}:{s['place']}", "kind": "Map-Buch",
                     "title": f"{ctx['map_label']} {s['side'].upper()}: {s['place']} klären",
-                    "steps": s["why"] + ["Im Map-Buch ansehen, was Pros an diesem Spot anders machen."],
+                    "steps": s["why"] + do + [check],
                     "link": f"/mapbook/{m}?p={sid}#spot-{s['side']}-{s['place']}"})
     elif m:
         out.append({"id": f"mapbook:{m}", "kind": "Map-Buch", "title": f"Map-Buch {ctx['map_label']} durchsehen",
@@ -51,7 +62,9 @@ def tasks_for(ctx: dict) -> list[dict]:
         out.append({"id": f"lineup:{lu['id']}", "kind": "Lineup",
                     "title": f"{lu['kind_de']} lernen: {lu['from'] or '?'} → {lu['to'] or '?'}",
                     "steps": ["Eigener Server, sv_cheats 1, Position mit dem Befehl setzen.",
-                              "10x werfen, bis sie jedes Mal sitzt. Dann 5x ohne Befehl von Hand anstellen."],
+                              f"10x werfen. Sitzt = landet im Kreis auf der Karte (Pros streuen höchstens {lu['spread']} Units).",
+                              "Dann 5x ohne Befehl von Hand anstellen.",
+                              f"Im Match: Pros werfen sie meist bei {lu['t'] // 60}:{lu['t'] % 60:02d} Rundenzeit."],
                     "link": f"/lineups/{m}?l={lu['id']}&p={sid}"})
     if ctx.get("scenes"):
         out.append({"id": "quiz", "kind": "Situationen", "title": "Situations-Training: eigene Szenen entscheiden",

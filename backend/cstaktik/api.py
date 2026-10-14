@@ -303,6 +303,9 @@ def _plan_ctx(hist: list[dict], pro_all: list[dict], sid: str, focus: dict) -> d
             side = (spot or {}).get("side")
             allx = lineups.build(pro_all, m)
             cands = [l for l in allx if side is None or l["side"] == side] or allx
+        # passend zum Auftrag: Utility-Auftrag -> Flash, lange Linien -> Smoke
+        want = {"utility": "flash", "no_shot_far": "smoke", "no_shot_close": "flash"}.get(focus["lesson"])
+        cands = sorted(cands, key=lambda l: l["kind"] != want) if want else cands
         lineup = cands[0] if cands else None
     scenes = sum(1 for sc in _all_scenes(hist) if sc.get("sid") == sid)
     t = TEACH[focus["lesson"]]

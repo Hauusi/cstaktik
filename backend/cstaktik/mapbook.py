@@ -142,4 +142,7 @@ def worst_spot(book: dict) -> dict | None:
     if not cand:
         return None
     s, side = max(cand, key=lambda c: (c[0]["first"] + (c[0]["untraded"] or 0), c[0]["n"]))
-    return {**s, "side": side}
+    # Alternative aus den Pro-Daten: Spot derselben Seite mit der höchsten Pro-Siegquote (nicht derselbe Ort)
+    alts = [p for p in book["sides"][side]["pro_spots"] if p["place"] != s["place"] and p.get("won_pct") is not None]
+    alt = max(alts, key=lambda p: p["won_pct"], default=None)
+    return {**s, "side": side, "alt": alt, "at": book.get("at")}

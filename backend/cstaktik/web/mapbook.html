@@ -45,6 +45,8 @@
     <div><b>{{ s.untraded if s.untraded is not none else "–" }}</b><span>ohne Trade tot</span></div>
   </div>
   <ul class="why">{% for w in s.why %}<li>{{ w }}</li>{% endfor %}
+    {% if s.verdict == "problem" %}{% set alt = sd.pro_spots|rejectattr("place", "equalto", s.place)|selectattr("won_pct")|sort(attribute="won_pct", reverse=True)|first %}
+    {% if alt %}<li><b>Statt dessen:</b> nach {{ book.at }} in {{ alt.place }} stehen (Pros dort {{ alt.won_pct }} % Siege){% if s.lineups %} oder vorher die {{ s.lineups[0].kind_de }} nach {{ s.lineups[0].to }} werfen{% endif %}.</li>{% endif %}{% endif %}
     {% if s.death_places %}<li>Gestorben in: {% for p, n in s.death_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}</li>{% endif %}</ul>
   {% if s.pro is defined %}
   <div class="prol"><b class="h">Pros auf {{ label }} ({{ sd.label }})</b>
