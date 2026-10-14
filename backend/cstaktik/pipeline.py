@@ -414,16 +414,21 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
 
 
 def upgrade_history() -> int:
-    """Ältere Verlaufs-Einträge ohne Rundenzustände (Gewinnchance) aus dem Cache ergänzen."""
+    """Ältere Verlaufs-Einträge ohne Rundenzustände (Gewinnchance) oder T-Laufwege (Playbook) aus dem Cache ergänzen."""
     from cstaktik import history
     from cstaktik.situation import round_states
 
     n = 0
     for h in history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []:
         cache = cache_file(h.get("id"))
-        if "states" in h or cache is None:
+        if ("states" in h and "plays" in h) or cache is None:
             continue
-        h["states"] = round_states(load_match(cache))
+        m = load_match(cache)
+        h.setdefault("states", round_states(m))
+        if "plays" not in h:  # eure T-Runden fürs Playbook
+            from cstaktik.playbook import plays
+
+            h["plays"] = plays(m, team=m.focus_ids())
         history.save(h, HISTORY_DIR)
         n += 1
     return n

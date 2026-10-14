@@ -59,6 +59,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "main_lesson": rank[0] if rank else None,  # wie "Der eine Punkt" im Report (mit Gedächtnis)
         "lesson_rank_by": lesson_rank_by(result, past),
         "scenes": scenes(result, report_file, match.map_name),
+        "plays": _plays(match),  # eure T-Runden für das Playbook (Laufwege, Granaten, Plant)
         "won": won,
         "lost": lost,
         "players": {
@@ -128,6 +129,12 @@ def lessons(result: AnalysisResult) -> dict[str, dict[str, int]]:
             for lid in lesson_ids(f.evidence.get("f") or {}, v["id"]):
                 d[lid] = d.get(lid, 0) + 1
     return out
+
+
+def _plays(match: MatchData) -> list[dict]:
+    from cstaktik.playbook import plays
+
+    return plays(match, team=match.focus_ids())
 
 
 def main_lesson(result: AnalysisResult) -> str | None:

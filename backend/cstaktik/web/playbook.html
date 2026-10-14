@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Playbook {{ label }} · cstaktik{% endblock %}
 {% block head %}<style>
+.seg { display: inline-flex; padding: 4px; margin-top: 18px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+.seg a { padding: 7px 18px; border-radius: 999px; font-weight: 700; font-size: 14px; color: var(--muted); }
+.seg a.on { background: var(--text); color: #0b0c10; }
+.mixc { margin-top: 14px; padding: 16px; display: grid; gap: 10px; }
+.mxh { font-family: var(--cond); font-weight: 800; font-size: 20px; } .mxh span { font-family: Barlow, system-ui; font-weight: 400; font-size: 12.5px; color: var(--muted); margin-left: 6px; }
+.mxr { display: grid; grid-template-columns: 110px 1fr; gap: 4px 10px; align-items: center; }
+.mxl { grid-row: span 2; }
+.mxb { position: relative; height: 20px; border-radius: 6px; background: rgba(255,255,255,.04); overflow: hidden; }
+.mxb i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; } .mxb i.ihr { background: rgba(255,154,31,.55); } .mxb i.pro { background: rgba(143,180,255,.4); }
+.mxb em { position: relative; font-style: normal; font-size: 12px; padding-left: 8px; line-height: 20px; white-space: nowrap; }
 .pfil { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0 4px; }
 .pfil button { font: inherit; font-size: 13px; font-weight: 650; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
   background: var(--surface-2); color: var(--muted); cursor: pointer; transition: .15s; }
@@ -62,13 +72,31 @@
 </style>{% endblock %}
 {% block hero %}
 <h1>Playbook {{ label }}</h1>
-<p>{% if book.tactics %}{{ book.tactics|length }} T-Taktiken aus {{ book.demos }} Pro-Demo{{ "s" if book.demos != 1 }} ({{ book.rounds }} T-Runden). Alles so, wie Pros es wirklich gespielt haben.{% else %}Taktiken entstehen aus euren Pro-Demos dieser Map.{% endif %}</p>
-<div class="ptabs">{% for m in maps %}<a href="/playbook/{{ m }}" class="{{ 'on' if m == map_name }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
+<p>{% if who == "ihr" %}Eure T-Runden, erkannt wie bei den Pros: {{ book.tactics|length }} Taktik{{ "en" if book.tactics|length != 1 }} aus {{ book.rounds }} Runden.{% elif book.tactics %}{{ book.tactics|length }} T-Taktiken aus {{ book.demos }} Pro-Demo{{ "s" if book.demos != 1 }} ({{ book.rounds }} T-Runden). Alles so, wie Pros es wirklich gespielt haben.{% else %}Taktiken entstehen aus euren Pro-Demos dieser Map.{% endif %}</p>
+<div class="ptabs">{% for m in maps %}<a href="/playbook/{{ m }}?who={{ who }}" class="{{ 'on' if m == map_name }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
 {% endblock %}
 {% block content %}
+<div class="seg"><a href="/playbook/{{ map_name }}" class="{{ 'on' if who == 'pro' }}">Pros</a><a href="/playbook/{{ map_name }}?who=ihr" class="{{ 'on' if who == 'ihr' }}">Ihr</a></div>
+{% if mix.pro.total or mix.ihr.total %}
+<div class="card mixc">
+  <div class="mxh">Was auf T gespielt wird <span>Anteil der T-Runden · Siegquote</span></div>
+  {% if mix.text %}<div class="dread">{{ mix.text }}</div>{% endif %}
+  {% for st, lbl in [("default", "Default"), ("execute", "Execute"), ("split", "Split"), ("rush", "Rush"), ("eco", "Eco-Push"), ("pistol", "Pistolenrunde")] %}
+  {% set o = mix.ihr.styles.get(st) %}{% set q = mix.pro.styles.get(st) %}
+  {% if o or q %}
+  <div class="mxr">
+    <div class="mxl"><span class="pchip st st-{{ st }}">{{ lbl }}</span></div>
+    <div class="mxb"><i class="ihr" style="width:{{ o.share if o else 0 }}%"></i><em class="num">Ihr {{ o.share if o else 0 }} %{% if o %} · {{ o.won_pct }} % gew. ({{ o.n }}){% endif %}</em></div>
+    <div class="mxb"><i class="pro" style="width:{{ q.share if q else 0 }}%"></i><em class="num">Pros {{ q.share if q else 0 }} %{% if q %} · {{ q.won_pct }} % gew. ({{ q.n }}){% endif %}</em></div>
+  </div>
+  {% endif %}{% endfor %}
+  <div class="pex">{{ mix.ihr.total }} eigene T-Runden, {{ mix.pro.total }} Pro-T-Runden auf {{ label }}.{% if mix.ihr.total < 10 %} Unter 10 eigenen Runden kein Vergleichssatz.{% endif %}</div>
+</div>
+{% endif %}
 {% if not book.tactics %}
 <div class="card empty" style="margin-top:20px">
-  {% if book.old_demos %}{{ book.old_demos }} Pro-Demo{{ "s" if book.old_demos != 1 }} dieser Map {{ "sind" if book.old_demos != 1 else "ist" }} noch ohne Laufwege gespeichert. Auf dem Server einmal <code>cstaktik pro-update</code> ausführen.
+  {% if who == "ihr" %}{% if book.rounds %}Ihr habt auf {{ label }} noch keine T-Taktik mindestens zweimal gleich gespielt ({{ book.rounds }} T-Runden). Mit jedem Match wird das klarer.{% else %}Noch keine eigenen T-Runden auf {{ label }} mit Laufwegen. Auf dem Server einmal <code>cstaktik pro-update</code> ausführen, dann werden eure Matches nachgerüstet.{% endif %}
+  {% elif book.old_demos %}{{ book.old_demos }} Pro-Demo{{ "s" if book.old_demos != 1 }} dieser Map {{ "sind" if book.old_demos != 1 else "ist" }} noch ohne Laufwege gespeichert. Auf dem Server einmal <code>cstaktik pro-update</code> ausführen.
   {% elif book.rounds %}Noch keine Taktik, die Pros mindestens zweimal gleich gespielt haben ({{ book.rounds }} T-Runden ausgewertet). Mehr Pro-Demos dieser Map hochladen.
   {% else %}Noch keine Pro-Demo von {{ label }}. Unter Mehr → Pro-Demos hochladen.{% endif %}
 </div>
@@ -99,7 +127,7 @@
   {% if t.common %}<div class="pset">{% for c in t.common %}<span><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to }} <b class="num">{{ c.n }}/{{ t.n }}</b></span>{% endfor %}</div>
   {% else %}<div class="pmeta">Kein festes Granaten-Set: Die Pros haben hier jedes Mal andere Granaten geworfen.</div>{% endif %}
   <details><summary>Was ist ein {{ t.style_label }}?</summary><p>{{ t.explain }}</p></details>
-  <div class="pex">Gezeichnet: Runde {{ t.example.r }}{% if t.example.demo %} aus {{ t.example.demo }}{% endif %}, {{ "gewonnen" if t.example.won else "verloren" }}. Granaten im Fenster 20 s vor bis 5 s nach Ankunft am Bombsite.</div>
+  <div class="pex">Gezeichnet: Runde {{ t.example.r }}{% if t.example.demo %} {{ "vom" if who == "ihr" else "aus" }} {{ t.example.demo }}{% endif %}, {{ "gewonnen" if t.example.won else "verloren" }}. Granaten im Fenster 20 s vor bis 5 s nach Ankunft am Bombsite.</div>
 </article>
 {% endfor %}
 </div>

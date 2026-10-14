@@ -463,7 +463,7 @@ def playbook_index() -> RedirectResponse:
 
 
 @app.get("/playbook/{map_name}", response_class=HTMLResponse)
-def playbook_page(map_name: str) -> str:
+def playbook_page(map_name: str, who: str = "pro") -> str:
     """T-Taktiken aus den Pro-Demos dieser Map: Laufwege, Granaten, Plant, abspielbar auf dem Radar."""
     import json as _json
 
@@ -473,8 +473,14 @@ def playbook_page(map_name: str) -> str:
 
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
-    pro = _load_pro()
-    book = playbook.build(pro, map_name, load_rules_config().get("playbook"))
+    pro, cfg = _load_pro(), load_rules_config().get("playbook")
+    own = [{"map": h.get("map"), "plays": h.get("plays"),
+            "source_file": f"{(h.get('analyzed_at') or '')[8:10]}.{(h.get('analyzed_at') or '')[5:7]}."}
+           for h in _load_hist() if h.get("plays")]
+    who = "ihr" if who == "ihr" else "pro"
+    book = playbook.build(own if who == "ihr" else pro, map_name, cfg)
+    mix = {"pro": playbook.style_mix(pro, map_name, cfg), "ihr": playbook.style_mix(own, map_name, cfg)}
+    mix["text"] = playbook.compare(mix["ihr"], mix["pro"])
     radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
     img = radar.image_data_uri
     for tac in book["tactics"]:
@@ -501,10 +507,10 @@ def playbook_page(map_name: str) -> str:
                     it["p"] = paths[sids.index(it["sid"])][-1]
         tac["draw"] = {"paths": paths, "nades": nades, "plant": plant, "step": playbook.PATH_STEP_S, "events": evs,
                        "plant_t": ex.get("plant_t"), "vb": [round(x0), round(y0), round(size)], "sw": round(size / 400, 2)}
-    maps = sorted({d.get("map") for d in pro if d.get("map")} | {map_name})
+    maps = sorted({d.get("map") for d in pro + own if d.get("map")} | {map_name})
     data = _json.dumps({t["id"]: t.get("draw") for t in book["tactics"]}, ensure_ascii=False).replace("</", "<\\/")
     return _env.get_template("playbook.html").render(nav_active="training", book=book, img=img, maps=maps,
-                                                     map_name=map_name, data=data,
+                                                     map_name=map_name, data=data, who=who, mix=mix,
                                                      label=map_name.removeprefix("de_").capitalize())
 
 

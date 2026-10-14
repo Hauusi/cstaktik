@@ -49,9 +49,15 @@ def _site_of(place: str | None) -> str | None:
     return None
 
 
-def plays(match: MatchData) -> list[dict]:
-    """Je T-Runde: Laufwege der T, Ankunft am Bombsite, Zugänge, Plant, Ausrüstung. Für pro.summarize."""
+def plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
+    """Je T-Runde: Laufwege der T, Ankunft am Bombsite, Zugänge, Plant, Ausrüstung, T-Granaten und Kills.
+    ``team``: nur Runden, in denen einer dieser Spieler T ist (eigene Matches); None = alle (Pro-Demos)."""
+    from cstaktik.pro import deaths as round_deaths
+    from cstaktik.pro import nades as round_nades
     from cstaktik.rules.base import PositionIndex
+
+    all_nades = [n for n in round_nades(match) if n["side"] == "t"] if match.grenades else []
+    all_kills = round_deaths(match)
 
     idx = PositionIndex(match.positions)
     tr = match.tickrate
@@ -62,7 +68,7 @@ def plays(match: MatchData) -> list[dict]:
         if r.freeze_end_tick is None or r.winner is None:
             continue
         ts = sorted(s for s, sd in r.sides.items() if sd == "t")
-        if not ts:
+        if not ts or (team is not None and not team & set(ts)):
             continue
         plant = plants.get(r.num)
         plant_t = round((plant.tick - r.freeze_end_tick) / tr, 1) if plant else None
@@ -108,7 +114,10 @@ def plays(match: MatchData) -> list[dict]:
         out.append({"r": r.num, "won": r.winner == "t", "site": site, "arrive": arrive, "plant_t": plant_t,
                     "plant": [round(plant.pos.x), round(plant.pos.y)] if plant and plant.pos else None,
                     "approach": approach, "paths": paths, "t_eq": eq.get("t"), "ct_eq": eq.get("ct"),
-                    "pistol": r.num in halves})
+                    "pistol": r.num in halves,
+                    "nades": [n for n in all_nades if n["r"] == r.num],
+                    "kills": [{"t": x["t"], "side": x["side"], "place": x.get("place"), "sid": x.get("sid"),
+                               "first": x.get("first")} for x in all_kills if x["r"] == r.num]})
     return out
 
 
@@ -183,19 +192,21 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
     groups: dict[tuple, list] = {}
     total = 0
     for d in demos:
-        nades = [n for n in d.get("nades", []) if n.get("side") == "t"]
+        demo_nades = [n for n in d.get("nades", []) if n.get("side") == "t"]
         deaths = d.get("deaths", [])
         for p in d["plays"]:
             total += 1
             k = classify(p, c)
             key = (k["style"], p.get("site"), tuple(k["via"]) if k["style"] in ("split", "execute", "rush") else ())
             mine = []
+            nades = p["nades"] if "nades" in p else [n for n in demo_nades if n["r"] == p["r"]]
             if p.get("arrive") is not None:
                 lo, hi = p["arrive"] - c["nade_before_s"], p["arrive"] + c["nade_after_s"]
-                mine = [n for n in nades if n["r"] == p["r"] and lo <= n["t"] <= hi and n["kind"] != "he"]
+                mine = [n for n in nades if lo <= n["t"] <= hi and n["kind"] != "he"]
             stop = (p.get("plant_t") or ((p.get("arrive") or 60) + 15)) + 3
+            src = p["kills"] if "kills" in p else [x for x in deaths if x.get("r") == p["r"]]
             kills = [{"t": x["t"], "side": x["side"], "place": x.get("place"), "sid": x.get("sid"), "first": x.get("first")}
-                     for x in deaths if x.get("r") == p["r"] and x.get("t") is not None and x["t"] <= stop]
+                     for x in src if x.get("t") is not None and x["t"] <= stop]
             groups.setdefault(key, []).append({**p, **k, "nades": mine, "deaths": kills, "demo": d.get("source_file")})
     tactics = []
     for (style, site, via), rows in groups.items():
@@ -227,3 +238,34 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
     tactics.sort(key=lambda t: (-t["n"], -t["won_pct"]))
     return {"map": map_name, "demos": len(demos), "rounds": total, "tactics": tactics,
             "old_demos": sum(1 for d in pro if d.get("map") == map_name and not d.get("plays"))}
+
+
+def style_mix(sources: list[dict], map_name: str, cfg: dict | None = None) -> dict:
+    """Alle T-Runden einer Map nach Taktikart: Runden, Anteil, Siege (auch Arten, die nur einmal vorkamen)."""
+    c = {**DEFAULTS, **(cfg or {})}
+    rows = [classify(p, c) | {"won": p["won"]} for d in sources if d.get("map") == map_name for p in d.get("plays") or []]
+    out = {}
+    for st in STYLE_TEXT:
+        sel = [r for r in rows if r["style"] == st]
+        if sel:
+            out[st] = {"label": STYLE_TEXT[st][0], "n": len(sel), "share": round(100 * len(sel) / len(rows)),
+                       "won": sum(r["won"] for r in sel), "won_pct": round(100 * sum(r["won"] for r in sel) / len(sel))}
+    return {"total": len(rows), "styles": out}
+
+
+def compare(own: dict, pro: dict, min_rounds: int = 10, min_style: int = 4) -> str | None:
+    """Ein Satz: größter Unterschied zwischen eurer und der Pro-Taktikverteilung (Anteile in Prozentpunkten)."""
+    if own["total"] < min_rounds or pro["total"] < min_rounds:
+        return None
+    best = None
+    for st, o in own["styles"].items():
+        p = pro["styles"].get(st, {"share": 0, "n": 0})
+        diff = o["share"] - p["share"]
+        if abs(diff) >= 15 and (best is None or abs(diff) > abs(best[1])):
+            best = (st, diff, o, p)
+    if not best:
+        return None
+    st, diff, o, p = best
+    more = "öfter" if diff > 0 else "seltener"
+    tail = (f" Eure {o['label']}-Runden: {o['won_pct']} % gewonnen ({o['n']} Runden)." if o["n"] >= min_style else "")
+    return f"Ihr spielt {o['label']} deutlich {more} als Pros: {o['share']} % eurer T-Runden, Pros {p['share']} %.{tail}"

@@ -52,7 +52,8 @@ def test_rush_eco_pistol_default():
 
 
 def test_build_groups_rounds_and_finds_common_nades():
-    p1 = playbook.plays(_match(5, _split_route(), plant_s=48))[0]
+    # ältere Pro-Daten: Granaten auf Demo-Ebene, nicht je Runde
+    p1 = {k: v for k, v in playbook.plays(_match(5, _split_route(), plant_s=48))[0].items() if k not in ("nades", "kills")}
     p2 = {**p1, "r": 6, "won": False}
     nades = [{"r": 5, "side": "t", "kind": "smoke", "t": 30, "to": "CT", "from": "TSpawn"},
              {"r": 6, "side": "t", "kind": "smoke", "t": 31, "to": "CT", "from": "TSpawn"},
@@ -90,3 +91,17 @@ def test_events_merge_close_moments():
     assert [e["t"] for e in ev] == [28, 31, 36, 46]
     assert [i["text"] for i in ev[0]["items"]] == ["Smoke von TSpawn auf CT", "Smoke auf Jungle"]
     assert ev[1]["items"][0]["text"] == "CT fällt in Jungle (Opening)" and ev[3]["items"][0]["text"] == "Bombe liegt"
+
+
+def test_own_plays_only_with_team_and_compare_to_pros():
+    m = _match(5, _split_route(), plant_s=48)
+    assert playbook.plays(m, team={"c1"}) == [] and len(playbook.plays(m, team={"t1"})) == 1
+    p = playbook.plays(m, team={"t1"})[0]
+    own = playbook.style_mix([{"map": "de_mirage", "plays": [p] * 12}], "de_mirage")
+    assert own["total"] == 12 and own["styles"]["split"]["share"] == 100
+    slow = {s: [(0, "TSpawn", 0, 0), (10, "Mid", 5, 5), (70, "BombsiteB", 9, 9)] for s in T}
+    q = playbook.plays(_match(9, slow, plant_s=80, equip=5000))[0]
+    pro = playbook.style_mix([{"map": "de_mirage", "plays": [q] * 8 + [p] * 4}], "de_mirage")
+    s = playbook.compare(own, pro)
+    assert s.startswith("Ihr spielt Split deutlich öfter als Pros: 100 % eurer T-Runden, Pros 33 %.")
+    assert playbook.compare({**own, "total": 5}, pro) is None  # zu wenig eigene Runden
