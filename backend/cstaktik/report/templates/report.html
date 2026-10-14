@@ -400,6 +400,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .dbf-body .opt { display: block; width: 100%; text-align: left; margin-top: 8px; padding: 12px; background: var(--surface-2);
   border: 1px solid var(--line); color: var(--text); font-weight: 700; font-size: 15.5px; }
 .dbf-body .opt small { display: block; color: var(--muted); font-weight: 600; margin-top: 2px; }
+.dbf-body .opt.pick, .qopt.pick { outline: 2px solid var(--orange); outline-offset: 2px; }
 .dbf-body .opt.mine { border-color: var(--loss); } .dbf-body .opt.best { border-color: var(--win); background: rgba(70,167,88,.1); }
 .dbf-body .stamp { display: inline-block; font: 800 14px var(--cond); letter-spacing: .14em; text-transform: uppercase; padding: 3px 9px;
   border: 2px solid currentColor; transform: rotate(-3deg); margin-top: 6px; }
@@ -482,7 +483,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
       <div class="who cond">{{ a.name }}</div>
       <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Zu wenig Runden" if c.met is none else "Nicht geschafft" }}</div></div>
       <div class="ameter num">
-        <div><b class="cond">{{ c.count }}x</b><span>in {{ c.rounds }} Runden</span></div>
+        <div><b class="cond">{{ c.count }}x</b><span>in {{ c.rounds }} Runden{% if c.drills is not none and c.drills is defined %} · {{ c.drills }}x geübt{% endif %}</span></div>
         <div><b class="cond">{{ c.rate|string|replace(".", ",") }}</b><span>pro 10 Runden</span></div>
         <div><b class="cond">≤ {{ c.target|string|replace(".", ",") }}</b><span>Ziel</span></div>
         <div><b class="cond">{{ c.streak }}/{{ c.need }}</b><span>in Folge</span></div>
@@ -1723,6 +1724,7 @@ function quizAnswer(f, pick) {
   q.querySelectorAll('.qopt').forEach(b => {
     const k = b.dataset.k, r = rates[k];
     b.disabled = true;
+    if (k === pick) { b.classList.add('pick'); b.appendChild(el('small', null, 'Deine Wahl')); }
     if (k === mine) b.classList.add('mine');
     if (k === best) b.classList.add('best');
     if (r) b.appendChild(el('small', null, `Pros: ${r[1]}x, ${Math.round(100 * r[0] / r[1])} % Siege`));
@@ -1767,7 +1769,8 @@ function dbBuild() {
       const b = el('div', 'box ' + (c.met ? 'good' : c.met == null ? '' : 'bad'));
       b.append(el('div', 'k', c.name), el('div', null, c.title));
       b.firstChild.style.color = 'var(--muted)'; b.lastChild.style.cssText = 'font:800 22px var(--cond);text-transform:uppercase';
-      b.append(el('div', null, `Heute ${c.count}x in ${c.rounds} Runden (${String(c.rate).replace('.', ',')} pro 10 Runden), Ziel ≤ ${String(c.target).replace('.', ',')}.`));
+      b.append(el('div', null, (c.drills != null ? (c.drills ? `Vorher ${c.drills}x geübt. ` : 'Vorher nicht geübt. ') : '')
+                               + `Heute ${c.count}x in ${c.rounds} Runden (${String(c.rate).replace('.', ',')} pro 10 Runden), Ziel ≤ ${String(c.target).replace('.', ',')}.`));
       b.append(el('div', 'stamp ' + (c.met ? 'ok' : c.met == null ? '' : 'no'), c.mastered ? 'Gemeistert' : c.met == null ? 'Zu wenig Runden' : c.met ? `Geschafft · ${c.streak}/${c.need}` : 'Nicht geschafft'));
       d.appendChild(b);
     });
@@ -1788,21 +1791,9 @@ function dbBuild() {
       return d;
     });
     const sc = L.scenes[0], f = sc ? F[sc.finding] : null, cv = f && f.evidence && f.evidence.coach;
-    if (sc) st.push(() => {
-      const d = el('div'); d.append(el('div', 'k', `Deine Szene · R${sc.round} · ${sc.who || ''}`), el('h3', null, 'So ist es passiert'));
-      if (cv) d.appendChild(el('p', null, cv.happened));
-      if (cv && cv.why) d.appendChild(el('p', null, cv.why));
-      d.appendChild(dbPlayBtn('▶ Szene im Replay ansehen', sc.round, sc.from || sc.tick, true));
-      if (L.scenes.length > 1) {
-        const more = (L.count || L.scenes.length) - 1;
-        d.appendChild(el('p', null, `Das gleiche Muster gab es noch ${more}x` + (more > L.scenes.length - 1 ? ` (${L.scenes.length - 1} davon hier):` : ':'))).style.marginTop = '14px';
-        L.scenes.slice(1).forEach(x => d.appendChild(dbPlayBtn(`▶ R${x.round}${x.cost ? ' · -' + x.cost + ' %' : ''}`, x.round, x.from || x.tick)));
-      }
-      return d;
-    });
     const ev = f && f.evidence;
     if (ev && ev.snap && ev.aktion) st.push(() => {
-      const d = el('div'), s = ev.snap; d.append(el('div', 'k', 'Deine Entscheidung'), el('h3', null, 'Was hättest du gemacht?'));
+      const d = el('div'), s = ev.snap; d.append(el('div', 'k', `Deine Szene · R${sc.round} · erst entscheiden`), el('h3', null, 'Was machst du hier?'));
       const parts = [`${s.own} gegen ${s.enemy}`, s.hp != null ? (s.hp >= 100 ? 'volle HP' : s.hp + ' HP') : null,
                      s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt', s.mate && s.mate_d != null ? `${s.mate} ${s.mate_d} Units weg` : null].filter(Boolean);
       d.appendChild(el('p', null, parts.join(' · ') + (ev.info ? ' · ' + ev.info.replace(/^Info: /, '') : '')));
@@ -1810,7 +1801,7 @@ function dbBuild() {
       Object.entries(ACT).forEach(([k, label]) => {
         const b = el('button', 'opt', label);
         b.onclick = () => {
-          if (done) return; done = true;
+          if (done) return; done = true; b.classList.add('pick'); b.appendChild(el('small', null, 'Deine Wahl'));
           const rates = ev.pro_rates || {}, best = ev.pro_best;
           opts.querySelectorAll('.opt').forEach(o => {
             const key = o.dataset.k, r = rates[key];
@@ -1821,11 +1812,24 @@ function dbBuild() {
           const res = el('div', 'box ' + (best && k === best ? 'good' : 'bad'));
           res.appendChild(el('div', null, best ? (k === best ? 'Richtig gedacht: Mit dieser Option gewinnen Pros diese Lage am häufigsten.' : 'Pros gewinnen diese Lage am häufigsten mit: ' + ACT[best] + '.') : 'Für diese Lage fehlen Pro-Daten. Entscheidend ist, was der Coach dir sagt:'));
           if (cv) { const nx = el('div'); nx.style.marginTop = '8px'; nx.append(el('b', null, 'Nächstes Mal: '), cv.next); res.appendChild(nx); }
+          res.appendChild(el('div', 'quiet', 'Weiter: was in der Szene wirklich passiert ist.'));
           d.appendChild(res);
         };
         b.dataset.k = k; opts.appendChild(b);
       });
       d.appendChild(opts);
+      return d;
+    });
+    if (sc) st.push(() => {
+      const d = el('div'); d.append(el('div', 'k', `Deine Szene · R${sc.round} · ${sc.who || ''}`), el('h3', null, 'Auflösung: so ist es passiert'));
+      if (cv) d.appendChild(el('p', null, cv.happened));
+      if (cv && cv.why) d.appendChild(el('p', null, cv.why));
+      d.appendChild(dbPlayBtn('▶ Szene im Replay ansehen', sc.round, sc.from || sc.tick, true));
+      if (L.scenes.length > 1) {
+        const more = (L.count || L.scenes.length) - 1;
+        d.appendChild(el('p', null, `Das gleiche Muster gab es noch ${more}x` + (more > L.scenes.length - 1 ? ` (${L.scenes.length - 1} davon hier):` : ':'))).style.marginTop = '14px';
+        L.scenes.slice(1).forEach(x => d.appendChild(dbPlayBtn(`▶ R${x.round}${x.cost ? ' · -' + x.cost + ' %' : ''}`, x.round, x.from || x.tick)));
+      }
       return d;
     });
     st.push(() => {

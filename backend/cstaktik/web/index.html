@@ -15,8 +15,9 @@
   <div class="mantra">„{{ a.mantra }}“</div>
   {% if a.rueckfall %}<div class="small" style="margin-top:6px;color:#e5484d">Kommt zurück: war am {{ a.rueckfall[8:10] }}.{{ a.rueckfall[5:7] }}. gemeistert, jetzt wieder so oft wie vorher.</div>{% endif %}
   <div class="small muted num" style="margin-top:6px">Ziel: höchstens {{ a.target|string|replace(".", ",") }}x pro 10 Runden, 2 Matches in Folge · Start: {{ a.baseline|string|replace(".", ",") }}{% if a.baseline_n %} ({{ a.baseline_n }}x in {{ a.baseline_rounds }} Runden){% endif %}</div>
-  <div class="dots">{% for m in a.matches[-6:] %}<span class="dot {{ 'ok' if m.met else 'open' if m.met is none else 'no' }}" title="{{ (m.map or '')|replace('de_','') }}: {{ m.count }}x in {{ m.rounds }} Runden">{{ '✓' if m.met else '–' if m.met is none else '✗' }}</span>{% endfor %}
+  <div class="dots">{% for m in a.matches[-6:] %}<span class="dot {{ 'ok' if m.met else 'open' if m.met is none else 'no' }}" title="{{ (m.map or '')|replace('de_','') }}: {{ m.count }}x in {{ m.rounds }} Runden{% if m.drills is defined %}, vorher {{ m.drills }}x geübt{% endif %}">{{ '✓' if m.met else '–' if m.met is none else '✗' }}</span>{% endfor %}
     {% for _ in range(2 - (a.matches|length if a.matches|length < 2 else 2)) %}<span class="dot open">?</span>{% endfor %}</div>
+  {% if a.matches %}{% set lm = a.matches[-1] %}<div class="small muted num" style="margin-top:6px">Letztes Match: {{ lm.count }}x in {{ lm.rounds }} Runden{% if lm.drills is defined %}, vorher {{ lm.drills }}x geübt{% endif %}.</div>{% endif %}
   <details class="pre"><summary><span class="pk">Vor dem nächsten Match · {{ a.routine.minutes }} Min</span> <b>{{ a.routine.title }}</b></summary>
     <ol>{% for st in a.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
     <div class="small"><b>Im Match:</b> {{ a.in_game }}</div>

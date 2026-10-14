@@ -17,7 +17,8 @@ TEACH: dict[str, dict] = {
         "routine": {"title": "Prefire-Routine", "minutes": 10, "steps": [
             "Prefire-Map deiner nächsten Map aus dem Steam-Workshop laden.",
             "Jeden Spot einzeln clearen: Fadenkreuz an die Kante, dann erst bewegen.",
-            "Ziel: einen ganzen Durchgang ohne Treffer bekommen.",
+            "Ziel: an jedem Spot liegt das Fadenkreuz schon auf Kopfhöhe, bevor der Bot sichtbar wird. "
+            "Spots, an denen das nicht klappt, sofort wiederholen.",
         ]},
     },
     "no_shot_far": {
@@ -37,8 +38,9 @@ TEACH: dict[str, dict] = {
         "mantra": "Flash hören, wegdrehen, zurück.",
         "in_game": "Bei jedem Flash-Geräusch sofort wegdrehen und einen Schritt hinter Deckung, auch wenn es zu spät wirkt.",
         "routine": {"title": "Flash-Reflex", "minutes": 5, "steps": [
-            "Retake- oder Deathmatch-Server: bei jedem Flash-Geräusch wegdrehen, keine Ausnahme.",
+            "Retake-Server (dort fliegen Flashes, im Deathmatch nicht): bei jedem Flash-Geräusch wegdrehen.",
             "Danach erst wieder peeken.",
+            "Ziel: 10 Runden in Folge kein einziges Mal geblendet gestorben.",
         ]},
     },
     "alone": {
@@ -51,6 +53,7 @@ TEACH: dict[str, dict] = {
             "Retake-Server zu zweit: Regel, keiner peekt allein.",
             "Einer peekt, der andere zieht sofort nach (Trade).",
             "Nach jeder Runde kurz: War der Trade möglich?",
+            "Ziel: 10 Runden in Folge kein Solo-Peek.",
         ]},
     },
     "utility": {
@@ -68,9 +71,10 @@ TEACH: dict[str, dict] = {
                       "nächste Duell."),
         "mantra": "Unter 50 HP: Info, nicht Duell.",
         "in_game": "Mit wenig HP: zurückfallen, callen, wo der Gegner ist, auf den Trade deines Mitspielers spielen.",
-        "routine": {"title": "Disziplin-Runde", "minutes": 5, "steps": [
-            "Im nächsten Match: Bei unter 50 HP laut sagen \"ich spiele passiv\".",
-            "Erst wieder peeken, wenn ein Mitspieler dabei ist.",
+        "routine": {"title": "Wenig-HP-Runden", "minutes": 10, "steps": [
+            "Retake-Server, 10 Runden: sobald du unter 50 HP bist, zurückfallen und nur noch callen.",
+            "Erst wieder ins Duell, wenn ein Mitspieler direkt dabei ist.",
+            "Ziel: in den 10 Runden kein Tod mit unter 50 HP ohne Mitspieler daneben.",
         ]},
     },
     "moving_shot": {
@@ -81,6 +85,7 @@ TEACH: dict[str, dict] = {
         "routine": {"title": "Counter-Strafe", "minutes": 10, "steps": [
             "Deathmatch: nur schießen, wenn du stehst.",
             "Strafen, Gegenrichtung tippen, ein bis drei Schüsse, weiter strafen.",
+            "Ziel: 3 Deathmatch-Runden, in denen du keinen Schuss aus dem Laufen abgibst (selbst mitzählen).",
         ]},
     },
     "moving": {
@@ -89,6 +94,7 @@ TEACH: dict[str, dict] = {
         "in_game": "Vor jedem Winkel kurz stoppen, aufschneiden, erst dann rein.",
         "routine": {"title": "Langsam clearen", "minutes": 10, "steps": [
             "Prefire-Map: jeden Winkel mit Stopp vorher clearen.",
+            "Ziel: ein ganzer Durchgang, an jedem Winkel vorher gestoppt.",
         ]},
     },
     "outnumbered": {
@@ -97,7 +103,9 @@ TEACH: dict[str, dict] = {
         "mantra": "Unterzahl heißt zusammen oder Zeit.",
         "in_game": "Bei Unterzahl: zum nächsten Mitspieler, gemeinsam spielen, keine Solo-Peeks.",
         "routine": {"title": "Retake zu zweit", "minutes": 10, "steps": [
-            "Retake-Server: 2 gegen mehr bewusst gemeinsam lösen.",
+            "Retake-Server: In jeder Runde, in der ihr in Unterzahl seid, zum nächsten Mitspieler laufen.",
+            "Gemeinsam auf einen Spot gehen, nicht getrennt Duelle suchen.",
+            "Ziel: 10 Unterzahl-Situationen ohne Solo-Duell.",
         ]},
     },
     "crosshair": {
@@ -118,6 +126,7 @@ TEACH: dict[str, dict] = {
         "routine": {"title": "Positionen prüfen", "minutes": 10, "steps": [
             "Offline-Server: deine drei Standard-Positionen anstellen.",
             "Für jede zählen, aus wie vielen Winkeln man dich sehen kann. Mehr als einer: bessere Stelle suchen.",
+            "Ziel: für jede Position eine Stelle mit nur einem offenen Winkel gefunden.",
         ]},
     },
     "duel": {

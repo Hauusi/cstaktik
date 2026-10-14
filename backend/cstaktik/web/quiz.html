@@ -11,6 +11,7 @@
 .opt { font: inherit; font-weight: 700; text-align: left; padding: 11px 12px; background: var(--surface-2); color: var(--text);
   border: 1px solid var(--line); cursor: pointer; }
 .opt small { display: block; font-weight: 600; color: var(--muted); margin-top: 2px; }
+.opt.pick { outline: 2px solid var(--orange); outline-offset: 2px; }
 .opt.mine { border-color: var(--loss); } .opt.best { border-color: var(--win); background: rgba(70,167,88,.1); }
 .res { margin-top: 12px; font-size: 14.5px; line-height: 1.45; }
 .res .v { font-family: var(--cond); font-weight: 800; font-size: 18px; text-transform: uppercase; }
@@ -37,14 +38,25 @@
 <script type="application/json" id="data">{{ data_json|safe }}</script>
 <script>
 (() => {
-const S = JSON.parse(document.getElementById('data').textContent);
+const ALL = JSON.parse(document.getElementById('data').textContent);
+// Wiederholung mit Abstand: Ergebnisse je Szene im Browser merken (falls erlaubt)
+const KEY = sc => `cstq-${sc.report || ''}-${sc.round}-${sc.tick}`;
+const load = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ohne Speicher */ } };
+const DAY = 864e5, now = Date.now();
+const prio = sc => { const r = load(KEY(sc)); if (!r) return 1; if (!r.ok) return 0; return now - r.date > 3 * DAY ? 2 : 3; };
+// falsch beantwortete zuerst, dann neue, dann richtige von vor über 3 Tagen, kürzlich richtige zuletzt
+const S = ALL.map((sc, i) => [prio(sc), i, sc]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, 12).map(x => x[2]);
+const QUIZ_OPEN = {{ 'true' if quiz_open else 'false' }};
 const OPTS = [['gehalten', 'Position halten'], ['zurückgezogen', 'Zurückziehen'], ['Richtung Gegner', 'Richtung Gegner gehen / peeken']];
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const clock = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-let ok = 0, n = 0;
+let ok = 0, n = 0, answered = 0;
 S.forEach((sc, i) => {
   const s = sc.snap, c = el('div', 'tq');
-  c.append(el('div', 'meta', `${i + 1} · ${(sc.map || '').replace('de_', '')} R${sc.round} · ${sc.who} · ${sc.lesson_title}`));
+  const seen = load(KEY(sc));
+  c.append(el('div', 'meta', `${i + 1} · ${(sc.map || '').replace('de_', '')} R${sc.round} · ${sc.who}`
+                             + (seen ? (seen.ok ? ' · schon richtig' : ' · letztes Mal daneben') : '')));
   c.append(el('div', 'q', 'Was machst du?'));
   const parts = [`${clock(s.secs)}`, `${s.own} gegen ${s.enemy}`];
   if (s.hp != null) parts.push(s.hp >= 100 ? 'volle HP' : `${s.hp} HP`);
@@ -57,6 +69,7 @@ S.forEach((sc, i) => {
     const b = el('button', 'opt', label);
     b.onclick = () => {
       if (c.dataset.done) return; c.dataset.done = 1;
+      b.classList.add('pick'); b.appendChild(el('small', null, 'Deine Wahl'));
       const rates = sc.pro_rates || {}, best = sc.pro_best;
       opts.querySelectorAll('.opt').forEach((o, j) => {
         const key = OPTS[j][0], r = rates[key];
@@ -66,13 +79,19 @@ S.forEach((sc, i) => {
       });
       const res = el('div', 'res');
       if (best) { n++; if (k === best) ok++; }
+      save(KEY(sc), { ok: best ? k === best : true, date: Date.now() });
+      answered++;
       const v = best ? (k === best ? el('div', 'v ok', 'Höchste Pro-Siegquote') : el('div', 'v no', 'Höchste Pro-Siegquote hat: ' + OPTS.find(o => o[0] === best)[1]))
                      : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage');
-      res.append(v, el('div', null, sc.happened));
+      res.append(v, el('div', 'meta', 'Lektion: ' + sc.lesson_title), el('div', null, sc.happened));
       const nx = el('div', 'nx'); nx.append(el('b', null, 'Nächstes Mal'), sc.next); res.appendChild(nx);
       if (sc.report) { const a = el('a', null, '▶ Szene im Replay'); a.href = `/reports/${sc.report}#s${sc.round}-${sc.from || sc.tick}`; res.appendChild(a); }
       c.appendChild(res);
       document.getElementById('score').textContent = n ? `${ok} von ${n} wie die Pros` : '';
+      if (answered === S.length && QUIZ_OPEN) {  // Wochenaufgabe automatisch abhaken
+        fetch('/training/plan?p={{ sid or "" }}&week={{ week }}&task=quiz', { method: 'POST' }).catch(() => {});
+        document.getElementById('score').textContent += ' · Wochenaufgabe erledigt';
+      }
     };
     opts.appendChild(b);
   });

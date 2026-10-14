@@ -235,12 +235,18 @@ def quiz_page(p: str = "") -> str:
     if len(pick) < 6:  # auffüllen mit den teuersten anderen Szenen
         rest = sorted((sc for sc in scenes if sc not in pick), key=lambda sc: -(sc.get("cost") or 0))
         pick += rest[: 12 - len(pick)]
-    pick = pick[:12]
+    pick = pick[:40]  # die Seite wählt daraus 12 (falsch beantwortete und neue zuerst, Wiederholung mit Abstand)
     data = _json.dumps([{**sc, "lesson_title": LESSONS.get(sc["lesson"], ("?",))[0]} for sc in pick],
                        ensure_ascii=False).replace("</", "<\\/")
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
-    return _env.get_template("quiz.html").render(nav_active="training", title=LESSONS.get(lesson, ("?",))[0] if lesson else None, n=len(pick),
-                                                 data_json=data, tabs=tabs, who=names.get(sid), sid=sid)
+    from cstaktik import coaching, weekplan
+
+    week = weekplan.week_key(weekplan.local_today())
+    plan = ((coaching.load(pipeline.COACHING_FILE).get("players", {}).get(sid) or {}).get("weeks") or {}).get(week)
+    quiz_open = bool(plan) and any(t["id"] == "quiz" for t in plan["tasks"]) and "quiz" not in plan["done"]
+    return _env.get_template("quiz.html").render(nav_active="training", title=LESSONS.get(lesson, ("?",))[0] if lesson else None,
+                                                 n=min(12, len(pick)), data_json=data, tabs=tabs, who=names.get(sid),
+                                                 sid=sid, week=week, quiz_open=quiz_open)
 
 
 _CACHE: dict[str, tuple] = {}

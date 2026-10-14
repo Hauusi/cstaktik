@@ -168,3 +168,15 @@ def test_bright_spots_from_duels_and_honest_none():
     assert "steht beim ersten Schuss (10 Units/s)" in coaching.bright_spots(m, "moving")[0]["text"]
     assert coaching.bright_spots(m, "blind") is None  # keine Suche für diese Lektion
     assert coaching.bright_spots(m, "crosshair", sid=ME) == []  # nur Szenen dieses Spielers
+
+
+def test_check_counts_drills_before_match():
+    st = {"focus": None, "done": [], "drills": []}
+    coaching.update(st, _ps("1", 4), ["alone"], sid="a")  # Auftrag seit 2026-10-01T20:00
+    coaching.drill_done(st, "alone", "2026-10-01T21:00")
+    coaching.drill_done(st, "alone", "2026-10-02T10:00")
+    coaching.drill_done(st, "utility", "2026-10-02T10:00")  # andere Lektion zählt nicht
+    r = coaching.update(st, _ps("2", 1), ["alone"], sid="a")
+    assert r["check"]["drills"] == 2
+    coaching.drill_done(st, "alone", "2026-10-03T10:00")
+    assert coaching.update(st, _ps("3", 1), ["alone"], sid="a")["check"]["drills"] == 1  # nur seit dem letzten Match

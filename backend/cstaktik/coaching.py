@@ -135,8 +135,14 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
         if r is not None:
             rate, n, rounds = r
             enough = rounds >= min_check_rounds
+            # Übungen seit dem letzten geprüften Match (bzw. seit dem Auftrag) bis zu diesem Match
+            prev_dates = [m.get("date") or "" for m in f.get("matches", []) if m["match"] != mid
+                          and (m.get("date") or "") < (summary.get("analyzed_at") or "")]
+            since = max(prev_dates, default=f.get("created_at") or "")
+            drills = sum(1 for d in state.get("drills", []) if d["lesson"] == f["lesson"]
+                         and since <= d["date"] <= (summary.get("analyzed_at") or "9999"))
             entry = {"match": mid, "date": summary.get("analyzed_at"), "map": summary.get("map"),
-                     "rate": round(rate, 1), "count": n, "rounds": rounds,
+                     "rate": round(rate, 1), "count": n, "rounds": rounds, "drills": drills,
                      "met": (rate <= f["target"]) if enough else None, "report": summary.get("report_file")}
             f["matches"] = sorted([m for m in f.get("matches", []) if m["match"] != mid] + [entry],
                                   key=lambda m: m.get("date") or "")
