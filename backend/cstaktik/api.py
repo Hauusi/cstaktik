@@ -395,7 +395,27 @@ def mapbook_page(map_name: str, p: str = "") -> str:
     book = mapbook.build(hist, _load_pro(), map_name, sid, load_rules_config()["mapbook"]) \
         if sid else None
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in focus_ids]
-    return _env.get_template("mapbook.html").render(nav_active="training", book=book, cfg=load_rules_config()["mapbook"], tabs=tabs, sid=sid,
+    img = None
+    if book:  # Schusslinien aufs Radarbild umrechnen
+        from cstaktik.model import MatchData
+        from cstaktik.report.radar import build_radar
+
+        radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
+        img = radar.image_data_uri
+        if img:
+            for sd in book["sides"].values():
+                sd["px"] = [[*radar.to_px(ax, ay), *radar.to_px(x, y)] for ax, ay, x, y in sd["lines"]]
+                if sd["px"]:  # auf den Bereich der Linien zoomen (am Handy sonst zu klein)
+                    xs = [v for l in sd["px"] for v in (l[0], l[2])]
+                    ys = [v for l in sd["px"] for v in (l[1], l[3])]
+                    size = max(max(xs) - min(xs), max(ys) - min(ys)) + 220
+                    size = min(1024, max(size, 380))
+                    cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+                    x0 = min(max(cx - size / 2, 0), 1024 - size)
+                    y0 = min(max(cy - size / 2, 0), 1024 - size)
+                    sd["vb"] = f"{x0:.0f} {y0:.0f} {size:.0f} {size:.0f}"
+                    sd["sw"] = round(size / 340, 2)
+    return _env.get_template("mapbook.html").render(img=img,nav_active="training", book=book, cfg=load_rules_config()["mapbook"], tabs=tabs, sid=sid,
                                                     who=names.get(sid), map_name=map_name,
                                                     label=map_name.removeprefix("de_").capitalize())
 

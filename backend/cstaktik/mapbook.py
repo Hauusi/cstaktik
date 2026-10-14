@@ -30,7 +30,8 @@ def _own(hist: list[dict], map_name: str, sid: str, b: int) -> dict[str, dict[st
             if t["sid"] != sid or t["side"] not in out or b >= len(t["places"]) or not t["places"][b]:
                 continue
             e = out[t["side"]].setdefault(t["places"][b], {"n": 0, "won": 0, "died": 0, "first": 0, "untraded": 0,
-                                                           "trade_known": 0, "death_places": Counter(), "rounds": []})
+                                                           "trade_known": 0, "death_places": Counter(), "rounds": [],
+                                                           "killer_places": Counter()})
             e["n"] += 1
             e["won"] += bool(t["won"])
             d = deaths.get((t["round"], sid))
@@ -42,6 +43,8 @@ def _own(hist: list[dict], map_name: str, sid: str, b: int) -> dict[str, dict[st
                     e["untraded"] += not d["traded"]
                 if d.get("place"):
                     e["death_places"][d["place"]] += 1
+                if d.get("aplace"):
+                    e["killer_places"][d["aplace"]] += 1
             e["rounds"].append({"report": h.get("report_file"), "round": t["round"], "won": bool(t["won"]),
                                 "date": (h.get("analyzed_at") or "")[:10]})
     return out
@@ -84,6 +87,7 @@ def build(hist: list[dict], pro: list[dict], map_name: str, sid: str, cfg: dict)
                    "untraded": e["untraded"] if e["trade_known"] else None,
                    "untraded_pct": _pct(e["untraded"], e["n"]) if e["trade_known"] else None,
                    "death_places": e["death_places"].most_common(3),
+                   "killer_places": [kp for kp in e["killer_places"].most_common(3) if kp[1] >= 2],
                    "rounds": e["rounds"][-6:][::-1]}
             row.update(_verdict(row, cfg))
             ps = po["spots"].get(place)
@@ -102,10 +106,21 @@ def build(hist: list[dict], pro: list[dict], map_name: str, sid: str, cfg: dict)
                             "first_pct": _pct(ps["first"], ps["first_known"]) if ps["first_known"] >= 3 else None,
                             "lineups": sum(1 for l in lines if l["side"] == side and l["from"] == place)})
         sides[side] = {"label": SIDE_DE[side], "spots": spots, "pro_spots": alt, "pro_rounds": po["total"],
-                       "rounds": sum(s["n"] for s in spots)}
+                       "rounds": sum(s["n"] for s in spots), **angles(hist, map_name, sid, side)}
     return {"map": map_name, "label": map_name.removeprefix("de_").capitalize(), "at": lu.clock(b * STEP_S),
             "sides": sides, "matches": sum(1 for h in hist if h.get("map") == map_name),
             "n_lineups": len(lines)}
+
+
+def angles(hist: list[dict], map_name: str, sid: str, side: str) -> dict:
+    """Von wo du erschossen wirst: Linien Killer -> du für alle Tode auf dieser Map und Seite, und die häufigsten
+    Orte der Killer. Das ist die persönliche Liste der Winkel, die vorgezielt werden müssen."""
+    shots = [d for h in hist if h.get("map") == map_name for d in h.get("deaths", [])
+             if d.get("sid") == sid and d.get("side") == side and d.get("ax") is not None and d.get("x") is not None]
+    top = Counter(d["aplace"] for d in shots if d.get("aplace")).most_common(4)
+    return {"lines": [[d["ax"], d["ay"], d["x"], d["y"]] for d in shots],
+            "killer_top": [{"place": p, "n": n, "share": round(100 * n / len(shots))} for p, n in top if n >= 2],
+            "deaths_with_pos": len(shots)}
 
 
 def _verdict(row: dict, cfg: dict) -> dict:

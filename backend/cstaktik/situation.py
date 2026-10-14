@@ -253,6 +253,37 @@ def snapshot(match: MatchData, idx: PositionIndex, rnd, sid: str, tick: int, cfg
     }
 
 
+def frame(match: MatchData, idx: PositionIndex, rnd, sid: str, tick: int, death) -> dict | None:
+    """Lagebild für das Training auf der Karte: wo alle im Entscheidungsmoment standen und von wo der Killer kam.
+
+    Gegner nur, wenn die Demo 'spotted' liefert und sie in dem Moment für euer Team sichtbar waren (das, was man im
+    Spiel auf dem Radar hätte wissen können). Spielkoordinaten; die Seite rechnet sie auf das Radarbild um."""
+    tr = match.tickrate
+    side = rnd.sides.get(sid)
+    alive = alive_at(match, rnd, tick)
+    me = idx.nearest(rnd.num, sid, tick, tr)
+    if me is None or side is None:
+        return None
+    mates = []
+    for s in sorted(alive[side] - {sid}):
+        p = idx.nearest(rnd.num, s, tick, tr)
+        if p is not None:
+            mates.append([round(p.pos.x), round(p.pos.y), match.name_of(s)])
+    foes, spotted_known = [], False
+    for s in sorted(alive["t" if side == "ct" else "ct"]):
+        p = idx.nearest(rnd.num, s, tick, tr)
+        if p is not None and p.spotted is not None:
+            spotted_known = True
+            if p.spotted:
+                foes.append([round(p.pos.x), round(p.pos.y)])
+    out = {"me": [round(me.pos.x), round(me.pos.y)], "mates": mates, "foes": foes, "spotted": spotted_known}
+    if death is not None and death.attacker_pos is not None and death.victim_pos is not None:
+        out["killer"] = [round(death.attacker_pos.x), round(death.attacker_pos.y)]
+        out["dead"] = [round(death.victim_pos.x), round(death.victim_pos.y)]
+        out["kplace"] = death.attacker_place
+    return out
+
+
 def info_state(match: MatchData, idx: PositionIndex, rnd, side: str, killer: str | None, tick: int,
                death: int) -> dict | None:
     """Info-Lage aus dem Demo-Feld "spotted" (für das andere Team auf dem Radar sichtbar).
@@ -368,6 +399,9 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
             me = idx.nearest(rnd.num, f.steamid, tick, tr)
             if me is not None:
                 f.overlay["decision"] = [me.pos.x, me.pos.y, tick]
+            fr = frame(match, idx, rnd, f.steamid, tick, death)
+            if fr:
+                f.evidence["frame"] = fr
         if model is None:
             continue
         before = alive_at(match, rnd, f.tick)

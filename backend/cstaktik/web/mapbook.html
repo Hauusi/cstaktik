@@ -18,7 +18,12 @@
 .chips a.W { border-color: #46a758; } .chips a.L { border-color: #e5484d; }
 .sidebar { display: flex; gap: 6px; margin: 4px 0 4px; }
 .prot { width: 100%; border-collapse: collapse; font-size: 14px; }
-.prot td, .prot th { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+.prot td, .angles { margin-bottom: 10px; } .angles .ah { font-family: var(--cond); font-weight: 800; font-size: 19px; text-transform: uppercase; }
+.amap { display: block; width: 100%; height: auto; margin-top: 8px; background: #07090d; }
+.amap .sl { stroke: #e5484d; opacity: .55; } .amap .kp { fill: #e5484d; } .amap .dp { fill: #e9e6df; }
+.atop { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 10px; }
+.atop > div { padding: 8px 10px; background: var(--surface-2); display: flex; justify-content: space-between; gap: 8px; }
+.prot th { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: left; }
 .prot th { font-family: var(--cond); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 </style>
 {% endblock %}
@@ -35,6 +40,24 @@
 {% for side, sd in book.sides.items() %}
 <div class="col">
 <h2 id="side-{{ side }}">{{ sd.label }}-Seite · {{ sd.rounds }} Runden</h2>
+{% if sd.deaths_with_pos %}
+<div class="card angles">
+  <div class="ah">Von hier wirst du erschossen <span class="small muted num">· {{ sd.deaths_with_pos }} Tode</span></div>
+  {% if img and sd.px %}
+  <svg class="amap" viewBox="{{ sd.vb or '0 0 1024 1024' }}" role="img" aria-label="Schusslinien Killer zu dir">
+    <image href="{{ img }}" width="1024" height="1024" opacity=".8"/>
+    {% set w = sd.sw or 1 %}
+    {% for l in sd.px %}<line x1="{{ l[0] }}" y1="{{ l[1] }}" x2="{{ l[2] }}" y2="{{ l[3] }}" class="sl" stroke-width="{{ 2.2 * w }}"/>
+    <circle cx="{{ l[0] }}" cy="{{ l[1] }}" r="{{ 5 * w }}" class="kp"/><circle cx="{{ l[2] }}" cy="{{ l[3] }}" r="{{ 4 * w }}" class="dp"/>{% endfor %}
+  </svg>
+  <div class="small muted" style="margin-top:6px"><span style="color:#e5484d">●</span> Killer · <span style="color:#e9e6df">●</span> wo du gestorben bist</div>
+  {% endif %}
+  {% if sd.killer_top %}
+  <div class="atop">{% for k in sd.killer_top %}<div><b>{{ k.place }}</b><span class="num">{{ k.n }}x · {{ k.share }} %</span></div>{% endfor %}</div>
+  <div class="small" style="margin-top:6px">Diese Winkel vorzielen, bevor du sie betrittst oder hältst. Fadenkreuz auf Kopfhöhe an die Kante, aus der er kommt.</div>
+  {% endif %}
+</div>
+{% endif %}
 {% for s in sd.spots %}
 <div class="spot {{ s.verdict }}" id="spot-{{ side }}-{{ s.place }}">
   <div class="hd"><span class="pl">{{ s.place }}</span><span class="vtag {{ s.verdict }}">{{ {"problem": "Anpassen", "stark": "Halten", "okay": "Okay", "offen": "Zu wenig Daten", "tendenz": "Tendenz"}[s.verdict] }}</span></div>
@@ -55,7 +78,8 @@
   <ul class="why">{% for w in s.why if s.verdict in ("tendenz", "offen") %}<li>{{ w }}</li>{% endfor %}
     {% if s.verdict == "problem" %}{% set alt = sd.pro_spots|rejectattr("place", "equalto", s.place)|selectattr("won_pct")|sort(attribute="won_pct", reverse=True)|first %}
     {% if alt %}<li><b>Statt dessen:</b> nach {{ book.at }} in {{ alt.place }} stehen (Pros dort {{ alt.won_pct }} % Siege){% if s.lineups %} oder vorher die {{ s.lineups[0].kind_de }} nach {{ s.lineups[0].to }} werfen{% endif %}.</li>{% endif %}{% endif %}
-    {% if s.death_places %}<li>Gestorben in: {% for p, n in s.death_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}</li>{% endif %}</ul>
+    {% if s.killer_places %}<li><b>Erschossen aus:</b> {% for p, n in s.killer_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}. Dorthin vorzielen.</li>
+    {% elif s.death_places %}<li>Gestorben in: {% for p, n in s.death_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}</li>{% endif %}</ul>
   {% if s.pro is defined %}
   <div class="prol"><b class="h">Pros auf {{ label }} ({{ sd.label }})</b>
     {% if s.pro.n %}Stehen nach {{ book.at }} in {{ s.pro.share }} % der Runden hier.

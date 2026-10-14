@@ -102,7 +102,10 @@ def death_rows(match: MatchData, trade_window_s: float = 3.0) -> list[dict]:
             and k.tick < x.tick <= k.tick + trade_window_s * tr for x in kills)
         out.append({"sid": k.victim_steamid, "x": round(k.victim_pos.x), "y": round(k.victim_pos.y),
                     "place": k.victim_place, "round": k.round, "side": k.victim_side,
-                    "first": k.tick == first.get(k.round), "traded": traded})
+                    "first": k.tick == first.get(k.round), "traded": traded,
+                    # von wo der Killer schoss (Map-Buch: Winkel zum Vorzielen)
+                    **({"ax": round(k.attacker_pos.x), "ay": round(k.attacker_pos.y), "aplace": k.attacker_place}
+                       if k.attacker_pos is not None and k.attacker_side != k.victim_side else {})})
     return out
 
 
@@ -177,7 +180,8 @@ def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None
                     "from": (f.overlay.get("decision") or [None, None, None])[2], "report": report_file,
                     "map": map_name, "snap": ev["snap"], "info": ev.get("info"), "aktion": ev["aktion"],
                     "pro_rates": ev.get("pro_rates"), "pro_best": ev.get("pro_best"), "cost": ev.get("cost_pct"),
-                    "happened": v["happened"], "next": v["next"], "pos": (ev.get("f") or {}).get("vpos")})
+                    "happened": v["happened"], "next": v["next"], "pos": (ev.get("f") or {}).get("vpos"),
+                    "frame": ev.get("frame")})
     return out
 
 

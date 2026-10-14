@@ -139,3 +139,15 @@ def test_mapbook_few_rounds_only_tendency():
     con = book["sides"]["ct"]["spots"][0]
     assert con["verdict"] == "tendenz" and con["why"][0].startswith("Tendenz eher Problem, erst 5 Runden")
     assert mapbook.worst_spot(book) is None  # keine Wochenaufgabe aus einer Tendenz
+
+
+def test_angles_where_you_get_shot_from():
+    h = _hist()
+    for d in h[0]["deaths"]:
+        d.update(ax=500, ay=200, aplace="Palace", x=0, y=0)
+    h[0]["deaths"][0]["aplace"] = "Ramp"
+    a = mapbook.angles(h, "de_mirage", "me", "ct")
+    assert a["deaths_with_pos"] == 4 and len(a["lines"]) == 4
+    assert a["killer_top"] == [{"place": "Palace", "n": 3, "share": 75}]  # Ramp nur 1x: kein Muster
+    book = mapbook.build(h, [], "de_mirage", "me", CFG)
+    assert book["sides"]["ct"]["spots"][0]["killer_places"] == [("Palace", 3)]
