@@ -22,6 +22,12 @@
 .ptabs { display: flex; gap: 6px; margin: 12px 0 8px; }
 .ptabs a { padding: 6px 12px; border: 1px solid var(--line); font-family: var(--cond); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .ptabs a.on { background: var(--orange); color: #111; border-color: var(--orange); }
+.qmap { display: block; width: 100%; height: auto; margin-top: 10px; background: #07090d; }
+.qmap .qme { fill: #ff9f1c; stroke: #111; } .qmap .qm { fill: #5d79ae; } .qmap .qf { fill: none; stroke: #e5484d; stroke-width: 3; }
+.qmap .ql { fill: #e9e6df; } .qmap .qrev { display: none; } .qmap.done .qrev { display: inline; }
+.qmap .qshot { stroke: #e5484d; } .qmap .qk { fill: #e5484d; } .qmap .qd { fill: #e9e6df; }
+.qleg { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.kfrom { margin: 8px 0; padding: 8px 10px; border-left: 3px solid #e5484d; background: rgba(229,72,77,.08); font-weight: 650; }
 .score { margin-top: 16px; font-family: var(--cond); font-weight: 800; font-size: 20px; text-transform: uppercase; }
 </style>
 {% endblock %}
@@ -32,6 +38,7 @@
 <p>{% if title %}{% if who and who != "Ich" %}Auftrag {{ who }}:{% else %}Dein Auftrag:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Entscheide, bevor du siehst, was passiert ist.</p>
 {% endblock %}
 {% block content %}
+{% if radars %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{% for m, img in radars.items() %}<image id="rad-{{ m }}" href="{{ img }}" width="1024" height="1024"/>{% endfor %}</defs></svg>{% endif %}
 <div id="list"></div>
 <div class="score num" id="score"></div>
 {% if not n %}<p class="muted">Noch keine Situationen. Nach der nächsten Auswertung (oder "cstaktik pro-update") stehen hier eure Szenen.</p>{% endif %}
@@ -52,12 +59,43 @@ const OPTS = [['gehalten', 'Position halten'], ['zurückgezogen', 'Zurückziehen
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const clock = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 let ok = 0, n = 0, answered = 0;
+const NS = 'http://www.w3.org/2000/svg';
+const sv = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+// Lagebild: du (orange), Mitspieler (blau), sichtbare Gegner (rot umrandet); nach der Antwort der Killer
+function sceneMap(sc) {
+  const v = sc.view; if (!v || !document.getElementById('rad-' + sc.map)) return null;
+  const [x0, y0, size] = v.vb, w = size / 320;
+  const s = sv('svg', { viewBox: `${x0} ${y0} ${size} ${size}`, class: 'qmap' });
+  s.appendChild(sv('use', { href: '#rad-' + sc.map }));
+  v.mates.forEach(m => { s.appendChild(sv('circle', { cx: m[0], cy: m[1], r: 6 * w, class: 'qm' }));
+    const tx = sv('text', { x: m[0] + 9 * w, y: m[1] + 4 * w, class: 'ql', 'font-size': 11 * w }); tx.textContent = m[2]; s.appendChild(tx); });
+  v.foes.forEach(f => s.appendChild(sv('circle', { cx: f[0], cy: f[1], r: 6 * w, class: 'qf' })));
+  s.appendChild(sv('circle', { cx: v.me[0], cy: v.me[1], r: 8 * w, class: 'qme' }));
+  const reveal = sv('g', { class: 'qrev' });
+  if (v.killer) {
+    reveal.appendChild(sv('line', { x1: v.killer[0], y1: v.killer[1], x2: v.dead[0], y2: v.dead[1], class: 'qshot', 'stroke-width': 3 * w }));
+    reveal.appendChild(sv('circle', { cx: v.killer[0], cy: v.killer[1], r: 8 * w, class: 'qk' }));
+    reveal.appendChild(sv('circle', { cx: v.dead[0], cy: v.dead[1], r: 5 * w, class: 'qd' }));
+  }
+  s.appendChild(reveal);
+  return s;
+}
+
 S.forEach((sc, i) => {
   const s = sc.snap, c = el('div', 'tq');
   const seen = load(KEY(sc));
   c.append(el('div', 'meta', `${i + 1} · ${(sc.map || '').replace('de_', '')} R${sc.round} · ${sc.who}`
                              + (seen ? (seen.ok ? ' · schon richtig' : seen.ok === false ? ' · letztes Mal daneben' : ' · schon beantwortet') : '')));
   c.append(el('div', 'q', 'Was machst du?'));
+  const map = sceneMap(sc);
+  if (map) {
+    c.appendChild(map);
+    const leg = el('div', 'qleg');
+    [['#ff9f1c', '● du'], ['#5d79ae', '● Mitspieler'], ['#e5484d', sc.view.spotted ? '○ sichtbare Gegner' : '']].forEach(([c, x]) => {
+      if (!x) return; const s = el('span', null, x + '  '); s.style.color = c; leg.appendChild(s); });
+    if (!sc.view.spotted) leg.appendChild(el('span', null, '(Gegner-Sichtbarkeit nicht in der Demo)'));
+    c.appendChild(leg);
+  }
   const parts = [`${clock(s.secs)}`, `${s.own} gegen ${s.enemy}`];
   if (s.hp != null) parts.push(s.hp >= 100 ? 'volle HP' : `${s.hp} HP`);
   parts.push(s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt');
@@ -83,6 +121,8 @@ S.forEach((sc, i) => {
       answered++;
       const v = best ? (k === best ? el('div', 'v ok', 'Höchste Pro-Siegquote') : el('div', 'v no', 'Höchste Pro-Siegquote hat: ' + OPTS.find(o => o[0] === best)[1]))
                      : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage');
+      if (map) { map.classList.add('done');
+        if (sc.view.kplace) res.appendChild(el('div', 'kfrom', 'Der Killer kam aus ' + sc.view.kplace + ' (rote Linie).')); }
       res.append(v, el('div', 'meta', 'Lektion: ' + sc.lesson_title), el('div', null, sc.happened));
       const nx = el('div', 'nx'); nx.append(el('b', null, 'Nächstes Mal'), sc.next); res.appendChild(nx);
       if (sc.report) { const a = el('a', null, '▶ Szene im Replay'); a.href = `/reports/${sc.report}#s${sc.round}-${sc.from || sc.tick}`; res.appendChild(a); }

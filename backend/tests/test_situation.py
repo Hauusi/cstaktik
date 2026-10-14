@@ -221,3 +221,18 @@ def test_win_model_uses_equipment_when_enough_rounds():
     assert m.prob("ct", 4, 5, False, eq=1)[0] == 1.0 and m.last_eq
     assert m.prob("ct", 4, 5, False, eq=-1)[0] == 0.0
     assert m.prob("ct", 4, 5, False, eq=0)[0] == 0.5 and not m.last_eq  # zu wenige Runden: ohne Ausrüstung
+
+
+def test_scene_frame_positions_and_killer():
+    from cstaktik.model import Vec
+
+    m = _match(moving_at_death=True)
+    m.kills[-1].attacker_pos = Vec(x=900, y=100)
+    if m.kills[-1].victim_pos is None:
+        m.kills[-1].victim_pos = Vec(x=0, y=0)
+    f = _finding(m)
+    enrich(m, [f], None, CFG)
+    fr = f.evidence["frame"]
+    assert len(fr["me"]) == 2 and fr["mates"] and all(len(q) == 3 for q in fr["mates"])  # Mitspieler mit Namen
+    assert fr["killer"] and fr["dead"] and fr["kplace"] == "SynthPalace"
+    assert fr["spotted"] is False and fr["foes"] == []  # ohne 'spotted' in der Demo keine Gegner zeigen

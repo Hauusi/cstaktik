@@ -233,6 +233,40 @@ def training_done(p: str = "") -> RedirectResponse:
     return RedirectResponse("/", status_code=303)
 
 
+def _scene_maps(scenes: list[dict]) -> dict[str, str]:
+    """Lagebilder der Szenen auf das Radarbild der Map umrechnen (Pixel, Ausschnitt). Rückgabe: Map -> Bild."""
+    from cstaktik.model import MatchData
+    from cstaktik.report.radar import build_radar
+
+    radars, imgs = {}, {}
+    for sc in scenes:
+        fr, m = sc.get("frame"), sc.get("map")
+        if not fr or not m:
+            continue
+        if m not in radars:
+            radars[m] = build_radar(MatchData(map_name=m, tickrate=64, tickrate_source="-", players=[], rounds=[]))
+            if radars[m].image_data_uri:
+                imgs[m] = radars[m].image_data_uri
+        r = radars[m]
+        if m not in imgs:
+            continue
+        px = lambda p: [round(v, 1) for v in r.to_px(p[0], p[1])]  # noqa: E731
+        view = {"me": px(fr["me"]), "mates": [px(q) + [q[2]] for q in fr.get("mates", [])],
+                "foes": [px(q) for q in fr.get("foes", [])], "spotted": fr.get("spotted")}
+        if fr.get("killer"):
+            view["killer"], view["dead"], view["kplace"] = px(fr["killer"]), px(fr["dead"]), fr.get("kplace")
+        # Ausschnitt: du, Killer, sichtbare Gegner und der nächste Mitspieler (weit entfernte sind am Rand/außerhalb)
+        near = sorted(view["mates"], key=lambda q: (q[0] - view["me"][0]) ** 2 + (q[1] - view["me"][1]) ** 2)[:1]
+        pts = [view["me"]] + [q[:2] for q in near] + view["foes"] + ([view["killer"]] if "killer" in view else [])
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        size = min(1024, max(max(max(xs) - min(xs), max(ys) - min(ys)) + 240, 420))
+        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        view["vb"] = [round(min(max(cx - size / 2, 0), 1024 - size)), round(min(max(cy - size / 2, 0), 1024 - size)),
+                      round(size)]
+        sc["view"] = view
+    return imgs
+
+
 @app.get("/training/situationen", response_class=HTMLResponse)
 def quiz_page(p: str = "") -> str:
     """Entscheidungs-Training mit eigenen Situationen aus allen Matches, zuerst zum laufenden Auftrag."""
@@ -251,7 +285,8 @@ def quiz_page(p: str = "") -> str:
     if len(pick) < 6:  # auffüllen mit den teuersten anderen Szenen
         rest = sorted((sc for sc in scenes if sc not in pick), key=lambda sc: -(sc.get("cost") or 0))
         pick += rest[: 12 - len(pick)]
-    pick = pick[:40]  # die Seite wählt daraus 12 (falsch beantwortete und neue zuerst, Wiederholung mit Abstand)
+    pick = [dict(sc) for sc in pick[:40]]  # Kopien: der Verlauf ist gecacht und wird nicht verändert
+    radars = _scene_maps(pick)  # die Seite wählt daraus 12 (falsch beantwortete und neue zuerst)
     data = _json.dumps([{**sc, "lesson_title": LESSONS.get(sc["lesson"], ("?",))[0]} for sc in pick],
                        ensure_ascii=False).replace("</", "<\\/")
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
@@ -262,7 +297,7 @@ def quiz_page(p: str = "") -> str:
     quiz_open = bool(plan) and any(t["id"] == "quiz" for t in plan["tasks"]) and "quiz" not in plan["done"]
     return _env.get_template("quiz.html").render(nav_active="training", title=LESSONS.get(lesson, ("?",))[0] if lesson else None,
                                                  n=min(12, len(pick)), data_json=data, tabs=tabs, who=names.get(sid),
-                                                 sid=sid, week=week, quiz_open=quiz_open)
+                                                 sid=sid, week=week, quiz_open=quiz_open, radars=radars)
 
 
 _CACHE: dict[str, tuple] = {}
