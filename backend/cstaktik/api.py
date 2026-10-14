@@ -464,7 +464,7 @@ def playbook_index() -> RedirectResponse:
 
 
 @app.get("/playbook/{map_name}", response_class=HTMLResponse)
-def playbook_page(map_name: str, who: str = "pro") -> str:
+def playbook_page(map_name: str, who: str = "pro", side: str = "t") -> str:
     """T-Taktiken aus den Pro-Demos dieser Map: Laufwege, Granaten, Plant, abspielbar auf dem Radar."""
     import json as _json
 
@@ -475,9 +475,9 @@ def playbook_page(map_name: str, who: str = "pro") -> str:
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
     pro, cfg = _load_pro(), load_rules_config().get("playbook")
-    own = [{"map": h.get("map"), "plays": h.get("plays"),
+    own = [{"map": h.get("map"), "plays": h.get("plays"), "ct_plays": h.get("ct_plays"),
             "source_file": f"{(h.get('analyzed_at') or '')[8:10]}.{(h.get('analyzed_at') or '')[5:7]}."}
-           for h in _load_hist() if h.get("plays")]
+           for h in _load_hist() if h.get("plays") or h.get("ct_plays")]
     who = "ihr" if who == "ihr" else "pro"
     book = playbook.build(own if who == "ihr" else pro, map_name, cfg)
     mix = {"pro": playbook.style_mix(pro, map_name, cfg), "ihr": playbook.style_mix(own, map_name, cfg)}
@@ -512,10 +512,28 @@ def playbook_page(map_name: str, who: str = "pro") -> str:
     for tac in book["tactics"]:
         if img:  # bis zu 8 Runden je Taktik zum Durchblättern, die Beispielrunde zuerst
             tac["draws"] = [d for d in (draw(r) for r in tac["rounds"][:8]) if d]
+    side = "ct" if side == "ct" else "t"
+    ct = None
+    if side == "ct":  # Aufstellungen: Bombsite-Mitten aus allen Plants dieser Map (Pros und eure)
+        ct = playbook.ct_build(own if who == "ihr" else pro, map_name, playbook.site_centers(pro + own, map_name), cfg)
+        units = (cfg or {}).get("zone_units", playbook.CT_DEFAULTS["zone_units"])
+        for st in ct["setups"]:
+            st["draws"] = []
+            for r in st["rounds"][:8] if img else []:
+                pts = [radar.to_px(v[0], v[1]) + (r["zones"][sid], v[2]) for sid, v in r["pos"].items()]
+                nades = [{"kind": n["kind"], "to": n.get("to"), "t": n["t"],
+                          "a": radar.to_px(*(n["p"][:2] if n.get("p") else (n["fx"], n["fy"]))),
+                          "b": radar.to_px(n["tx"], n["ty"])} for n in r["nades"] if n["kind"] != "he"]
+                st["draws"].append({"pts": pts, "nades": nades, "r": r["r"], "won": r["won"], "demo": r.get("demo"),
+                                    "plant": radar.to_px(*r["plant"]) if r.get("plant") else None,
+                                    "plant_site": r.get("plant_site")})
+        ct["zones_px"] = {k: [*radar.to_px(*v), units / radar.scale] for k, v in ct["centers"].items()} if img else {}
     maps = sorted({d.get("map") for d in pro + own if d.get("map")} | {map_name})
-    data = _json.dumps({t["id"]: t.get("draws") for t in book["tactics"]}, ensure_ascii=False).replace("</", "<\\/")
+    data = _json.dumps({t["id"]: t.get("draws") for t in book["tactics"]} if side == "t" else
+                       {"zones": ct["zones_px"], **{st["id"]: st["draws"] for st in ct["setups"]}},
+                       ensure_ascii=False).replace("</", "<\\/")
     return _env.get_template("playbook.html").render(nav_active="training", book=book, img=img, maps=maps,
-                                                     map_name=map_name, data=data, who=who, mix=mix,
+                                                     map_name=map_name, data=data, who=who, mix=mix, side=side, ct=ct,
                                                      label=map_name.removeprefix("de_").capitalize())
 
 

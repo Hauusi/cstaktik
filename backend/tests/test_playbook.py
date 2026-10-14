@@ -125,3 +125,36 @@ def test_variant_with_one_other_path_joins_same_tactic():
     assert len(t) == 1 and t[0]["name"] == "A-Split über Palace + Ramp" and t[0]["n"] == 2
     assert [r["r"] for r in t[0]["rounds"]] == [5, 6]  # Beispielrunde (gewonnen) zuerst
     assert t[0]["rounds"][1]["via_all"] == ["Palace", "Ramp", "Underpass"]
+
+
+def _ct_match(rnd, spots, plant_site_place=None):
+    """spots: CT-sid -> (x, y, Ort) nach 20 s."""
+    tr, start = 64, 1000
+    r = Round(num=rnd, start_tick=0, freeze_end_tick=start, end_tick=start + 120 * tr, winner="ct",
+              sides={**{s: "t" for s in T}, **{s: "ct" for s in CT}})
+    pos = [PositionSample(round=rnd, tick=start + 20 * tr, steamid=s, side="ct", pos=Vec(x=x, y=y), place=pl)
+           for s, (x, y, pl) in spots.items()]
+    return MatchData(map_name="de_mirage", tickrate=tr, tickrate_source="t", players=[], rounds=[r], positions=pos)
+
+
+def test_ct_setups_zones_from_plants():
+    std = {"c1": (0, 0, "BombsiteA"), "c2": (100, 0, "Jungle"), "c3": (2500, 0, "Window"),
+           "c4": (5000, 0, "BombsiteB"), "c5": (5100, 0, "Market")}
+    p = playbook.ct_plays(_ct_match(3, std))[0]
+    assert p["won"] and p["pos"]["c3"] == [2500, 0, "Window"]
+    assert playbook.ct_plays(_ct_match(3, std), team={"t1"}) == []
+    src = [{"map": "de_mirage", "ct_plays": [p, {**p, "r": 4, "won": False}],
+            "plays": [{"site": "A", "plant": [0, 0]}, {"site": "A", "plant": [50, 0]},
+                      {"site": "B", "plant": [5000, 0]}, {"site": "B", "plant": [5050, 0]}]}]
+    centers = playbook.site_centers(src, "de_mirage")
+    assert centers == {"A": [25, 0], "B": [5025, 0]}
+    assert playbook.zone(2500, 0, centers, 1300) == "M"
+    book = playbook.ct_build(src, "de_mirage", centers)
+    s = book["setups"][0]
+    assert (s["name"], s["n"], s["won_pct"], (s["a"], s["m"], s["b"])) == ("2-1-2", 2, 50, (2, 1, 2))
+    stack = {k: (i * 50, 0, "BombsiteA") for i, k in enumerate(CT[:4])} | {"c5": (5000, 0, "BombsiteB")}
+    q = playbook.ct_plays(_ct_match(5, stack))[0]
+    book = playbook.ct_build([{**src[0], "ct_plays": [q, q]}], "de_mirage", centers)
+    assert book["setups"][0]["name"] == "Stack auf A"
+    # ohne zwei Bombsites keine Zonen
+    assert playbook.ct_build(src, "de_mirage", {"A": [0, 0]})["setups"] == []

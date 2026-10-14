@@ -180,3 +180,4 @@ playbook:
   nade_before_s: 20  # Granaten-Set: geworfen 20 s vor bis 5 s nach Ankunft
   nade_after_s: 5
   common_share: 0.5  # "typische Granate": in mindestens der Hälfte der Runden einer Taktik
+  zone_units: 1300   # CT-Aufstellung: bis zu diesem Abstand von der Bombsite-Mitte (aus Plants) zählt ein CT zu A/B

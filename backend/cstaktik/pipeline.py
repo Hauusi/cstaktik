@@ -421,7 +421,7 @@ def upgrade_history() -> int:
     n = 0
     for h in history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []:
         cache = cache_file(h.get("id"))
-        if ("states" in h and "plays" in h) or cache is None:
+        if ("states" in h and "plays" in h and "ct_plays" in h) or cache is None:
             continue
         m = load_match(cache)
         h.setdefault("states", round_states(m))
@@ -429,6 +429,10 @@ def upgrade_history() -> int:
             from cstaktik.playbook import plays
 
             h["plays"] = plays(m, team=m.focus_ids())
+        if "ct_plays" not in h:
+            from cstaktik.playbook import ct_plays
+
+            h["ct_plays"] = ct_plays(m, team=m.focus_ids())
         history.save(h, HISTORY_DIR)
         n += 1
     return n

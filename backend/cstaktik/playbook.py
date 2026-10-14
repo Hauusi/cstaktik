@@ -284,3 +284,104 @@ def compare(own: dict, pro: dict, min_rounds: int = 10, min_style: int = 4) -> s
     more = "öfter" if diff > 0 else "seltener"
     tail = (f" Eure {o['label']}-Runden: {o['won_pct']} % gewonnen ({o['n']} Runden)." if o["n"] >= min_style else "")
     return f"Ihr spielt {o['label']} deutlich {more} als Pros: {o['share']} % eurer T-Runden, Pros {p['share']} %.{tail}"
+
+
+# ---------------------------------------------------------------- CT-Seite: Aufstellungen
+
+CT_SNAP_S = 20  # Aufstellung: wo die CT nach so vielen Sekunden stehen
+CT_UTIL_S = 35  # frühe CT-Granaten bis hier
+CT_DEFAULTS = {"zone_units": 1300}
+
+
+def ct_plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
+    """Je CT-Runde: Position jedes CT nach CT_SNAP_S s (x, y, Ort), frühe CT-Granaten, Gewinner, Plant-Bombsite.
+    ``team``: nur Runden, in denen einer dieser Spieler CT ist (eigene Matches)."""
+    from cstaktik.pro import nades as round_nades
+    from cstaktik.rules.base import PositionIndex
+
+    idx = PositionIndex(match.positions)
+    tr = match.tickrate
+    plants = {b.round: b for b in match.bomb if b.event == "plant"}
+    ct_nades = [n for n in round_nades(match) if n["side"] == "ct" and n["t"] <= CT_UTIL_S] if match.grenades else []
+    out = []
+    for r in match.rounds:
+        if r.freeze_end_tick is None or r.winner is None:
+            continue
+        cts = sorted(s for s, sd in r.sides.items() if sd == "ct")
+        if not cts or (team is not None and not team & set(cts)):
+            continue
+        tick = r.freeze_end_tick + CT_SNAP_S * tr
+        pos = {}
+        for sid in cts:
+            p = idx.nearest(r.num, sid, tick, tr)
+            if p is not None and p.alive:
+                pos[sid] = [round(p.pos.x), round(p.pos.y), p.place]
+        if len(pos) < 3:  # zu viele schon tot oder ohne Daten: keine Aufstellung
+            continue
+        plant = plants.get(r.num)
+        site = _site_of(_place_near(idx, r.num, plant)) if plant else None
+        out.append({"r": r.num, "won": r.winner == "ct", "pos": pos, "plant_site": site,
+                    "plant": [round(plant.pos.x), round(plant.pos.y)] if plant and plant.pos else None,
+                    "nades": [n for n in ct_nades if n["r"] == r.num]})
+    return out
+
+
+def site_centers(sources: list[dict], map_name: str) -> dict[str, list[float]]:
+    """Mitte jedes Bombsites aus den Plant-Positionen (T- und CT-Runden der Demos): Median x/y je Bombsite."""
+    pts: dict[str, list] = {}
+    for d in sources:
+        if d.get("map") != map_name:
+            continue
+        for p in d.get("plays") or []:
+            if p.get("site") and p.get("plant"):
+                pts.setdefault(p["site"], []).append(p["plant"])
+        for p in d.get("ct_plays") or []:
+            if p.get("plant_site") and p.get("plant"):
+                pts.setdefault(p["plant_site"], []).append(p["plant"])
+    return {s: [statistics.median(q[0] for q in v), statistics.median(q[1] for q in v)]
+            for s, v in pts.items() if len(v) >= 2}
+
+
+def zone(x: float, y: float, centers: dict, units: float) -> str:
+    """A/B, wenn die Position höchstens ``units`` von der Bombsite-Mitte entfernt ist, sonst M (Mitte/Rotation)."""
+    best = min(((((x - c[0]) ** 2 + (y - c[1]) ** 2) ** .5, s) for s, c in centers.items()), default=None)
+    return best[1] if best and best[0] <= units else "M"
+
+
+def ct_build(sources: list[dict], map_name: str, centers: dict, cfg: dict | None = None, min_rounds: int = 2) -> dict:
+    """CT-Aufstellungen einer Map: Anzahl Spieler je Zone (A, Mitte, B) nach CT_SNAP_S s, gruppiert."""
+    c = {**CT_DEFAULTS, **(cfg or {})}
+    groups: dict[str, list] = {}
+    total = 0
+    if len(centers) < 2:
+        return {"map": map_name, "rounds": 0, "setups": [], "centers": centers}
+    for d in sources:
+        if d.get("map") != map_name:
+            continue
+        for p in d.get("ct_plays") or []:
+            total += 1
+            zones = {sid: zone(v[0], v[1], centers, c["zone_units"]) for sid, v in p["pos"].items()}
+            cnt = Counter(zones.values())
+            key = f"{cnt.get('A', 0)}-{cnt.get('M', 0)}-{cnt.get('B', 0)}"
+            groups.setdefault(key, []).append({**p, "zones": zones, "demo": d.get("source_file")})
+    setups = []
+    for key, rows in groups.items():
+        if len(rows) < min_rounds:
+            continue
+        a, m, b = (int(v) for v in key.split("-"))
+        n = len(rows)
+        stack = "A" if a >= 4 else "B" if b >= 4 else None
+        name = f"Stack auf {stack}" if stack else f"{a}-{m}-{b}"
+        rows.sort(key=lambda r: (not r["won"], -len(r["nades"])))
+        util = Counter((x["kind"], x.get("to")) for r in rows for x in {(y["kind"], y.get("to")): y for y in r["nades"]}.values()
+                       if x.get("to") and x["kind"] != "he")
+        setups.append({
+            "id": f"ct-{key}", "key": key, "name": name, "a": a, "m": m, "b": b, "stack": stack, "n": n,
+            "won": sum(r["won"] for r in rows), "won_pct": round(100 * sum(r["won"] for r in rows) / n),
+            "share": round(100 * n / total) if total else None,
+            "t_went": dict(Counter(r["plant_site"] for r in rows if r.get("plant_site"))),
+            "util": [{"kind": k, "to": to, "n": cnt_} for (k, to), cnt_ in util.most_common() if cnt_ / n >= .5],
+            "rounds": rows,
+        })
+    setups.sort(key=lambda s: (-s["n"], -s["won_pct"]))
+    return {"map": map_name, "rounds": total, "setups": setups, "centers": centers}

@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Playbook {{ label }} · cstaktik{% endblock %}
 {% block head %}<style>
-.seg { display: inline-flex; padding: 4px; margin-top: 18px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+.segs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+.seg { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
 .seg a { padding: 7px 18px; border-radius: 999px; font-weight: 700; font-size: 14px; color: var(--muted); }
 .seg a.on { background: var(--text); color: #0b0c10; }
 .mixc { margin-top: 14px; padding: 16px; display: grid; gap: 10px; }
@@ -71,17 +72,29 @@
 .pset span { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
 .pset i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .play details { margin: 0; } .play details p { margin: 6px 0 0; font-size: 14px; color: #cfd5de; }
+.cmap { display: block; width: 100%; height: auto; border-radius: 12px; background: #07090d; }
+.cmap .zone { fill: none; stroke-width: calc(1.5px * var(--sw)); stroke-dasharray: calc(6px * var(--sw)) calc(5px * var(--sw)); opacity: .7; }
+.cmap .zl { font-weight: 800; text-anchor: middle; dominant-baseline: middle; opacity: .55; }
+.cmap .ps { stroke: #08090c; stroke-width: calc(2px * var(--sw)); }
+.cmap .nl { stroke: rgba(255,255,255,.5); stroke-width: calc(1.3px * var(--sw)); stroke-dasharray: calc(4px * var(--sw)) calc(4px * var(--sw)); }
+.cmap .nb.smoke { fill: rgba(200,206,216,.45); stroke: #c8ced8; } .cmap .nb.molotov { fill: rgba(255,107,44,.45); stroke: #ff6b2c; }
+.cmap .nb.flash { fill: rgba(255,243,168,.55); stroke: #fff3a8; } .cmap .nb { stroke-width: calc(1.5px * var(--sw)); }
+.cmap .pl { fill: none; stroke: #ff5a6e; stroke-width: calc(3px * var(--sw)); }
+.zrow { display: flex; gap: 6px; } .zrow span { flex: 1; text-align: center; padding: 8px 4px; border-radius: 10px; background: var(--surface-2); font-size: 12px; color: var(--muted); }
+.zrow b { display: block; font-family: var(--cond); font-size: 24px; line-height: 1; }
 .pex { font-size: 12.5px; color: var(--faint); }
 .plegend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .plegend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
 </style>{% endblock %}
 {% block hero %}
 <h1>Playbook {{ label }}</h1>
-<p>{% if who == "ihr" %}Eure T-Runden, erkannt wie bei den Pros: {{ book.tactics|length }} Taktik{{ "en" if book.tactics|length != 1 }} aus {{ book.rounds }} Runden.{% elif book.tactics %}{{ book.tactics|length }} T-Taktiken aus {{ book.demos }} Pro-Demo{{ "s" if book.demos != 1 }} ({{ book.rounds }} T-Runden). Alles so, wie Pros es wirklich gespielt haben.{% else %}Taktiken entstehen aus euren Pro-Demos dieser Map.{% endif %}</p>
-<div class="ptabs">{% for m in maps %}<a href="/playbook/{{ m }}?who={{ who }}" class="{{ 'on' if m == map_name }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
+<p>{% if side == "ct" %}{{ "Eure " if who == "ihr" else "Pro-" }}CT-Aufstellungen nach {{ 20 }} s: wer wo steht, welche Granaten früh fliegen, wie oft die Runde gehalten wird.{% elif who == "ihr" %}Eure T-Runden, erkannt wie bei den Pros: {{ book.tactics|length }} Taktik{{ "en" if book.tactics|length != 1 }} aus {{ book.rounds }} Runden.{% elif book.tactics %}{{ book.tactics|length }} T-Taktiken aus {{ book.demos }} Pro-Demo{{ "s" if book.demos != 1 }} ({{ book.rounds }} T-Runden). Alles so, wie Pros es wirklich gespielt haben.{% else %}Taktiken entstehen aus euren Pro-Demos dieser Map.{% endif %}</p>
+<div class="ptabs">{% for m in maps %}<a href="/playbook/{{ m }}?who={{ who }}&side={{ side }}" class="{{ 'on' if m == map_name }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
 {% endblock %}
 {% block content %}
-<div class="seg"><a href="/playbook/{{ map_name }}" class="{{ 'on' if who == 'pro' }}">Pros</a><a href="/playbook/{{ map_name }}?who=ihr" class="{{ 'on' if who == 'ihr' }}">Ihr</a></div>
+<div class="segs"><div class="seg"><a href="/playbook/{{ map_name }}?side={{ side }}" class="{{ 'on' if who == 'pro' }}">Pros</a><a href="/playbook/{{ map_name }}?who=ihr&side={{ side }}" class="{{ 'on' if who == 'ihr' }}">Ihr</a></div>
+<div class="seg"><a href="/playbook/{{ map_name }}?who={{ who }}" class="{{ 'on' if side == 't' }}">T-Seite</a><a href="/playbook/{{ map_name }}?who={{ who }}&side=ct" class="{{ 'on' if side == 'ct' }}">CT-Seite</a></div></div>
+{% if side == "ct" %}{% include "playbook_ct.html" %}{% else %}
 {% if mix.pro.total or mix.ihr.total %}
 <div class="card mixc">
   <div class="mxh">Was auf T gespielt wird <span>Anteil der T-Runden · Siegquote</span></div>
@@ -137,6 +150,7 @@
 </article>
 {% endfor %}
 </div>
+{% endif %}
 {% endif %}
 {% endblock %}
 {% block script %}<script>
@@ -244,6 +258,38 @@ function load(svg, d) {
   bar.style.width = '0'; tm.textContent = '0:00'; setBtn();
   return pause;
 }
+document.querySelectorAll('.cmap').forEach(svg => {
+  const list = DATA[svg.dataset.id], Z = DATA.zones || {}; if (!list || !list.length) return;
+  const ZC = {A: '#ff9a1f', B: '#5b9dff', M: '#c084fc'};
+  const card = svg.closest('.play'), lbl = card.querySelector('.rlbl'), pex = card.querySelector('.pex');
+  let cur = 0;
+  function open(i) {
+    cur = (i + list.length) % list.length; const d = list[cur];
+    const pts = d.pts.map(q => [q[0], q[1]]).concat(d.nades.flatMap(n => [n.a, n.b])).concat(d.plant ? [d.plant] : []);
+    const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+    const size = Math.min(1024, Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) + 160);
+    const cx = (Math.max(...xs) + Math.min(...xs)) / 2, cy = (Math.max(...ys) + Math.min(...ys)) / 2;
+    const x0 = Math.min(Math.max(cx - size / 2, 0), 1024 - size), y0 = Math.min(Math.max(cy - size / 2, 0), 1024 - size);
+    const sw = size / 400; svg.setAttribute('viewBox', `${x0} ${y0} ${size} ${size}`); svg.style.setProperty('--sw', sw);
+    const g = svg.querySelector('.ctg'); g.replaceChildren();
+    for (const [k, z] of Object.entries(Z)) {
+      g.append(el('circle', {cx: z[0], cy: z[1], r: z[2], class: 'zone', stroke: ZC[k] || '#888'}));
+      g.append(Object.assign(el('text', {x: z[0], y: z[1], class: 'zl', fill: ZC[k] || '#888', 'font-size': 26 * sw}), {textContent: k}));
+    }
+    d.nades.forEach(n => { g.append(el('line', {class: 'nl', x1: n.a[0], y1: n.a[1], x2: n.b[0], y2: n.b[1]}));
+      g.append(el('circle', {class: 'nb ' + n.kind, cx: n.b[0], cy: n.b[1], r: (n.kind === 'smoke' ? 13 : n.kind === 'molotov' ? 10 : 6) * sw})); });
+    d.pts.forEach(q => g.append(el('circle', {cx: q[0], cy: q[1], r: 7 * sw, fill: ZC[q[2]] || '#888', class: 'ps'})));
+    if (d.plant) { const s = 9 * sw, [x, y] = d.plant; g.append(el('path', {class: 'pl', d: `M${x - s} ${y - s}l${2 * s} ${2 * s}m0 ${-2 * s}l${-2 * s} ${2 * s}`})); }
+    if (lbl) lbl.innerHTML = `<b>Runde ${cur + 1} von ${list.length}</b> · R${d.r} · ` + (d.won ? '<span class="w">gehalten</span>' : '<span class="l">verloren</span>');
+    const src = d.demo ? (pex.dataset.who === 'ihr' ? ' vom ' : ' aus ') + d.demo : '';
+    pex.textContent = `Gezeichnet: Runde ${d.r}${src}, CT ${d.won ? 'gewonnen' : 'verloren'}` + (d.plant_site ? `, T planten auf ${d.plant_site}` : ', kein Plant')
+      + '. Punkte: CT nach 20 s (Farbe = Zone). Granaten: CT bis 35 s.';
+  }
+  const pv = card.querySelector('.pprev'), nx = card.querySelector('.pnext');
+  if (pv) pv.onclick = () => open(cur - 1);
+  if (nx) nx.onclick = () => open(cur + 1);
+  open(0);
+});
 const fil = document.getElementById('pfil');
 if (fil) fil.onclick = e => {
   const b = e.target.closest('button'); if (!b) return;
