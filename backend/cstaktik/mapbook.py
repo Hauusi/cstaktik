@@ -118,9 +118,15 @@ def angles(hist: list[dict], map_name: str, sid: str, side: str) -> dict:
     shots = [d for h in hist if h.get("map") == map_name for d in h.get("deaths", [])
              if d.get("sid") == sid and d.get("side") == side and d.get("ax") is not None and d.get("x") is not None]
     top = Counter(d["aplace"] for d in shots if d.get("aplace")).most_common(4)
-    return {"lines": [[d["ax"], d["ay"], d["x"], d["y"]] for d in shots],
+    # wer sah im tödlichen Duell zuerst: wo der Gegner dich zuerst sah (nur Tode mit bekannter Sichtung)
+    known = [d for d in shots if d.get("seen")]
+    late = [d for d in known if d["seen"] == "gegner"]
+    seen_places = Counter(d["place"] for d in late if d.get("place")).most_common(3)
+    return {"lines": [[d["ax"], d["ay"], d["x"], d["y"], d.get("seen")] for d in shots],
             "killer_top": [{"place": p, "n": n, "share": round(100 * n / len(shots))} for p, n in top if n >= 2],
-            "deaths_with_pos": len(shots)}
+            "deaths_with_pos": len(shots),
+            "seen": {"known": len(known), "opp": len(late), "me": sum(d["seen"] == "ich" for d in known),
+                     "places": [{"place": p, "n": n} for p, n in seen_places if n >= 2]} if known else None}
 
 
 def _verdict(row: dict, cfg: dict) -> dict:

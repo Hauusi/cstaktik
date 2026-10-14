@@ -93,16 +93,22 @@ def death_rows(match: MatchData, trade_window_s: float = 3.0) -> list[dict]:
     first: dict[int, int] = {}
     for k in kills:
         first.setdefault(k.round, k.tick)
+    from cstaktik.duels import side_of
+
+    fatal = {(d.tick, d.loser): d for d in match.duels}
     out = []
     for k in kills:
         if k.victim_steamid not in focus or k.victim_pos is None:
             continue
+        duel = fatal.get((k.tick, k.victim_steamid))
+        seen = side_of(duel, k.victim_steamid, tr)["seen"] if duel else None
         traded = bool(k.attacker_steamid) and k.attacker_side != k.victim_side and any(
             x.round == k.round and x.victim_steamid == k.attacker_steamid and x.attacker_side == k.victim_side
             and k.tick < x.tick <= k.tick + trade_window_s * tr for x in kills)
         out.append({"sid": k.victim_steamid, "x": round(k.victim_pos.x), "y": round(k.victim_pos.y),
                     "place": k.victim_place, "round": k.round, "side": k.victim_side,
                     "first": k.tick == first.get(k.round), "traded": traded,
+                    **({"seen": seen} if seen else {}),  # wer im tödlichen Duell zuerst sah (duels.seen_first)
                     # von wo der Killer schoss (Map-Buch: Winkel zum Vorzielen)
                     **({"ax": round(k.attacker_pos.x), "ay": round(k.attacker_pos.y), "aplace": k.attacker_place}
                        if k.attacker_pos is not None and k.attacker_side != k.victim_side else {})})

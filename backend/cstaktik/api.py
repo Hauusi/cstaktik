@@ -439,7 +439,8 @@ def mapbook_page(map_name: str, p: str = "") -> str:
         img = radar.image_data_uri
         if img:
             for sd in book["sides"].values():
-                sd["px"] = [[*radar.to_px(ax, ay), *radar.to_px(x, y)] for ax, ay, x, y in sd["lines"]]
+                sd["px"] = [[*radar.to_px(l[0], l[1]), *radar.to_px(l[2], l[3]), l[4] if len(l) > 4 else None]
+                            for l in sd["lines"]]
                 if sd["px"]:  # auf den Bereich der Linien zoomen (am Handy sonst zu klein)
                     xs = [v for l in sd["px"] for v in (l[0], l[2])]
                     ys = [v for l in sd["px"] for v in (l[1], l[3])]
@@ -552,10 +553,12 @@ def _kabine(hist: list[dict], map_name: str) -> dict | None:
         top = Counter(q["place"] for q in pts if q["place"]).most_common(1)
         from cstaktik import mapbook
 
-        angles = {side: mapbook.angles(hist, map_name, a["sid"], side)["killer_top"][:1] for side in ("ct", "t")}
+        ang = {side: mapbook.angles(hist, map_name, a["sid"], side) for side in ("ct", "t")}
+        angles = {side: g["killer_top"][:1] for side, g in ang.items()}
+        seen_at = {s.upper(): g["seen"]["places"][0] for s, g in ang.items() if g["seen"] and g["seen"]["places"]}
         players.append({**a, "color": colors[i % len(colors)], "points": pts,
                         "top_place": top[0] if top and top[0][1] >= 2 else None,
-                        "angles": {s.upper(): v[0] for s, v in angles.items() if v}})
+                        "angles": {s.upper(): v[0] for s, v in angles.items() if v}, "seen_at": seen_at})
     if img:
         for pl in players:
             for q in pl["points"]:

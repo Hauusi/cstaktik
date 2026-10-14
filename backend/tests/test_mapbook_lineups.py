@@ -151,3 +151,14 @@ def test_angles_where_you_get_shot_from():
     assert a["killer_top"] == [{"place": "Palace", "n": 3, "share": 75}]  # Ramp nur 1x: kein Muster
     book = mapbook.build(h, [], "de_mirage", "me", CFG)
     assert book["sides"]["ct"]["spots"][0]["killer_places"] == [("Palace", 3)]
+
+
+def test_angles_where_you_are_seen_first():
+    h = _hist()
+    for i, d in enumerate(h[0]["deaths"]):
+        d.update(ax=500, ay=200, aplace="Palace", x=0, y=0, place="Ramp" if i < 3 else "Mid",
+                 seen=["gegner", "gegner", "gleich", "ich"][i])
+    a = mapbook.angles(h, "de_mirage", "me", "ct")
+    assert a["seen"] == {"known": 4, "opp": 2, "me": 1, "places": [{"place": "Ramp", "n": 2}]}
+    assert [l[4] for l in a["lines"]] == ["gegner", "gegner", "gleich", "ich"]
+    assert mapbook.angles(_hist(), "de_mirage", "me", "ct")["seen"] is None  # ohne Sichtung keine Aussage
