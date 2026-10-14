@@ -119,6 +119,7 @@ def _job_view(job_id: str, job: dict) -> dict:
         "cached": job["cached"],
         "report": job["report"],
         "message": job.get("message"),
+        "links": job.get("links") or [],
         "error": job["error"],
     }
 
@@ -676,18 +677,68 @@ def _run_job(job_id: str, target: Path, focus: set[str] | None, is_pro: bool = F
         update(status="fehler", error=f"Demo konnte nicht ausgewertet werden: {type(exc).__name__}: {exc}")
 
 
+def _run_archive_job(job_id: str, archive: Path, focus: set[str] | None, is_pro: bool = False) -> None:
+    """Archiv entpacken, dann jede Demo darin nacheinander auswerten (wie _run_job)."""
+    from cstaktik.archive import extract_demos
+
+    def update(**kw):
+        with _jobs_lock:
+            _jobs[job_id].update(kw)
+
+    update(status="läuft", stage="Archiv entpacken", started=time.monotonic())
+    try:
+        demos = extract_demos(archive, archive.parent, pipeline.MAX_DEMO_BYTES)
+    except ValueError as exc:
+        update(status="fehler", error=str(exc))
+        return
+    except Exception as exc:  # noqa: BLE001
+        update(status="fehler", error=f"Archiv konnte nicht entpackt werden: {type(exc).__name__}: {exc}")
+        return
+    done, failed, links = [], [], []
+    for i, demo in enumerate(demos):
+        pre = f"Demo {i + 1} von {len(demos)}: " if len(demos) > 1 else ""
+
+        def step(stage, frac, pre=pre, i=i):
+            update(stage=pre + stage, frac=(i + frac) / len(demos))
+
+        try:
+            demo = pipeline.prepare_demo(demo, remove_source=True)
+            if is_pro:
+                info = pipeline.run_pro(demo, progress=step)
+                done.append(f"{(info['map'] or '?').removeprefix('de_').capitalize()} ({info['rounds']} Runden)")
+            else:
+                out = pipeline.run(demo, focus, progress=step)
+                links.append({"href": f"/reports/{out.name}", "text": demo.name})
+                done.append(demo.name)
+        except Exception as exc:  # noqa: BLE001 - eine kaputte Demo stoppt die anderen nicht
+            failed.append(f"{demo.name}: {exc}")
+    if not done:
+        update(status="fehler", error="Keine Demo im Archiv auswertbar. " + " | ".join(failed)[:600])
+        return
+    msg = (f"{len(done)} Pro-Demo{'s' if len(done) != 1 else ''} gespeichert: {', '.join(done)}." if is_pro
+           else f"{len(done)} Match{'es' if len(done) != 1 else ''} ausgewertet.")
+    if failed:
+        msg += f" Nicht auswertbar: {'; '.join(failed)[:400]}"
+    update(status="fertig", stage="Fertig", frac=1.0, message=msg, links=links,
+           report=links[0]["href"].removeprefix("/reports/") if len(links) == 1 and not failed else None)
+
+
 @app.post("/analyze")
 async def analyze_upload(
     demo: UploadFile = File(...), steamids: str = Form(""), pro: str = Form("")
 ) -> RedirectResponse:
+    from cstaktik.archive import is_archive_name
+
     filename = demo.filename or ""
-    if not pipeline.is_demo_name(filename):
-        raise HTTPException(400, "Nur .dem- oder .dem.bz2-Dateien.")
+    is_arc = is_archive_name(filename)
+    if not pipeline.is_demo_name(filename) and not is_arc:
+        raise HTTPException(400, "Nur .dem, .dem.bz2, .zip oder .rar.")
     # Pro-Demos getrennt ablegen, damit sie nie als eigenes Match ausgewertet werden
     folder = pipeline.PRO_DEMOS_DIR if pro else pipeline.DEMOS_DIR
     folder.mkdir(parents=True, exist_ok=True)
-    suffix = ".dem.bz2" if filename.lower().endswith(".bz2") else ".dem"
-    target = folder / f"{_safe_name(filename)}{suffix}"
+    suffix = (Path(filename).suffix.lower() if is_arc else ".dem.bz2" if filename.lower().endswith(".bz2") else ".dem")
+    name = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(filename).name[: -len(suffix)]).strip("._")[:80] if is_arc else None
+    target = folder / f"{name or _safe_name(filename)}{suffix}"
     part = target.with_name(f"{target.name}.{uuid.uuid4().hex[:8]}.part")
     size = 0
     try:
@@ -715,7 +766,7 @@ async def analyze_upload(
             "report": None,
             "error": None,
         }
-    _executor.submit(_run_job, job_id, target, focus, bool(pro))
+    _executor.submit(_run_archive_job if is_arc else _run_job, job_id, target, focus, bool(pro))
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
 
 

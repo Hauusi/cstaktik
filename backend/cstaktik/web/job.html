@@ -45,6 +45,8 @@ async function poll() {
       if (job.report) { location.replace('/reports/' + job.report); return; }
       $('title').textContent = 'Fertig'; $('card').innerHTML = '';
       const m = document.createElement('p'); m.textContent = job.message || 'Fertig.'; $('card').appendChild(m);
+      (job.links || []).forEach(l => { const a = document.createElement('a'); a.href = l.href; a.className = 'more-link';
+        a.textContent = 'Report: ' + l.text + ' ›'; $('card').appendChild(a); });
       const a = document.createElement('a'); a.href = '/'; a.className = 'btn'; a.style.cssText = 'display:grid;place-items:center;margin-top:10px'; a.textContent = 'Zur Startseite'; $('card').appendChild(a);
       return;
     }
