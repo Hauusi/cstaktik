@@ -456,6 +456,52 @@ def mapbook_page(map_name: str, p: str = "") -> str:
                                                     label=map_name.removeprefix("de_").capitalize())
 
 
+@app.get("/playbook", response_class=HTMLResponse)
+def playbook_index() -> RedirectResponse:
+    maps = sorted({d.get("map") for d in _load_pro() if d.get("map")})
+    return RedirectResponse(f"/playbook/{maps[0] if maps else 'de_mirage'}", status_code=303)
+
+
+@app.get("/playbook/{map_name}", response_class=HTMLResponse)
+def playbook_page(map_name: str) -> str:
+    """T-Taktiken aus den Pro-Demos dieser Map: Laufwege, Granaten, Plant, abspielbar auf dem Radar."""
+    import json as _json
+
+    from cstaktik import playbook
+    from cstaktik.model import MatchData
+    from cstaktik.report.radar import build_radar
+
+    if not re.fullmatch(r"[a-z0-9_]+", map_name):
+        raise HTTPException(400, "Ungültiger Mapname.")
+    pro = _load_pro()
+    book = playbook.build(pro, map_name, load_rules_config().get("playbook"))
+    radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
+    img = radar.image_data_uri
+    for tac in book["tactics"]:
+        ex = tac["example"]
+        if not img:
+            continue
+        px = lambda x, y: [round(v, 1) for v in radar.to_px(x, y)]  # noqa: E731
+        paths = [[px(*q) for q in pts] for pts in ex["paths"].values()]
+        nades = [{"kind": n["kind"], "t": n["t"], "to": n.get("to"), "a": px(*(n["p"][:2] if n.get("p") else (n["fx"], n["fy"]))),
+                  "b": px(n["tx"], n["ty"])} for n in ex["nades"]]
+        plant = px(*ex["plant"]) if ex.get("plant") else None
+        pts = [q for p in paths for q in p] + [q for n in nades for q in (n["a"], n["b"])] + ([plant] if plant else [])
+        if not pts:
+            continue
+        xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+        size = min(1024, max(max(xs) - min(xs), max(ys) - min(ys)) + 120)
+        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+        x0, y0 = min(max(cx - size / 2, 0), 1024 - size), min(max(cy - size / 2, 0), 1024 - size)
+        tac["draw"] = {"paths": paths, "nades": nades, "plant": plant, "step": playbook.PATH_STEP_S,
+                       "plant_t": ex.get("plant_t"), "vb": [round(x0), round(y0), round(size)], "sw": round(size / 400, 2)}
+    maps = sorted({d.get("map") for d in pro if d.get("map")} | {map_name})
+    data = _json.dumps({t["id"]: t.get("draw") for t in book["tactics"]}, ensure_ascii=False).replace("</", "<\\/")
+    return _env.get_template("playbook.html").render(nav_active="training", book=book, img=img, maps=maps,
+                                                     map_name=map_name, data=data,
+                                                     label=map_name.removeprefix("de_").capitalize())
+
+
 @app.get("/lineups/{map_name}", response_class=HTMLResponse)
 def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "", p: str = "") -> str:
     import json as _json

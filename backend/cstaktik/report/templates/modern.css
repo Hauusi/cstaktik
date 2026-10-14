@@ -1,0 +1,99 @@
+/* ---- Modernes Design (über dem HUD-Stil): weiche Flächen, Tiefe, runde Ecken, Glas-Navigation, Bewegung ---- */
+:root {
+  --bg: #08090c; --surface: #111318; --surface-2: #191c23; --line: rgba(255,255,255,.075);
+  --text: #eceef2; --muted: #9097a3; --faint: #6b7280;
+  --orange: #ff9a1f; --accent: #ff9a1f; --accent-2: #5b9dff; --pro: #8fb4ff;
+  --win: #34c77b; --loss: #ff5a6e; --hoch: #ff5a6e;
+  --rad: 16px; --rad-s: 11px;
+  --glass: rgba(17,19,24,.72);
+  --shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 10px 30px -12px rgba(0,0,0,.6);
+}
+html, body { background: var(--bg); }
+body { -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(60% 40% at 15% -5%, rgba(255,154,31,.10), transparent 70%),
+              radial-gradient(50% 35% at 100% 0%, rgba(91,157,255,.08), transparent 70%); }
+main { animation: rise .35s ease both; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Ecken: rund statt kantig */
+.card, .lesson, .cause, .cost, .sbtn, .scene, .rchip, .kpi, .pcard, .gcheck, .good, .qopt, .nextbox, .lnext, .lage,
+.vorbild, .cbtn, .tour, .gpill, .gchip, .chip, .quiz, .coach, .replay, .stage, .item, .mapbtn, .btn, .drop, .field,
+details.more summary, .tabs button, .matches a, .note, .goal, .track, .heat, .scenes button, .badge, .res, .lnum, .av,
+.hw, .memo, .stats, .step, .task, .spot, .dstep, .lastm, .kpis, .tool, .ptabs a, .filters a, .vtag, .btn2, .tlink,
+.chk, .aufs .auf, .angles, .seenline, .atop > div, .dread, .prol, .cmd code, .cmd button, .play, .pchip {
+  border-radius: var(--rad-s) !important; }
+.card, .step, .task, .spot, .lastm, .tool, .item, .angles, .play, .duelcmp, .coach, .replay, .quiz { border-radius: var(--rad) !important; }
+.bar, .bar i, .fill, .cbar .cb-t, .cbar .cb-m, .seen .sn-t, .grid td.c { border-radius: 999px !important; }
+.seen .sn-t { overflow: hidden; }
+
+/* Flächen mit Tiefe */
+.card, .step, .task, .spot, .tool, .item, .angles, .play, .duelcmp {
+  background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012)), var(--surface) !important;
+  border: 1px solid var(--line) !important; box-shadow: var(--shadow); }
+a.item, a.card, a.lastm, .mapbtn, .trow { transition: transform .15s ease, border-color .15s ease, background .15s ease; }
+@media (hover: hover) {
+  a.item:hover, a.card:hover, a.lastm:hover, .mapbtn:hover { transform: translateY(-1px); border-color: rgba(255,154,31,.45) !important; }
+}
+a.item:active, .mapbtn:active, .btn:active, .btn2:active, .tlink:active { transform: scale(.98); }
+
+/* Typo: Überschriften ruhiger */
+h1 { letter-spacing: -.005em; }
+h2 { color: var(--muted) !important; font-weight: 700; font-size: 12px; letter-spacing: .16em; }
+h2::after { background: linear-gradient(90deg, var(--line), transparent) !important; }
+
+/* Hero: Glühen statt Linie */
+.hero { border-bottom: 0 !important; background: transparent !important; }
+.logo { border-radius: 9px !important; clip-path: none !important;
+  background: linear-gradient(135deg, #ffb347, #ff8a00) !important; box-shadow: 0 6px 18px -4px rgba(255,138,0,.55) !important; }
+
+/* Knöpfe */
+.btn, .tour, .tlink { background: linear-gradient(135deg, #ffb24a, #ff8a00) !important; color: #140c02 !important;
+  box-shadow: 0 10px 24px -10px rgba(255,138,0,.7) !important; border: 0 !important; }
+.btn:disabled { background: var(--surface-2) !important; color: var(--faint) !important; box-shadow: none !important; }
+.btn2 { background: rgba(52,199,123,.1) !important; border: 1px solid rgba(52,199,123,.5) !important; color: var(--win) !important; }
+.mapbtn { background: var(--surface-2) !important; border: 1px solid var(--line) !important; }
+.ptabs a, .filters a { border-radius: 999px !important; background: var(--surface-2); }
+.ptabs a.on { background: var(--orange) !important; color: #140c02 !important; }
+.drop { background: rgba(255,154,31,.05) !important; border: 1.5px dashed rgba(255,154,31,.4) !important; }
+
+/* Balken: Pro-Strich in Blau, weiche Farben */
+.cbar .cb-t { height: 8px; background: rgba(255,255,255,.06) !important; }
+.cbar .cb-m { background: #5f6673 !important; } .cbar .cb-m.ok { background: linear-gradient(90deg, #1f9d5c, var(--win)) !important; }
+.cbar .cb-m.no { background: linear-gradient(90deg, #d93a50, var(--loss)) !important; }
+.cbar .cb-p, .seen .sn-t .cb-p { background: var(--pro) !important; box-shadow: 0 0 0 2px var(--bg); border-radius: 2px; }
+.cbar .cb-l, .seen .cb-l { color: var(--pro) !important; }
+.dread { border-radius: var(--rad-s) !important; background: rgba(255,154,31,.08) !important; border-left: 3px solid var(--orange) !important; }
+
+/* Schritte auf der Startseite */
+.step { border-top-width: 1px !important; }
+.step.now { border-color: rgba(255,154,31,.45) !important; box-shadow: var(--shadow), 0 0 0 1px rgba(255,154,31,.15), 0 20px 40px -24px rgba(255,138,0,.5); }
+.step .sn { border-radius: 10px !important; }
+.dstep { background: rgba(255,255,255,.02) !important; }
+.dstep .dsh span { border-radius: 7px; }
+
+/* Navigation: Glas, schwebend */
+.gnav { background: var(--glass) !important; backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  border: 1px solid var(--line) !important; }
+@media (max-width: 959px) {
+  .gnav { left: 10px !important; right: 10px !important; bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+    border-radius: 20px; padding-bottom: 0 !important; box-shadow: 0 18px 40px -12px rgba(0,0,0,.8); overflow: hidden; }
+  .gnav a { border-top: 0 !important; }
+  .gnav a.on { color: var(--orange) !important; }
+  .gnav a.on svg { filter: drop-shadow(0 0 8px rgba(255,154,31,.6)); }
+  body { padding-bottom: calc(86px + env(safe-area-inset-bottom)) !important; }
+}
+@media (min-width: 960px) {
+  .gnav { position: sticky !important; top: 0; z-index: 60; border-width: 0 0 1px !important; }
+  .gnav a { border-radius: 10px; margin: 6px 0; padding: 9px 16px !important; border-bottom: 0 !important; }
+  .gnav a.on { background: rgba(255,154,31,.12); color: var(--orange) !important; }
+}
+
+/* Titel in normaler Schreibweise statt Versalien: wirkt ruhiger und moderner */
+h1, .hero h1, .atitle, .step .st, .task .tt, .tool .tt, .lastm b, .guide .gs > b, .spot .pl, .bst .brow b, .goal b,
+.note b, .play .pn, .ptitle { text-transform: none !important; letter-spacing: -.005em !important; }
+.hero h1 { font-size: clamp(34px, 7vw, 46px); font-weight: 800; }
+.atitle { font-size: 30px !important; }
+.mantra { text-transform: none !important; font-style: italic; letter-spacing: 0 !important; }
+.achart rect { rx: 6px; } .achart rect.na { fill: #5f6673 !important; }
+.kpis { overflow: hidden; }

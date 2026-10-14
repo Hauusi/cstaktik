@@ -49,6 +49,9 @@
 <div class="tools">
   <div class="card tool"><div class="tt">Map-Buch</div><p>Deine Spots je Map: halten, anpassen oder meiden. Mit Pro-Vergleich.</p>
     <div class="maps">{% for m in maps %}<a class="mapbtn" href="/mapbook/{{ m }}{% if sid %}?p={{ sid }}{% endif %}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div></div>
+  <div class="card tool"><div class="tt">Playbook</div><p>T-Taktiken der Pros: Split, Execute, Rush, Eco. Mit Laufwegen und Granaten zum Abspielen.</p>
+    {% if pro_maps %}<div class="maps">{% for m in pro_maps %}<a class="mapbtn" href="/playbook/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
+    {% else %}<a class="go" href="/pro" style="color:var(--orange)">Erst Pro-Demos hochladen ›</a>{% endif %}</div>
   <div class="card tool"><div class="tt">Lineups</div><p>Würfe, die Pros wiederholt gleich machen. Mit Befehl zum Üben.</p>
     {% if pro_maps %}<div class="maps">{% for m in pro_maps %}<a class="mapbtn" href="/lineups/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
     {% else %}<a class="go" href="/pro" style="color:var(--orange)">Erst Pro-Demos hochladen ›</a>{% endif %}</div>
