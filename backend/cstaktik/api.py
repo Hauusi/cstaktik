@@ -124,6 +124,17 @@ def _job_view(job_id: str, job: dict) -> dict:
     }
 
 
+@app.get("/fonts.css")
+def fonts_css() -> Response:
+    """Schriften einmal laden und im Browser cachen, statt sie in jede Seite einzubetten (spart ~180 KB je Seite).
+    Die Reports betten sie weiter selbst ein, damit sie als einzelne Datei funktionieren."""
+    from cstaktik.fonts import font_css
+
+    css = font_css()
+    etag = f'"{hash(css) & 0xFFFFFFFF:x}"'
+    return Response(css, media_type="text/css", headers={"Cache-Control": "public, max-age=604800", "ETag": etag})
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     jobs = _running_jobs()

@@ -93,6 +93,7 @@
 <div class="ptabs">{% for m in maps %}<a href="/playbook/{{ m }}?who={{ who }}&side={{ side }}" class="{{ 'on' if m == map_name }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
 {% endblock %}
 {% block content %}
+{% if img %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><image id="pbrad" href="{{ img }}" width="1024" height="1024"/></defs></svg>{% endif %}
 <div class="segs"><div class="seg"><a href="/playbook/{{ map_name }}?side={{ side }}" class="{{ 'on' if who == 'pro' }}">Pros</a><a href="/playbook/{{ map_name }}?who=ihr&side={{ side }}" class="{{ 'on' if who == 'ihr' }}">Ihr</a></div>
 <div class="seg"><a href="/playbook/{{ map_name }}?who={{ who }}" class="{{ 'on' if side == 't' }}">T-Seite</a><a href="/playbook/{{ map_name }}?who={{ who }}&side=ct" class="{{ 'on' if side == 'ct' }}">CT-Seite</a></div></div>
 {% if side == "ct" %}{% include "playbook_ct.html" %}{% else %}
@@ -138,7 +139,7 @@
   {% if t.draws|length > 1 %}<div class="prnd"><button class="pprev" type="button" aria-label="Vorige Runde">‹</button>
     <span class="rlbl num"></span><button class="pnext" type="button" aria-label="Nächste Runde">›</button></div>{% endif %}
   <svg class="pmap" viewBox="{{ d.vb[0] }} {{ d.vb[1] }} {{ d.vb[2] }} {{ d.vb[2] }}" style="--sw:{{ d.sw }}" data-id="{{ t.id }}">
-    <image href="{{ img }}" width="1024" height="1024" opacity=".85"/>
+    <use href="#pbrad" opacity=".85"/>
     <g class="paths"></g><g class="nades"></g><g class="dots"></g><g class="plant"></g><g class="hl"></g>
   </svg>
   <div class="pctl"><button class="pplay" type="button">▶ Abspielen</button><div class="ptrack"><i></i></div><span class="ptime">0:00</span></div>

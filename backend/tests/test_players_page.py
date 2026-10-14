@@ -57,3 +57,15 @@ def test_more_page_has_guide_and_settings():
 
     t = TestClient(api.app).get("/mehr").text
     assert "So arbeitet der Coach" in t and 'href="/spieler"' in t and 'href="/pro"' in t
+
+
+def test_fonts_served_once_and_cached():
+    from fastapi.testclient import TestClient
+
+    from cstaktik import api
+
+    c = TestClient(api.app)
+    r = c.get("/fonts.css")
+    assert r.status_code == 200 and "max-age" in r.headers["cache-control"] and r.headers["content-type"].startswith("text/css")
+    home = c.get("/").text
+    assert '<link rel="stylesheet" href="/fonts.css">' in home and "@font-face" not in home

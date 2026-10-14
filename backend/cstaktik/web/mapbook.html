@@ -35,6 +35,7 @@
 <p>{% if book %}{{ who }} · {{ book.matches }} Match{{ "es" if book.matches != 1 }} auf {{ label }}. Spot = wo du nach {{ book.at }} Rundenzeit stehst.{% else %}Noch keine Matches auf {{ label }}.{% endif %}</p>
 {% endblock %}
 {% block content %}
+{% if img %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><image id="mbrad" href="{{ img }}" width="1024" height="1024"/></defs></svg>{% endif %}
 {% if book %}
 <div class="sidebar"><a class="mapbtn" href="#side-ct">CT-Seite</a><a class="mapbtn" href="#side-t">T-Seite</a></div>
 <div class="cols">
@@ -46,7 +47,7 @@
   <div class="ah">Von hier wirst du erschossen <span class="small muted num">· {{ sd.deaths_with_pos }} Tode</span></div>
   {% if img and sd.px %}
   <svg class="amap" viewBox="{{ sd.vb or '0 0 1024 1024' }}" role="img" aria-label="Schusslinien Killer zu dir">
-    <image href="{{ img }}" width="1024" height="1024" opacity=".8"/>
+    <use href="#mbrad" opacity=".8"/>
     {% set w = sd.sw or 1 %}
     {% for l in sd.px %}<line x1="{{ l[0] }}" y1="{{ l[1] }}" x2="{{ l[2] }}" y2="{{ l[3] }}" class="sl" stroke-width="{{ 2.2 * w }}"/>
     <circle cx="{{ l[0] }}" cy="{{ l[1] }}" r="{{ 5 * w }}" class="kp"/><circle cx="{{ l[2] }}" cy="{{ l[3] }}" r="{{ 4.5 * w }}" class="dp{{ ' late' if l[4] == 'gegner' }}"/>{% endfor %}
