@@ -145,3 +145,9 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .guide p { margin: 4px 0 0; color: #cfd5de; font-size: 14.5px; }
 .aimsub { margin: 2px 0 6px 12px; padding-left: 10px; border-left: 2px solid var(--line); }
 .aimsub .cbar .cb-h { font-size: 12.5px; } .aimsub .cbar .cb-h b { font-size: 14px; }
+.dchain { display: grid; gap: 10px; margin-top: 10px; }
+.dstep { padding: 10px 12px 12px; background: rgba(255,255,255,.025); border: 1px solid var(--line); }
+.dstep .dsh { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-family: var(--cond); font-weight: 800; font-size: 17px; text-transform: uppercase; letter-spacing: .04em; }
+.dstep .dsh span { width: 22px; height: 22px; display: inline-grid; place-items: center; background: #ff9f1c; color: #111; font-size: 14px; align-self: center; }
+.dstep .dsh i { font-family: system-ui, sans-serif; font-style: normal; font-weight: 400; font-size: 12.5px; text-transform: none; letter-spacing: 0; color: var(--muted); }
+.dstep .seen { margin-top: 4px; padding-top: 0; border-top: 0; }

@@ -1,0 +1,18 @@
+{# Duell-Werte als Kette: 1 Sehen -> 2 Zielen -> 3 Schießen. cmpbar wird übergeben (Report und Web haben je eine). #}
+{% from "seen.html" import seenblock %}
+{% macro duelchain(d, pr, cmpbar) -%}
+<div class="dchain">
+  {% if d.seen_n %}<div class="dstep"><div class="dsh"><span>1</span>Sehen<i>Wer hat den anderen zuerst im Blick?</i></div>{{ seenblock(d, pr) }}</div>{% endif %}
+  <div class="dstep"><div class="dsh"><span>{{ 2 if d.seen_n else 1 }}</span>Zielen<i>Wo liegt dein Fadenkreuz, wenn es losgeht?</i></div>
+    {{ cmpbar("Fadenkreuz neben dem Kopf", d.err, pr.err if pr else none, "°", true, 20, 1.5, d.err_n) }}
+    {% if d.aim_n %}<div class="aimsub">{{ cmpbar("davon seitlich", d.err_side, pr.err_side if pr else none, "°", true, 10, 1.5, d.aim_n) }}
+    {{ cmpbar("Fadenkreuz unter dem Kopf (über 2°)", d.low_pct, pr.low_pct if pr else none, " %", true, 100, 10, d.aim_n) }}</div>{% endif %}
+    {% if d.tts_n %}{{ cmpbar("Vom Sehen zum ersten Schuss", d.tts, pr.tts if pr else none, " ms", true, 1200, 80, d.tts_n) }}{% endif %}
+  </div>
+  <div class="dstep"><div class="dsh"><span>{{ 3 if d.seen_n else 2 }}</span>Schießen<i>Wer schießt zuerst, wer trifft?</i></div>
+    {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8, d.first_n) }}
+    {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8, d.hit_n) }}
+    {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60, d.react_n) }}
+  </div>
+</div>
+{%- endmacro %}

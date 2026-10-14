@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "bars.html" import cmpbar %}
-{% from "seen.html" import seenblock %}
+{% from "duelchain.html" import duelchain %}
 {% block title %}{{ p.name if p else "Fortschritt" }} – cstaktik{% endblock %}
 {% block head %}
 <style>
@@ -40,14 +40,7 @@
 {% if p.duels %}{% set d = p.duels %}{% set pr = p.pro %}
 <div class="card">
   {% if p.reading %}<div class="dread">{{ p.reading }}</div>{% endif %}
-  {{ cmpbar("Fadenkreuz daneben", d.err, pr.err if pr else none, "°", true, 20, 1.5, d.err_n) }}
-  {% if d.aim_n %}<div class="aimsub">{{ cmpbar("davon seitlich", d.err_side, pr.err_side if pr else none, "°", true, 10, 1.5, d.aim_n) }}
-  {{ cmpbar("Fadenkreuz unter dem Kopf (über 2°)", d.low_pct, pr.low_pct if pr else none, " %", true, 100, 10, d.aim_n) }}</div>{% endif %}
-  {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8, d.first_n) }}
-  {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8, d.hit_n) }}
-  {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60, d.react_n) }}
-  {% if d.tts_n %}{{ cmpbar("Vom Sehen zum ersten Schuss", d.tts, pr.tts if pr else none, " ms", true, 1200, 80, d.tts_n) }}{% endif %}
-  {{ seenblock(d, pr) }}
+  {{ duelchain(d, pr, cmpbar) }}
   <div class="small muted num" style="margin-top:10px">{{ d.n }} Duelle, {{ d.won|round|int }} % gewonnen. Werte gewichtet nach Fallzahl je Match.</div>
 </div>
 {% else %}<div class="card empty">Noch keine Duell-Daten.</div>{% endif %}
