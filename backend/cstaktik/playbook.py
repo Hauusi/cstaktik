@@ -146,6 +146,36 @@ def classify(p: dict, cfg: dict) -> dict:
     return {"buy": buy, "tempo": tempo, "style": style, "via": groups, "name": name}
 
 
+KIND_DE = {"smoke": "Smoke", "flash": "Flash", "molotov": "Molotov", "he": "HE"}
+
+
+def events(ex: dict) -> list[dict]:
+    """Schlüsselmomente einer Beispielrunde für die Wiedergabe: Granaten, Ankunft, Kills, Plant (Rundenzeit s).
+    Momente bis 1,5 s Abstand werden zusammengefasst, damit die Wiedergabe nicht ständig stockt."""
+    raw = []
+    for i, n in enumerate(ex.get("nades", [])):
+        src = f" von {n['from']}" if n.get("from") else ""
+        raw.append({"t": n["t"], "text": f"{KIND_DE.get(n['kind'], n['kind'])}{src} auf {n.get('to') or '?'}",
+                    "nade": i, "kind": "nade"})
+    if ex.get("arrive") is not None and ex.get("site"):
+        raw.append({"t": ex["arrive"], "text": f"Erste T am Bombsite {ex['site']}", "kind": "arrive"})
+    for x in ex.get("deaths", []):
+        who = "T" if x["side"] == "t" else "CT"
+        raw.append({"t": x["t"], "text": f"{who} fällt{' in ' + x['place'] if x.get('place') else ''}"
+                                         f"{' (Opening)' if x.get('first') else ''}",
+                    "kind": "death", "side": x["side"], "sid": x.get("sid")})
+    if ex.get("plant_t") is not None:
+        raw.append({"t": ex["plant_t"], "text": "Bombe liegt", "kind": "plant"})
+    raw.sort(key=lambda e: e["t"])
+    out: list[dict] = []
+    for e in raw:
+        if out and e["t"] - out[-1]["t"] <= 1.5:
+            out[-1]["items"].append(e)
+        else:
+            out.append({"t": e["t"], "items": [e]})
+    return out
+
+
 def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: int = 2) -> dict:
     """Taktiken einer Map aus allen Pro-Demos: gruppiert, mit Granaten-Set und Beispielrunde."""
     c = {**DEFAULTS, **(cfg or {})}
@@ -154,6 +184,7 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
     total = 0
     for d in demos:
         nades = [n for n in d.get("nades", []) if n.get("side") == "t"]
+        deaths = d.get("deaths", [])
         for p in d["plays"]:
             total += 1
             k = classify(p, c)
@@ -162,7 +193,10 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
             if p.get("arrive") is not None:
                 lo, hi = p["arrive"] - c["nade_before_s"], p["arrive"] + c["nade_after_s"]
                 mine = [n for n in nades if n["r"] == p["r"] and lo <= n["t"] <= hi and n["kind"] != "he"]
-            groups.setdefault(key, []).append({**p, **k, "nades": mine, "demo": d.get("source_file")})
+            stop = (p.get("plant_t") or ((p.get("arrive") or 60) + 15)) + 3
+            kills = [{"t": x["t"], "side": x["side"], "place": x.get("place"), "sid": x.get("sid"), "first": x.get("first")}
+                     for x in deaths if x.get("r") == p["r"] and x.get("t") is not None and x["t"] <= stop]
+            groups.setdefault(key, []).append({**p, **k, "nades": mine, "deaths": kills, "demo": d.get("source_file")})
     tactics = []
     for (style, site, via), rows in groups.items():
         if len(rows) < min_rounds:

@@ -35,6 +35,23 @@
 .ptime { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
 .ptrack { flex: 1; height: 4px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
 .ptrack i { display: block; height: 100%; width: 0; background: var(--orange); }
+.ptrack { position: relative; overflow: visible !important; cursor: pointer; }
+.ptrack i { border-radius: 999px; }
+.ptrack b { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #2a2e37;
+  border: 2px solid var(--muted); cursor: pointer; transition: .15s; }
+.ptrack b.k-nade { border-color: #c8ced8; } .ptrack b.k-death { border-color: #ff5a6e; } .ptrack b.k-plant { border-color: #ff5a6e; background: #ff5a6e; }
+.ptrack b.k-arrive { border-color: var(--orange); } .ptrack b.on { transform: scale(1.4); background: var(--orange); }
+.pcap { min-height: 46px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); font-size: 14px;
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: baseline; transition: border-color .2s, background .2s; }
+.pcap.hot { border-color: rgba(255,154,31,.6); background: rgba(255,154,31,.08); }
+.pcap .ct { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--orange); grid-row: span 9; }
+.pcap .ci::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; background: var(--muted); }
+.pcap .ci.smoke::before { background: #c8ced8; } .pcap .ci.flash::before { background: #fff3a8; } .pcap .ci.molotov::before { background: #ff6b2c; }
+.pcap .ci.death::before, .pcap .ci.plant::before { background: #ff5a6e; } .pcap .ci.arrive::before { background: var(--orange); }
+.pcap .hint { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+.pmap .pulse { fill: none; stroke: var(--orange); stroke-width: calc(2.5px * var(--sw)); animation: pulse 1.1s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes pulse { from { opacity: 1; transform: scale(.6); } to { opacity: 0; transform: scale(1.8); } }
+.pmap .nade.focus .nl { stroke: var(--orange); stroke-dasharray: none; }
 .pset { display: flex; flex-wrap: wrap; gap: 6px; }
 .pset span { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
 .pset i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
@@ -77,6 +94,7 @@
     {% if d.plant %}<g class="plant"><path class="pl" d="M{{ d.plant[0] - 9 * d.sw }} {{ d.plant[1] - 9 * d.sw }}l{{ 18 * d.sw }} {{ 18 * d.sw }}m0 -{{ 18 * d.sw }}l-{{ 18 * d.sw }} {{ 18 * d.sw }}"/></g>{% endif %}
   </svg>
   <div class="pctl"><button class="pplay" type="button">▶ Abspielen</button><div class="ptrack"><i></i></div><span class="ptime">0:00</span></div>
+  <div class="pcap"><span class="hint">Abspielen: Die Runde hält an jeder Granate, jedem Kill und beim Plant an. Punkte auf der Zeitleiste springen direkt dorthin.</span></div>
   {% endif %}
   {% if t.common %}<div class="pset">{% for c in t.common %}<span><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to }} <b class="num">{{ c.n }}/{{ t.n }}</b></span>{% endfor %}</div>
   {% else %}<div class="pmeta">Kein festes Granaten-Set: Die Pros haben hier jedes Mal andere Granaten geworfen.</div>{% endif %}
@@ -106,30 +124,61 @@ document.querySelectorAll('.pmap').forEach(svg => {
     gN.append(g); return {g, t: n.t};
   });
   const dots = d.paths.map((p, i) => { const c = el('circle', {r: 6 * sw, fill: COLORS[i % 5], class: 'ps hide'}); gD.append(c); return c; });
-  const card = svg.closest('.play'), btn = card.querySelector('.pplay'), bar = card.querySelector('.ptrack i'), tm = card.querySelector('.ptime');
-  const end = Math.max(d.plant_t || 0, ...d.paths.map(p => (p.length - 1) * d.step)), SPEED = 9;  // 9 s Rundenzeit pro Sekunde
-  let raf = null;
-  function show(t) {
+  const card = svg.closest('.play'), btn = card.querySelector('.pplay'), track = card.querySelector('.ptrack'),
+        bar = track.querySelector('i'), tm = card.querySelector('.ptime'), cap = card.querySelector('.pcap');
+  const evs = d.events || [];
+  const end = Math.max(d.plant_t || 0, ...d.paths.map(p => (p.length - 1) * d.step), ...evs.map(e => e.t)) + 1;
+  const SPEED = 6, HOLD = {nade: 1700, death: 1300, arrive: 1400, plant: 2000};  // 6 s Rundenzeit pro Sekunde
+  const marks = evs.map((e, i) => { const m = document.createElement('b'); m.className = 'k-' + e.items[0].kind;
+    m.style.left = (100 * e.t / end) + '%'; m.title = fmt(e.t) + ' ' + e.items.map(x => x.text).join(', ');
+    m.onclick = ev => { ev.stopPropagation(); seek(e.t, i); }; track.append(m); return m; });
+  const gH = el('g', {}); svg.append(gH);
+  let t = 0, next = 0, playing = false, hold = 0, last = 0, raf = 0;
+  function show(time) {
     d.paths.forEach((p, i) => {
-      const f = Math.max(0, t) / d.step, k = Math.max(0, Math.min(Math.floor(f), p.length - 1)), r = Math.min(f - k, 1), q = p[Math.min(k + 1, p.length - 1)];
+      const f = Math.max(0, time) / d.step, k = Math.max(0, Math.min(Math.floor(f), p.length - 1)), r = Math.min(f - k, 1), q = p[Math.min(k + 1, p.length - 1)];
       const alive = f <= p.length - 1 + .5;
-      dots[i].setAttribute('cx', p[k][0] + (q[0] - p[k][0]) * r); dots[i].setAttribute('cy', p[k][1] + (q[1] - p[k][1]) * r);
-      dots[i].classList.toggle('hide', !alive);
-      lines[i].setAttribute('points', p.slice(0, k + 1).map(x => x.join(',')).join(' ') + (alive ? ` ${dots[i].getAttribute('cx')},${dots[i].getAttribute('cy')}` : ''));
+      const x = p[k][0] + (q[0] - p[k][0]) * r, y = p[k][1] + (q[1] - p[k][1]) * r;
+      dots[i].setAttribute('cx', x); dots[i].setAttribute('cy', y); dots[i].classList.toggle('hide', !alive);
+      lines[i].setAttribute('points', p.slice(0, k + 1).map(z => z.join(',')).join(' ') + (alive ? ` ${x},${y}` : ''));
     });
-    nades.forEach(n => n.g.classList.toggle('hide', n.t > t));
-    bar.style.width = (100 * t / end) + '%'; tm.textContent = fmt(t);
+    nades.forEach(n => n.g.classList.toggle('hide', n.t > time + .01));
+    bar.style.width = Math.min(100, 100 * time / end) + '%'; tm.textContent = fmt(time);
   }
-  function reset() { lines.forEach((l, i) => l.setAttribute('points', d.paths[i].map(q => q.join(',')).join(' '))); dots.forEach(c => c.classList.add('hide'));
-    nades.forEach(n => n.g.classList.remove('hide')); bar.style.width = '0'; tm.textContent = '0:00'; btn.textContent = '▶ Abspielen'; raf = null; }
-  btn.onclick = () => {
-    if (raf) { cancelAnimationFrame(raf); reset(); return; }
-    const t0 = performance.now(); btn.textContent = '■ Stopp';
-    // rAF-Zeitstempel kann vor t0 liegen (Frame-Beginn): nie negative Rundenzeit
-    const tick = now => { const t = Math.max(0, (now - t0) / 1000 * SPEED); if (t >= end) { show(end); setTimeout(reset, 1500); raf = 0; return; }
-      show(t); raf = requestAnimationFrame(tick); };
-    raf = requestAnimationFrame(tick);
-  };
+  function caption(i) {
+    const e = evs[i]; gH.replaceChildren(); nades.forEach(n => n.g.classList.remove('focus'));
+    marks.forEach((m, j) => m.classList.toggle('on', j === i));
+    if (!e) { cap.classList.remove('hot'); return; }
+    cap.classList.add('hot');
+    cap.replaceChildren(Object.assign(document.createElement('span'), {className: 'ct', textContent: fmt(e.t)}),
+      ...e.items.map(it => Object.assign(document.createElement('span'), {
+        className: 'ci ' + (it.kind === 'nade' ? d.nades[it.nade].kind : it.kind), textContent: it.text})));
+    e.items.forEach(it => {
+      const pt = it.kind === 'nade' ? d.nades[it.nade].b : it.kind === 'plant' ? d.plant : it.p;
+      if (it.kind === 'nade') nades[it.nade].g.classList.add('focus');
+      if (pt) gH.append(el('circle', {class: 'pulse', cx: pt[0], cy: pt[1], r: 16 * sw}));
+    });
+  }
+  function setBtn() { btn.textContent = playing ? '❚❚ Pause' : t >= end ? '↺ Nochmal' : t > 0 ? '▶ Weiter' : '▶ Abspielen'; }
+  function loop(now) {
+    if (!playing) return;
+    const dt = Math.min(now - last, 100); last = now;
+    if (now >= hold) {
+      t += Math.max(0, dt) / 1000 * SPEED;
+      if (next < evs.length && t >= evs[next].t) {
+        t = evs[next].t; show(t); caption(next);
+        hold = now + Math.max(...evs[next].items.map(it => HOLD[it.kind] || 1200)); next++;
+      } else if (t >= end) { t = end; show(t); playing = false; caption(-1); setBtn(); return; }
+      else show(t);
+    }
+    raf = requestAnimationFrame(loop);
+  }
+  function play() { if (t >= end) { t = 0; next = 0; caption(-1); } playing = true; hold = 0; last = performance.now(); setBtn(); raf = requestAnimationFrame(loop); }
+  function pause() { playing = false; cancelAnimationFrame(raf); setBtn(); }
+  function seek(time, i) { pause(); t = time; next = i + 1; show(t); caption(i); setBtn(); }
+  track.onclick = ev => { const r = track.getBoundingClientRect(); const time = end * (ev.clientX - r.left) / r.width;
+    let i = -1; evs.forEach((e, j) => { if (e.t <= time) i = j; }); pause(); t = time; next = i + 1; show(t); caption(-1); setBtn(); };
+  btn.onclick = () => playing ? pause() : play();
 });
 const fil = document.getElementById('pfil');
 if (fil) fil.onclick = e => {

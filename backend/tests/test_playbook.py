@@ -80,3 +80,13 @@ def test_playbook_page_renders(tmp_path, monkeypatch):
     assert "A-Split über Palace + Ramp" in t and "Was ist ein Split?" in t
     (tmp_path / "a.json").write_text(json.dumps({"map": "de_mirage", "nades": []}))  # alte Pro-Daten ohne Laufwege
     assert "pro-update" in TestClient(api.app).get("/playbook/de_mirage").text
+
+
+def test_events_merge_close_moments():
+    ex = {"site": "A", "arrive": 36, "plant_t": 46,
+          "nades": [{"kind": "smoke", "t": 28, "from": "TSpawn", "to": "CT"}, {"kind": "smoke", "t": 29, "to": "Jungle"}],
+          "deaths": [{"t": 31, "side": "ct", "place": "Jungle", "first": True}]}
+    ev = playbook.events(ex)
+    assert [e["t"] for e in ev] == [28, 31, 36, 46]
+    assert [i["text"] for i in ev[0]["items"]] == ["Smoke von TSpawn auf CT", "Smoke auf Jungle"]
+    assert ev[1]["items"][0]["text"] == "CT fällt in Jungle (Opening)" and ev[3]["items"][0]["text"] == "Bombe liegt"

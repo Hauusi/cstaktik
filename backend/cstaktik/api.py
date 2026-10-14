@@ -493,7 +493,13 @@ def playbook_page(map_name: str) -> str:
         size = min(1024, max(max(xs) - min(xs), max(ys) - min(ys)) + 120)
         cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
         x0, y0 = min(max(cx - size / 2, 0), 1024 - size), min(max(cy - size / 2, 0), 1024 - size)
-        tac["draw"] = {"paths": paths, "nades": nades, "plant": plant, "step": playbook.PATH_STEP_S,
+        sids = list(ex["paths"])
+        evs = playbook.events(ex)
+        for ev in evs:  # T-Tod: Punkt am Ende seines Laufwegs (Laufwege enden mit dem Tod)
+            for it in ev["items"]:
+                if it["kind"] == "death" and it.get("sid") in sids:
+                    it["p"] = paths[sids.index(it["sid"])][-1]
+        tac["draw"] = {"paths": paths, "nades": nades, "plant": plant, "step": playbook.PATH_STEP_S, "events": evs,
                        "plant_t": ex.get("plant_t"), "vb": [round(x0), round(y0), round(size)], "sw": round(size / 400, 2)}
     maps = sorted({d.get("map") for d in pro if d.get("map")} | {map_name})
     data = _json.dumps({t["id"]: t.get("draw") for t in book["tactics"]}, ensure_ascii=False).replace("</", "<\\/")
