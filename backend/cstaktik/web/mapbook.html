@@ -38,19 +38,27 @@
 {% for s in sd.spots %}
 <div class="spot {{ s.verdict }}" id="spot-{{ side }}-{{ s.place }}">
   <div class="hd"><span class="pl">{{ s.place }}</span><span class="vtag {{ s.verdict }}">{{ {"problem": "Anpassen", "stark": "Halten", "okay": "Okay", "offen": "Zu wenig Daten", "tendenz": "Tendenz"}[s.verdict] }}</span></div>
-  <div class="kpis num">
-    <div><b>{{ s.n }}</b><span>Runden</span></div>
-    <div><b>{{ s.won_pct }} %</b><span>gewonnen</span></div>
-    <div><b>{{ s.first }}</b><span>als Erster tot</span></div>
-    <div><b>{{ s.untraded if s.untraded is not none else "–" }}</b><span>ohne Trade tot</span></div>
+  {% set pw = s.pro.won_pct if s.pro is defined else none %}{% set pf = s.pro.first_pct if s.pro is defined else none %}
+  <div class="cbar">
+    <div class="cb-h"><span>Runden gewonnen</span><b class="num">{{ s.won_pct }} %</b></div>
+    <div class="cb-t"><div class="cb-m {{ '' if pw is none else 'ok' if s.won_pct >= pw else 'no' }}" style="width:{{ s.won_pct }}%"></div>
+      {% if pw is not none %}<div class="cb-p" style="left:{{ pw }}%"></div>{% endif %}</div>
+    {% if pw is not none %}<div class="cb-l num">Pros an diesem Spot {{ pw }} %</div>{% endif %}
   </div>
-  <ul class="why">{% for w in s.why %}<li>{{ w }}</li>{% endfor %}
+  <div class="cbar">
+    <div class="cb-h"><span>Als Erster gestorben</span><b class="num">{{ s.first_pct }} %</b></div>
+    <div class="cb-t"><div class="cb-m {{ '' if pf is none else 'ok' if s.first_pct <= pf else 'no' }}" style="width:{{ s.first_pct }}%"></div>
+      {% if pf is not none %}<div class="cb-p" style="left:{{ pf }}%"></div>{% endif %}</div>
+    {% if pf is not none %}<div class="cb-l num">Pros {{ pf }} % · weniger ist besser</div>{% endif %}
+  </div>
+  <div class="small muted num" style="margin-top:8px">{{ s.n }} Runden · {{ s.first }}x als Erster tot{% if s.untraded is not none %} · {{ s.untraded }}x ohne Trade{% endif %}</div>
+  <ul class="why">{% for w in s.why if s.verdict in ("tendenz", "offen") %}<li>{{ w }}</li>{% endfor %}
     {% if s.verdict == "problem" %}{% set alt = sd.pro_spots|rejectattr("place", "equalto", s.place)|selectattr("won_pct")|sort(attribute="won_pct", reverse=True)|first %}
     {% if alt %}<li><b>Statt dessen:</b> nach {{ book.at }} in {{ alt.place }} stehen (Pros dort {{ alt.won_pct }} % Siege){% if s.lineups %} oder vorher die {{ s.lineups[0].kind_de }} nach {{ s.lineups[0].to }} werfen{% endif %}.</li>{% endif %}{% endif %}
     {% if s.death_places %}<li>Gestorben in: {% for p, n in s.death_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}</li>{% endif %}</ul>
   {% if s.pro is defined %}
   <div class="prol"><b class="h">Pros auf {{ label }} ({{ sd.label }})</b>
-    {% if s.pro.n %}Stehen nach {{ book.at }} in {{ s.pro.share }} % der Runden hier{% if s.pro.won_pct is not none %} · gewinnen {{ s.pro.won_pct }} %{% endif %}{% if s.pro.first_pct is not none %} · sterben hier in {{ s.pro.first_pct }} % als Erster{% endif %}.
+    {% if s.pro.n %}Stehen nach {{ book.at }} in {{ s.pro.share }} % der Runden hier.
     {% else %}Kein Pro stand in euren Pro-Demos nach {{ book.at }} hier.{% endif %}
     {% if s.lineups %}<div class="chips">{% for l in s.lineups %}<a href="/lineups/{{ map_name }}?l={{ l.id }}&p={{ sid }}">{{ l.kind_de }} → {{ l.to or "?" }} ({{ l.n }}x)</a>{% endfor %}</div>{% endif %}
   </div>

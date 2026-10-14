@@ -90,3 +90,11 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .achart rect.ok { fill: #46a758; } .achart rect.no { fill: #e5484d; } .achart rect.na { fill: var(--faint); }
 .achart line.goal { stroke: var(--text); stroke-width: 1.5; } .achart line.base { stroke: var(--muted); stroke-dasharray: 4 4; }
 .achart .lbl { fill: var(--muted); font-size: 10px; text-anchor: middle; } .achart .lbl.end { text-anchor: end; }
+.cbar { margin-top: 10px; }
+.cbar .cb-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; color: var(--muted); }
+.cbar .cb-h b { color: var(--text); font-size: 16px; }
+.cbar .cb-t { position: relative; height: 8px; margin-top: 4px; background: var(--surface-2); }
+.cbar .cb-m { position: absolute; inset: 0 auto 0 0; background: var(--muted); }
+.cbar .cb-m.ok { background: #46a758; } .cbar .cb-m.no { background: #e5484d; }
+.cbar .cb-p { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #9db4e0; }
+.cbar .cb-l { margin-top: 2px; font-size: 11.5px; color: #9db4e0; }
