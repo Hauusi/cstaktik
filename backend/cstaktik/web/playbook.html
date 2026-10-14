@@ -111,7 +111,7 @@ document.querySelectorAll('.pmap').forEach(svg => {
   let raf = null;
   function show(t) {
     d.paths.forEach((p, i) => {
-      const f = t / d.step, k = Math.min(Math.floor(f), p.length - 1), r = Math.min(f - k, 1), q = p[Math.min(k + 1, p.length - 1)];
+      const f = Math.max(0, t) / d.step, k = Math.max(0, Math.min(Math.floor(f), p.length - 1)), r = Math.min(f - k, 1), q = p[Math.min(k + 1, p.length - 1)];
       const alive = f <= p.length - 1 + .5;
       dots[i].setAttribute('cx', p[k][0] + (q[0] - p[k][0]) * r); dots[i].setAttribute('cy', p[k][1] + (q[1] - p[k][1]) * r);
       dots[i].classList.toggle('hide', !alive);
@@ -125,7 +125,8 @@ document.querySelectorAll('.pmap').forEach(svg => {
   btn.onclick = () => {
     if (raf) { cancelAnimationFrame(raf); reset(); return; }
     const t0 = performance.now(); btn.textContent = '■ Stopp';
-    const tick = now => { const t = (now - t0) / 1000 * SPEED; if (t >= end) { show(end); setTimeout(reset, 1500); raf = 0; return; }
+    // rAF-Zeitstempel kann vor t0 liegen (Frame-Beginn): nie negative Rundenzeit
+    const tick = now => { const t = Math.max(0, (now - t0) / 1000 * SPEED); if (t >= end) { show(end); setTimeout(reset, 1500); raf = 0; return; }
       show(t); raf = requestAnimationFrame(tick); };
     raf = requestAnimationFrame(tick);
   };
