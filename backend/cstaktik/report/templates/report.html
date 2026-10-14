@@ -485,15 +485,17 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 </style>
 </head>
 <body>
-{% macro cmpbar(label, mine, pro, unit, lower_better=false, maxv=100) -%}
+{% macro cmpbar(label, mine, pro, unit, lower_better=false, maxv=100, tol=8) -%}
 {%- if mine is not none -%}
 {%- set top = ([mine, pro or 0, maxv]|max) * (1.15 if maxv < 100 or unit != " %" else 1) -%}
-{%- set good = none if pro is none else (mine <= pro if lower_better else mine >= pro) -%}
+{#- Farbe nur bei klarem Abstand (tol); kleinere Unterschiede liegen im üblichen Schwanken -#}
+{%- set diff = none if pro is none else ((pro - mine) if lower_better else (mine - pro)) -%}
+{%- set good = none if diff is none or (diff|abs) < tol else diff > 0 -%}
 <div class="cbar">
   <div class="cb-h"><span>{{ label }}</span><b class="num">{{ mine|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}</b></div>
   <div class="cb-t"><div class="cb-m {{ 'ok' if good else 'no' if good is not none else '' }}" style="width:{{ [100 * mine / top, 100]|min|round(1) }}%"></div>
     {%- if pro is not none %}<div class="cb-p" style="left:{{ [100 * pro / top, 100]|min|round(1) }}%" title="Pros {{ pro }}{{ unit }}"></div>{% endif %}</div>
-  {%- if pro is not none %}<div class="cb-l num">Pros {{ pro|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}{{ " · weniger ist besser" if lower_better }}</div>{% endif %}
+  {%- if pro is not none %}<div class="cb-l num">Pros {{ pro|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}{{ " · etwa gleich" if good is none else (" · besser" if good else " · schlechter") }}{{ " (weniger ist besser)" if lower_better }}</div>{% endif %}
 </div>
 {%- endif -%}
 {%- endmacro %}
@@ -658,10 +660,10 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     {% for d in duel_cmp.players %}
     <div class="dp">
       <div class="who cond">{{ d.name }} · {{ d.n }} Duelle · {{ d.won }} % gewonnen{% if d.n < 10 %} · wenige Duelle, Werte schwanken{% endif %}</div>
-      {{ cmpbar("Fadenkreuz daneben", d.err, pr.err if pr else none, "°", true, 20) }}
-      {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600) }}
-      {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %") }}
-      {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %") }}
+      {{ cmpbar("Fadenkreuz daneben", d.err, pr.err if pr else none, "°", true, 20, 1.5) }}
+      {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60) }}
+      {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8) }}
+      {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8) }}
     </div>
     {% endfor %}
     <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe genähert).{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>

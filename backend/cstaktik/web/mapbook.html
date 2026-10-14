@@ -41,13 +41,13 @@
   {% set pw = s.pro.won_pct if s.pro is defined else none %}{% set pf = s.pro.first_pct if s.pro is defined else none %}
   <div class="cbar">
     <div class="cb-h"><span>Runden gewonnen</span><b class="num">{{ s.won_pct }} %</b></div>
-    <div class="cb-t"><div class="cb-m {{ '' if pw is none else 'ok' if s.won_pct >= pw else 'no' }}" style="width:{{ s.won_pct }}%"></div>
+    <div class="cb-t"><div class="cb-m {{ '' if pw is none or (s.won_pct - pw)|abs < 10 else 'ok' if s.won_pct > pw else 'no' }}" style="width:{{ s.won_pct }}%"></div>
       {% if pw is not none %}<div class="cb-p" style="left:{{ pw }}%"></div>{% endif %}</div>
     {% if pw is not none %}<div class="cb-l num">Pros an diesem Spot {{ pw }} %</div>{% endif %}
   </div>
   <div class="cbar">
     <div class="cb-h"><span>Als Erster gestorben</span><b class="num">{{ s.first_pct }} %</b></div>
-    <div class="cb-t"><div class="cb-m {{ '' if pf is none else 'ok' if s.first_pct <= pf else 'no' }}" style="width:{{ s.first_pct }}%"></div>
+    <div class="cb-t"><div class="cb-m {{ '' if pf is none or (s.first_pct - pf)|abs < 10 else 'ok' if s.first_pct < pf else 'no' }}" style="width:{{ s.first_pct }}%"></div>
       {% if pf is not none %}<div class="cb-p" style="left:{{ pf }}%"></div>{% endif %}</div>
     {% if pf is not none %}<div class="cb-l num">Pros {{ pf }} % · weniger ist besser</div>{% endif %}
   </div>
