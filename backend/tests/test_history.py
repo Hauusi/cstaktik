@@ -82,3 +82,18 @@ def test_progress_lessons_per_map_and_trend():
     assert l["by_map"]["de_mirage"] == {"rate": 1.2, "count": 7, "rounds": 60}
     # 7x in 40 Runden -> 3x in 40 Runden liegt im üblichen Schwanken: kein Trend behaupten
     assert l["trend"]["state"] == "gleich" and "7x in 40 Runden → 3x in 40 Runden" in l["trend"]["text"]
+
+
+def test_profile_pools_duels_and_lists_lessons():
+    from cstaktik.report.progress import profile
+
+    hs = [{"id": str(i), "map": "de_mirage", "rounds": 20, "won": 13, "lost": 7, "analyzed_at": f"2026-10-0{i + 1}T20:00",
+           "players": {"a": {"name": "A", "rounds": 20}}, "lessons": {"a": {"alone": 3}},
+           "duel_stats": {"a": {"n": 10 * (i + 1), "err": 4.0 + i, "err_n": 10 * (i + 1), "first_hit": 30, "hit_n": 10,
+                                "shot_first": 50, "first_n": 10, "react": 200, "react_n": 5, "won": 50}}}
+          for i in range(3)]
+    p = profile(hs, "a", {"err": 5.0, "first_hit": 30, "shot_first": 59, "react": 250})
+    d = p["duels"]
+    assert d["n"] == 60 and d["matches"] == 3 and d["err"] == round((4 * 10 + 5 * 20 + 6 * 30) / 60, 1)
+    assert d["react"] == 200 and p["lessons"][0]["id"] == "alone" and p["maps"][0]["won"] == 3
+    assert p["reading"] and p["reading"].startswith("Dein Zielen ist auf Pro-Niveau")

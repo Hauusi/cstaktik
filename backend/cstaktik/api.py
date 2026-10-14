@@ -616,6 +616,24 @@ def review_page(n: int = 5) -> str:
 
 
 @app.get("/progress", response_class=HTMLResponse)
+def progress_page(p: str = "") -> str:
+    """Spielerprofil: Auftrag, Duell-Profil gegen Pros, Fehler-Trends, Maps, letzte Matches."""
+    from cstaktik import pro
+    from cstaktik.report.progress import profile
+
+    hist = _load_hist()
+    names = _names(hist)
+    sids = sorted({s for h in hist for s in h.get("players", {})}, key=lambda s: names.get(s, s))
+    sid = _default_sid({s: v for s, v in _players_state().items() if s in sids}, names, p) or (sids[0] if sids else None)
+    if p in sids:
+        sid = p
+    prof = profile(hist, sid, pro.duel_stats(_load_pro())) if sid else None
+    auftrag = next((x for x in _auftrag(hist) if x["sid"] == sid), None)
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in sids]
+    return _env.get_template("profil.html").render(nav_active="progress", p=prof, a=auftrag, tabs=tabs)
+
+
+@app.get("/progress/karte", response_class=HTMLResponse)
 def progress() -> str:
     from cstaktik.report.progress import render_progress
 

@@ -1,0 +1,16 @@
+{# Auftrag als Säulen je Match mit Ziel- und Startlinie. Erwartet a (aus api._auftrag). #}
+  {% set ms = a.matches[-6:] %}
+  {% set top = ((ms|map(attribute="rate")|list) + [a.baseline, a.target])|max * 1.15 or 1 %}
+  <svg class="achart" viewBox="0 0 300 74" role="img" aria-label="Fehler pro 10 Runden je Match, Linie = Ziel">
+    {% set w = 300 / 7 %}
+    <line x1="0" x2="300" y1="{{ 60 - 52 * a.baseline / top }}" y2="{{ 60 - 52 * a.baseline / top }}" class="base"/>
+    <line x1="0" x2="300" y1="{{ 60 - 52 * a.target / top }}" y2="{{ 60 - 52 * a.target / top }}" class="goal"/>
+    <text x="298" y="{{ 60 - 52 * a.target / top - 3 }}" class="lbl end">Ziel {{ a.target|string|replace(".", ",") }}</text>
+    <text x="298" y="{{ 60 - 52 * a.baseline / top - 3 }}" class="lbl end">Start {{ a.baseline|string|replace(".", ",") }}</text>
+    {% for m in ms %}{% set h = 52 * m.rate / top %}
+    <rect x="{{ loop.index0 * w + 6 }}" y="{{ 60 - h }}" width="{{ w - 12 }}" height="{{ [h, 1]|max }}" class="{{ 'ok' if m.met else 'na' if m.met is none else 'no' }}"><title>{{ (m.map or '')|replace('de_','') }}: {{ m.count }}x in {{ m.rounds }} Runden{% if m.drills is defined %}, vorher {{ m.drills }}x geübt{% endif %}</title></rect>
+    <text x="{{ loop.index0 * w + w / 2 }}" y="72" class="lbl">{{ m.rate|string|replace(".", ",") }}</text>
+    {% endfor %}
+    {% if not ms %}<text x="150" y="40" class="lbl">noch kein Match seit dem Auftrag</text>{% endif %}
+  </svg>
+  <div class="small muted num">Fehler pro 10 Runden je Match · {{ goal_cfg.done_after or 2 }}x in Folge unter dem Ziel = gemeistert</div>

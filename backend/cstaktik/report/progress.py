@@ -159,3 +159,63 @@ def render_progress(histories: list[dict]) -> str:
     from cstaktik.fonts import font_css
 
     return env.get_template("progress.html").render(data=data, data_json=data_json, font_css=font_css())
+
+
+# ---------------------------------------------------------------- Spielerprofil (Seite "Fortschritt")
+
+def _pooled_duels(hs: list[dict], sid: str) -> dict | None:
+    """Duell-Werte über mehrere Matches: je Wert das nach Fallzahl gewichtete Mittel der Match-Werte."""
+    rows = [(h.get("duel_stats") or {}).get(sid) for h in hs]
+    rows = [r for r in rows if r and r.get("n")]
+    if not rows:
+        return None
+    out = {"n": sum(r["n"] for r in rows), "matches": len(rows)}
+    for key, nkey in (("err", "err_n"), ("react", "react_n"), ("first_hit", "hit_n"), ("shot_first", "first_n"),
+                      ("won", "n"), ("moving_pct", "moving_n")):
+        pairs = [(r[key], r.get(nkey) or r["n"]) for r in rows if r.get(key) is not None]
+        w = sum(n for _v, n in pairs)
+        out[key] = (round(sum(v * n for v, n in pairs) / w, 0 if key in ("react", "first_hit", "shot_first", "won",
+                                                                          "moving_pct") else 1) if w else None)
+        out[f"{nkey}"] = w
+    return out
+
+
+def _spark(values: list[float | None], target: float | None = None) -> dict:
+    """Punkte für eine kleine Linie (SVG 0..100 x 0..30)."""
+    vals = [v for v in values if v is not None]
+    if not vals:
+        return {"points": "", "target_y": None, "last": None}
+    top = max(vals + ([target] if target is not None else [])) * 1.15 or 1
+    pts = [(i, v) for i, v in enumerate(values) if v is not None]
+    n = max(1, len(values) - 1)
+    return {"points": " ".join(f"{100 * i / n:.1f},{30 - 28 * v / top:.1f}" for i, v in pts),
+            "dots": [{"x": round(100 * i / n, 1), "y": round(30 - 28 * v / top, 1)} for i, v in pts],
+            "target_y": None if target is None else round(30 - 28 * target / top, 1), "last": vals[-1]}
+
+
+def profile(histories: list[dict], sid: str, pro_duels: dict | None, focus: dict | None = None) -> dict:
+    """Alles, was der Coach über einen Spieler weiß, auf einer Seite: Auftrag, Duell-Profil, Fehler-Trends, Maps."""
+    from cstaktik.coach_voice import duel_reading
+
+    hs = [h for h in histories if sid in h.get("players", {})]
+    name = next((h["players"][sid].get("name") for h in reversed(hs)), sid)
+    recent = hs[-5:]
+    duels = _pooled_duels(recent, sid)
+    lessons = _lessons(histories, sid)
+    for l in lessons:
+        l["spark"] = _spark([r for r in l["rates"]][-10:])
+        l["total_rounds"] = sum(_player_rounds(h, sid) for h in hs if "lessons" in h)
+    maps = []
+    for m in sorted({h.get("map") for h in hs if h.get("map")}):
+        mh = [h for h in hs if h.get("map") == m]
+        worst = max(lessons, key=lambda l: (l["by_map"].get(m) or {}).get("rate", -1), default=None)
+        wm = (worst or {}).get("by_map", {}).get(m)
+        maps.append({"map": m, "label": m.removeprefix("de_").capitalize(), "matches": len(mh),
+                     "won": sum(1 for h in mh if h.get("won", 0) > h.get("lost", 0)),
+                     "worst": {"title": worst["title"], **wm} if worst and wm and wm["count"] >= 3 else None})
+    maps.sort(key=lambda m: -m["matches"])
+    matches = [{"label": _label(h), "won": h.get("won", 0), "lost": h.get("lost", 0), "report": h.get("report_file")}
+               for h in reversed(hs[-8:])]
+    return {"sid": sid, "name": name, "n_matches": len(hs), "duels": duels, "pro": pro_duels,
+            "reading": duel_reading(duels, pro_duels) if duels else None, "lessons": lessons[:6],
+            "maps": maps, "matches": matches, "focus": focus}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "bars.html" import cmpbar %}
+{% block title %}{{ p.name if p else "Fortschritt" }} – cstaktik{% endblock %}
+{% block head %}
+<style>
+.sec { margin-top: 8px; }
+.lrow { display: grid; grid-template-columns: 1fr 110px; gap: 4px 12px; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); }
+.lrow + .lrow { margin-top: 6px; }
+.lrow .t { font-weight: 700; } .lrow .s { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+.lrow svg { width: 110px; height: 34px; }
+.lrow polyline { fill: none; stroke: var(--muted); stroke-width: 1.6; } .lrow circle { fill: var(--text); }
+.lrow.besser polyline { stroke: #46a758; } .lrow.schlechter polyline { stroke: #e5484d; }
+.tr { font-family: var(--cond); font-weight: 800; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.tr.besser { color: #46a758; } .tr.schlechter { color: #e5484d; } .tr.gleich, .tr.wenig { color: var(--muted); }
+.mrow { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.mrow:last-child { border-bottom: 0; }
+.dread { margin: 4px 0 10px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>{{ p.name if p else "Fortschritt" }}</h1>
+{% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/progress?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<p>{% if p %}{{ p.n_matches }} Match{{ "es" if p.n_matches != 1 }} ausgewertet. Alles, was der Coach über dich weiß.{% else %}Noch keine Matches.{% endif %}</p>
+{% endblock %}
+{% block content %}
+{% if p %}
+<div class="cols">
+<div class="col">
+<h2>Auftrag</h2>
+{% if a %}
+<div class="card auf">
+  <div class="atitle">{{ a.title }}</div>
+  <div class="mantra">„{{ a.mantra }}“</div>
+  {% include "auftrag_chart.html" %}
+</div>
+{% else %}<div class="card empty">Kein laufender Auftrag.</div>{% endif %}
+
+<h2>Duell-Profil · letzte {{ p.duels.matches if p.duels else 0 }} Matches</h2>
+{% if p.duels %}{% set d = p.duels %}{% set pr = p.pro %}
+<div class="card">
+  {% if p.reading %}<div class="dread">{{ p.reading }}</div>{% endif %}
+  {{ cmpbar("Fadenkreuz daneben", d.err, pr.err if pr else none, "°", true, 20, 1.5, d.err_n) }}
+  {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8, d.first_n) }}
+  {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8, d.hit_n) }}
+  {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60, d.react_n) }}
+  <div class="small muted num" style="margin-top:10px">{{ d.n }} Duelle, {{ d.won|round|int }} % gewonnen. Werte gewichtet nach Fallzahl je Match.</div>
+</div>
+{% else %}<div class="card empty">Noch keine Duell-Daten.</div>{% endif %}
+</div>
+
+<div class="col">
+<h2>Fehler über die Matches</h2>
+{% for l in p.lessons %}
+<div class="lrow {{ l.trend.state }}">
+  <div class="t">{{ l.title }}</div>
+  <svg viewBox="-4 -2 108 36" aria-hidden="true">{% if l.spark.points %}<polyline points="{{ l.spark.points }}"/>{% set dl = l.spark.dots[-1] %}<circle cx="{{ dl.x }}" cy="{{ dl.y }}" r="3"/>{% endif %}</svg>
+  <div class="s num">{{ l.total }}x insgesamt · <span class="tr {{ l.trend.state }}">{{ {"besser": "besser", "schlechter": "schlechter", "gleich": "kein klarer Trend", "wenig": "noch zu wenig"}[l.trend.state] }}</span> · {{ l.trend.text }}</div>
+</div>
+{% else %}<div class="card empty">Noch keine Fehler-Daten.</div>{% endfor %}
+
+<h2>Maps</h2>
+<div class="card">
+{% for m in p.maps %}
+<div class="mrow"><div><b>{{ m.label }}</b> <span class="small muted num">{{ m.matches }} Match{{ "es" if m.matches != 1 }}, {{ m.won }} gewonnen</span>
+  {% if m.worst %}<div class="small muted num">Häufigster Fehler: {{ m.worst.title }} ({{ m.worst.count }}x in {{ m.worst.rounds }} Runden)</div>{% endif %}</div>
+  <a class="go" href="/mapbook/{{ m.map }}?p={{ p.sid }}" style="color:var(--orange);white-space:nowrap">Map-Buch ›</a></div>
+{% endfor %}
+</div>
+<h2>Letzte Matches</h2>
+<div class="card">
+{% for mt in p.matches %}<div class="mrow"><span>{{ mt.label }}</span><span class="num"><b style="color:{{ '#46a758' if mt.won > mt.lost else '#e5484d' if mt.lost > mt.won else 'inherit' }}">{{ mt.won }}:{{ mt.lost }}</b>{% if mt.report %} · <a href="/reports/{{ mt.report }}" style="color:var(--orange)">Report ›</a>{% endif %}</span></div>{% endfor %}
+</div>
+<a class="more-link" href="/progress/karte">Todes-Karte und alle Kurven ›</a>
+<a class="more-link" href="/spieler">Spieler einstellen ›</a>
+</div>
+</div>
+{% endif %}
+{% endblock %}
