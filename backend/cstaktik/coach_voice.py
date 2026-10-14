@@ -396,18 +396,8 @@ def intro(won: int, lost: int, map_label: str, lessons: list[dict]) -> list[str]
     out = [f"Ich hab mir euer {won}:{lost} auf {map_label} angesehen." if lost > won
            else f"{won}:{lost} auf {map_label}. Gewonnen, trotzdem gibt es was zu holen." if won > lost
            else f"{won}:{lost} auf {map_label}. Ich hab es mir angesehen."]
-    if lessons:
-        main = lessons[0]
-        if main["count"] == 1:
-            out.append(f"Euer wichtigster Punkt: {main['lesson']}.")
-        else:
-            out.append(f"{main['count']} eurer Tode hatten dasselbe Muster: {main['lesson']}.")
-        if main.get("seen_in", 1) >= 2:
-            out.append(f"Das kam in {main['seen_in']} der letzten {main['of_matches']} Matches vor. "
-                       "Kein Ausrutscher, sondern ein Muster.")
-        if main.get("cost") and main["cost"] >= 30:
-            out.append(f"Das hat euch rechnerisch etwa {_de(main['cost'] / 100)} Runden gekostet"
-                       + (" (grob geschätzt, wenige Vergleichsrunden)." if main.get("rough") else "."))
+    if lessons:  # nur das Thema; Anzahl, Matches und Kosten stehen direkt darunter als Zahlen
+        out.append(f"Heute geht es um: {lessons[0]['lesson']}.")
     return out
 
 

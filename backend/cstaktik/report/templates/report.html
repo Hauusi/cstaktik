@@ -460,6 +460,19 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; font-size: 14px; color: #d5dbe5; }
 .coach .lesson-tag { display: inline-block; margin-top: 6px; padding: 3px 8px; font-family: var(--cond); font-weight: 800; font-size: 13px;
   letter-spacing: .06em; text-transform: uppercase; color: var(--orange); border: 1px solid rgba(255,159,28,.45); }
+
+.rmeter { position: relative; height: 12px; margin: 30px 0 6px; background: var(--surface-2); }
+.rmeter .rbar { position: absolute; inset: 0 auto 0 0; background: var(--muted); }
+.rmeter .rbar.ok { background: var(--win); } .rmeter .rbar.no { background: var(--loss); }
+.rmeter .rtick { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--text); }
+.rmeter .rtick span { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.rlegend { font-size: 13.5px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.rlegend b { color: var(--text); font-size: 15px; }
+.sdots { display: inline-flex; gap: 4px; margin-left: auto; }
+.sdots i { width: 10px; height: 10px; border: 1px solid var(--muted); } .sdots i.on { background: var(--win); border-color: var(--win); }
+.trainlink { display: block; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); text-decoration: none; }
+.learn .ig { margin-top: 10px; } .learn .ig b { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
+.trainlink b { color: var(--text); }
 </style>
 </head>
 <body>
@@ -494,17 +507,17 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     <div class="auftrag {{ 'ok' if c.met else '' if c.met is none else 'no' }}">
       <div class="who cond">{{ a.name }}</div>
       <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Zu wenig Runden" if c.met is none else "Nicht geschafft" }}</div></div>
-      <div class="ameter num">
-        <div><b class="cond">{{ c.count }}x</b><span>in {{ c.rounds }} Runden{% if c.drills is not none and c.drills is defined %} · {{ c.drills }}x geübt{% endif %}</span></div>
-        <div><b class="cond">{{ c.rate|string|replace(".", ",") }}</b><span>pro 10 Runden</span></div>
-        <div><b class="cond">≤ {{ c.target|string|replace(".", ",") }}</b><span>Ziel</span></div>
-        <div><b class="cond">{{ c.streak }}/{{ c.need }}</b><span>in Folge</span></div>
+      {% if a.focus and not a.new %}<div class="mantra cond" style="font-size:17px;margin-top:4px">„{{ teach[a.focus.lesson].mantra }}“</div>{% endif %}
+      {% set top = [c.rate, c.target, c.baseline or 0]|max * 1.15 or 1 %}
+      <div class="rmeter" aria-label="Rate gegen Ziel">
+        <div class="rbar {{ 'ok' if c.met else 'no' if c.met is not none else '' }}" style="width:{{ (100 * c.rate / top)|round(1) }}%"></div>
+        <div class="rtick" style="left:{{ (100 * c.target / top)|round(1) }}%"><span>Ziel {{ c.target|string|replace(".", ",") }}</span></div>
       </div>
+      <div class="rlegend num"><b>{{ c.rate|string|replace(".", ",") }}</b> pro 10 Runden · {{ c.count }}x in {{ c.rounds }} Runden{% if c.drills is defined and c.drills is not none %} · vorher {{ c.drills }}x geübt{% endif %}
+        <span class="sdots">{% for i in range(c.need) %}<i class="{{ 'on' if i < c.streak }}"></i>{% endfor %}</span></div>
       {% if a.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel, zusammen {{ c.streak_rounds }} Runden. Das sitzt.</div>
-      {% elif c.met is none %}<div class="anote">Nur {{ c.rounds }} Runden gespielt: zählt weder für noch gegen den Auftrag.</div>
-      {% elif c.met and c.streak >= c.need %}<div class="anote">Ziel erreicht, aber erst {{ c.streak_rounds }} von {{ c.need_rounds }} Runden. Noch ein Match, dann ist es sicher kein Zufall.</div>
-      {% elif c.met %}<div class="anote">Gut umgesetzt. Noch {{ c.need - c.streak }} Match in Folge, dann ist es gemeistert.</div>
-      {% else %}<div class="anote">Noch nicht umgesetzt. Der Auftrag bleibt, bis er {{ c.need }} Matches in Folge sitzt.</div>{% endif %}
+      {% elif c.met is none %}<div class="anote">Zu wenig Runden gespielt, zählt nicht.</div>
+      {% elif c.met and c.streak >= c.need %}<div class="anote">Erst {{ c.streak_rounds }} von {{ c.need_rounds }} Runden: noch ein Match zur Bestätigung.</div>{% endif %}
     </div>
     {% endfor %}
   </section>
@@ -532,12 +545,12 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     <div class="learn">
       <div class="lk cond">Verstehen</div>
       <p>{{ t.principle }}</p>
-      <div class="mantra cond">„{{ t.mantra }}“</div>
+      <div class="ig"><b class="cond">Im Match</b>{{ t.in_game }}</div>
     </div>
 
     <div class="cmp">
       <div class="cmpcol bad"><div class="lk cond">So nicht · bei euch</div>
-        <div class="scenes">{% for sc in l.scenes[:4] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div></div>
+        <div class="scenes">{% for sc in (l.scenes|unique(attribute="round")|list)[:4] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div></div>
       {% set good = bright[l.id] %}
       <div class="cmpcol good"><div class="lk cond">So geht's · bei euch</div>
         {% if good %}{% for g in good %}<button class="brightgo" data-round="{{ g.round }}" data-tick="{{ g.from }}"><b class="cond">▶ R{{ g.round }} {{ g.when }}</b>{{ g.text }}</button>{% endfor %}
@@ -547,26 +560,22 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     <div id="proslot" data-lesson="{{ l.id }}"></div>
 
     {% if memory and not checks %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
-    <div class="hw routine">
-      <div class="k cond">Training vor dem nächsten Match · {{ t.routine.minutes }} Min</div>
-      <div class="rt cond">{{ t.routine.title }}</div>
-      <ol>{% for st in t.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
-      <div class="ig"><b class="cond">Im Match</b>{{ t.in_game }}</div>
-    </div>
+    <a class="trainlink" href="/training">Übung dazu: <b>{{ t.routine.title }}</b> ({{ t.routine.minutes }} Min) · im Training ›</a>
   </section>
   {% if lessons|length > 1 %}
   <section class="also">
     <div class="sh"><span class="t cond">Außerdem</span></div>
     {% for o in lessons[1:] %}
     <div class="arow"><div><b>{{ o.lesson }}</b><span class="num">{{ o.count }}x{% if o.cost %} · ≈{{ "%.1f"|format(o.cost / 100)|replace(".", ",") }} Runden{% endif %}</span></div>
-      <div class="scenes sm">{% for sc in o.scenes[:3] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">R{{ sc.round }}</button>{% endfor %}</div></div>
+      <div class="scenes sm">{% for sc in (o.scenes|unique(attribute="round")|list)[:3] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">R{{ sc.round }}</button>{% endfor %}</div></div>
     {% endfor %}
   </section>
   {% endif %}
   {% elif memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
 
   {% if praise %}<section class="praise"><b class="cond">Gut gemacht</b>{% for p in praise %}<div>{{ p }}</div>{% endfor %}</section>{% endif %}
-  {% set nexts = auftraege|selectattr("focus")|list %}
+  {# Aufträge, die nicht schon oben im Auftrag-Check stehen (neu oder ohne Check in diesem Match) #}
+  {% set nexts = auftraege|selectattr("focus")|rejectattr("check")|list + auftraege|selectattr("focus")|selectattr("new")|selectattr("check")|list %}
   {% if nexts %}
   <section class="nextfocus">
     <div class="sh"><span class="t cond">Eure Aufträge ab jetzt</span></div>
@@ -574,7 +583,8 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     <div class="nf">
       <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
       <div class="atitle cond">{{ nf.title }}</div>
-      <div class="anote">Ziel: höchstens {{ nf.target|string|replace(".", ",") }}x pro 10 Runden (Start {{ nf.baseline|string|replace(".", ",") }}{% if nf.baseline_n %}: {{ nf.baseline_n }}x in {{ nf.baseline_rounds }} Runden der letzten Matches{% endif %}{% if a.check and not a.new %}, zuletzt {{ a.check.rate|string|replace(".", ",") }}{% endif %}), {{ nf.need }} Matches in Folge. Merksatz: <b>„{{ teach[nf.lesson].mantra }}“</b></div>
+      <div class="mantra cond">„{{ teach[nf.lesson].mantra }}“</div>
+      <div class="anote num">Ziel ≤ {{ nf.target|string|replace(".", ",") }} pro 10 Runden · Start {{ nf.baseline|string|replace(".", ",") }}{% if nf.baseline_n %} ({{ nf.baseline_n }}x in {{ nf.baseline_rounds }} Runden){% endif %}</div>
     </div>
     {% endfor %}
   </section>
@@ -1759,8 +1769,7 @@ function dbBuild() {
     const d = el('div'); d.append(el('div', 'k', 'Der Coach'));
     const say = el('div', 'say'); say.append(el('div', 'av', 'C'), el('p', null, (DB.intro || []).join(' ')));
     d.appendChild(say);
-    if (L) { d.append(el('div', 'k', 'Heute geht es um'), el('h3', null, L.title)); }
-    else d.appendChild(el('p', null, 'In diesem Match gab es kein wiederkehrendes Muster. Schau dir die Szenen im Replay an.'));
+    if (!L) d.appendChild(el('p', null, 'In diesem Match gab es kein wiederkehrendes Muster. Schau dir die Szenen im Replay an.'));
     return d;
   });
   if (L) {

@@ -198,8 +198,7 @@ def test_coach_intro_memory_praise():
     les = [{"id": "alone", "lesson": "Nicht ohne Trade-Partner peeken", "count": 6, "cost": 71}]
     assert coach_voice.intro(9, 13, "Mirage", les) == [
         "Ich hab mir euer 9:13 auf Mirage angesehen.",
-        "6 eurer Tode hatten dasselbe Muster: Nicht ohne Trade-Partner peeken.",
-        "Das hat euch rechnerisch etwa 0,7 Runden gekostet."]
+        "Heute geht es um: Nicht ohne Trade-Partner peeken."]  # Zahlen stehen darunter, nicht doppelt
     prev = {"main_lesson": "no_shot_close", "rounds": 20, "lessons": {"a": {"no_shot_close": 5}}}
     m = coach_voice.memory(prev, {"a": {"no_shot_close": 2}}, 22)
     # 5x -> 2x in je ~20 Runden ist noch kein Trend: Zahlen ja, Urteil nein
