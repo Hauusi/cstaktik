@@ -602,9 +602,14 @@ def briefing_page(map_name: str) -> str:
         raise HTTPException(400, "Ungültiger Mapname.")
     hist = _load_hist()
 
-    b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=_load_pro())
+    from cstaktik import playbook
+
+    pro = _load_pro()
+    b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=pro)
+    own = [{"map": h.get("map"), "plays": h.get("plays"), "ct_plays": h.get("ct_plays")} for h in hist]
+    plan = playbook.gameplan(pro, own, map_name, load_rules_config().get("playbook"))
     return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
-                                                     kabine=_kabine(hist, map_name))
+                                                     kabine=_kabine(hist, map_name), plan=plan, map_name=map_name)
 
 
 def _kabine(hist: list[dict], map_name: str) -> dict | None:

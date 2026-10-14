@@ -385,3 +385,35 @@ def ct_build(sources: list[dict], map_name: str, centers: dict, cfg: dict | None
         })
     setups.sort(key=lambda s: (-s["n"], -s["won_pct"]))
     return {"map": map_name, "rounds": total, "setups": setups, "centers": centers}
+
+
+def gameplan(pro: list[dict], own: list[dict], map_name: str, cfg: dict | None = None, min_n: int = 3) -> dict | None:
+    """Matchplan für die Kabine: beste Pro-Taktik (T) und -Aufstellung (CT) auf dieser Map, was bei euch klappt,
+    was nicht. Nur Einträge mit mindestens ``min_n`` Runden; fehlt alles, None."""
+    def best(rows, key="won_pct"):
+        rows = [r for r in rows if r["n"] >= min_n]
+        return max(rows, key=lambda r: (r[key], r["n"])) if rows else None
+
+    t_pro, t_own = build(pro, map_name, cfg)["tactics"], build(own, map_name, cfg)["tactics"]
+    centers = site_centers(pro + own, map_name)
+    ct_pro, ct_own = ct_build(pro, map_name, centers, cfg)["setups"], ct_build(own, map_name, centers, cfg)["setups"]
+    mix_own, mix_pro = style_mix(own, map_name, cfg), style_mix(pro, map_name, cfg)
+    weak = [{"label": v["label"], **v} for v in mix_own["styles"].values() if v["n"] >= min_n + 1 and v["won_pct"] <= 35]
+    ct_weak = [s for s in ct_own if s["n"] >= min_n + 1 and s["won_pct"] <= 35]
+    own_good = best(t_own)
+
+    def pick(rows):
+        """Empfehlung nur ab 50 % Siegquote; sonst die häufigste Variante, als solche gekennzeichnet."""
+        b = best(rows)
+        if b and b["won_pct"] >= 50:
+            return {**b, "why": "best"}
+        often = [r for r in rows if r["n"] >= min_n]
+        return {**max(often, key=lambda r: r["n"]), "why": "often"} if often else None
+
+    plan = {
+        "t_pro": pick(t_pro), "t_own": own_good if own_good and own_good["won_pct"] >= 50 else None,
+        "t_weak": min(weak, key=lambda v: v["won_pct"]) if weak else None,
+        "ct_pro": pick(ct_pro), "ct_weak": min(ct_weak, key=lambda s: s["won_pct"]) if ct_weak else None,
+        "compare": compare(mix_own, mix_pro),
+    }
+    return plan if any(plan.values()) else None

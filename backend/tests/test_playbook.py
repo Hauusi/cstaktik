@@ -158,3 +158,19 @@ def test_ct_setups_zones_from_plants():
     assert book["setups"][0]["name"] == "Stack auf A"
     # ohne zwei Bombsites keine Zonen
     assert playbook.ct_build(src, "de_mirage", {"A": [0, 0]})["setups"] == []
+
+
+def test_gameplan_picks_best_with_enough_rounds():
+    p = playbook.plays(_match(5, _split_route(), plant_s=48))[0]
+    rush = {s: [(0, "TSpawn", 0, 0), (8, "Apartments", 5, 5), (16, "BombsiteB", 9, 9)] for s in T}
+    q = playbook.plays(_match(8, rush, plant_s=22, equip=5000))[0]
+    pro = [{"map": "de_mirage", "plays": [p, p, {**p, "won": False}, q, q]}]  # Rush nur 2x: zu wenig
+    own = [{"map": "de_mirage", "plays": [{**q, "won": False}] * 4 + [p] * 3}]
+    plan = playbook.gameplan(pro, own, "de_mirage")
+    assert plan["t_pro"]["name"] == "A-Split über Palace + Ramp" and plan["t_pro"]["won_pct"] == 67
+    assert plan["t_pro"]["why"] == "best"
+    weak_pro = [{"map": "de_mirage", "plays": [p, {**p, "won": False}, {**p, "won": False}]}]
+    assert playbook.gameplan(weak_pro, [], "de_mirage")["t_pro"]["why"] == "often"  # 33 %: keine Empfehlung
+    assert plan["t_own"]["name"] == "A-Split über Palace + Ramp"
+    assert plan["t_weak"]["label"] == "Rush" and plan["t_weak"]["won_pct"] == 0
+    assert playbook.gameplan([], [], "de_mirage") is None

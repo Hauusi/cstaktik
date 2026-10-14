@@ -18,6 +18,13 @@
 .kmap { position: relative; margin-top: 12px; aspect-ratio: 1; background: #07090d; border: 1px solid var(--line); }
 .kmap img, .kmap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .kmap img { opacity: .85; }
+.mplan { display: grid; gap: 4px; padding: 10px 14px; }
+.mp { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.mp b { display: block; font-size: 15px; } .mp span { font-size: 13.5px; color: var(--muted); }
+.mk { width: 34px; height: 26px; display: grid !important; place-items: center; border-radius: 8px; font-weight: 800; font-size: 12px !important;
+  background: var(--surface-2); color: var(--text) !important; }
+.mk.t { background: rgba(222,155,53,.2); color: #de9b35 !important; } .mk.ct { background: rgba(93,121,174,.25); color: #8fb4ff !important; }
+.mk.no { background: rgba(255,90,110,.15); color: var(--loss) !important; }
 </style>
 {% endblock %}
 {% block hero %}
@@ -55,6 +62,23 @@
 {% endif %}
 {% endif %}
 
+{% if plan %}
+<h2>Matchplan</h2>
+<div class="card mplan">
+  {% if plan.t_pro %}<a class="mp" href="/playbook/{{ map_name }}#{{ plan.t_pro.id }}"><span class="mk t">T</span><div><b>{{ "Pro-Empfehlung: " if plan.t_pro.why == "best" else "Pros spielen hier am häufigsten: " }}{{ plan.t_pro.name }}</b>
+    <span>Pros gewinnen damit {{ plan.t_pro.won_pct }} % ({{ plan.t_pro.won }} von {{ plan.t_pro.n }}){% if plan.t_pro.common %}. Granaten: {% for c in plan.t_pro.common[:3] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
+  {% if plan.t_own %}<a class="mp" href="/playbook/{{ map_name }}?who=ihr#{{ plan.t_own.id }}"><span class="mk t">T</span><div><b>Eure Stärke: {{ plan.t_own.name }}</b>
+    <span>{{ plan.t_own.won_pct }} % gewonnen ({{ plan.t_own.won }} von {{ plan.t_own.n }}). Dabei bleiben. Ansehen ›</span></div></a>{% endif %}
+  {% if plan.t_weak %}<div class="mp"><span class="mk no">!</span><div><b>Weniger: {{ plan.t_weak.label }}</b>
+    <span>Ihr gewinnt nur {{ plan.t_weak.won_pct }} % eurer {{ plan.t_weak.label }}-Runden ({{ plan.t_weak.won }} von {{ plan.t_weak.n }}).</span></div></div>{% endif %}
+  {% if plan.compare %}<div class="mp"><span class="mk">≠</span><div><span>{{ plan.compare }}</span></div></div>{% endif %}
+  {% if plan.ct_pro %}<a class="mp" href="/playbook/{{ map_name }}?side=ct#{{ plan.ct_pro.id }}"><span class="mk ct">CT</span><div><b>{{ "Pro-Empfehlung" if plan.ct_pro.why == "best" else "Häufigste Pro-Aufstellung" }}: {{ plan.ct_pro.name }}</b>
+    <span>Pros halten damit {{ plan.ct_pro.won_pct }} % ({{ plan.ct_pro.won }} von {{ plan.ct_pro.n }}){% if plan.ct_pro.util %}. Früh: {% for c in plan.ct_pro.util[:2] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
+  {% if plan.ct_weak %}<a class="mp" href="/playbook/{{ map_name }}?who=ihr&side=ct#{{ plan.ct_weak.id }}"><span class="mk no">!</span><div><b>Eure Aufstellung {{ plan.ct_weak.name }} hält schlecht</b>
+    <span>{{ plan.ct_weak.won_pct }} % ({{ plan.ct_weak.won }} von {{ plan.ct_weak.n }}). Ansehen ›</span></div></a>{% endif %}
+  <div class="small muted">Nur Taktiken und Aufstellungen mit mindestens 3 Runden. Siegquoten aus wenigen Runden sind Tendenzen.</div>
+</div>
+{% endif %}
 <details class="more-map"{% if not kabine %} open{% endif %}><summary class="cond">Mehr zu {{ b.label }}</summary>
 {% if map_lessons %}
 <h2>Eure Baustellen auf {{ b.label }}</h2>

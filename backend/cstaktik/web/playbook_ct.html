@@ -9,7 +9,7 @@
 <div class="plegend" style="margin-top:14px"><span><i style="background:#ff9a1f"></i>Zone A</span><span><i style="background:#c084fc"></i>Mitte / Rotation</span><span><i style="background:#5b9dff"></i>Zone B</span><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:transparent;border:2px solid #ff5a6e;border-radius:2px"></i>Plant der T</span></div>
 <div class="plays">
 {% for s in ct.setups %}
-<article class="card play">
+<article class="card play" id="{{ s.id }}">
   <div class="ph"><span class="pchip st {{ 'st-rush' if s.stack else 'st-default' }}">{{ "Stack" if s.stack else "Aufstellung" }}</span>
     <span class="pwin num">{{ s.won_pct }} %<small>gehalten</small></span></div>
   <h3 class="pn">{{ s.name }}</h3>
