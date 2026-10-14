@@ -484,6 +484,11 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 .cbar .cb-l { margin-top: 2px; font-size: 11.5px; color: #9db4e0; }
 .cbar .cb-n { font-style: normal; font-size: 11.5px; color: var(--faint); }
 .dread { margin: 8px 0 4px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; line-height: 1.45; }
+
+.cpair { display: grid; gap: 4px; margin-top: 8px; }
+.cpair > div { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.cpair .cmeter { margin: 0; } .cpair b { text-align: right; color: var(--text); }
+.cmeter.won > span { background: var(--win) !important; }
 </style>
 </head>
 <body>
@@ -736,9 +741,11 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       <div class="crank">{{ loop.index }}</div>
       <div class="cbody">
         <div class="ct">{{ c.title }}</div>
-        <div class="cmeter num"><span style="width:{{ (100 * c.share)|round|int }}%"></span></div>
-        <div class="cnum num">in {{ c.lost_rounds|length }} von {{ debrief.lost }} verlorenen Runden
-          {%- if c.won_rounds %} · in Siegrunden nur {{ c.won_rounds|length }}x{% else %} · in keiner Siegrunde{% endif %}</div>
+        {% set wshare = (c.won_rounds|length / debrief.won) if debrief.won else 0 %}
+        <div class="cpair num">
+          <div><span>verloren</span><div class="cmeter"><span style="width:{{ (100 * c.share)|round|int }}%"></span></div><b>{{ c.lost_rounds|length }}/{{ debrief.lost }}</b></div>
+          <div><span>gewonnen</span><div class="cmeter won"><span style="width:{{ (100 * wshare)|round|int }}%"></span></div><b>{{ c.won_rounds|length }}/{{ debrief.won }}</b></div>
+        </div>
         <div class="cx">{{ c.explain }}</div>
         <div class="tip"><b>Was tun</b> · {{ c.tip }}</div>
         <div class="rlinks">{% for r in c.lost_rounds[:10] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>
