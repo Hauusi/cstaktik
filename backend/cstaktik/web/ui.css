@@ -143,3 +143,5 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .guide .gs + .gs { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
 .guide .gs > b { font-family: var(--cond); font-size: 19px; text-transform: uppercase; }
 .guide p { margin: 4px 0 0; color: #cfd5de; font-size: 14.5px; }
+.aimsub { margin: 2px 0 6px 12px; padding-left: 10px; border-left: 2px solid var(--line); }
+.aimsub .cbar .cb-h { font-size: 12.5px; } .aimsub .cbar .cb-h b { font-size: 14px; }

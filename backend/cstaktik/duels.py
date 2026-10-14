@@ -96,6 +96,21 @@ def first_seen(seen: dict[tuple[int, str], frozenset], ticks: list[int], viewer:
     return start
 
 
+def angle_parts(view: tuple, target: tuple, eye: float = EYE_HEIGHT) -> tuple[float, float] | None:
+    """Fadenkreuz-Abweichung zerlegt: (seitlich in Grad, Betrag; Höhe in Grad, + = unter dem Kopf, - = darüber)."""
+    x, y, z, yaw, pitch = view
+    tx, ty, tz = target[:3]
+    if yaw is None or pitch is None:
+        return None
+    dx, dy, dz = tx - x, ty - y, tz - z
+    flat = math.hypot(dx, dy)
+    if flat < 1:
+        return None
+    side = abs((yaw - math.degrees(math.atan2(dy, dx)) + 180) % 360 - 180)
+    want_pitch = -math.degrees(math.atan2(dz, flat))  # pitch > 0 = nach unten (wie im Spiel)
+    return round(side, 1), round(pitch - want_pitch, 1)
+
+
 def compute(match: MatchData, views: dict[tuple[int, str], tuple], window_s: float = 3.0,
             seen: dict[tuple[int, str], frozenset] | None = None) -> list[Duel]:
     """``views``: (tick, steamid) -> (x, y, z, yaw, pitch) im Kontakt-Tick (aus parse_ticks).
@@ -110,21 +125,24 @@ def compute(match: MatchData, views: dict[tuple[int, str], tuple], window_s: flo
             mine = sorted((s for s in match.shots if s.steamid == me and s.round == k.round and is_gun(s.weapon)
                            and c <= s.tick <= k.tick), key=lambda s: s.tick)
             first = mine[0] if mine else None
-            err = None
+            err = parts = None
             if (c, me) in views and (c, opp) in views:
                 err = angle_error(views[(c, me)], views[(c, opp)])
+                parts = angle_parts(views[(c, me)], views[(c, opp)])
             hit = None
             if first is not None and match.damages:
                 hit = any(d.attacker_steamid == me and d.victim_steamid == opp and first.tick <= d.tick <= first.tick + 3
                           for d in match.damages)
             res[me] = {"err": err, "react": round((first.tick - c) * 1000 / tr) if first else None, "hit": hit,
                        "speed": round(first.speed) if first and first.speed is not None else None,
-                       "shots": len(mine)}
+                       "shots": len(mine), "side": parts[0] if parts else None,
+                       "height": parts[1] if parts else None}
         out.append(Duel(round=k.round, tick=k.tick, contact=c, winner=a, loser=v,
                         w_err=res[a]["err"], l_err=res[v]["err"], w_react_ms=res[a]["react"],
                         l_react_ms=res[v]["react"], w_first_hit=res[a]["hit"], l_first_hit=res[v]["hit"],
                         w_speed=res[a]["speed"], l_speed=res[v]["speed"], w_shots=res[a]["shots"],
-                        l_shots=res[v]["shots"]))
+                        l_shots=res[v]["shots"], w_side=res[a]["side"], l_side=res[v]["side"],
+                        w_height=res[a]["height"], l_height=res[v]["height"]))
         if seen:
             import bisect
 
@@ -156,12 +174,12 @@ def side_of(d: Duel, sid: str, tickrate: int = 64) -> dict | None:
         return {"won": True, "err": d.w_err, "react": d.w_react_ms, "hit": d.w_first_hit, "speed": d.w_speed,
                 "opp_err": d.l_err, "opp_react": d.l_react_ms, "opp": d.loser,
                 "seen": seen_first(d.w_seen, d.l_seen, d.seen_known, tickrate),
-                "seen_ms": _lead_ms(d.w_seen, d.l_seen, tickrate)}
+                "seen_ms": _lead_ms(d.w_seen, d.l_seen, tickrate), "side": d.w_side, "height": d.w_height}
     if sid == d.loser:
         return {"won": False, "err": d.l_err, "react": d.l_react_ms, "hit": d.l_first_hit, "speed": d.l_speed,
                 "opp_err": d.w_err, "opp_react": d.w_react_ms, "opp": d.winner,
                 "seen": seen_first(d.l_seen, d.w_seen, d.seen_known, tickrate),
-                "seen_ms": _lead_ms(d.l_seen, d.w_seen, tickrate)}
+                "seen_ms": _lead_ms(d.l_seen, d.w_seen, tickrate), "side": d.l_side, "height": d.l_height}
     return None
 
 
@@ -192,7 +210,25 @@ def stats(rows: list[dict]) -> dict:
             "err_n": len(errs), "react_n": len(reacts), "hit_n": len(hits), "first_n": len(first),
             # erster Schuss aus der Bewegung (über 80 Units/s), nur wo das Tempo bekannt ist
             "moving_pct": round(100 * sum(v > 80 for v in speeds) / len(speeds)) if speeds else None,
-            "moving_n": len(speeds), **seen_stats(rows)}
+            "moving_n": len(speeds), **seen_stats(rows), **aim_parts(rows)}
+
+
+AIM_NEAR_DEG = 20.0  # Zerlegung nur, wenn das Fadenkreuz ungefähr auf den Gegner zeigte (sonst ist es nur "Seite")
+
+
+def aim_parts(rows: list[dict]) -> dict:
+    """Woraus der Fadenkreuz-Fehler besteht: Median seitlich (Grad) und Median Höhe (Grad, + = zu tief), nur
+    Duelle mit Fadenkreuz unter ``AIM_NEAR_DEG`` am Gegner."""
+    import statistics
+
+    near = [r for r in rows if r.get("err") is not None and r["err"] <= AIM_NEAR_DEG
+            and r.get("side") is not None and r.get("height") is not None]
+    if not near:
+        return {"aim_n": 0, "err_side": None, "err_height": None, "low_pct": None}
+    return {"aim_n": len(near), "err_side": round(statistics.median(r["side"] for r in near), 1),
+            "err_height": round(statistics.median(r["height"] for r in near), 1),
+            # Anteil der Duelle, in denen das Fadenkreuz mehr als 2 Grad unter dem Kopf lag
+            "low_pct": round(100 * sum(r["height"] > 2 for r in near) / len(near))}
 
 
 def seen_stats(rows: list[dict]) -> dict:

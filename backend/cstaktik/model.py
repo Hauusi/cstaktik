@@ -170,6 +170,10 @@ class Duel(BaseModel):
     l_shots: int = 0
     # Sichtung (Demo-Feld approximate_spotted_by = m_bSpottedByMask, vom Spiel berechnet): Tick, ab dem der Sieger
     # den Verlierer (w_seen) bzw. der Verlierer den Sieger (l_seen) durchgehend sah. None = in der Zeit nicht gesehen.
+    w_side: float | None = None  # Fadenkreuz seitlich neben dem Kopf (Grad, Betrag)
+    l_side: float | None = None
+    w_height: float | None = None  # Fadenkreuz in der Höhe (Grad, + = unter dem Kopf)
+    l_height: float | None = None
     seen_known: bool = False  # False = Demo/Parser liefert keine Sichtung, dann sagen w_seen/l_seen nichts
     w_seen: int | None = None
     l_seen: int | None = None

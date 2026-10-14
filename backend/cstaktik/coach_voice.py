@@ -157,6 +157,9 @@ def _duel_sentence(fx: dict) -> str | None:
         parts.append("Ihr habt euch gleichzeitig gesehen.")
     if d.get("err") is not None:
         s = f"Im Moment des ersten Schusses zeigte dein Fadenkreuz {_de1(d['err'])}° neben {att}"
+        h = d.get("height")
+        if h is not None and d["err"] <= 20 and abs(h) > 2:
+            s += f" ({_de1(abs(h))}° {'unter' if h > 0 else 'über'} dem Kopf)"
         if d.get("opp_err") is not None:
             s += f", seins {_de1(d['opp_err'])}° neben dich"
         parts.append(s + ".")
@@ -459,8 +462,9 @@ def duel_reading(d: dict, pro: dict | None, min_duels: int = 15) -> str | None:
 
     err, first, hit = gap("err", True), gap("shot_first"), gap("first_hit")
     if err is not None and err <= -1.5:
-        return (f"Dein Fadenkreuz liegt im Duell weiter neben dem Kopf als bei Pros ({_de(d['err'])}° gegen "
-                f"{_de(pro['err'])}°). Vorzielen auf Kopfhöhe ist hier der größte Hebel.")
+        head = f"Dein Fadenkreuz liegt im Duell weiter neben dem Kopf als bei Pros ({_de(d['err'])}° gegen {_de(pro['err'])}°)."
+        part = _aim_part(d, pro)
+        return f"{head} {part}" if part else f"{head} Vorzielen auf Kopfhöhe ist hier der größte Hebel."
     aim_ok = err is not None and err > -1.5
     seen = _seen_reading(d, pro)
     if seen:
@@ -477,6 +481,21 @@ def duel_reading(d: dict, pro: dict | None, min_duels: int = 15) -> str | None:
                 f"{pro['first_hit']} %).")
     if aim_ok and all(g is not None and g > -8 for g in (first, hit)):
         return "Im Duell selbst bist du auf Pro-Niveau. Was dich Runden kostet, passiert eher vor dem Duell (Coach-Reiter)."
+    return None
+
+
+def _aim_part(d: dict, pro: dict, min_n: int = 10) -> str | None:
+    """Welcher Teil des Fadenkreuz-Fehlers größer ist als bei Pros: Höhe (zu tief) oder seitlich."""
+    if (d.get("aim_n") or 0) < min_n or (pro.get("aim_n") or 0) < min_n:
+        return None
+    low, plow = d.get("low_pct"), pro.get("low_pct")
+    if low is not None and plow is not None and low - plow >= 10:
+        return (f"Vor allem zu tief: In {low} % der Duelle lag es mehr als 2° unter dem Kopf (Pros {plow} %). "
+                "Fadenkreuz beim Laufen auf Kopfhöhe halten, nicht auf den Boden.")
+    side, pside = d.get("err_side"), pro.get("err_side")
+    if side is not None and pside is not None and side - pside >= 1.5:
+        return (f"Die Höhe passt, aber seitlich liegst du {_de(side)}° daneben (Pros {_de(pside)}°): Du hältst neben die "
+                "Stelle, an der er rauskommt. Fadenkreuz direkt an die Kante legen.")
     return None
 
 
