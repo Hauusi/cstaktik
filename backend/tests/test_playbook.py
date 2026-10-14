@@ -191,3 +191,32 @@ def test_nade_set_links_to_lineup(tmp_path, monkeypatch):
     (tmp_path / "a.json").write_text(json.dumps({"map": "de_mirage", "plays": [p1, {**p1, "r": 6}], "nades": nades}))
     t = TestClient(api.app).get("/playbook/de_mirage").text
     assert 'href="/lineups/de_mirage?l=lu7"' in t
+
+
+def test_report_tactics_of_this_match(tmp_path, monkeypatch):
+    from cstaktik import pipeline
+    from cstaktik.model import Player
+    from cstaktik.report import render
+
+    monkeypatch.setattr(pipeline, "PRO_DIR", tmp_path)
+    m = _match(5, _split_route(), plant_s=48)
+    m = m.model_copy(update={"players": [Player(steamid="t1", name="Ich", is_focus=True)]})
+    tac = render._tactics(m)
+    assert tac["t"][0]["name"] == "A-Split über Palace + Ramp" and tac["t"][0]["won_pct"] == 100
+    assert tac["t"][0]["pro"] is None and tac["tags"] == {5: "A-Split über Palace + Ramp"} and tac["ct"] == []
+
+
+def test_report_renders_tactics_section(tmp_path, monkeypatch):
+    from synth import build_match
+
+    from cstaktik.config import load_rules_config
+    from cstaktik.report import render
+    from cstaktik.rules import analyze
+
+    m = build_match()
+    fake = {"t": [{"name": "B-Rush über Apartments", "n": 3, "won": 1, "won_pct": 33, "rounds": [2, 4, 6],
+                   "pro": {"n": 5, "won_pct": 60, "id": "rush-B-Apartments"}}],
+            "ct": [], "tags": {2: "B-Rush über Apartments"}, "map": "de_mirage", "zones": False}
+    monkeypatch.setattr(render, "_tactics", lambda match: fake)
+    html = render.render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
+    assert "Eure Taktiken heute" in html and "Pros 60 % (5 Runden)" in html and '"tac":"B-Rush über Apartments"' in html

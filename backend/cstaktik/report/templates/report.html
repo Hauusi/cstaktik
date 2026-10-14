@@ -474,6 +474,12 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 .learn .ig { margin-top: 10px; } .learn .ig b { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
 .trainlink b { color: var(--text); }
 
+.trow2 { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.trow2 .tn b { display: block; font-size: 15px; } .trow2 .tn > span { display: block; font-size: 12.5px; color: var(--muted); }
+.trow2 .tr { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
+.rchip2 { padding: 2px 8px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; cursor: pointer; color: var(--text); }
+.trow2 .tw { font-size: 22px; font-weight: 800; } .trow2 .tw.ok { color: var(--win); } .trow2 .tw.no { color: var(--loss); }
+.rrow .rtac { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; background: var(--surface-2); color: var(--muted); }
 .cbar { margin-top: 10px; }
 .cbar .cb-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; color: var(--muted); }
 .cbar .cb-h b { color: var(--text); font-size: 16px; }
@@ -732,35 +738,21 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   </section>
   {% endif %}
 
-  {% if setups %}
-  <section class="duelcmp setups">
-    <div class="sh"><span class="t cond">Positionen und Ausführungen</span></div>
-    {% if setups.ct %}
-    <div class="lk cond">CT: wo ihr nach 0:20 steht</div>
-    {% for r in setups.ct %}
-    <div class="lrow {{ 'no' if r.deaths * 2 > r.rounds else 'ok' }}">
-      <div><b>{{ r.place }} · {{ r.who }}</b><span>{{ r.rounds }} Runden · {{ r.deaths }}x gestorben · {{ r.won }} Siege{% if r.pro_share is defined %} · Pros: {{ r.pro_share }} % der Zeit{% if r.pro_won is not none %}, {{ r.pro_won }} % Siege{% endif %}{% endif %}</span></div>
-      <div class="ldist cond">{{ (100 * r.won / r.rounds)|round|int }} %</div>
-      <button class="costgo cond" data-round="{{ r.round_list[0] }}" data-offset="20">▶</button>
+  {% if tactics %}{% set tc = tactics %}
+  <section class="duelcmp tacs">
+    <div class="sh"><span class="t cond">Eure Taktiken heute</span></div>
+    {% for side, rows, lbl in [("t", tc.t, "T-Seite"), ("ct", tc.ct, "CT-Seite: Aufstellung nach 20 s (A-Mitte-B)")] if rows %}
+    <div class="lk cond" style="margin-top:{{ '0' if loop.first else '14px' }}">{{ lbl }}</div>
+    {% for r in rows %}
+    <div class="trow2">
+      <div class="tn"><b>{{ r.name }}</b>
+        <span class="num">{{ r.n }}x · {{ r.won }} gewonnen{% if r.pro %} · Pros {{ r.pro.won_pct }} % ({{ r.pro.n }} Runden){% else %} · kein Pro-Vergleich{% endif %}</span>
+        <span class="tr">{% for n in r.rounds %}<button class="rchip2 cond" data-round="{{ n }}">R{{ n }}</button>{% endfor %}</span></div>
+      <div class="tw cond {{ 'ok' if r.won_pct >= 50 else 'no' }}">{{ r.won_pct }} %</div>
     </div>
-    {% endfor %}
-    {% if setups.ct_pro_top %}<div class="quiet" style="margin-top:6px">Pros auf CT nach 0:20 meist: {% for p in setups.ct_pro_top %}{{ p.place }} {{ p.share }} % ({{ p.won }} % Siege){% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}
-    {% endif %}
-    {% if setups.t %}
-    <div class="lk cond" style="margin-top:12px">T: eure Ausführungen gegen Pros</div>
-    {% for x in setups.t %}{% set o = x.own %}{% set q = x.pro %}
-    <div class="exe">
-      <b class="cond">{{ x.site }} · {{ o.n }}x</b>
-      <div class="dgrid num">
-        <div><span>Ankunft</span><b class="cond">{{ (o.at // 60)|int }}:{{ "%02d"|format(o.at % 60) }}</b>{% if q %}<i>Pros {{ (q.at // 60)|int }}:{{ "%02d"|format(q.at % 60) }}</i>{% endif %}</div>
-        <div><span>Spieler zusammen</span><b class="cond">{{ o.players|string|replace(".", ",") }}</b>{% if q %}<i>Pros {{ q.players|string|replace(".", ",") }}</i>{% endif %}</div>
-        <div><span>Granaten vorher</span><b class="cond">{{ o.util|string|replace(".", ",") }}</b>{% if q %}<i>Pros {{ q.util|string|replace(".", ",") }}</i>{% endif %}</div>
-        <div><span>Runden gewonnen</span><b class="cond">{{ o.won }} %</b>{% if q %}<i>Pros {{ q.won }} %</i>{% endif %}</div>
-      </div>
-    </div>
-    {% endfor %}
-    <div class="quiet" style="margin-top:6px">Ausführung = erster Zeitpunkt (5-s-Raster), an dem ein T an einem Bombsite-Ort steht. Granaten = T-Granaten, die in den 15 s davor dort gelandet sind.</div>
-    {% endif %}
+    {% endfor %}{% endfor %}
+    {% if not tc.zones and not tc.ct %}<div class="quiet" style="margin-top:6px">CT-Aufstellungen brauchen Plants auf beiden Bombsites (aus euren und den Pro-Demos dieser Map).</div>{% endif %}
+    <div class="quiet" style="margin-top:8px">Gleiche Erkennung wie im Playbook. Alle Runden dort ansehen: <a href="/playbook/{{ tc.map }}?who=ihr" style="text-decoration:underline">eure Taktiken</a> · <a href="/playbook/{{ tc.map }}" style="text-decoration:underline">Pro-Taktiken</a>.</div>
   </section>
   {% endif %}
 
@@ -1616,6 +1608,7 @@ function buildRoundList() {
     const row = el('button', 'rrow ' + (r.out || ''));
     const head = el('div', 'rh');
     head.append(el('b', 'cond', 'Runde ' + r.n), el('span', 'rs', (r.side ? r.side.toUpperCase() + ' · ' : '') + (r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '')));
+    if (r.tac) head.append(el('span', 'rtac', r.tac));
     row.appendChild(head);
     if (fs.length) {
       const ul = el('div', 'rf');

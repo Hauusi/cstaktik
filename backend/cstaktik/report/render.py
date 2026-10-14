@@ -311,6 +311,52 @@ def _setups(match: MatchData) -> dict | None:
     return {"ct": ct[:6], "ct_pro_top": top, "t": t} if ct or t else None
 
 
+def _tactics(match: MatchData) -> dict | None:
+    """Eure Taktiken und Aufstellungen dieses Matches in der Sprache des Playbooks, mit Pro-Vergleich.
+    Je T-Runde der Taktikname, je CT-Runde die Aufstellung (A-Mitte-B nach 20 s); gruppiert mit Siegen."""
+    from cstaktik import pipeline, playbook, pro
+
+    focus = match.focus_ids()
+    if not focus or not match.map_name:
+        return None
+    cfg = load_rules_config().get("playbook")
+    pros = pro.load_all(pipeline.PRO_DIR)
+    t_plays, ct_plays = playbook.plays(match, team=focus), playbook.ct_plays(match, team=focus)
+    me = {"map": match.map_name, "plays": t_plays, "ct_plays": ct_plays}
+    centers = playbook.site_centers(pros + [me], match.map_name)
+    pro_t = {t["name"]: t for t in playbook.build(pros, match.map_name, cfg)["tactics"]}
+    pro_ct = {s["key"]: s for s in playbook.ct_build(pros, match.map_name, centers, cfg)["setups"]}
+    units = (cfg or {}).get("zone_units", playbook.CT_DEFAULTS["zone_units"])
+    tags, t_rows, ct_rows = {}, {}, {}
+    for p in t_plays:
+        k = playbook.classify(p, cfg)
+        tags[p["r"]] = k["name"]
+        row = t_rows.setdefault(k["name"], {"name": k["name"], "style": k["style"], "n": 0, "won": 0, "rounds": []})
+        row["n"] += 1
+        row["won"] += p["won"]
+        row["rounds"].append(p["r"])
+    if len(centers) >= 2:
+        for p in ct_plays:
+            z = [playbook.zone(v[0], v[1], centers, units) for v in p["pos"].values()]
+            key = f"{z.count('A')}-{z.count('M')}-{z.count('B')}"
+            a, b = z.count("A"), z.count("B")
+            name = f"Stack auf {'A' if a >= 4 else 'B'}" if max(a, b) >= 4 else key
+            tags[p["r"]] = f"CT {name}"
+            row = ct_rows.setdefault(key, {"name": name, "key": key, "n": 0, "won": 0, "rounds": []})
+            row["n"] += 1
+            row["won"] += p["won"]
+            row["rounds"].append(p["r"])
+    for rows, ref, k in ((t_rows, pro_t, "name"), (ct_rows, pro_ct, "key")):
+        for row in rows.values():
+            row["won_pct"] = round(100 * row["won"] / row["n"])
+            q = ref.get(row[k])
+            row["pro"] = {"n": q["n"], "won_pct": q["won_pct"], "id": q["id"]} if q else None
+    if not t_rows and not ct_rows:
+        return None
+    by = lambda d: sorted(d.values(), key=lambda r: (-r["n"], -r["won_pct"]))  # noqa: E731
+    return {"t": by(t_rows), "ct": by(ct_rows), "tags": tags, "map": match.map_name, "zones": len(centers) >= 2}
+
+
 def _util_cmp(match: MatchData) -> dict:
     from cstaktik import pipeline, pro, utility_cmp
 
@@ -404,6 +450,10 @@ def build_context(
     # "</" escapen, damit eingebettetes JSON das <script>-Tag nicht schließen kann
     map_label_s = (match.map_name or "?").removeprefix("de_").capitalize()
     payload["debrief"] = _debrief_data(match, all_lessons, auftraege, coach_voice.intro(won, lost, map_label_s, lessons))
+    tac_now = _tactics(match)
+    for ro in payload["rounds"]:  # Taktik-Etikett je Runde (Runden-Reiter)
+        if not ro.get("pro") and tac_now and ro.get("n") in tac_now["tags"]:
+            ro["tac"] = tac_now["tags"][ro["n"]]
     data_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     return {
         "match": match,
@@ -422,7 +472,7 @@ def build_context(
         "focus": None,
         "duel_cmp": _duel_cmp(match),
         "util_cmp": _util_cmp(match),
-        "setups": _setups(match),
+        "tactics": tac_now,
         "auftraege": auftraege,
         "checks": [a for a in auftraege if a.get("check")],
         "goal_cfg": load_rules_config()["goals"],
