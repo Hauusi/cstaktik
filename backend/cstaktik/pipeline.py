@@ -292,6 +292,19 @@ def goal_kw(config: dict) -> dict:
             "pool_matches": g.get("pool_matches", 5), "min_count": g.get("min_count", 3)}
 
 
+def _current_match(h: dict, focus: set[str], config: dict) -> MatchData:
+    """Match aus dem Cache; ist der Cache von einer älteren Version (z. B. ohne Blendungen oder Wurfdaten) und liegt
+    die Demo noch in data/demos_raw, wird sie neu gelesen. Sonst bleibt es beim alten Cache."""
+    cache = cache_file(h["id"])
+    demo = DEMOS_DIR / str(h.get("source_file") or "")
+    if (cache is None or not cache.name.endswith(f".v{CACHE_SCHEMA}.json")) and h.get("source_file") and demo.exists():
+        try:
+            return load_any(demo, focus, config)
+        except Exception:  # noqa: BLE001 - kaputte Demo: alter Cache ist besser als kein Report
+            pass
+    return load_match(cache)
+
+
 def rerender_reports(maps: set[str] | None = None, progress: Progress | None = None) -> int:
     """Baut die Reports eigener Matches aus dem Cache neu (z. B. nach neuen Pro-Demos).
 
@@ -327,7 +340,7 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
 
     for i, h in enumerate(todo):
         report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
-        match = load_match(cache_file(h["id"]))
+        match = _current_match(h, focus, config)
         if focus:  # wie load_any: Fokus aus der aktuellen Config, sonst aus dem Cache
             for p in match.players:
                 p.is_focus = p.steamid in focus

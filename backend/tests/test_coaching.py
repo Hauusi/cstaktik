@@ -212,3 +212,21 @@ def test_old_counting_is_recomputed_on_next_upload(tmp_path, monkeypatch):
     st = coaching.load(pipeline.COACHING_FILE)
     assert st["count_version"] == coaching.COUNT_VERSION
     assert all((s.get("focus") or {}).get("baseline") != 99.0 for s in st["players"].values())
+
+
+def test_rerender_reparses_demo_when_cache_is_old(tmp_path, monkeypatch):
+    from cstaktik import pipeline
+    from cstaktik.parser.loader import save_match
+
+    m = build_match()
+    monkeypatch.setattr(pipeline, "DEMOS_DIR", tmp_path)
+    pipeline.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    save_match(m, pipeline.CACHE_DIR / "x.v1.json")  # alter Cache
+    (tmp_path / "x.dem").write_bytes(b"demo")
+    seen = []
+    monkeypatch.setattr(pipeline, "load_any", lambda path, focus, config: seen.append(path.name) or m)
+    pipeline._current_match({"id": "x", "source_file": "x.dem"}, set(), {})
+    assert seen == ["x.dem"]
+    seen.clear()
+    pipeline._current_match({"id": "x", "source_file": "fehlt.dem"}, set(), {})  # Demo weg: alter Cache
+    assert seen == []
