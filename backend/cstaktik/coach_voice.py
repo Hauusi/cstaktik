@@ -433,6 +433,37 @@ def strengths(now: dict[str, dict], names: dict[str, str], past: list[dict], min
     return out
 
 
+def duel_reading(d: dict, pro: dict | None, min_duels: int = 15) -> str | None:
+    """Ein Satz, was die Duell-Werte zusammen bedeuten (wie ein Coach, der die Zahlen verbindet). Nur bei klaren
+    Abständen zu den Pros (gleiche Grenzen wie die Balken) und genug Duellen; sonst None."""
+    if not d or (d.get("n") or 0) < min_duels or not pro:
+        return None
+
+    def gap(key: str, lower_better: bool = False) -> float | None:
+        if d.get(key) is None or pro.get(key) is None:
+            return None
+        return (pro[key] - d[key]) if lower_better else (d[key] - pro[key])  # > 0 = besser als Pros
+
+    err, first, hit = gap("err", True), gap("shot_first"), gap("first_hit")
+    if err is not None and err <= -1.5:
+        return (f"Dein Fadenkreuz liegt im Duell weiter neben dem Kopf als bei Pros ({_de(d['err'])}° gegen "
+                f"{_de(pro['err'])}°). Vorzielen auf Kopfhöhe ist hier der größte Hebel.")
+    aim_ok = err is not None and err > -1.5
+    if aim_ok and first is not None and first <= -8:
+        return (f"Dein Zielen ist auf Pro-Niveau, aber du schießt seltener zuerst ({d['shot_first']} % gegen "
+                f"{pro['shot_first']} %): Du siehst den Gegner später. Der Hebel ist Position und Timing, nicht Aim.")
+    if aim_ok and hit is not None and hit <= -8:
+        if (d.get("moving_n") or 0) >= 10 and (d.get("moving_pct") or 0) >= 30:
+            return (f"Fadenkreuz passt, aber die erste Kugel trifft seltener ({d['first_hit']} % gegen "
+                    f"{pro['first_hit']} %). {d['moving_pct']} % deiner ersten Schüsse kamen aus der Bewegung: "
+                    "erst stoppen, dann schießen.")
+        return (f"Fadenkreuz passt, aber die erste Kugel trifft seltener ({d['first_hit']} % gegen "
+                f"{pro['first_hit']} %).")
+    if aim_ok and all(g is not None and g > -8 for g in (first, hit)):
+        return "Im Duell selbst bist du auf Pro-Niveau. Was dich Runden kostet, passiert eher vor dem Duell (Coach-Reiter)."
+    return None
+
+
 def praise(findings: list[Finding]) -> list[str]:
     """Lob je Spieler aus den positiven Befunden ("gut"), z. B. "Bruder: 3x Trade gegeben, Clutch (R12)"."""
     per: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))

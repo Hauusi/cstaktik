@@ -247,3 +247,17 @@ def test_utility_issue_only_for_flash_or_molotov():
     k.victim_inventory = ["AK-47", "Flashbang"]
     f = next(f for f in death_review.run(m, cfg) if f.tick == k.tick)
     assert "Utility nicht genutzt" in f.evidence["f"]["issues"] and "Flash" in f.tip + str(f.evidence["f"])
+
+
+def test_duel_reading_connects_the_numbers():
+    from cstaktik.coach_voice import duel_reading
+
+    pro = {"err": 4.9, "shot_first": 59, "first_hit": 30, "react": 250}
+    me = {"n": 36, "err": 5.1, "shot_first": 50, "first_hit": 29}  # Werte aus einem echten Match
+    assert duel_reading(me, pro).startswith("Dein Zielen ist auf Pro-Niveau, aber du schießt seltener zuerst (50 % gegen 59 %)")
+    assert duel_reading({**me, "err": 8.0}, pro).startswith("Dein Fadenkreuz liegt im Duell weiter neben dem Kopf")
+    moving = {**me, "shot_first": 58, "first_hit": 18, "moving_pct": 40, "moving_n": 20}
+    assert "40 % deiner ersten Schüsse kamen aus der Bewegung" in duel_reading(moving, pro)
+    assert duel_reading({**me, "shot_first": 57}, pro).startswith("Im Duell selbst bist du auf Pro-Niveau")
+    assert duel_reading({**me, "n": 8}, pro) is None  # zu wenige Duelle
+    assert duel_reading(me, None) is None

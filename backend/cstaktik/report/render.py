@@ -328,7 +328,12 @@ def _duel_cmp(match: MatchData) -> dict | None:
             rows[sid] = {"name": match.name_of(sid), **duels.stats(views)}
     if not rows:
         return None
-    return {"players": list(rows.values()), "pro": pro.duel_stats(pro.load_all(pipeline.PRO_DIR))}
+    from cstaktik.coach_voice import duel_reading
+
+    pr = pro.duel_stats(pro.load_all(pipeline.PRO_DIR))
+    for row in rows.values():
+        row["reading"] = duel_reading(row, pr)
+    return {"players": list(rows.values()), "pro": pr}
 
 
 def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], intro: list[str]) -> dict:

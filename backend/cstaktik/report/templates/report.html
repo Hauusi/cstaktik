@@ -482,20 +482,22 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 .cbar .cb-m.ok { background: var(--win); } .cbar .cb-m.no { background: var(--loss); }
 .cbar .cb-p { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #9db4e0; }
 .cbar .cb-l { margin-top: 2px; font-size: 11.5px; color: #9db4e0; }
+.cbar .cb-n { font-style: normal; font-size: 11.5px; color: var(--faint); }
+.dread { margin: 8px 0 4px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; line-height: 1.45; }
 </style>
 </head>
 <body>
-{% macro cmpbar(label, mine, pro, unit, lower_better=false, maxv=100, tol=8) -%}
+{% macro cmpbar(label, mine, pro, unit, lower_better=false, maxv=100, tol=8, n=none) -%}
 {%- if mine is not none -%}
 {%- set top = ([mine, pro or 0, maxv]|max) * (1.15 if maxv < 100 or unit != " %" else 1) -%}
 {#- Farbe nur bei klarem Abstand (tol); kleinere Unterschiede liegen im üblichen Schwanken -#}
 {%- set diff = none if pro is none else ((pro - mine) if lower_better else (mine - pro)) -%}
-{%- set good = none if diff is none or (diff|abs) < tol else diff > 0 -%}
+{%- set good = none if diff is none or (diff|abs) < tol or (n is not none and n < 10) else diff > 0 -%}
 <div class="cbar">
-  <div class="cb-h"><span>{{ label }}</span><b class="num">{{ mine|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}</b></div>
+  <div class="cb-h"><span>{{ label }}{% if n is not none %} <i class="cb-n">({{ n }} Duelle)</i>{% endif %}</span><b class="num">{{ mine|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}</b></div>
   <div class="cb-t"><div class="cb-m {{ 'ok' if good else 'no' if good is not none else '' }}" style="width:{{ [100 * mine / top, 100]|min|round(1) }}%"></div>
     {%- if pro is not none %}<div class="cb-p" style="left:{{ [100 * pro / top, 100]|min|round(1) }}%" title="Pros {{ pro }}{{ unit }}"></div>{% endif %}</div>
-  {%- if pro is not none %}<div class="cb-l num">Pros {{ pro|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}{{ " · etwa gleich" if good is none else (" · besser" if good else " · schlechter") }}{{ " (weniger ist besser)" if lower_better }}</div>{% endif %}
+  {%- if pro is not none %}<div class="cb-l num">Pros {{ pro|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}{{ (" · zu wenige Fälle" if n is not none and n < 10 else " · etwa gleich") if good is none else (" · besser" if good else " · schlechter") }}{{ " (weniger ist besser)" if lower_better }}</div>{% endif %}
 </div>
 {%- endif -%}
 {%- endmacro %}
@@ -660,10 +662,11 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     {% for d in duel_cmp.players %}
     <div class="dp">
       <div class="who cond">{{ d.name }} · {{ d.n }} Duelle · {{ d.won }} % gewonnen{% if d.n < 10 %} · wenige Duelle, Werte schwanken{% endif %}</div>
-      {{ cmpbar("Fadenkreuz daneben", d.err, pr.err if pr else none, "°", true, 20, 1.5) }}
-      {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60) }}
-      {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8) }}
-      {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8) }}
+      {% if d.reading %}<div class="dread">{{ d.reading }}</div>{% endif %}
+      {{ cmpbar("Fadenkreuz daneben", d.err, pr.err if pr else none, "°", true, 20, 1.5, d.err_n) }}
+      {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8, d.first_n) }}
+      {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8, d.hit_n) }}
+      {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60, d.react_n) }}
     </div>
     {% endfor %}
     <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe genähert).{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>
@@ -673,12 +676,12 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   {% if util_cmp and (util_cmp.lineups or util_cmp.flash or util_cmp.pre is not none) %}{% set u = util_cmp %}
   <section class="duelcmp utilcmp">
     <div class="sh"><span class="t cond">Utility{% if u.lineups or u.flash_pro or u.pre_pro is not none %} gegen Pros{% endif %}</span></div>
-    <div class="dgrid num">
-      {% if u.flash and u.has_blinds %}<div><span>Flashes, die wirken</span><b class="cond">{{ u.flash.good }}/{{ u.flash.n }}</b>{% if u.flash_pro %}<i>Pros {{ u.flash_pro.good_pct }} %</i>{% else %}<i>{{ u.flash.good_pct }} %</i>{% endif %}</div>
-      <div><span>Gegner blind je Flash</span><b class="cond">{{ u.flash.avg_enemy_s|string|replace(".", ",") }} s</b>{% if u.flash_pro %}<i>Pros {{ u.flash_pro.avg_enemy_s|string|replace(".", ",") }} s</i>{% endif %}</div>{% endif %}
-      {% if u.pre is not none %}<div><span>Utility vor dem 1. Duell</span><b class="cond">{{ u.pre|string|replace(".", ",") }}</b>{% if u.pre_pro is not none %}<i>Pros {{ u.pre_pro|string|replace(".", ",") }}</i>{% else %}<i>je Spieler und Runde</i>{% endif %}</div>{% endif %}
-      {% if u.flash and u.flash.team %}<div><span>Team geflasht</span><b class="cond red">{{ u.flash.team }}x</b><i>eigene Leute ≥ 1 s blind</i></div>{% endif %}
-    </div>
+    {% if u.flash and u.has_blinds %}
+    {{ cmpbar("Flashes, die wirken", u.flash.good_pct, u.flash_pro.good_pct if u.flash_pro else none, " %", false, 100, 10, u.flash.n) }}
+    {{ cmpbar("Gegner blind je Flash", u.flash.avg_enemy_s, u.flash_pro.avg_enemy_s if u.flash_pro else none, " s", false, 3, 0.4) }}
+    {% if u.flash.team %}<div class="small" style="margin-top:8px;color:var(--loss)">{{ u.flash.team }}x eigene Leute mindestens 1 s geblendet.</div>{% endif %}
+    {% endif %}
+    {% if u.pre is not none %}{{ cmpbar("Utility vor dem ersten Duell (je Spieler und Runde)", u.pre, u.pre_pro, "", false, 2, 0.2) }}{% endif %}
     {% if u.lineups %}
     <div class="lk cond" style="margin-top:12px">Eure Smokes und Mollys gegen die Pro-Stelle</div>
     {% for n in u.lineups[:8] %}

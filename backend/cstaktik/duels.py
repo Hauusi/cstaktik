@@ -118,7 +118,14 @@ def stats(rows: list[dict]) -> dict:
     first = [r["react"] == 0 for r in rows if r.get("react") is not None]
     # nur Duelle, in denen der Gegner zuerst schoss; über 1,5 s meist Schuss auf einen anderen Gegner
     reacts = [r["react"] for r in rows if r.get("react") and r["react"] <= 1500]
+    errs = [r["err"] for r in rows if r.get("err") is not None]
+    speeds = [r["speed"] for r in rows if r.get("speed") is not None]
     return {"n": len(rows), "err": med("err"), "react": round(statistics.median(reacts)) if reacts else None,
             "first_hit": round(100 * sum(hits) / len(hits)) if hits else None,
             "shot_first": round(100 * sum(first) / len(first)) if first else None,
-            "won": round(100 * sum(r["won"] for r in rows) / len(rows)) if rows else None}
+            "won": round(100 * sum(r["won"] for r in rows) / len(rows)) if rows else None,
+            # Fallzahlen je Wert (jeder Wert stützt sich auf andere Duelle)
+            "err_n": len(errs), "react_n": len(reacts), "hit_n": len(hits), "first_n": len(first),
+            # erster Schuss aus der Bewegung (über 80 Units/s), nur wo das Tempo bekannt ist
+            "moving_pct": round(100 * sum(v > 80 for v in speeds) / len(speeds)) if speeds else None,
+            "moving_n": len(speeds)}
