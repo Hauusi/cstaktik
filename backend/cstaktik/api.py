@@ -550,8 +550,12 @@ def _kabine(hist: list[dict], map_name: str) -> dict | None:
         from collections import Counter
 
         top = Counter(q["place"] for q in pts if q["place"]).most_common(1)
+        from cstaktik import mapbook
+
+        angles = {side: mapbook.angles(hist, map_name, a["sid"], side)["killer_top"][:1] for side in ("ct", "t")}
         players.append({**a, "color": colors[i % len(colors)], "points": pts,
-                        "top_place": top[0] if top and top[0][1] >= 2 else None})
+                        "top_place": top[0] if top and top[0][1] >= 2 else None,
+                        "angles": {s.upper(): v[0] for s, v in angles.items() if v}})
     if img:
         for pl in players:
             for q in pl["points"]:

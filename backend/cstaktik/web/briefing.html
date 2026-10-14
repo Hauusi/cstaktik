@@ -33,6 +33,7 @@
   <div class="ktitle">{{ a.title }}</div>
   <div class="kmantra">„{{ a.mantra }}“</div>
   <div class="kline"><b>Im Match:</b> {{ a.in_game }}</div>
+  {% for side, k in a.angles.items() %}<div class="kline"><b>{{ side }}: meist erschossen aus {{ k.place }}</b> ({{ k.n }}x, {{ k.share }} % deiner {{ side }}-Tode hier). Dorthin vorzielen.</div>{% endfor %}
   {% if a.top_place %}<div class="kline"><b>Achtung in {{ a.top_place[0] }}:</b> dort {{ a.top_place[1] }} deiner Szenen zu diesem Auftrag auf {{ b.label }}.</div>{% endif %}
   {% if a.points %}<div class="kline muted">{{ a.points|length }} Szene{{ "n" if a.points|length != 1 }} auf {{ b.label }}, Punkte auf der Karte.</div>{% endif %}
   <div class="kline muted">Vorher geübt? {{ a.routine.title }} ({{ a.routine.minutes }} Min){% if a.drills %}, bisher {{ a.drills }}x{% endif %}.</div>
