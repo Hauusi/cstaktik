@@ -224,10 +224,12 @@ def _pro_line(ev: dict) -> str | None:
     if not best or best not in rates:
         return None
     won, n = rates[best]
-    line = f"Pros in dieser Lage: höchste Siegquote mit {ACTION_SHORT[best]} ({round(100 * won / n)} % von {n} Fällen)."
+    lage = "in ähnlicher Lage" if ev.get("pro_coarse") else "in dieser Lage"
+    src = f", aus {ev['pro_rounds']} Pro-Runden" if ev.get("pro_rounds") else ""
+    line = f"Pros {lage}: höchste Siegquote mit {ACTION_SHORT[best]} ({won} von {n} gewonnen{src})."
     if mine and mine != best and mine in rates:
         w2, n2 = rates[mine]
-        line += f" {ACTION_SHORT[mine].capitalize()} wie du: {round(100 * w2 / n2)} %."
+        line += f" {ACTION_SHORT[mine].capitalize()} wie du: {w2} von {n2}."
     return line
 
 
@@ -403,6 +405,38 @@ def intro(won: int, lost: int, map_label: str, lessons: list[dict]) -> list[str]
         if main.get("cost") and main["cost"] >= 30:
             out.append(f"Das hat euch rechnerisch etwa {_de(main['cost'] / 100)} Runden gekostet"
                        + (" (grob geschätzt, wenige Vergleichsrunden)." if main.get("rough") else "."))
+    return out
+
+
+def strengths(now: dict[str, dict], names: dict[str, str], past: list[dict], min_duels: int = 15,
+              min_matches: int = 2) -> list[str]:
+    """Persönliche Stärke je Spieler: ein Duell-Wert, der klar besser ist als sein eigener Schnitt (Median) der
+    letzten Matches. ``now``: sid -> duels.stats() dieses Matches. Nur mit genug Duellen und Vergleichs-Matches."""
+    import statistics
+
+    out = []
+    for sid, d in now.items():
+        if not d or (d.get("n") or 0) < min_duels:
+            continue
+        rows = [(h.get("duel_stats") or {}).get(sid) for h in past[-5:]]
+        rows = [r for r in rows if r and (r.get("n") or 0) >= 5]
+        if len(rows) < min_matches:
+            continue
+        cand = []
+        for key, label, unit, better, gap in (("first_hit", "Erste Kugel trifft", " %", 1, 8),
+                                               ("won", "Duelle gewonnen", " %", 1, 8),
+                                               ("err", "Fadenkreuz im Duell", "°", -1, 2.0)):
+            vals = [r[key] for r in rows if r.get(key) is not None]
+            if d.get(key) is None or len(vals) < min_matches:
+                continue
+            med = statistics.median(vals)
+            diff = (d[key] - med) * better
+            if diff >= gap:
+                fmt = (lambda x: f"{x:.0f}") if unit == " %" else _de  # Prozent ganz, Grad mit Komma
+                cand.append((diff / gap, f"{names.get(sid, sid)}: {label} {fmt(d[key])}{unit} ({d['n']} Duelle), "
+                                         f"dein Schnitt der letzten {len(vals)} Matches {fmt(med)}{unit}."))
+        if cand:
+            out.append(max(cand)[1])
     return out
 
 

@@ -359,6 +359,12 @@ def normalize_focus(fc: dict | None) -> list[dict]:
     return [{**v, "sid": sid} for sid, v in sorted(fc.items(), key=lambda kv: kv[1].get("name", ""))]
 
 
+def _duel_now(match: MatchData) -> dict:
+    from cstaktik.history import duel_stats
+
+    return duel_stats(match)
+
+
 def _trade_units() -> float:
     return load_rules_config()["rules"]["death_review"]["trade_distance_units"]
 
@@ -366,7 +372,7 @@ def _trade_units() -> float:
 def build_context(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
     pro_clips: list[dict] | None = None, memory: dict | None = None, focus: dict | None = None,
-    recur: tuple | None = None,
+    recur: tuple | None = None, past: list[dict] | None = None,
 ) -> dict:
     from cstaktik.coach import diagnose
 
@@ -406,7 +412,8 @@ def build_context(
         "checks": [a for a in auftraege if a.get("check")],
         "teach": TEACH,
         "bright": {lid: bright_spots(match, lid, _trade_units()) for lid in {l["id"] for l in lessons[:1]}},
-        "praise": coach_voice.praise(result.findings),
+        "praise": coach_voice.praise(result.findings) + coach_voice.strengths(
+            _duel_now(match), {p.steamid: p.name for p in match.players}, past or []),
         "goal_check": goal_check,
         "mech_cfg": load_rules_config()["mechanics"],
         "n_findings": sum(1 for f in result.findings if f.severity != "gut"),
@@ -420,19 +427,19 @@ def build_context(
 def render_report(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
     pro_clips: list[dict] | None = None, memory: dict | None = None, focus: dict | None = None,
-    recur: tuple | None = None,
+    recur: tuple | None = None, past: list[dict] | None = None,
 ) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
     return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check, pro_clips,
-                                                                  memory, focus, recur))
+                                                                  memory, focus, recur, past))
 
 
 def write_report(
     match: MatchData, result: AnalysisResult, out: Path, maps_dirs: list[Path] | None = None,
     goal_check: dict | None = None, pro_clips: list[dict] | None = None, memory: dict | None = None,
-    focus: dict | None = None, recur: tuple | None = None,
+    focus: dict | None = None, recur: tuple | None = None, past: list[dict] | None = None,
 ) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips, memory, focus, recur),
+    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips, memory, focus, recur, past),
                    encoding="utf-8")
     return out

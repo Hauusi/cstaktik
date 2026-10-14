@@ -453,14 +453,16 @@ def compare(pro: list[dict], map_name: str | None, side: str, own: int, enemy: i
         return None
     by = []
     for act in ACTIONS:
-        xs = [r for _i, r in use if r[4] == act]
+        xs = [(i, r) for i, r in use if r[4] == act]
         if xs:
-            by.append({"act": act, "n": len(xs), "won": sum(1 for r in xs if r[5])})
-    # "Beste" Aktion nur, wenn mindestens zwei Aktionen mit je 3+ Fällen verglichen werden können
-    cands = [b for b in by if b["n"] >= 3]
+            # mehrere Pros derselben Runde sind keine unabhängigen Fälle: Runden extra zählen
+            by.append({"act": act, "n": len(xs), "won": sum(1 for _i, r in xs if r[5]),
+                       "rounds": len({(i, r[6]) for i, r in xs})})
+    # "Beste" Aktion nur, wenn mindestens zwei Aktionen aus je 3+ verschiedenen Runden verglichen werden können
+    cands = [b for b in by if b["rounds"] >= 3]
     best = max(cands, key=lambda b: b["won"] / b["n"]) if len(cands) >= 2 else None
     return {"n": len(use), "by": by, "coarse": coarse, "best": best["act"] if best else None,
-            "demos": len({i for i, _r in use}), "rows": use}
+            "demos": len({i for i, _r in use}), "rounds": len({(i, r[6]) for i, r in use}), "rows": use}
 
 
 def compare_text(cmp: dict, side: str, own: int, enemy: int, planted: bool, mine: str | None) -> str:
@@ -468,7 +470,8 @@ def compare_text(cmp: dict, side: str, own: int, enemy: int, planted: bool, mine
     if cmp["coarse"]:
         lage += f" (ähnlich: gleiche Differenz {own - enemy:+d})"
     parts = [f"{ACTION_DE[b['act']]} {b['n']}x ({round(100 * b['won'] / b['n'])} % Siege)" for b in cmp["by"]]
-    text = f"Pros in dieser Lage ({lage}), {cmp['n']} Fälle aus {cmp['demos']} Demo{'s' if cmp['demos'] != 1 else ''}: " \
+    text = f"Pros in dieser Lage ({lage}), {cmp['n']} Fälle aus {cmp.get('rounds', '?')} Runden in {cmp['demos']} " \
+           f"Demo{'s' if cmp['demos'] != 1 else ''}: " \
            + ", ".join(parts) + "."
     if mine:
         text += f" Du: {ACTION_DE.get(mine, mine)}."
@@ -490,6 +493,8 @@ def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict], min_n
         if cmp is None:
             continue
         f.evidence["pro_rates"] = {b["act"]: [b["won"], b["n"]] for b in cmp["by"]}
+        f.evidence["pro_coarse"] = cmp["coarse"]
+        f.evidence["pro_rounds"] = cmp.get("rounds")
         f.evidence["pro_lage"] = compare_text(cmp, side, snap["own"], snap["enemy"], snap["planted"],
                                               f.evidence.get("aktion"))
         if cmp["best"]:

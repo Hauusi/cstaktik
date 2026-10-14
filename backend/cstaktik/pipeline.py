@@ -265,7 +265,7 @@ def run(
     from cstaktik.coach_voice import recurrence
 
     out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"], pro_clips=clips,
-                       recur=recurrence(past),
+                       recur=recurrence(past), past=past,
                        memory=mem, focus=summary["focus_check"])
     report("Fertig", 1.0)
     return out
@@ -331,7 +331,7 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         prev = history.previous(history.load_all(HISTORY_DIR), h)
         mem = coach_voice.memory(prev, h["lessons"], h.get("rounds") or 0)
         write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips,
-                     recur=coach_voice.recurrence(todo[:i]),
+                     recur=coach_voice.recurrence(todo[:i]), past=todo[:i],
                      memory=mem, focus=h.get("focus_check"))
         done += 1
     if rebuild is not None and done:

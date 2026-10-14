@@ -206,3 +206,13 @@ def test_why_follows_the_data_not_assumed_intent():
     w = _why("no_shot_close", {**fx, "duel": {"err": 4.0}}, held, "gehalten")
     assert w.startswith("Dein Fadenkreuz lag richtig (4,0° neben ihm)")
     assert _why("no_shot_close", fx, {"kind": "bewegt"}, "Richtung Gegner") is None  # allgemeiner Satz passt
+
+
+def test_strengths_against_own_baseline_with_n():
+    from cstaktik.coach_voice import strengths
+
+    past = [{"duel_stats": {"a": {"n": 20, "first_hit": 40, "won": 50, "err": 8.0}}} for _ in range(3)]
+    s = strengths({"a": {"n": 22, "first_hit": 55, "won": 52, "err": 7.5}}, {"a": "Ich"}, past)
+    assert s == ["Ich: Erste Kugel trifft 55 % (22 Duelle), dein Schnitt der letzten 3 Matches 40 %."]
+    assert strengths({"a": {"n": 9, "first_hit": 90}}, {"a": "Ich"}, past) == []  # zu wenige Duelle
+    assert strengths({"a": {"n": 22, "first_hit": 55}}, {"a": "Ich"}, past[:1]) == []  # zu wenig Vergleich

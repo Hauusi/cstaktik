@@ -118,13 +118,13 @@ def test_pro_decisions_and_compare_by_situation():
     assert all(len(r) == 9 and r[0] in ("ct", "t") for r in rows)
 
     # handgebaut: CT 4 gegen 5 ohne Bombe: 6x gehalten (4 Siege), 4x Richtung Gegner (1 Sieg)
-    dec = [["ct", 4, 5, 0, "gehalten", i < 4, 1, 0, "p"] for i in range(6)] + \
-          [["ct", 4, 5, 0, "Richtung Gegner", i < 1, 1, 0, "p"] for i in range(4)]
+    dec = [["ct", 4, 5, 0, "gehalten", i < 4, i, 0, "p"] for i in range(6)] + \
+          [["ct", 4, 5, 0, "Richtung Gegner", i < 1, 10 + i, 0, "p"] for i in range(4)]
     pro = [{"id": "a", "map": "de_synth", "decisions": dec}]
     cmp = compare(pro, "de_synth", "ct", 4, 5, False, min_n=8)
     assert cmp["best"] == "gehalten" and cmp["n"] == 10 and not cmp["coarse"]
     assert compare_text(cmp, "ct", 4, 5, False, "Richtung Gegner") == (
-        "Pros in dieser Lage (CT, 4 gegen 5, Bombe nicht gelegt), 10 Fälle aus 1 Demo: Position gehalten 6x "
+        "Pros in dieser Lage (CT, 4 gegen 5, Bombe nicht gelegt), 10 Fälle aus 10 Runden in 1 Demo: Position gehalten 6x "
         "(67 % Siege), Richtung Gegner 4x (25 % Siege). Du: Richtung Gegner.")
     assert compare(pro, "de_other", "ct", 4, 5, False) is None
 
@@ -145,8 +145,9 @@ def test_pro_tip_and_situation_clip():
     pm = build_match(focus=())
     pm.source_sha256 = "pm1"
     rnd = next(r for r in pm.rounds if r.winner == "ct")
-    dec = [["ct", 4, 5, 0, "gehalten", True, rnd.num, rnd.freeze_end_tick + 15 * TR, MATES[2]] for _ in range(6)] + \
-          [["ct", 4, 5, 0, "Richtung Gegner", i < 1, 1, 0, "p"] for i in range(4)]
+    dec = [["ct", 4, 5, 0, "gehalten", True, rnd.num, rnd.freeze_end_tick + 15 * TR, MATES[2]]] + \
+          [["ct", 4, 5, 0, "gehalten", True, 100 + i, 0, "p"] for i in range(5)] + \
+          [["ct", 4, 5, 0, "Richtung Gegner", i < 1, 200 + i, 0, "p"] for i in range(4)]
     pro = [{"id": "pm1", "map": "de_synth", "decisions": dec}]
     m = _match(moving_at_death=True)
     m.map_name = pm.map_name = "de_synth"
