@@ -489,6 +489,11 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 .cpair > div { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
 .cpair .cmeter { margin: 0; } .cpair b { text-align: right; color: var(--text); }
 .cmeter.won > span { background: var(--win) !important; }
+
+.achart { display: block; width: 100%; height: auto; margin-top: 12px; }
+.achart rect.ok { fill: var(--win); } .achart rect.no { fill: var(--loss); } .achart rect.na { fill: var(--faint); }
+.achart line.goal { stroke: var(--text); stroke-width: 1.5; } .achart line.base { stroke: var(--muted); stroke-dasharray: 4 4; }
+.achart .lbl { fill: var(--muted); font-size: 10px; text-anchor: middle; } .achart .lbl.end { text-anchor: end; }
 </style>
 </head>
 <body>
@@ -538,6 +543,9 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       <div class="who cond">{{ a.name }}</div>
       <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Zu wenig Runden" if c.met is none else "Nicht geschafft" }}</div></div>
       {% if a.focus and not a.new %}<div class="mantra cond" style="font-size:17px;margin-top:4px">„{{ teach[a.focus.lesson].mantra }}“</div>{% endif %}
+      {% if a.focus and a.focus.matches|length > 1 %}{% with a = a.focus %}{% include "auftrag_chart.html" %}{% endwith %}
+      <div class="num" style="margin-top:6px;font-size:13.5px;color:var(--muted)">Heute <b style="color:var(--text)">{{ c.rate|string|replace(".", ",") }}</b> pro 10 Runden · {{ c.count }}x in {{ c.rounds }} Runden{% if c.drills is defined and c.drills is not none %} · vorher {{ c.drills }}x geübt{% endif %}</div>
+      {% else %}
       {% set top = [c.rate, c.target, c.baseline or 0]|max * 1.15 or 1 %}
       <div class="rmeter" aria-label="Rate gegen Ziel">
         <div class="rbar {{ 'ok' if c.met else 'no' if c.met is not none else '' }}" style="width:{{ (100 * c.rate / top)|round(1) }}%"></div>
@@ -545,6 +553,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       </div>
       <div class="rlegend num"><b>{{ c.rate|string|replace(".", ",") }}</b> pro 10 Runden · {{ c.count }}x in {{ c.rounds }} Runden{% if c.drills is defined and c.drills is not none %} · vorher {{ c.drills }}x geübt{% endif %}
         <span class="sdots">{% for i in range(c.need) %}<i class="{{ 'on' if i < c.streak }}"></i>{% endfor %}</span></div>
+      {% endif %}
       {% if a.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel, zusammen {{ c.streak_rounds }} Runden. Das sitzt.</div>
       {% elif c.met is none %}<div class="anote">Zu wenig Runden gespielt, zählt nicht.</div>
       {% elif c.met and c.streak >= c.need %}<div class="anote">Erst {{ c.streak_rounds }} von {{ c.need_rounds }} Runden: noch ein Match zur Bestätigung.</div>{% endif %}

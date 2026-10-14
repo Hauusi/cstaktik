@@ -13,4 +13,4 @@
     {% endfor %}
     {% if not ms %}<text x="150" y="40" class="lbl">noch kein Match seit dem Auftrag</text>{% endif %}
   </svg>
-  <div class="small muted num">Fehler pro 10 Runden je Match · {{ goal_cfg.done_after or 2 }}x in Folge unter dem Ziel = gemeistert</div>
+  <div class="num" style="font-size:12.5px;color:var(--muted)">Fehler pro 10 Runden je Match · {{ goal_cfg.done_after or 2 }}x in Folge unter dem Ziel = gemeistert</div>
