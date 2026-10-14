@@ -561,10 +561,13 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <div class="nf">
       <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
       <div class="atitle cond">{{ nf.title }}</div>
-      <div class="anote">Ziel: höchstens {{ nf.target|string|replace(".", ",") }}x pro 10 Runden ({% if a.new %}heute {{ nf.baseline|string|replace(".", ",") }}{% else %}Start {{ nf.baseline|string|replace(".", ",") }}{% if a.check %}, zuletzt {{ a.check.rate|string|replace(".", ",") }}{% endif %}{% endif %}), {{ nf.need }} Matches in Folge. Merksatz: <b>„{{ teach[nf.lesson].mantra }}“</b></div>
+      <div class="anote">Ziel: höchstens {{ nf.target|string|replace(".", ",") }}x pro 10 Runden (Start {{ nf.baseline|string|replace(".", ",") }}{% if nf.baseline_n %}: {{ nf.baseline_n }}x in {{ nf.baseline_rounds }} Runden der letzten Matches{% endif %}{% if a.check and not a.new %}, zuletzt {{ a.check.rate|string|replace(".", ",") }}{% endif %}), {{ nf.need }} Matches in Folge. Merksatz: <b>„{{ teach[nf.lesson].mantra }}“</b></div>
     </div>
     {% endfor %}
   </section>
+  {% elif not checks %}
+  <section class="nextfocus"><div class="sh"><span class="t cond">Auftrag</span></div>
+    <div class="anote">Noch kein Auftrag: Ein Auftrag entsteht erst, wenn ein Fehler über eure letzten Matches mindestens 3x vorkommt. Einzelne Fehler sind noch kein Muster.</div></section>
   {% endif %}
 
 </div>
