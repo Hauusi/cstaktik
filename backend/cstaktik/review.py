@@ -40,14 +40,10 @@ def _rounds(window: list[dict], sid: str) -> int:
 
 
 def _duels(window: list[dict], sid: str) -> dict:
-    rows = [(h.get("duel_stats") or {}).get(sid) for h in window]
-    rows = [r for r in rows if r]
+    """Duell-Werte über das Fenster, nach Fallzahl gewichtet (wie im Fortschritt), inkl. Sichtung und Sehen->Schuss."""
+    from cstaktik.report.progress import _pooled_duels
 
-    def med(k):
-        v = [r[k] for r in rows if r.get(k) is not None]
-        return round(statistics.median(v), 1) if v else None
-
-    return {"err": med("err"), "react": med("react"), "first_hit": med("first_hit"), "n": sum(r["n"] for r in rows)}
+    return _pooled_duels(window, sid) or {"n": 0}
 
 
 def build(histories: list[dict], n: int = 5) -> dict:
@@ -106,5 +102,9 @@ def _say(players: list[dict], n: int) -> list[str]:
         if d.get("err") is not None and o.get("err") is not None and abs(d["err"] - o["err"]) >= 3:
             s += (f" Dein Fadenkreuz liegt im Duell jetzt {_de(d['err'], 0)}° daneben, vorher {_de(o['err'], 0)}°"
                   + (" – besser." if d["err"] < o["err"] else " – schlechter."))
+        if (d.get("seen_opp") is not None and o.get("seen_opp") is not None and (d.get("seen_n") or 0) >= 15
+                and (o.get("seen_n") or 0) >= 15 and abs(d["seen_opp"] - o["seen_opp"]) >= 10):
+            s += (f" Der Gegner sieht dich in {d['seen_opp']} % der Duelle zuerst, vorher {o['seen_opp']} %"
+                  + (" – deine Positionen werden besser." if d["seen_opp"] < o["seen_opp"] else " – du stehst wieder offener."))
         out.append(s)
     return out

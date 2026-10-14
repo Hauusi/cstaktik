@@ -20,3 +20,16 @@ def test_review_window_vs_before():
     assert p["duels"]["err"] == 18.0 and p["duels_before"]["err"] == 25.0
     assert r["say"][0].startswith("Satoru: In den letzten 5 Matches hat dich „Nicht ohne Trade-Partner peeken“")
     assert "Weniger als davor" in r["say"][0] and "jetzt 18° daneben, vorher 25° – besser." in r["say"][0]
+
+
+def test_review_page_shows_chain_metrics_and_seen_trend(tmp_path, monkeypatch):
+    hs = [_h(i, 4, 20, 25.0) for i in range(5)] + [_h(i, 2, 30, 18.0) for i in range(5, 10)]
+    for i, h in enumerate(hs):
+        h["duel_stats"]["a"].update(seen_n=20, seen_opp=45 if i < 5 else 25, tts=500, tts_n=5)
+    r = review.build(hs, 5)
+    assert r["players"][0]["duels"]["seen_opp"] == 25 and "du stehst" not in r["say"][0]
+    assert "zuerst, vorher 45 % – deine Positionen werden besser." in r["say"][0]
+    from cstaktik import api
+
+    html = api._env.get_template("review.html").render(r=r, nav_active="matches")
+    assert "Er sah dich zuerst" in html and "vorher 45 %" in html and "Sehen → Schuss" in html

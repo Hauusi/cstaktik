@@ -178,7 +178,8 @@ def _pooled_duels(hs: list[dict], sid: str) -> dict | None:
         w = sum(n for _v, n in pairs)
         out[key] = (round(sum(v * n for v, n in pairs) / w) if key not in ("err", "err_side", "err_height") else
                     round(sum(v * n for v, n in pairs) / w, 1)) if w else None
-        out[f"{nkey}"] = w
+        if nkey != "n":  # "n" ist die Gesamtzahl der Duelle, nicht das Gewicht eines einzelnen Werts
+            out[nkey] = w
     return out
 
 

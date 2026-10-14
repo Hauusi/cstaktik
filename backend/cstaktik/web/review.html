@@ -13,7 +13,8 @@
 .rl b { display: block; font-size: 15.5px; } .rl span { font-size: 13px; color: var(--muted); }
 .rl .tr { font-family: var(--cond); font-weight: 800; text-transform: uppercase; }
 .tr.besser { color: #46a758; } .tr.schlechter { color: #e5484d; } .tr.gleich { color: #ff9f1c; }
-.kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.kv i.up { color: #46a758; } .kv i.down { color: #e5484d; }
+.kv { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 10px; }
 .kv div { padding: 8px; background: var(--surface-2); }
 .kv span { display: block; font-family: var(--cond); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .kv b { font-family: var(--cond); font-size: 22px; } .kv i { font-style: normal; font-size: 12px; color: var(--muted); display: block; }
@@ -38,9 +39,11 @@
   {% endfor %}
   {% if p.duels.n %}{% set d = p.duels %}{% set o = p.duels_before %}
   <div class="kv num">
-    <div><span>Fadenkreuz</span><b>{{ d.err|string|replace(".", ",") if d.err is not none else "–" }}°</b>{% if o.err is not none %}<i>vorher {{ o.err|string|replace(".", ",") }}°</i>{% endif %}</div>
-    <div><span>Reaktion</span><b>{{ d.react|int if d.react is not none else "–" }}</b>{% if o.react is not none %}<i>vorher {{ o.react|int }} ms</i>{% else %}<i>ms</i>{% endif %}</div>
-    <div><span>Erste Kugel</span><b>{{ d.first_hit|int if d.first_hit is not none else "–" }} %</b>{% if o.first_hit is not none %}<i>vorher {{ o.first_hit|int }} %</i>{% endif %}</div>
+    {% for key, lbl, unit, low in [("err", "Fadenkreuz", "°", true), ("seen_opp", "Er sah dich zuerst", " %", true), ("tts", "Sehen → Schuss", " ms", true), ("first_hit", "Erste Kugel", " %", false)] if d.get(key) is not none %}
+    {% set v, w = d.get(key), (o.get(key) if o else none) %}
+    <div><span>{{ lbl }}</span><b>{{ (v|string|replace(".", ",")) if key == "err" else v|int }}{{ unit }}</b>
+      {% if w is not none %}<i class="{{ '' if (v - w)|abs < (1 if key == 'err' else 60 if key == 'tts' else 5) else ('up' if (v < w) == low else 'down') }}">vorher {{ (w|string|replace(".", ",")) if key == "err" else w|int }}{{ unit }}</i>{% endif %}</div>
+    {% endfor %}
   </div>
   {% endif %}
   {% if p.checks %}<div style="margin-top:10px" class="small muted">Auftrag-Checks: {% for c in p.checks %}<span class="ck {{ 'ok' if c.met else '' if c.met is none else 'no' }}" title="{{ c.title }}: {{ c.count }}x in {{ c.rounds }} Runden (Ziel {{ c.target }})">{{ '✓' if c.met else '–' if c.met is none else '✗' }}</span>{% endfor %}</div>{% endif %}
