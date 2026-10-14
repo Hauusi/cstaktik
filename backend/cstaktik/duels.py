@@ -9,6 +9,9 @@ Je Kill zwischen zwei Gegnern (Waffe, kein Granaten-/Weltschaden):
 - Reaktion (ms): eigener erster Schuss minus Kontakt (0 = hat zuerst geschossen).
 - Erste Kugel getroffen: Schaden am Gegner bis 3 Ticks nach dem eigenen ersten Schuss.
 - Tempo beim ersten Schuss (Units/s) aus den Schuss-Daten.
+- Wer sah wen zuerst: aus ``approximate_spotted_by`` (das Spiel markiert je Spieler, welche Gegner ihn sehen). Je
+  Spieler der Beginn der letzten durchgehenden Sichtung des Gegners (Lücken bis ``SEEN_GAP_S`` überbrückt) zwischen
+  ``SEEN_BEFORE_S`` vor dem Kontakt und dem Kill. Unter ``SEEN_TIE_S`` Abstand gilt es als gleichzeitig.
 
 Alle Werte aus der Demo; fehlen Blickwinkel, bleibt die Abweichung None.
 """
@@ -21,6 +24,10 @@ from cstaktik.mechanics import is_gun
 from cstaktik.model import Duel, MatchData
 
 EYE_HEIGHT = 64.0  # Augenhöhe stehend (Spieleinheiten), Näherung
+SEEN_BEFORE_S = 3.0  # so weit vor dem Kontakt wird die Sichtung gesucht
+SEEN_STEP = 4  # Abtastung der Sichtung in Ticks (64 Tick: alle 62,5 ms)
+SEEN_GAP_S = 0.5  # kürzere Sichtlücken zählen als durchgehend gesehen
+SEEN_TIE_S = 0.15  # kleinerer Abstand = gleichzeitig gesehen
 
 
 def contacts(match: MatchData, window_s: float = 3.0) -> list[tuple]:
@@ -66,10 +73,36 @@ def angle_error(view: tuple, target: tuple, eye: float = EYE_HEIGHT) -> float | 
     return round(math.degrees(math.acos(dot)), 1)
 
 
-def compute(match: MatchData, views: dict[tuple[int, str], tuple], window_s: float = 3.0) -> list[Duel]:
-    """``views``: (tick, steamid) -> (x, y, z, yaw, pitch) im Kontakt-Tick (aus parse_ticks)."""
+def seen_ticks(match: MatchData, window_s: float = 3.0) -> list[int]:
+    """Ticks, an denen die Sichtung für alle Duelle abgetastet wird (Kontakt - SEEN_BEFORE_S bis Kill)."""
+    tr = match.tickrate
+    out: set[int] = set()
+    for k, c in contacts(match, window_s):
+        lo = max(0, c - int(SEEN_BEFORE_S * tr))
+        out.update(range(lo - lo % SEEN_STEP, k.tick + 1, SEEN_STEP))
+    return sorted(out)
+
+
+def first_seen(seen: dict[tuple[int, str], frozenset], ticks: list[int], viewer: str, target: str,
+               tickrate: int) -> int | None:
+    """Beginn der letzten durchgehenden Sichtung: ab welchem Tick ``viewer`` ``target`` sah (None = gar nicht)."""
+    gap = int(SEEN_GAP_S * tickrate)
+    start = last = None
+    for t in ticks:
+        if viewer in seen.get((t, target), ()):
+            if last is None or t - last > gap:
+                start = t
+            last = t
+    return start
+
+
+def compute(match: MatchData, views: dict[tuple[int, str], tuple], window_s: float = 3.0,
+            seen: dict[tuple[int, str], frozenset] | None = None) -> list[Duel]:
+    """``views``: (tick, steamid) -> (x, y, z, yaw, pitch) im Kontakt-Tick (aus parse_ticks).
+    ``seen``: (tick, steamid) -> Steam-IDs der Gegner, die diesen Spieler in dem Tick sehen (None = unbekannt)."""
     tr = match.tickrate
     out = []
+    all_ticks = sorted({t for t, _s in seen}) if seen else []
     for k, c in contacts(match, window_s):
         a, v = k.attacker_steamid, k.victim_steamid
         res = {}
@@ -92,18 +125,49 @@ def compute(match: MatchData, views: dict[tuple[int, str], tuple], window_s: flo
                         l_react_ms=res[v]["react"], w_first_hit=res[a]["hit"], l_first_hit=res[v]["hit"],
                         w_speed=res[a]["speed"], l_speed=res[v]["speed"], w_shots=res[a]["shots"],
                         l_shots=res[v]["shots"]))
+        if seen:
+            import bisect
+
+            lo = c - int(SEEN_BEFORE_S * tr)
+            win = all_ticks[bisect.bisect_left(all_ticks, lo):bisect.bisect_right(all_ticks, k.tick)]
+            if any((t, a) in seen or (t, v) in seen for t in win):
+                out[-1].seen_known = True
+                out[-1].w_seen = first_seen(seen, win, a, v, tr)
+                out[-1].l_seen = first_seen(seen, win, v, a, tr)
     return out
 
 
-def side_of(d: Duel, sid: str) -> dict | None:
-    """Werte eines Spielers in einem Duell (aus seiner Sicht)."""
+def seen_first(mine: int | None, theirs: int | None, known: bool, tickrate: int) -> str | None:
+    """'ich' / 'gegner' / 'gleich' aus den Sichtungs-Ticks; None = unbekannt oder keiner sah den anderen."""
+    if not known or (mine is None and theirs is None):
+        return None
+    if theirs is None:
+        return "ich"
+    if mine is None:
+        return "gegner"
+    if abs(mine - theirs) < SEEN_TIE_S * tickrate:
+        return "gleich"
+    return "ich" if mine < theirs else "gegner"
+
+
+def side_of(d: Duel, sid: str, tickrate: int = 64) -> dict | None:
+    """Werte eines Spielers in einem Duell (aus seiner Sicht). ``seen``: wer sah zuerst (seen_first)."""
     if sid == d.winner:
         return {"won": True, "err": d.w_err, "react": d.w_react_ms, "hit": d.w_first_hit, "speed": d.w_speed,
-                "opp_err": d.l_err, "opp_react": d.l_react_ms, "opp": d.loser}
+                "opp_err": d.l_err, "opp_react": d.l_react_ms, "opp": d.loser,
+                "seen": seen_first(d.w_seen, d.l_seen, d.seen_known, tickrate),
+                "seen_ms": _lead_ms(d.w_seen, d.l_seen, tickrate)}
     if sid == d.loser:
         return {"won": False, "err": d.l_err, "react": d.l_react_ms, "hit": d.l_first_hit, "speed": d.l_speed,
-                "opp_err": d.w_err, "opp_react": d.w_react_ms, "opp": d.winner}
+                "opp_err": d.w_err, "opp_react": d.w_react_ms, "opp": d.winner,
+                "seen": seen_first(d.l_seen, d.w_seen, d.seen_known, tickrate),
+                "seen_ms": _lead_ms(d.l_seen, d.w_seen, tickrate)}
     return None
+
+
+def _lead_ms(mine: int | None, theirs: int | None, tickrate: int) -> int | None:
+    """Wie viel früher (ms, positiv) oder später (negativ) ich den Gegner sah; None, wenn einer ihn nie sah."""
+    return None if mine is None or theirs is None else round((theirs - mine) * 1000 / tickrate)
 
 
 def stats(rows: list[dict]) -> dict:
@@ -128,4 +192,19 @@ def stats(rows: list[dict]) -> dict:
             "err_n": len(errs), "react_n": len(reacts), "hit_n": len(hits), "first_n": len(first),
             # erster Schuss aus der Bewegung (über 80 Units/s), nur wo das Tempo bekannt ist
             "moving_pct": round(100 * sum(v > 80 for v in speeds) / len(speeds)) if speeds else None,
-            "moving_n": len(speeds)}
+            "moving_n": len(speeds), **seen_stats(rows)}
+
+
+def seen_stats(rows: list[dict]) -> dict:
+    """Wer sah zuerst: Anteile und Siegquote je Fall. Nur Duelle mit bekannter Sichtung."""
+    known = [r for r in rows if r.get("seen")]
+
+    def pct(part, whole):
+        return round(100 * len(part) / len(whole)) if whole else None
+
+    me = [r for r in known if r["seen"] == "ich"]
+    opp = [r for r in known if r["seen"] == "gegner"]
+    return {"seen_n": len(known), "seen_me": pct(me, known), "seen_opp": pct(opp, known),
+            "seen_me_n": len(me), "seen_opp_n": len(opp),
+            "won_seen_me": pct([r for r in me if r["won"]], me),
+            "won_seen_opp": pct([r for r in opp if r["won"]], opp)}

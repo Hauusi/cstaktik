@@ -21,9 +21,9 @@ from cstaktik.reference import timeline
 from cstaktik.situation import pro_decisions, round_states
 from cstaktik.utility_cmp import flash_effect, pre_contact
 
-VERSION = 9  # 1: timeline; 2: + nades, deaths; 3: + states; 4: + decisions; 5: + duels; 6: + flashes, pre_util;
+VERSION = 10  # 1: timeline; 2: + nades, deaths; 3: + states; 4: + decisions; 5: + duels; 6: + flashes, pre_util;
 #             7: + Wurfposition/Blick je Granate (Lineups), sid bei Toden (Map-Buch); 8: Würfe je Entity getrennt;
-#             9: Blendungen aus flash_duration, wenn player_blind leer ist
+#             9: Blendungen aus flash_duration, wenn player_blind leer ist; 10: + wer sah zuerst je Duell
 _CELL = 128  # Rastergröße für die Ortsbestimmung von Granaten-Punkten
 
 
@@ -109,15 +109,16 @@ def duel_rows(match: MatchData) -> list[list]:
     out = []
     for d in match.duels:
         for sid in (d.winner, d.loser):
-            v = side_of(d, sid)
-            out.append([v["err"], v["react"], v["hit"], v["won"]])
+            v = side_of(d, sid, match.tickrate)
+            out.append([v["err"], v["react"], v["hit"], v["won"], v["seen"]])
     return out
 
 
 def duel_stats(pro: list[dict]) -> dict | None:
     from cstaktik.duels import stats
 
-    rows = [{"err": r[0], "react": r[1], "hit": r[2], "won": r[3]} for d in pro for r in d.get("duels", [])]
+    rows = [{"err": r[0], "react": r[1], "hit": r[2], "won": r[3], "seen": r[4] if len(r) > 4 else None}
+            for d in pro for r in d.get("duels", [])]
     return stats(rows) if rows else None
 
 

@@ -136,7 +136,7 @@ def duel_stats(match: MatchData) -> dict:
 
     out = {}
     for sid in match.focus_ids():
-        views = [duels.side_of(d, sid) for d in match.duels if sid in (d.winner, d.loser)]
+        views = [duels.side_of(d, sid, match.tickrate) for d in match.duels if sid in (d.winner, d.loser)]
         if views:
             out[sid] = duels.stats(views)
     return out

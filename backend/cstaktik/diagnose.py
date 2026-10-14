@@ -117,12 +117,15 @@ def report(match: MatchData, findings: list, config: dict) -> str:
     duels = [(f.evidence.get("f") or {}).get("duel") for f in dec if (f.evidence.get("f") or {}).get("duel")]
     from cstaktik.duels import side_of
 
-    allv = [side_of(d, sid) for d in match.duels for sid in (d.winner, d.loser) if sid in focus]
+    allv = [side_of(d, sid, match.tickrate) for d in match.duels for sid in (d.winner, d.loser) if sid in focus]
     if allv:
         add(f"Alle Duelle der Fokus-Spieler: Fadenkreuz Grad {_q([v['err'] for v in allv])}")
         add(f"  Reaktion ms (Gegner schoss zuerst) {_q([v['react'] for v in allv if v['react'] and v['react'] <= 1500])}")
         add(f"  Erste Kugel trifft {_pct(sum(bool(v['hit']) for v in allv), sum(v['hit'] is not None for v in allv))}"
             f" · zuerst geschossen {_pct(sum(v['react'] == 0 for v in allv), sum(v['react'] is not None for v in allv))}")
+        sv = [v["seen"] for v in allv if v["seen"]]
+        add(f"  Wer sah zuerst: bekannt {_pct(len(sv), len(allv))} · ich {sum(s == 'ich' for s in sv)}"
+            f" · Gegner {sum(s == 'gegner' for s in sv)} · gleich {sum(s == 'gleich' for s in sv)}")
     if duels:
         add(f"Duell: Fadenkreuz-Abweichung Grad {_q([d.get('err') for d in duels])}")
         add(f"Duell: Reaktion ms {_q([d.get('react') for d in duels if d.get('react') and d['react'] <= 1500])}")

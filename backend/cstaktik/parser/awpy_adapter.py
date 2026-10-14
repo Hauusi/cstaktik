@@ -661,8 +661,32 @@ def _add_duels(dem, match: MatchData) -> None:
             vals = [_num(rec.get(k)) for k in ("X", "Y", "Z", "yaw", "pitch")]
             if sid is not None and None not in vals[:3]:
                 views[(int(rec["tick"]), sid)] = tuple(vals)
-        match.duels = duels.compute(match, views)
+        match.duels = duels.compute(match, views, seen=_seen(dem, match))
         if not any(d.w_err is not None for d in match.duels):
             match.missing.append("Blickwinkel (pitch) nicht lesbar: Fadenkreuz-Abweichung nicht auswertbar")
+        if match.duels and not any(d.seen_known for d in match.duels):
+            match.missing.append("Sichtung (approximate_spotted_by) nicht lesbar: 'Wer sah zuerst' fehlt")
     except Exception as exc:  # noqa: BLE001
         match.missing.append(f"Duell-Daten nicht lesbar ({type(exc).__name__})")
+
+
+def _seen(dem, match: MatchData) -> dict | None:
+    """(tick, steamid) -> Steam-IDs, die diesen Spieler sehen (approximate_spotted_by). None = nicht lesbar."""
+    from cstaktik import duels
+
+    ticks = duels.seen_ticks(match)
+    if not ticks:
+        return None
+    try:
+        df = dem.parser.parse_ticks(["approximate_spotted_by"], ticks=ticks)
+    except Exception:  # noqa: BLE001
+        return None
+    if "approximate_spotted_by" not in df.columns:
+        return None
+    out = {}
+    for rec in df.to_dict("records"):
+        sid, val = _sid(rec.get("steamid")), rec.get("approximate_spotted_by")
+        if sid is None or val is None or isinstance(val, (int, float, bool)):  # reine Bitmaske: nicht zuordenbar
+            continue
+        out[(int(rec["tick"]), sid)] = frozenset(s for s in (_sid(v) for v in val) if s)
+    return out or None

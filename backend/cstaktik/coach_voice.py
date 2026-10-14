@@ -146,6 +146,15 @@ def _duel_sentence(fx: dict) -> str | None:
         return None
     att = fx.get("attacker") or "der Gegner"
     parts = []
+    seen, ms = d.get("seen"), d.get("seen_ms")
+    if seen == "gegner":
+        parts.append(f"{att[:1].upper() + att[1:]} hat dich zuerst gesehen"
+                     + (f", {_de2(-ms / 1000)} s vor dir." if ms is not None else ", du ihn gar nicht."))
+    elif seen == "ich":
+        parts.append("Du hast ihn zuerst gesehen" + (f" ({_de2(ms / 1000)} s Vorsprung)" if ms is not None else "")
+                     + (" und trotzdem verloren." if d.get("won") is False else "."))
+    elif seen == "gleich":
+        parts.append("Ihr habt euch gleichzeitig gesehen.")
     if d.get("err") is not None:
         s = f"Im Moment des ersten Schusses zeigte dein Fadenkreuz {_de1(d['err'])}° neben {att}"
         if d.get("opp_err") is not None:
@@ -158,6 +167,10 @@ def _duel_sentence(fx: dict) -> str | None:
         parts.append(f"Dein erster Schuss kam {d['react']} ms nach seinem"
                      + (f", bei {d['speed']} Units/s" if d.get("speed") and d["speed"] > 80 else "") + ".")
     return " ".join(parts) or None
+
+
+def _de2(x: float) -> str:
+    return f"{x:.1f}".replace(".", ",")
 
 
 def _de1(x: float) -> str:
@@ -449,6 +462,9 @@ def duel_reading(d: dict, pro: dict | None, min_duels: int = 15) -> str | None:
         return (f"Dein Fadenkreuz liegt im Duell weiter neben dem Kopf als bei Pros ({_de(d['err'])}° gegen "
                 f"{_de(pro['err'])}°). Vorzielen auf Kopfhöhe ist hier der größte Hebel.")
     aim_ok = err is not None and err > -1.5
+    seen = _seen_reading(d, pro)
+    if seen:
+        return seen
     if aim_ok and first is not None and first <= -8:
         return (f"Dein Zielen ist auf Pro-Niveau, aber du schießt seltener zuerst ({d['shot_first']} % gegen "
                 f"{pro['shot_first']} %): Du siehst den Gegner später. Der Hebel ist Position und Timing, nicht Aim.")
@@ -461,6 +477,25 @@ def duel_reading(d: dict, pro: dict | None, min_duels: int = 15) -> str | None:
                 f"{pro['first_hit']} %).")
     if aim_ok and all(g is not None and g > -8 for g in (first, hit)):
         return "Im Duell selbst bist du auf Pro-Niveau. Was dich Runden kostet, passiert eher vor dem Duell (Coach-Reiter)."
+    return None
+
+
+def _seen_reading(d: dict, pro: dict, min_seen: int = 15) -> str | None:
+    """Wer sah zuerst, gegen die Pros: zuerst gesehen worden (Position) oder Vorteil verschenkt (Umsetzung)."""
+    if (d.get("seen_n") or 0) < min_seen or (pro.get("seen_n") or 0) < min_seen:
+        return None
+    opp, won_me = d.get("seen_opp"), d.get("won_seen_me")
+    if opp is not None and pro.get("seen_opp") is not None and opp - pro["seen_opp"] >= 8:
+        tail = (f" Dann gewinnst du nur {d['won_seen_opp']} %." if d.get("won_seen_opp") is not None
+                and (d.get("seen_opp_n") or 0) >= 5 else "")
+        return (f"Der Gegner sieht dich in {opp} % der Duelle zuerst (Pros {pro['seen_opp']} %).{tail} Das ist "
+                "Position, nicht Aim: weniger offen stehen, nach einem Kill den Platz wechseln, Winkel einzeln "
+                "nehmen statt in mehrere gleichzeitig zu laufen.")
+    if (won_me is not None and pro.get("won_seen_me") is not None and (d.get("seen_me_n") or 0) >= 8
+            and pro["won_seen_me"] - won_me >= 10):
+        return (f"Du siehst den Gegner oft zuerst ({d['seen_me']} %), gewinnst diese Duelle aber nur zu {won_me} % "
+                f"(Pros {pro['won_seen_me']} %). Der Vorteil verpufft: Fadenkreuz schon vorher auf Kopfhöhe, "
+                "stehen bleiben, sofort schießen.")
     return None
 
 

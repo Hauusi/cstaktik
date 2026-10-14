@@ -136,6 +136,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         vals = col.dropna() if hasattr(col, "dropna") else col
         print(f"spotted lesbar: {len(vals)} Werte, davon sichtbar: {int(sum(bool(v) for v in vals))}")
+        try:  # wer wen sieht (für "Wer sah zuerst" in Duellen)
+            sb = parser.parse_ticks(["approximate_spotted_by"], ticks=list(range(0, 200_000, 640)))
+            col = sb["approximate_spotted_by"].tolist()
+            filled = [v for v in col if v is not None and not isinstance(v, (int, float)) and len(v)]
+            print(f"approximate_spotted_by lesbar: {len(col)} Werte, mit Sichtung: {len(filled)}"
+                  + (f", Beispiel: {list(filled[0])[:3]}" if filled else ""))
+        except Exception as exc:  # noqa: BLE001
+            print(f"approximate_spotted_by NICHT lesbar: {type(exc).__name__}: {exc}")
         return 0
 
     if args.cmd == "pro-update":

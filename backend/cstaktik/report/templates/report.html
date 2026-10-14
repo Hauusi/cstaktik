@@ -483,6 +483,20 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 .cbar .cb-p { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #9db4e0; }
 .cbar .cb-l { margin-top: 2px; font-size: 11.5px; color: #9db4e0; }
 .cbar .cb-n { font-style: normal; font-size: 11.5px; color: var(--faint); }
+.seen { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.seen .cb-h { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--muted); }
+.seen .sn-t { position: relative; display: flex; height: 12px; margin-top: 6px; background: var(--surface-2); }
+.seen .sn-t i.me { background: #46a758; } .seen .sn-t i.eq { background: #5d6676; } .seen .sn-t i.op { background: #e5484d; }
+.seen .sn-t .cb-p { position: absolute; top: -4px; bottom: -4px; width: 2px; background: #9db4e0; }
+.seen .sn-l { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+.seen .sn-l .me { color: #46a758; } .seen .sn-l .op { color: #e5484d; }
+.seen .cb-l { margin-top: 2px; font-size: 11.5px; color: #9db4e0; }
+.seen .cb-n { font-style: normal; font-size: 11.5px; color: var(--faint); }
+.seen .sn-w { display: grid; gap: 6px; margin-top: 10px; }
+.seen .sn-w > div { display: grid; grid-template-columns: 58px 1fr; align-items: baseline; gap: 8px; font-size: 13px; color: var(--muted); }
+.seen .sn-w > div > b { font-size: 19px; color: var(--text); text-align: right; }
+.seen .sn-w .me > b { color: #46a758; } .seen .sn-w .op > b { color: #e5484d; }
+
 .dread { margin: 8px 0 4px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; line-height: 1.45; }
 
 .cpair { display: grid; gap: 4px; margin-top: 8px; }
@@ -497,6 +511,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 </style>
 </head>
 <body>
+{% from "seen.html" import seenblock %}
 {% macro cmpbar(label, mine, pro, unit, lower_better=false, maxv=100, tol=8, n=none) -%}
 {%- if mine is not none -%}
 {%- set top = ([mine, pro or 0, maxv]|max) * (1.15 if maxv < 100 or unit != " %" else 1) -%}
@@ -681,9 +696,10 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8, d.first_n) }}
       {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8, d.hit_n) }}
       {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60, d.react_n) }}
+      {{ seenblock(d, pr) }}
     </div>
     {% endfor %}
-    <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe genähert).{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>
+    <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe genähert). Wer sah zuerst: Sichtbarkeit laut Spiel (Radar-Sichtung) bis 3 s vor dem ersten Schuss, unter 0,15 s Abstand gilt als gleich.{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>
   </section>
   {% endif %}
 

@@ -1,0 +1,16 @@
+{# Wer sah zuerst (Duelle): Aufteilung ich / gleichzeitig / Gegner und Siegquote je Fall. d = duels.stats(), pr = Pros #}
+{% macro seenblock(d, pr) -%}
+{%- if d.seen_n -%}{%- set eq = [100 - d.seen_me - d.seen_opp, 0]|max -%}
+<div class="seen">
+  <div class="cb-h"><span>Wer sah zuerst? <i class="cb-n">({{ d.seen_n }})</i></span></div>
+  <div class="sn-t"><i class="me" style="width:{{ d.seen_me }}%"></i><i class="eq" style="width:{{ eq }}%"></i><i class="op" style="width:{{ d.seen_opp }}%"></i>
+    {%- if pr and pr.seen_me is not none %}<b class="cb-p" style="left:{{ pr.seen_me }}%"></b>{% endif %}</div>
+  <div class="sn-l num"><span class="me">Du zuerst {{ d.seen_me }} %</span>{% if eq >= 8 %}<span>gleich {{ eq }} %</span>{% endif %}<span class="op">Er zuerst {{ d.seen_opp }} %</span></div>
+  {%- if pr and pr.seen_me is not none %}<div class="cb-l num">Pros: {{ pr.seen_me }} % selbst zuerst, {{ pr.seen_opp }} % zuerst gesehen worden (Strich)</div>{% endif %}
+  <div class="sn-w">
+    <div class="me"><b class="num">{{ d.won_seen_me if d.won_seen_me is not none else "–" }} %</b><span>gewonnen, wenn <b>du</b> zuerst siehst <i class="cb-n">({{ d.seen_me_n }})</i>{% if pr and pr.won_seen_me is not none %} · Pros {{ pr.won_seen_me }} %{% endif %}</span></div>
+    <div class="op"><b class="num">{{ d.won_seen_opp if d.won_seen_opp is not none else "–" }} %</b><span>gewonnen, wenn <b>er</b> dich zuerst sieht <i class="cb-n">({{ d.seen_opp_n }})</i>{% if pr and pr.won_seen_opp is not none %} · Pros {{ pr.won_seen_opp }} %{% endif %}</span></div>
+  </div>
+</div>
+{%- endif -%}
+{%- endmacro %}

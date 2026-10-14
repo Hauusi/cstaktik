@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "bars.html" import cmpbar %}
+{% from "seen.html" import seenblock %}
 {% block title %}{{ p.name if p else "Fortschritt" }} – cstaktik{% endblock %}
 {% block head %}
 <style>
@@ -43,6 +44,7 @@
   {{ cmpbar("Zuerst geschossen", d.shot_first, pr.shot_first if pr else none, " %", false, 100, 8, d.first_n) }}
   {{ cmpbar("Erste Kugel trifft", d.first_hit, pr.first_hit if pr else none, " %", false, 100, 8, d.hit_n) }}
   {{ cmpbar("Reaktion, wenn er zuerst schießt", d.react, pr.react if pr else none, " ms", true, 600, 60, d.react_n) }}
+  {{ seenblock(d, pr) }}
   <div class="small muted num" style="margin-top:10px">{{ d.n }} Duelle, {{ d.won|round|int }} % gewonnen. Werte gewichtet nach Fallzahl je Match.</div>
 </div>
 {% else %}<div class="card empty">Noch keine Duell-Daten.</div>{% endif %}

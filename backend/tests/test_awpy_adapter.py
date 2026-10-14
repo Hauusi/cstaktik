@@ -33,6 +33,8 @@ class FakeParser:
                 if "pitch" in props:  # Kontakt-Tick: A schaut nach +y zu B, B nach -y zu A
                     r.update(X=float(t), Y=0.0 if sid == A else 500.0, Z=0.0, yaw=90.0 if sid == A else 270.0,
                              pitch=0.0)
+                if "approximate_spotted_by" in props:  # B sieht A die ganze Zeit, A sieht B erst ganz am Ende
+                    r["approximate_spotted_by"] = [B] if sid == A else ([A] if t >= max(ticks) - 8 else [])
                 if "balance" in props:
                     r.update(balance=800, current_equip_value=4200, cash_spent_this_round=3500, team_name=team)
                 rows.append(r)
@@ -118,6 +120,10 @@ def test_parse_demo_with_fake_awpy(tmp_path, monkeypatch):
     d = m.duels[0]
     assert (d.contact, d.winner, d.loser) == (870, str(B), str(A))
     assert d.l_err == 0.0 and d.w_err == 0.0 and d.l_react_ms == 0 and d.w_react_ms is None
+    from cstaktik.duels import side_of
+
+    assert d.seen_known and d.w_seen < d.l_seen  # B sah A zuerst
+    assert side_of(d, str(B))["seen"] == "ich" and side_of(d, str(A))["seen"] == "gegner"
 
 
 def test_match_timed_long_missing_and_reused_entity():

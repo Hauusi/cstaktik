@@ -171,11 +171,12 @@ def _pooled_duels(hs: list[dict], sid: str) -> dict | None:
         return None
     out = {"n": sum(r["n"] for r in rows), "matches": len(rows)}
     for key, nkey in (("err", "err_n"), ("react", "react_n"), ("first_hit", "hit_n"), ("shot_first", "first_n"),
-                      ("won", "n"), ("moving_pct", "moving_n")):
+                      ("won", "n"), ("moving_pct", "moving_n"), ("seen_me", "seen_n"), ("seen_opp", "seen_n"),
+                      ("won_seen_me", "seen_me_n"), ("won_seen_opp", "seen_opp_n")):
         pairs = [(r[key], r.get(nkey) or r["n"]) for r in rows if r.get(key) is not None]
         w = sum(n for _v, n in pairs)
-        out[key] = (round(sum(v * n for v, n in pairs) / w, 0 if key in ("react", "first_hit", "shot_first", "won",
-                                                                          "moving_pct") else 1) if w else None)
+        out[key] = (round(sum(v * n for v, n in pairs) / w) if key != "err" else
+                    round(sum(v * n for v, n in pairs) / w, 1)) if w else None
         out[f"{nkey}"] = w
     return out
 
