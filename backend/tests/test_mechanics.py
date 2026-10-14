@@ -216,3 +216,13 @@ def test_strengths_against_own_baseline_with_n():
     assert s == ["Ich: Erste Kugel trifft 55 % (22 Duelle), dein Schnitt der letzten 3 Matches 40 %."]
     assert strengths({"a": {"n": 9, "first_hit": 90}}, {"a": "Ich"}, past) == []  # zu wenige Duelle
     assert strengths({"a": {"n": 22, "first_hit": 55}}, {"a": "Ich"}, past[:1]) == []  # zu wenig Vergleich
+
+
+def test_mantra_is_not_just_the_lesson_title():
+    import re
+
+    from cstaktik.coach_voice import LESSONS
+    from cstaktik.curriculum import TEACH
+
+    norm = lambda s: re.sub(r"[^a-zäöüß]", "", s.lower())  # noqa: E731
+    assert all(norm(TEACH[k]["mantra"]) != norm(LESSONS[k][0]) for k in TEACH)

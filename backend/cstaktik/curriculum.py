@@ -59,7 +59,7 @@ TEACH: dict[str, dict] = {
     "utility": {
         "principle": ("Granaten machen ein faires Duell unfair, zu deinen Gunsten. Wer mit Granaten im Inventar stirbt, "
                       "hat bezahlt, aber nichts bekommen."),
-        "mantra": "Erst Utility, dann Duell.",
+        "mantra": "Granate raus, bevor du rausgehst.",
         "in_game": "Vor jedem geplanten Duell eine Flash oder Molotov. Spätestens wenn du merkst, dass es losgeht.",
         "routine": {"title": "Eine Pop-Flash pro Position", "minutes": 10, "steps": [
             "Offline-Server: für deine zwei Standard-Positionen je eine Flash, mit der du selbst peekst.",
