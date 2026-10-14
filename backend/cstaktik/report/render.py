@@ -385,8 +385,14 @@ def build_context(
     from cstaktik import coach_voice
 
     all_lessons = coach_voice.focus(result.findings, 20, recur=recur)
-    lessons = all_lessons[:3]
     auftraege = normalize_focus(focus)
+    # Eine Sache zur Zeit: kam ein laufender Auftrag heute vor, ist er überall das Thema (Einleitung, Der eine Punkt,
+    # Debrief), statt neben dem Auftrag ein zweites Thema aufzumachen
+    running = [a["focus"]["lesson"] for a in auftraege if a.get("focus") and not a.get("new")]
+    lead = next((x for x in all_lessons if x["id"] in running), None)
+    if lead:
+        all_lessons = [lead] + [x for x in all_lessons if x is not lead]
+    lessons = all_lessons[:3]
     won = sum(1 for r in payload["rounds"] if r["out"] == "W" and not r.get("pro"))
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
     radar_note = None if payload["img"] else build_radar(match, maps_dirs).note

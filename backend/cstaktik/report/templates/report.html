@@ -478,7 +478,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 <body>
 {% set nav_active = "matches" %}{% include "nav.html" %}
   <header class="hero herohud"><div class="hero-in">
-    <div class="eyebrow">{{ match.source_file or "Demo" }}</div>
+    <div class="eyebrow" title="{{ match.source_file or '' }}">{{ match.rounds|length }} Runden</div>
     <div class="hrow"><h1>{{ map_label }}</h1>
       <div class="hscore num cond"><b>{{ score.won }}</b><span>:</span><b class="l">{{ score.lost }}</b></div></div>
     <span class="restag {{ 'win' if score.won > score.lost else 'loss' if score.lost > score.won else '' }}">{{ "Sieg" if score.won > score.lost else "Niederlage" if score.lost > score.won else "Unentschieden" }}</span>
