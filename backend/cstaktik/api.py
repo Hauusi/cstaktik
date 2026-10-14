@@ -487,10 +487,13 @@ def _map_lessons(hist: list[dict], map_name: str) -> list[dict]:
     names = {sid: p["name"] for h in hist for sid, p in h.get("players", {}).items()}
     out = []
     for sid, name in names.items():
-        ls = [l for l in _lessons(hist, sid) if (l["by_map"].get(map_name) or {}).get("count")]
+        # erst ab 3 Vorkommen und 30 Runden auf der Map: ein einzelner Tod ist keine Baustelle
+        ls = [l for l in _lessons(hist, sid) if (l["by_map"].get(map_name) or {}).get("count", 0) >= 3
+              and l["by_map"][map_name]["rounds"] >= 30]
         ls.sort(key=lambda l: -l["by_map"][map_name]["rate"])
         out += [{"name": name, "title": l["title"], "drill": l["drill"],
-                 "rate": str(l["by_map"][map_name]["rate"]).replace(".", ",")} for l in ls[:2]]
+                 "rate": str(l["by_map"][map_name]["rate"]).replace(".", ","),
+                 "count": l["by_map"][map_name]["count"], "rounds": l["by_map"][map_name]["rounds"]} for l in ls[:2]]
     return out
 
 

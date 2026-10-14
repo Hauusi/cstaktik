@@ -79,7 +79,7 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .tool .tt { font-family: var(--cond); font-weight: 800; font-size: 20px; text-transform: uppercase; }
 .tool p { margin: 4px 0 10px; font-size: 13.5px; color: var(--muted); }
 .vtag { display: inline-block; padding: 3px 8px; font-family: var(--cond); font-weight: 800; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; border: 1px solid; }
-.vtag.problem { color: #e5484d; } .vtag.stark { color: #46a758; } .vtag.okay { color: #ff9f1c; } .vtag.offen { color: var(--muted); }
+.vtag.problem { color: #e5484d; } .vtag.stark { color: #46a758; } .vtag.okay { color: #ff9f1c; } .vtag.offen, .vtag.tendenz { color: var(--muted); }
 .cmd { display: flex; gap: 6px; align-items: stretch; margin-top: 8px; }
 .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; padding: 9px 10px; background: var(--bg); border: 1px solid var(--line); font-size: 12.5px; }
 .cmd button { font-family: var(--cond); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 0 12px; background: var(--orange); color: #111; border: 0; cursor: pointer; }

@@ -45,6 +45,7 @@ def test_trend_needs_enough_matches_and_detects_improvement():
         s = _summary(m, f"2026-10-0{i + 1}T20:00")
         s["id"] = str(i)
         s["issues"][ME] = {"Tod: Allein, kein Trade": n}
+        s["players"][ME]["rounds"] = 24  # Trend braucht genug Runden je Seite
         hs.append(s)
     p = next(p for p in build(hs)["players"] if p["sid"] == ME)
     it = next(i for i in p["issues"] if i["title"] == "Tod: Allein, kein Trade")
@@ -79,4 +80,5 @@ def test_progress_lessons_per_map_and_trend():
     l = ls[0]
     assert l["rates"] == [None, 2.0, 1.5, 1.0, 0.5] and l["total"] == 10
     assert l["by_map"]["de_mirage"] == {"rate": 1.2, "count": 7, "rounds": 60}
-    assert l["trend"]["state"] == "besser"
+    # 7x in 40 Runden -> 3x in 40 Runden liegt im üblichen Schwanken: kein Trend behaupten
+    assert l["trend"]["state"] == "gleich" and "7x in 40 Runden → 3x in 40 Runden" in l["trend"]["text"]

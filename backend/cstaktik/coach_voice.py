@@ -243,31 +243,63 @@ def apply(findings: list[Finding], close_units: int = 600) -> None:
             f.evidence["coach"] = v
 
 
-def focus(findings: list[Finding], n: int = 3) -> list[dict]:
-    """Die Lektionen des Matches: gleiche Lektion zusammengefasst, sortiert nach verlorener Rundenchance
-    (falls vorhanden), dann Häufigkeit. Jede mit allen Szenen (Runde, Tick, Finding-Index)."""
-    groups: dict[str, dict] = defaultdict(lambda: {"count": 0, "cost": 0, "has_cost": False, "scenes": [],
+def recurrence(past: list[dict], sid: str | None = None, window: int = 4) -> tuple[dict[str, int], int]:
+    """In wie vielen der letzten ``window`` Matches kam jede Lektion vor (für einen Spieler oder das Team)?
+    Rückgabe: (Lektion -> Anzahl Matches, Anzahl betrachteter Matches). Gedächtnis über Matches hinweg."""
+    rows = [h for h in past if "lessons" in h and (sid is None or sid in h.get("players", {}))][-window:]
+    seen: dict[str, int] = defaultdict(int)
+    for h in rows:
+        les = (h["lessons"].get(sid) or {}) if sid else {}
+        if sid is None:
+            for d in h["lessons"].values():
+                for lid, n in d.items():
+                    les[lid] = les.get(lid, 0) + n
+        for lid, n in les.items():
+            if n:
+                seen[lid] += 1
+    return dict(seen), len(rows)
+
+
+def focus(findings: list[Finding], n: int = 3, recur: tuple[dict[str, int], int] | None = None) -> list[dict]:
+    """Die Lektionen des Matches, gleiche Lektion zusammengefasst.
+
+    Gezählt wird jede Beteiligung an einem Tod (wie im Verlauf und im Auftrag-Check), die verlorene Rundenchance
+    nur beim Hauptfehler. Reihenfolge: zuerst Muster, die auch in früheren Matches vorkamen (``recur``, Gedächtnis),
+    dann verlorene Rundenchance, dann Häufigkeit. Ein einzelner teurer Ausreißer schlägt so kein Dauerproblem."""
+    groups: dict[str, dict] = defaultdict(lambda: {"count": 0, "main": 0, "cost": 0, "has_cost": False, "scenes": [],
                                                    "players": set()})
     for i, f in enumerate(findings):
         v = f.evidence.get("coach")
-        if not v or v["id"] == "duel":
+        if not v:
             continue
-        g = groups[v["id"]]
-        g["count"] += 1
         c = f.evidence.get("cost_pct")
-        if c is not None:
-            g["cost"] += max(0, c)
-            g["has_cost"] = True
-        g["players"].add(f.player_name)
-        g["scenes"].append({"round": f.round, "tick": f.tick, "finding": i, "who": f.player_name,
-                            "cost": c, "from": (f.overlay.get("decision") or [None, None, None])[2]})
+        for j, lid in enumerate(lesson_ids(f.evidence.get("f") or {}, v["id"])):
+            if lid == "duel" or lid not in LESSONS:
+                continue
+            g = groups[lid]
+            g["count"] += 1
+            if j == 0:
+                g["main"] += 1
+                if c is not None:
+                    g["cost"] += max(0, c)
+                    g["has_cost"] = True
+                    cn = f.evidence.get("cost_n")
+                    if cn is not None:
+                        g["cost_n"] = min(g.get("cost_n", cn), cn)
+            g["players"].add(f.player_name)
+            g["scenes"].append({"round": f.round, "tick": f.tick, "finding": i, "who": f.player_name,
+                                "cost": c if j == 0 else None,
+                                "from": (f.overlay.get("decision") or [None, None, None])[2]})
+    seen, n_past = recur or ({}, 0)
     out = []
     for lid, g in groups.items():
         title, why, drill = LESSONS[lid]
-        out.append({"id": lid, "lesson": title, "why": why, "drill": drill, "count": g["count"],
+        out.append({"id": lid, "lesson": title, "why": why, "drill": drill, "count": g["count"], "main": g["main"],
                     "cost": g["cost"] if g["has_cost"] else None, "players": sorted(p for p in g["players"] if p),
+                    "seen_in": seen.get(lid, 0) + 1, "of_matches": n_past + 1,
+                    "rough": g.get("cost_n", 99) < 20,  # Rundenchance aus wenigen Vergleichsrunden
                     "scenes": sorted(g["scenes"], key=lambda s: -(s["cost"] or 0))})
-    out.sort(key=lambda x: (-(x["cost"] or 0), -x["count"]))
+    out.sort(key=lambda x: (-(x["seen_in"] >= 2), -(x["cost"] or 0), -x["count"]))
     return out[:n]
 
 
@@ -295,17 +327,21 @@ def memory(prev: dict | None, now_lessons: dict, now_rounds: int) -> dict | None
         return None
     before = sum(d.get(lid, 0) for d in (prev.get("lessons") or {}).values())
     after = sum(d.get(lid, 0) for d in now_lessons.values())
-    r0, r1 = before / prev["rounds"], after / now_rounds
+    # Ein Match gegen ein Match ist fast immer Zufall: Zahlen nennen, ein Urteil nur bei klarem Unterschied
+    from cstaktik.coaching import compare_rates
+
+    c = compare_rates(before, prev["rounds"], after, now_rounds, min_rounds=0)
     if after == 0:
-        verdict, state = "Heute kein einziges Mal. Stark.", "besser"
-    elif r1 <= 0.7 * r0:
-        verdict, state = "Das sitzt langsam.", "besser"
-    elif r1 >= 1.3 * r0:
-        verdict, state = "Schlechter als letztes Mal, dranbleiben.", "schlechter"
+        verdict, state = "Heute kein einziges Mal. Jetzt im nächsten Match bestätigen.", "besser"
+    elif c["state"] == "besser":
+        verdict, state = "Deutlich weniger, das greift.", "besser"
+    elif c["state"] == "schlechter":
+        verdict, state = "Deutlich mehr als letztes Mal, dranbleiben.", "schlechter"
     else:
-        verdict, state = "Noch nicht umgesetzt, bleib dran.", "gleich"
+        verdict, state = "Ein Match allein ist noch kein Trend, bleib dran.", "gleich"
     return {"lesson": LESSONS[lid][0], "before": before, "after": after, "state": state,
-            "text": f"Letztes Match war euer Hauptpunkt „{LESSONS[lid][0]}“: {before}x. Heute {after}x. {verdict}"}
+            "text": f"Letztes Match war euer Hauptpunkt „{LESSONS[lid][0]}“: {before}x in {prev['rounds']} Runden. "
+                    f"Heute {after}x in {now_rounds} Runden. {verdict}"}
 
 
 def intro(won: int, lost: int, map_label: str, lessons: list[dict]) -> list[str]:
@@ -316,11 +352,15 @@ def intro(won: int, lost: int, map_label: str, lessons: list[dict]) -> list[str]
     if lessons:
         main = lessons[0]
         if main["count"] == 1:
-            out.append(f"Euer teuerster Fehler: {main['lesson']}.")
+            out.append(f"Euer wichtigster Punkt: {main['lesson']}.")
         else:
             out.append(f"{main['count']} eurer Tode hatten dasselbe Muster: {main['lesson']}.")
+        if main.get("seen_in", 1) >= 2:
+            out.append(f"Das kam in {main['seen_in']} der letzten {main['of_matches']} Matches vor. "
+                       "Kein Ausrutscher, sondern ein Muster.")
         if main.get("cost") and main["cost"] >= 30:
-            out.append(f"Das hat euch rechnerisch etwa {_de(main['cost'] / 100)} Runden gekostet.")
+            out.append(f"Das hat euch rechnerisch etwa {_de(main['cost'] / 100)} Runden gekostet"
+                       + (" (grob geschätzt, wenige Vergleichsrunden)." if main.get("rough") else "."))
     return out
 
 

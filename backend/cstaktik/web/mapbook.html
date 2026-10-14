@@ -37,7 +37,7 @@
 <h2 id="side-{{ side }}">{{ sd.label }}-Seite · {{ sd.rounds }} Runden</h2>
 {% for s in sd.spots %}
 <div class="spot {{ s.verdict }}" id="spot-{{ side }}-{{ s.place }}">
-  <div class="hd"><span class="pl">{{ s.place }}</span><span class="vtag {{ s.verdict }}">{{ {"problem": "Anpassen", "stark": "Halten", "okay": "Okay", "offen": "Zu wenig Daten"}[s.verdict] }}</span></div>
+  <div class="hd"><span class="pl">{{ s.place }}</span><span class="vtag {{ s.verdict }}">{{ {"problem": "Anpassen", "stark": "Halten", "okay": "Okay", "offen": "Zu wenig Daten", "tendenz": "Tendenz"}[s.verdict] }}</span></div>
   <div class="kpis num">
     <div><b>{{ s.n }}</b><span>Runden</span></div>
     <div><b>{{ s.won_pct }} %</b><span>gewonnen</span></div>

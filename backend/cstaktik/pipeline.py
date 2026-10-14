@@ -235,7 +235,9 @@ def run(
         match.missing.append(f"Waffen-Icons nicht geladen ({', '.join(failed)}): einfache Form statt Icon")
     report("Ziele prüfen", 0.95)
     stem = demo_stem(path.name)
-    summary = history.summarize(match, result, f"{stem}.html")
+    my_id = match.source_sha256 or match.source_file
+    before = [h for h in history.load_all(HISTORY_DIR) if h.get("id") != my_id] if HISTORY_DIR.exists() else []
+    summary = history.summarize(match, result, f"{stem}.html", past=before)
     old = next((h for h in history.load_all(HISTORY_DIR) if h.get("id") == summary["id"]), None) \
         if HISTORY_DIR.exists() else None
     state = goals.load(GOALS_FILE)
@@ -260,7 +262,10 @@ def run(
 
     prev = history.previous(history.load_all(HISTORY_DIR), summary)
     mem = coach_voice.memory(prev, summary.get("lessons") or {}, summary.get("rounds") or 0)
+    from cstaktik.coach_voice import recurrence
+
     out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"], pro_clips=clips,
+                       recur=recurrence(past),
                        memory=mem, focus=summary["focus_check"])
     report("Fertig", 1.0)
     return out
@@ -310,8 +315,8 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         result, clips = _coach(match, config)
         h["lessons"] = history.lessons(result)  # Lektionen nachrüsten (Fortschritt je Map)
         h["main_lesson"] = history.main_lesson(result)
-        h["lesson_rank"] = history.lesson_rank(result)
-        h["lesson_rank_by"] = history.lesson_rank_by(result)
+        h["lesson_rank"] = history.lesson_rank(result, todo[:i])
+        h["lesson_rank_by"] = history.lesson_rank_by(result, todo[:i])
         h["scenes"] = history.scenes(result, h.get("report_file"), h.get("map"))
         h["duel_stats"] = history.duel_stats(match)
         h["util_stats"] = history.util_stats(match)
@@ -326,6 +331,7 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         prev = history.previous(history.load_all(HISTORY_DIR), h)
         mem = coach_voice.memory(prev, h["lessons"], h.get("rounds") or 0)
         write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips,
+                     recur=coach_voice.recurrence(todo[:i]),
                      memory=mem, focus=h.get("focus_check"))
         done += 1
     if rebuild is not None and done:

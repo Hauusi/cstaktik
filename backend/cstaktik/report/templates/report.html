@@ -509,8 +509,9 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
     <div class="sh"><span class="n cond">01</span><span class="t cond">Der eine Punkt</span></div>
     <div class="big cond">{{ l.lesson }}</div>
     <div class="stats">
-      <div><b class="cond">{{ l.count }}x</b><span>passiert</span></div>
-      {% if l.cost and l.cost >= 30 %}<div><b class="cond red">≈{{ "%.1f"|format(l.cost / 100)|replace(".", ",") }}</b><span>Runden gekostet</span></div>{% endif %}
+      <div><b class="cond">{{ l.count }}x</b><span>{% if l.main is defined and l.main != l.count %}beteiligt, {{ l.main }}x Hauptfehler{% else %}passiert{% endif %}</span></div>
+      {% if l.of_matches is defined and l.of_matches > 1 %}<div><b class="cond {{ 'red' if l.seen_in >= 2 }}">{{ l.seen_in }}/{{ l.of_matches }}</b><span>Matches mit diesem Fehler</span></div>{% endif %}
+      {% if l.cost and l.cost >= 30 %}<div><b class="cond red">≈{{ "%.1f"|format(l.cost / 100)|replace(".", ",") }}</b><span>Runden gekostet{% if l.rough %} (grob){% endif %}</span></div>{% endif %}
       <div><b class="cond">{{ (l.players[0] if l.players|length == 1 else l.players|length ~ " Spieler") if l.players else "–" }}</b><span>{{ "wer" if l.players|length == 1 else "betroffen" }}</span></div>
     </div>
 
@@ -1786,7 +1787,8 @@ function dbBuild() {
       if (cv) d.appendChild(el('p', null, cv.happened));
       d.appendChild(dbPlayBtn('▶ Szene im Replay ansehen', sc.round, sc.from || sc.tick, true));
       if (L.scenes.length > 1) {
-        d.appendChild(el('p', null, `Das gleiche Muster gab es noch ${L.scenes.length - 1}x:`)).style.marginTop = '14px';
+        const more = (L.count || L.scenes.length) - 1;
+        d.appendChild(el('p', null, `Das gleiche Muster gab es noch ${more}x` + (more > L.scenes.length - 1 ? ` (${L.scenes.length - 1} davon hier):` : ':'))).style.marginTop = '14px';
         L.scenes.slice(1).forEach(x => d.appendChild(dbPlayBtn(`▶ R${x.round}${x.cost ? ' · -' + x.cost + ' %' : ''}`, x.round, x.from || x.tick)));
       }
       return d;

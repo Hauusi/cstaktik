@@ -176,3 +176,20 @@ def test_lesson_ids_count_every_issue_once():
     fx = {"label": "Geblendet", "issues": ["Geblendet", "Allein, kein Trade", "Utility nicht genutzt", "Allein, kein Trade"]}
     assert lesson_ids(fx, "blind") == ["blind", "alone", "utility"]
     assert lesson_ids({"issues": []}, "duel") == ["duel"]
+
+
+def test_focus_prefers_recurring_pattern_over_one_off():
+    from cstaktik.coach_voice import focus, recurrence
+    from cstaktik.model import Finding
+
+    def f(lid, cost, issues):
+        return Finding(rule_id="death_review", title="t", round=1, tick=1, steamid="a", player_name="A", severity="hoch",
+                       text="", tip="", evidence={"coach": {"id": lid}, "cost_pct": cost, "f": {"issues": issues}})
+
+    fs = [f("blind", 60, ["Geblendet"]), f("alone", 10, ["Allein, kein Trade", "Utility nicht genutzt"])]
+    assert focus(fs)[0]["id"] == "blind"  # ohne Gedächtnis: teuerster zuerst
+    past = [{"lessons": {"a": {"alone": 2}}, "players": {"a": {}}}, {"lessons": {"a": {"alone": 1}}, "players": {"a": {}}}]
+    top = focus(fs, recur=recurrence(past, "a"))
+    assert top[0]["id"] == "alone" and top[0]["seen_in"] == 3 and top[0]["of_matches"] == 3
+    util = next(x for x in focus(fs) if x["id"] == "utility")
+    assert util["count"] == 1 and util["main"] == 0  # beteiligt, aber nicht Hauptfehler

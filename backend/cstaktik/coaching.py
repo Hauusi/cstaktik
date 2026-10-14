@@ -34,6 +34,29 @@ def now_local() -> str:
     return datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None).isoformat(timespec="minutes")
 
 
+def _de(x: float) -> str:
+    return str(round(x, 1)).replace(".", ",")
+
+
+def compare_rates(n0: int, r0: int, n1: int, r1: int, min_rounds: int = 40) -> dict:
+    """Vorher (n0 in r0 Runden) gegen jetzt (n1 in r1 Runden): ehrlicher Trend statt Zufall.
+
+    Eine Richtung gibt es nur, wenn beide Seiten genug Runden haben und der Unterschied größer ist als das übliche
+    Schwanken bei so wenigen Fällen (Poisson: mindestens 2 Standardabweichungen vom Erwarteten).
+    ``state``: besser | schlechter | gleich | wenig; ``text`` nennt immer die Zahlen."""
+    nums = f"{n0}x in {r0} Runden → {n1}x in {r1} Runden"
+    if r0 < min_rounds or r1 < min_rounds or n0 + n1 < 3:
+        return {"state": "wenig", "text": f"{nums}: zu wenig für einen Trend"}
+    expected = n0 / r0 * r1
+    sd = max(expected, 1.0) ** 0.5
+    rate0, rate1 = 10 * n0 / r0, 10 * n1 / r1
+    if n1 <= expected - 2 * sd:
+        return {"state": "besser", "text": f"besser ({_de(rate0)} → {_de(rate1)} pro 10 Runden; {nums})"}
+    if n1 >= expected + 2 * sd:
+        return {"state": "schlechter", "text": f"schlechter ({_de(rate0)} → {_de(rate1)} pro 10 Runden; {nums})"}
+    return {"state": "gleich", "text": f"kein klarer Unterschied ({nums})"}
+
+
 def load(path: Path) -> dict:
     if path.exists():
         try:

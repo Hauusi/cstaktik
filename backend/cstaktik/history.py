@@ -19,7 +19,8 @@ from cstaktik.situation import round_states
 FLOOR_UNITS = 64  # Rastergröße des Kartenumrisses in Spieleinheiten
 
 
-def summarize(match: MatchData, result: AnalysisResult, report_file: str | None = None) -> dict:
+def summarize(match: MatchData, result: AnalysisResult, report_file: str | None = None,
+              past: list[dict] | None = None) -> dict:
     focus = match.focus_ids()
     won = lost = 0
     for r in match.rounds:
@@ -55,8 +56,8 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "duel_stats": duel_stats(match),
         "util_stats": util_stats(match),
         "main_lesson": main_lesson(result),
-        "lesson_rank": lesson_rank(result),
-        "lesson_rank_by": lesson_rank_by(result),
+        "lesson_rank": lesson_rank(result, past),
+        "lesson_rank_by": lesson_rank_by(result, past),
         "scenes": scenes(result, report_file, match.map_name),
         "won": won,
         "lost": lost,
@@ -149,19 +150,20 @@ def util_stats(match: MatchData) -> dict:
     return out
 
 
-def lesson_rank(result: AnalysisResult) -> list[str]:
-    """Lektionen dieses Matches, wichtigste zuerst (verlorene Rundenchance, dann Häufigkeit)."""
-    from cstaktik.coach_voice import focus
+def lesson_rank(result: AnalysisResult, past: list[dict] | None = None) -> list[str]:
+    """Lektionen dieses Matches, wichtigste zuerst (wiederkehrend, verlorene Rundenchance, Häufigkeit)."""
+    from cstaktik.coach_voice import focus, recurrence
 
-    return [x["id"] for x in focus(result.findings, 10)]
+    return [x["id"] for x in focus(result.findings, 10, recurrence(past or []))]
 
 
-def lesson_rank_by(result: AnalysisResult) -> dict[str, list[str]]:
-    """Je Fokus-Spieler: seine Lektionen, wichtigste zuerst."""
-    from cstaktik.coach_voice import focus
+def lesson_rank_by(result: AnalysisResult, past: list[dict] | None = None) -> dict[str, list[str]]:
+    """Je Fokus-Spieler: seine Lektionen, wichtigste zuerst (seine früheren Matches zählen mit)."""
+    from cstaktik.coach_voice import focus, recurrence
 
     sids = {f.steamid for f in result.findings if f.evidence.get("coach") and f.steamid}
-    return {sid: [x["id"] for x in focus([f for f in result.findings if f.steamid == sid], 10)] for sid in sids}
+    return {sid: [x["id"] for x in focus([f for f in result.findings if f.steamid == sid], 10,
+                                         recurrence(past or [], sid))] for sid in sids}
 
 
 def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None) -> list[dict]:

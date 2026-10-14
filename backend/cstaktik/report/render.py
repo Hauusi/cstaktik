@@ -366,6 +366,7 @@ def _trade_units() -> float:
 def build_context(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
     pro_clips: list[dict] | None = None, memory: dict | None = None, focus: dict | None = None,
+    recur: tuple | None = None,
 ) -> dict:
     from cstaktik.coach import diagnose
 
@@ -374,7 +375,7 @@ def build_context(
     payload["moments"] = debrief["key_moments"]
     from cstaktik import coach_voice
 
-    lessons = coach_voice.focus(result.findings)
+    lessons = coach_voice.focus(result.findings, recur=recur)
     auftraege = normalize_focus(focus)
     won = sum(1 for r in payload["rounds"] if r["out"] == "W" and not r.get("pro"))
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
@@ -420,17 +421,19 @@ def build_context(
 def render_report(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
     pro_clips: list[dict] | None = None, memory: dict | None = None, focus: dict | None = None,
+    recur: tuple | None = None,
 ) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
     return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check, pro_clips,
-                                                                  memory, focus))
+                                                                  memory, focus, recur))
 
 
 def write_report(
     match: MatchData, result: AnalysisResult, out: Path, maps_dirs: list[Path] | None = None,
     goal_check: dict | None = None, pro_clips: list[dict] | None = None, memory: dict | None = None,
-    focus: dict | None = None,
+    focus: dict | None = None, recur: tuple | None = None,
 ) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips, memory, focus), encoding="utf-8")
+    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips, memory, focus, recur),
+                   encoding="utf-8")
     return out

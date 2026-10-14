@@ -39,6 +39,21 @@ def _trend(values: list[float | None]) -> dict:
     return {"state": "gleich", "text": f"etwa gleich (~{round(a, 1)} pro 10 Runden)"}
 
 
+def _player_rounds(h: dict, sid: str) -> int:
+    return int((h.get("players", {}).get(sid) or {}).get("rounds") or h.get("rounds") or 0)
+
+
+def count_trend(counts: list[tuple[int, int]], recent_n: int = 2) -> dict:
+    """Trend aus (Anzahl, Runden) je Match: die letzten ``recent_n`` Matches zusammen gegen alle davor zusammen."""
+    from cstaktik.coaching import compare_rates
+
+    if len(counts) <= recent_n:
+        return {"state": "wenig", "text": f"Trend ab {recent_n + 1} Matches ({len(counts)} bisher)"}
+    before, recent = counts[:-recent_n], counts[-recent_n:]
+    return compare_rates(sum(n for n, _ in before), sum(r for _, r in before),
+                         sum(n for n, _ in recent), sum(r for _, r in recent))
+
+
 def _lessons(histories: list[dict], sid: str) -> list[dict]:
     """Coach-Lektionen eines Spielers: Rate pro 10 Runden je Match (Trend) und je Map (Durchschnitt).
     Nur Matches mit Lektionsdaten zählen (ältere Einträge: ``cstaktik pro-update`` rüstet nach)."""
@@ -49,20 +64,22 @@ def _lessons(histories: list[dict], sid: str) -> list[dict]:
     in_hs = {id(h) for h in hs}  # Identität statt Vergleich ganzer Verlaufs-Einträge (langsam)
     out = []
     for lid in ids:
-        rates = []
+        rates, counts = [], []
         for h in histories:
             if id(h) in in_hs:
-                rates.append(round(10 * h["lessons"].get(sid, {}).get(lid, 0) / h["rounds"], 2))
+                n, rd = h["lessons"].get(sid, {}).get(lid, 0), _player_rounds(h, sid)
+                rates.append(round(10 * n / rd, 2) if rd else None)
+                counts.append((n, rd))
             else:
                 rates.append(None)
         by_map: dict[str, list[int]] = defaultdict(lambda: [0, 0])
         for h in hs:
             m = h.get("map") or "?"
             by_map[m][0] += h["lessons"].get(sid, {}).get(lid, 0)
-            by_map[m][1] += h["rounds"]
+            by_map[m][1] += _player_rounds(h, sid)
         total = sum(h["lessons"].get(sid, {}).get(lid, 0) for h in hs)
         out.append({"id": lid, "title": LESSONS[lid][0], "drill": LESSONS[lid][2], "total": total, "rates": rates,
-                    "trend": _trend(rates),
+                    "trend": count_trend(counts),
                     "by_map": {m: {"rate": round(10 * c / r, 1), "count": c, "rounds": r} for m, (c, r) in by_map.items()}})
     out.sort(key=lambda x: -x["total"])
     return out
@@ -102,15 +119,16 @@ def build(histories: list[dict]) -> dict:
             titles.update(h.get("issues", {}).get(sid, {}).keys())
         issues = []
         for t in titles:
-            rates = []
+            rates, counts = [], []
             for h in histories:
-                if sid not in h.get("players", {}) or not h.get("rounds"):
+                if sid not in h.get("players", {}) or not _player_rounds(h, sid):
                     rates.append(None)
                     continue
-                n = h.get("issues", {}).get(sid, {}).get(t, 0)
-                rates.append(round(10 * n / h["rounds"], 2))
+                n, rd = h.get("issues", {}).get(sid, {}).get(t, 0), _player_rounds(h, sid)
+                rates.append(round(10 * n / rd, 2))
+                counts.append((n, rd))
             total = sum(h.get("issues", {}).get(sid, {}).get(t, 0) for h in histories)
-            issues.append({"title": t, "rates": rates, "total": total, "trend": _trend(rates)})
+            issues.append({"title": t, "rates": rates, "total": total, "trend": count_trend(counts)})
         issues.sort(key=lambda i: -i["total"])
         players.append({"sid": sid, "name": name, "series": dict(series), "issues": issues,
                         "lessons": _lessons(histories, sid)})

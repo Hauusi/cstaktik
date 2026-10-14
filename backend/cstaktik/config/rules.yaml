@@ -97,7 +97,9 @@ utility_cmp:
 
 mapbook:
   at_s: 20                  # Spot = Ort nach so vielen Sekunden Rundenzeit (nach dem Aufstellen)
-  min_rounds: 3             # so viele Runden braucht ein Spot für eine Bewertung
+  min_rounds: 3             # ab so vielen Runden zeigt ein Spot Zahlen und eine Tendenz
+  verdict_rounds: 8         # ab so vielen Runden eine feste Bewertung (Halten/Okay/Anpassen)
+  min_bad_count: 3          # "Anpassen" braucht mindestens so viele erste Tode bzw. Tode ohne Trade
   first_death_bad_pct: 40   # ab so viel Prozent "als Erster gestorben" ist der Spot ein Problem
   untraded_bad_pct: 40      # ab so viel Prozent der Runden "ohne Trade gestorben" ebenso
   win_good_pct: 55          # stark: Siegquote mindestens so hoch ...

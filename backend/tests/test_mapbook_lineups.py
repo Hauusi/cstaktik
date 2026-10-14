@@ -34,11 +34,11 @@ def test_lineup_technique_standing_and_running():
 
 def _hist():
     tl, deaths = [], []
-    for r in range(1, 6):  # 5 CT-Runden in Connector, 3x als Erster tot, ohne Trade
-        tl.append({"round": r, "sid": "me", "side": "ct", "won": r > 3, "places": ["CTSpawn"] * 4 + ["Connector"]})
-        if r <= 3:
+    for r in range(1, 9):  # 8 CT-Runden in Connector, 4x als Erster tot, ohne Trade
+        tl.append({"round": r, "sid": "me", "side": "ct", "won": r > 4, "places": ["CTSpawn"] * 4 + ["Connector"]})
+        if r <= 4:
             deaths.append({"sid": "me", "round": r, "side": "ct", "first": True, "traded": False, "place": "Connector"})
-    tl.append({"round": 6, "sid": "me", "side": "ct", "won": True, "places": ["CTSpawn"] * 4 + ["Jungle"]})
+    tl.append({"round": 9, "sid": "me", "side": "ct", "won": True, "places": ["CTSpawn"] * 4 + ["Jungle"]})
     return [{"id": "m1", "map": "de_mirage", "report_file": "m1.html", "analyzed_at": "2026-10-12T20:00",
              "rounds": 20, "players": {"me": {"name": "Ich"}}, "timeline": tl, "deaths": deaths,
              "lessons": {"me": {"alone": 2}}}]
@@ -55,8 +55,8 @@ def test_mapbook_rates_spots_and_compares_with_pros():
     book = mapbook.build(_hist(), _pro(), "de_mirage", "me", CFG)
     ct = book["sides"]["ct"]
     con = ct["spots"][0]
-    assert con["place"] == "Connector" and con["n"] == 5 and con["first"] == 3 and con["untraded"] == 3
-    assert con["verdict"] == "problem" and "In 3 von 5 Runden von diesem Spot aus als Erster gestorben." in con["why"]
+    assert con["place"] == "Connector" and con["n"] == 8 and con["first"] == 4 and con["untraded"] == 4
+    assert con["verdict"] == "problem" and "In 4 von 8 Runden von diesem Spot aus als Erster gestorben." in con["why"]
     assert con["pro"]["share"] == 33 and con["pro"]["n"] == 4  # 4 von 12 Pro-Runden
     assert con["lineups"] and con["lineups"][0]["to"] == "Mid"
     assert ct["spots"][1]["verdict"] == "offen"  # Jungle: nur 1 Runde
@@ -130,3 +130,12 @@ def test_diagnose_without_focus_reports_throws():
     text = diagnose.report(m, [], load_rules_config())
     assert "Granaten mit Wurfposition (Lineups): 100 %" in text and "Abstand Werfer" in text
     assert "Lineups in dieser Demo (mind. 2x gleich): 1" in text and "setpos 0.00 0.00 0.00" in text
+
+
+def test_mapbook_few_rounds_only_tendency():
+    h = _hist()
+    h[0]["timeline"] = [t for t in h[0]["timeline"] if t["round"] in (1, 2, 3, 5, 6)]  # 5 Runden, 3 erste Tode
+    book = mapbook.build(h, [], "de_mirage", "me", CFG)
+    con = book["sides"]["ct"]["spots"][0]
+    assert con["verdict"] == "tendenz" and con["why"][0].startswith("Tendenz eher Problem, erst 5 Runden")
+    assert mapbook.worst_spot(book) is None  # keine Wochenaufgabe aus einer Tendenz

@@ -52,7 +52,7 @@
 
 {% if map_lessons %}
 <h2>Eure Baustellen auf {{ b.label }}</h2>
-{% for l in map_lessons %}<div class="note"><b>{{ l.name }}: {{ l.title }}</b> <span class="empty num">· {{ l.rate }} pro 10 Runden hier</span>
+{% for l in map_lessons %}<div class="note"><b>{{ l.name }}: {{ l.title }}</b> <span class="empty num">· {{ l.rate }} pro 10 Runden hier ({{ l.count }}x in {{ l.rounds }} Runden)</span>
   <div class="tp">{{ l.drill }}</div></div>{% endfor %}
 {% endif %}
 <div class="cols"><div class="col">

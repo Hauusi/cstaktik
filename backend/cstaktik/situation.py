@@ -395,7 +395,9 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
         f.evidence["chance"] = (f"Rundenchance vorher {_pct(pb[0])}, danach {_pct(pa[0])}"
                                 + (" (inkl. Trade)" if traded else "") + rough
                                 + (", bei gleicher Ausrüstungslage" if used_eq else "")
-                                + f". Gezählt aus {model.rounds} Runden.")
+                                + f". Vorher-Lage aus {pb[1]} Runden"
+                                + (f", danach aus {pa[1]} Runden gezählt." if pa[1] else ", danach entschieden."))
+        f.evidence["cost_n"] = min(n for n in (pb[1], pa[1]) if n) if (pb[1] or pa[1]) else 0
 
 
 # ---------------------------------------------------------------- Pro-Vergleich nach Lage

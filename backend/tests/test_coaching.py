@@ -146,3 +146,10 @@ def test_relapse_brings_mastered_lesson_back():
     hist = [_ps("1", 4), _ps("2", 3)]
     r = coaching.update(st, _ps("4", 4), ["alone"], sid="a", past=hist)
     assert r["focus"]["lesson"] == "alone" and r["focus"]["rueckfall"] == "2026-10-02T20:00"
+
+
+def test_compare_rates_only_claims_clear_differences():
+    assert coaching.compare_rates(8, 48, 2, 48)["state"] == "besser"
+    assert coaching.compare_rates(3, 40, 9, 40)["state"] == "schlechter"
+    assert coaching.compare_rates(4, 40, 2, 40)["state"] == "gleich"
+    assert coaching.compare_rates(2, 20, 0, 20)["state"] == "wenig"  # zu wenig Runden

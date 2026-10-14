@@ -10,6 +10,8 @@ Nur gespeicherte Werte aus dem Verlauf, nichts geschätzt.
 
 from __future__ import annotations
 
+from cstaktik.coaching import compare_rates
+
 import statistics
 
 
@@ -19,7 +21,7 @@ def _de(x: float | None, d: int = 1) -> str:
 
 def _lessons(window: list[dict], sid: str) -> dict[str, dict]:
     out: dict[str, dict] = {}
-    rounds = sum(h.get("rounds") or 0 for h in window if sid in h.get("players", {}))
+    rounds = sum((h["players"][sid].get("rounds") or h.get("rounds") or 0) for h in window if sid in h.get("players", {}))
     for h in window:
         for lid, n in (h.get("lessons") or {}).get(sid, {}).items():
             e = out.setdefault(lid, {"count": 0, "cost": 0})
@@ -29,7 +31,12 @@ def _lessons(window: list[dict], sid: str) -> dict[str, dict]:
                 out.setdefault(sc["lesson"], {"count": 0, "cost": 0})["cost"] += max(0, sc["cost"])
     for e in out.values():
         e["rate"] = round(10 * e["count"] / rounds, 1) if rounds else None
+        e["rounds"] = rounds
     return out
+
+
+def _rounds(window: list[dict], sid: str) -> int:
+    return sum((h["players"][sid].get("rounds") or h.get("rounds") or 0) for h in window if sid in h.get("players", {}))
 
 
 def _duels(window: list[dict], sid: str) -> dict:
@@ -60,11 +67,14 @@ def build(histories: list[dict], n: int = 5) -> dict:
         lessons = []
         for lid, e in ranked[:4]:
             o = old.get(lid)
-            trend = None
-            if o and o.get("rate") is not None and e.get("rate") is not None:
-                trend = "besser" if e["rate"] < o["rate"] * 0.8 else "schlechter" if e["rate"] > o["rate"] * 1.25 else "gleich"
+            trend = trend_text = None
+            if before:
+                # derselbe ehrliche Vergleich wie im Fortschritt: Richtung nur bei genug Runden und klarem Abstand
+                c = compare_rates((o or {}).get("count", 0), _rounds(before, sid), e["count"], e.get("rounds") or 0)
+                trend, trend_text = (None if c["state"] == "wenig" else c["state"]), c["text"]
             lessons.append({"id": lid, "title": LESSONS[lid][0], "count": e["count"], "rounds_lost": round(e["cost"] / 100, 1),
                             "rate": e["rate"], "rate_before": o.get("rate") if o else None, "trend": trend,
+                            "trend_text": trend_text,
                             "mantra": TEACH[lid]["mantra"]})
         dn, do = _duels(window, sid), _duels(before, sid)
         checks = [((h.get("focus_check") or {}).get(sid) or {}).get("check") for h in window]
