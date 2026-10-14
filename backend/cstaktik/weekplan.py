@@ -32,7 +32,8 @@ def week_range(key: str) -> tuple[date, date]:
 
 
 def tasks_for(ctx: dict) -> list[dict]:
-    """ctx: lesson, routine, map, map_label, spot (Map-Buch-Zeile + side) | None, lineup | None, scenes, sid."""
+    """ctx: lesson, routine, map, map_label, spot (Map-Buch-Zeile + side) | None, lineup | None, scenes, sid,
+    tactic (Pro-Empfehlung aus dem Playbook) | None."""
     r = ctx["routine"]
     sid, m = ctx["sid"], ctx.get("map")
     out = [{"id": f"routine1:{ctx['lesson']}", "kind": "Übung", "title": r["title"], "minutes": r["minutes"],
@@ -66,6 +67,17 @@ def tasks_for(ctx: dict) -> list[dict]:
                               "Dann 5x ohne Befehl von Hand anstellen.",
                               f"Im Match: Pros werfen sie meist bei {lu['t'] // 60}:{lu['t'] % 60:02d} Rundenzeit."],
                     "link": f"/lineups/{m}?l={lu['id']}&p={sid}"})
+    if m and ctx.get("tactic"):
+        t = ctx["tactic"]
+        nades = ", ".join(f"{ {'smoke': 'Smoke', 'flash': 'Flash', 'molotov': 'Molotov'}.get(c['kind'], c['kind'])} "
+                          f"auf {c['to']}" for c in t.get("common", [])[:4])
+        out.append({"id": f"tactic:{m}:{t['id']}", "kind": "Playbook", "title": f"Pro-Taktik: {t['name']}",
+                    "steps": [f"Im Playbook abspielen. Pros gewinnen damit {t['won_pct']} % ({t['won']} von {t['n']} Runden).",
+                              *([f"Granaten-Set: {nades}. Lineups dazu sind dort verlinkt."] if nades else []),
+                              "Zu zweit absprechen: wer welchen Weg nimmt und wer welche Granate wirft.",
+                              "Im nächsten Match auf T mindestens einmal genau so spielen. Der Report zeigt sie dann unter "
+                              "'Eure Taktiken heute'."],
+                    "link": f"/playbook/{m}#{t['id']}"})
     if ctx.get("scenes"):
         out.append({"id": "quiz", "kind": "Situationen", "title": "Situations-Training: eigene Szenen entscheiden",
                     "steps": ["Jede Szene: erst entscheiden, dann auflösen."], "link": f"/training/situationen?p={sid}"})

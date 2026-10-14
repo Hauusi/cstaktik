@@ -371,10 +371,18 @@ def _plan_ctx(hist: list[dict], pro_all: list[dict], sid: str, focus: dict) -> d
         cands = sorted(cands, key=lambda l: l["kind"] != want) if want else cands
         lineup = cands[0] if cands else None
     scenes = sum(1 for sc in _all_scenes(hist) if sc.get("sid") == sid)
+    tactic = None
+    if m:  # Taktik-Hausaufgabe: nur eine echte Pro-Empfehlung (ab 50 % Siegquote, mindestens 3 Runden)
+        from cstaktik import playbook
+
+        own = [{"map": h.get("map"), "plays": h.get("plays"), "ct_plays": h.get("ct_plays")} for h in hist]
+        plan = playbook.gameplan(pro_all, own, m, load_rules_config().get("playbook"))
+        tp = (plan or {}).get("t_pro")
+        tactic = tp if tp and tp.get("why") == "best" else None
     t = TEACH[focus["lesson"]]
     return {"sid": sid, "lesson": focus["lesson"], "routine": t["routine"], "map": m,
             "map_label": m.removeprefix("de_").capitalize() if m else None, "spot": spot, "lineup": lineup,
-            "scenes": scenes}
+            "scenes": scenes, "tactic": tactic}
 
 
 @app.get("/training", response_class=HTMLResponse)

@@ -221,3 +221,16 @@ def test_report_renders_tactics_section(tmp_path, monkeypatch):
     html = render.render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
     assert "Eure Taktiken heute" in html and "Pros 60 % (5 Runden)" in html and '"tac":"B-Rush über Apartments"' in html
     assert "Zum Mitnehmen" in html and "Nicht wiederholen: B-Rush über Apartments (1 von 3 gewonnen), Pros gewinnen damit 60 %" in html
+
+
+def test_weekplan_gets_pro_tactic_task():
+    from cstaktik import weekplan
+
+    ctx = {"sid": "a", "lesson": "utility", "routine": {"title": "R", "minutes": 10, "steps": ["x"]}, "map": "de_mirage",
+           "map_label": "Mirage", "spot": None, "lineup": None, "scenes": 0,
+           "tactic": {"id": "split-A-Palace-Ramp", "name": "A-Split über Palace + Ramp", "won_pct": 67, "won": 2, "n": 3,
+                      "common": [{"kind": "smoke", "to": "CT", "n": 3}]}}
+    task = next(t for t in weekplan.tasks_for(ctx) if t["kind"] == "Playbook")
+    assert task["title"] == "Pro-Taktik: A-Split über Palace + Ramp" and task["link"] == "/playbook/de_mirage#split-A-Palace-Ramp"
+    assert "Smoke auf CT" in task["steps"][1]
+    assert not any(t["kind"] == "Playbook" for t in weekplan.tasks_for({**ctx, "tactic": None}))
