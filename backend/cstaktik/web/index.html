@@ -6,6 +6,9 @@
 {% block content %}
 <div class="cols">
 <div class="col">
+{% if missing_players %}<a class="card" href="/spieler" style="display:block;border-color:#e5484d;margin-top:18px">
+  <b>{{ missing_players }} eingestellte{{ "r" if missing_players == 1 }} Spieler kam im letzten Match nicht vor.</b>
+  <div class="small muted">Der Coach sieht ihn nicht und kann ihn nicht analysieren. Spieler aus euren Matches auswählen ›</div></a>{% endif %}
 <h2>Eure Aufträge</h2>
 {% if auftrag %}
 {% for a in auftrag %}
@@ -55,6 +58,7 @@
 <h2>Match hochladen</h2>
 {% include "upload.html" %}
 {% include "jobs.html" %}
+<a class="more-link" href="/spieler">Spieler einstellen ›</a>
 {% if last %}<a class="more-link" href="/matches">Letztes Match: {{ (last.map or "?").removeprefix("de_")|capitalize }} {{ last.won }}:{{ last.lost }} ›</a>{% endif %}
 </div>
 </div>

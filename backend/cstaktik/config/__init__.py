@@ -30,3 +30,16 @@ def load_focus_steamids(path: Path | None = None) -> set[str]:
         return set()
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return {str(s) for s in data.get("focus_steamids", [])}
+
+
+def save_focus_steamids(players: list[tuple[str, str]], path: Path | None = None) -> None:
+    """players.yaml schreiben: [(steamid, name), ...]. Namen nur als Kommentar zur Orientierung."""
+    path = path or CONFIG_DIR / "players.yaml"
+    lines = ["# Von der Seite 'Spieler' geschrieben. SteamID64 der Spieler, die der Coach analysiert.",
+             "focus_steamids:"]
+    for sid, name in players:
+        if not sid.isdigit():
+            raise ValueError(f"Ungültige SteamID: {sid}")
+        safe = "".join(ch for ch in name if ch.isprintable() and ch not in "\n#")[:40]
+        lines.append(f'  - "{sid}"  # {safe}')
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")

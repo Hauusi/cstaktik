@@ -130,9 +130,13 @@ def index() -> str:
     hist = _load_hist()
     played = [h.get("map") for h in reversed(hist) if h.get("map")]
     maps = list(dict.fromkeys(played + ["de_mirage", "de_dust2", "de_inferno"]))
+    from cstaktik.config import load_focus_steamids
+
+    # eingestellter Spieler, der im letzten Match nicht vorkommt: der Coach sieht ihn nicht -> Hinweis
+    missing = len(load_focus_steamids() - set((hist[-1].get("players") or {}) if hist else ()))
     return _env.get_template("index.html").render(
         nav_active="coach", jobs=jobs, n_history=len(hist), last=hist[-1] if hist else None, briefing_maps=maps,
-        auftrag=_auftrag(hist),
+        auftrag=_auftrag(hist), missing_players=missing if hist else 0,
     )
 
 
@@ -654,6 +658,48 @@ def pro_sync() -> RedirectResponse:
                          "error": None}
     _executor.submit(_run_faceit_job, job_id)
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
+
+
+@app.get("/spieler", response_class=HTMLResponse)
+def players_page() -> str:
+    """Wer wird analysiert? Spieler aus den letzten Matches zum Anklicken statt SteamIDs abtippen."""
+    from cstaktik.config import load_focus_steamids
+
+    return _env.get_template("spieler.html").render(nav_active="coach", roster=pipeline.roster(),
+                                                    focus=sorted(load_focus_steamids()))
+
+
+@app.post("/spieler")
+async def players_save(request: Request) -> RedirectResponse:
+    from cstaktik.config import save_focus_steamids
+
+    form = await request.form()
+    chosen = [str(x) for x in form.getlist("sid") if str(x).isdigit()][:2]
+    if not chosen:
+        raise HTTPException(400, "Mindestens einen Spieler wählen.")
+    names = {e["sid"]: e["name"] for e in pipeline.roster()}
+    save_focus_steamids([(sid, names.get(sid, "")) for sid in chosen])
+    job_id = uuid.uuid4().hex[:12]
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "wartet", "name": "Alles für die neue Spielerauswahl neu berechnen",
+                         "stage": "Wartet", "frac": 0.0, "started": None, "estimate": None, "samples": 0,
+                         "cached": False, "report": None, "error": None}
+    _executor.submit(_run_rerender_job, job_id)
+    return RedirectResponse(f"/jobs/{job_id}", status_code=303)
+
+
+def _run_rerender_job(job_id: str) -> None:
+    def update(**kw):
+        with _jobs_lock:
+            _jobs[job_id].update(kw)
+
+    update(status="läuft", stage="Reports neu berechnen", started=time.monotonic())
+    try:
+        n = pipeline.rerender_reports(progress=lambda stage, frac: update(stage=stage, frac=frac))
+        update(status="fertig", stage="Fertig", frac=1.0,
+               message=f"{n} Reports und alle Aufträge für die neue Spielerauswahl neu berechnet.")
+    except Exception as exc:  # noqa: BLE001
+        update(status="fehler", error=f"Neu berechnen fehlgeschlagen: {type(exc).__name__}: {exc}")
 
 
 @app.get("/api/jobs/{job_id}")

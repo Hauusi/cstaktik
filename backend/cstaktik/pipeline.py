@@ -252,7 +252,7 @@ def run(
     from cstaktik import coaching
 
     cstate = coaching.load(COACHING_FILE)
-    if cstate.get("count_version") != coaching.COUNT_VERSION:
+    if coaching_stale(cstate, load_focus_steamids()):  # Fokus aus players.yaml, nicht aus einem Einzel-Upload
         if past:  # Aufträge stammen aus der alten Zählweise: einmal alles neu berechnen, bevor geprüft wird
             report("Aufträge neu berechnen (einmalig)", 0.95)
             rerender_reports()
@@ -260,6 +260,7 @@ def run(
             past = [h for h in history.load_all(HISTORY_DIR) if h.get("id") != my_id
                     and (h.get("analyzed_at") or "") <= when]
         cstate["count_version"] = coaching.COUNT_VERSION
+        cstate["focus_ids"] = sorted(load_focus_steamids())
     summary["focus_check"] = coaching.update_all(cstate, summary, summary.get("lesson_rank_by") or {},
                                                  past=past, **goal_kw(config))
     coaching.save(cstate, COACHING_FILE)
@@ -276,6 +277,16 @@ def run(
                        memory=mem, focus=summary["focus_check"])
     report("Fertig", 1.0)
     return out
+
+
+def coaching_stale(state: dict, focus: set[str]) -> bool:
+    """Aufträge neu berechnen? Bei alter Zählweise oder wenn andere Spieler im Fokus stehen als beim Berechnen.
+    Ältere Dateien ohne 'focus_ids' gelten beim Fokus als passend (kein unnötiger Neubau)."""
+    from cstaktik import coaching
+
+    if "players" not in state or state.get("count_version") != coaching.COUNT_VERSION:
+        return True
+    return "focus_ids" in state and set(state["focus_ids"]) != set(focus or ())
 
 
 def coaching_now() -> str:
@@ -305,6 +316,37 @@ def _current_match(h: dict, focus: set[str], config: dict) -> MatchData:
     return load_match(cache)
 
 
+def roster(n: int = 4) -> list[dict]:
+    """Spieler aus den letzten ``n`` eigenen Matches (aus dem Cache): Name, SteamID, in wie vielen Matches,
+    wie oft im selben Team wie die aktuellen Fokus-Spieler. Grundlage für die Seite 'Spieler'."""
+    from cstaktik import history
+
+    focus = load_focus_steamids()
+    hist = [h for h in (history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []) if cache_file(h.get("id"))]
+    seen: dict[str, dict] = {}
+    for h in hist[-n:]:
+        try:
+            m = load_match(cache_file(h["id"]))
+        except (OSError, ValueError):
+            continue
+        names = {p.steamid: p.name for p in m.players}
+        mates: set[str] = set()
+        for r in m.rounds:
+            fs = {r.sides.get(f) for f in focus if f in r.sides}
+            mates |= {sid for sid, side in r.sides.items() if side in fs}
+        for sid, name in names.items():
+            e = seen.setdefault(sid, {"sid": sid, "name": name, "matches": 0, "with_focus": 0,
+                                      "focus": sid in focus, "maps": set()})
+            e["matches"] += 1
+            e["with_focus"] += sid in mates
+            e["name"] = name
+            e["maps"].add((m.map_name or "?").removeprefix("de_").capitalize())
+    out = sorted(seen.values(), key=lambda e: (-e["focus"], -e["with_focus"], -e["matches"], e["name"].lower()))
+    for e in out:
+        e["maps"] = sorted(e["maps"])
+    return out
+
+
 def rerender_reports(maps: set[str] | None = None, progress: Progress | None = None) -> int:
     """Baut die Reports eigener Matches aus dem Cache neu (z. B. nach neuen Pro-Demos).
 
@@ -322,8 +364,7 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
     # Aufträge aus dem Verlauf neu aufbauen (nur beim Neubau aller Matches), wenn es noch keine Datei gibt, sie im
     # alten Format ist oder mit einer älteren Zählweise der Lektionen entstand. Übungen und Wochenpläne bleiben.
     old_state = coaching.load(COACHING_FILE)
-    stale = (not COACHING_FILE.exists() or "players" not in old_state
-             or old_state.get("count_version") != coaching.COUNT_VERSION)
+    stale = coaching_stale(old_state, focus) or not COACHING_FILE.exists()
     rebuild = None
     if maps is None and stale:
         rebuild = {"players": {sid: {"focus": None, "done": [], "drills": slot.get("drills", []),
@@ -347,15 +388,13 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         if not match.focus_ids():
             continue
         result, clips = _coach(match, config)
-        h["lessons"] = history.lessons(result)  # Lektionen nachrüsten (Fortschritt je Map)
-        h["lesson_rank"] = history.lesson_rank(result, before(h))
-        h["main_lesson"] = h["lesson_rank"][0] if h["lesson_rank"] else None  # wie "Der eine Punkt" im Report
-        h["lesson_rank_by"] = history.lesson_rank_by(result, before(h))
-        h["scenes"] = history.scenes(result, h.get("report_file"), h.get("map"))
-        h["duel_stats"] = history.duel_stats(match)
-        h["util_stats"] = history.util_stats(match)
-        h["deaths"] = history.death_rows(match)  # mit "getradet" (Map-Buch)
-        h["timeline"] = history.timeline(match)
+        # ganze Zusammenfassung neu (Spieler, Lektionen, Duelle, Tode ...), damit z. B. ein neu gewählter
+        # Fokus-Spieler überall auftaucht; Zeitpunkt, Report und Ziel-Check bleiben
+        keep = {k: h[k] for k in ("id", "analyzed_at", "report_file", "goal_check", "focus_check") if k in h}
+        fresh = history.summarize(match, result, h.get("report_file"), past=before(h))
+        h.clear()
+        h.update(fresh)
+        h.update(keep)
         if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
             h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], past=before(h), **goal_kw(config))
         history.save(h, HISTORY_DIR)
@@ -369,6 +408,7 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         done += 1
     if rebuild is not None and done:
         rebuild["count_version"] = coaching.COUNT_VERSION
+        rebuild["focus_ids"] = sorted(focus)
         coaching.save(rebuild, COACHING_FILE)
     return done
 
