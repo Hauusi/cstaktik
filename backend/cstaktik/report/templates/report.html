@@ -1850,6 +1850,9 @@ function dbBuild() {
       b.append(el('div', 'k', n.name + (n.new ? ' · neuer Auftrag' : ' · Auftrag bleibt')), el('div', 'mantra', '„' + n.mantra + '“'));
       b.firstChild.style.color = 'var(--muted)'; b.lastChild.style.marginTop = '4px';
       b.appendChild(el('p', null, n.title + ': höchstens ' + String(n.target).replace('.', ',') + 'x pro 10 Runden.')).style.marginTop = '6px';
+      // Auftrag weicht vom heutigen Hauptpunkt ab: sagen, warum (der Auftrag läuft über mehrere Matches)
+      if (DB.lesson && n.lesson !== DB.lesson.id && !n.new)
+        b.appendChild(el('p', 'quiet', `Heute war „${DB.lesson.title}“ der wichtigste Punkt. Dein Auftrag bleibt trotzdem „${n.title}“, bis er über mehrere Matches sitzt.`));
       const r = el('div'); r.append(el('b', null, `Übung (${n.routine.minutes} Min): ${n.routine.title}`));
       const ol = el('ol'); n.routine.steps.forEach(x => ol.appendChild(el('li', null, x))); r.appendChild(ol);
       r.appendChild(el('div', null, 'Im Match: ' + n.in_game)); b.appendChild(r);

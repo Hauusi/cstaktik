@@ -73,6 +73,21 @@ CAUSES = {
         "tip": "Vor der Runde Kauf absprechen: alle kaufen oder alle sparen.",
     },
 }
+
+# Gleicher Name wie die Coach-Lektion, wo Ursache und Lektion dasselbe meinen (überall dieselbe Sprache)
+_SAME_AS_LESSON = {"alone": "alone", "blind": "blind", "low_hp": "low_hp", "outnumbered": "outnumbered",
+                   "utility": "utility"}
+
+
+def _lesson_titles() -> None:
+    from cstaktik.coach_voice import LESSONS
+
+    for cid, lid in _SAME_AS_LESSON.items():
+        if cid in CAUSES and lid in LESSONS:
+            CAUSES[cid]["title"] = LESSONS[lid][0]
+
+
+_lesson_titles()
 LABEL_TO_CAUSE = {
     "Allein, kein Trade": "alone",
     "Geblendet": "blind",
