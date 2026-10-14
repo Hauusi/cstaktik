@@ -129,6 +129,19 @@ TEACH: dict[str, dict] = {
             "Ziel: für jede Position eine Stelle mit nur einem offenen Winkel gefunden.",
         ]},
     },
+    "seen_first": {
+        "principle": ("Ein Duell beginnt, wenn einer den anderen sieht. Wer zuerst sieht, hat Zeit zu zielen, der andere "
+                      "muss erst reagieren. Das holt man nicht mit Aim auf, sondern mit der Stelle, an der man steht oder "
+                      "wie man in den Winkel kommt."),
+        "mantra": "Erst sehen, dann gesehen werden.",
+        "in_game": ("Beim Halten nicht an der offenen Kante kleben: tiefer stehen oder Off-Angle, so dass du seinen Peek "
+                    "zuerst siehst. Beim Peeken einen Winkel nach dem anderen nehmen, nicht in mehrere gleichzeitig laufen."),
+        "routine": {"title": "Sichtlinien prüfen", "minutes": 10, "steps": [
+            "Map-Buch öffnen: die Orte, an denen er dich zuerst gesehen hat (orange Punkte).",
+            "Offline-Server: genau dort hinstellen, dann zur Killer-Position laufen und zurückschauen. Wie früh sieht man dich?",
+            "Für jeden Ort eine Stelle suchen, an der du ihn siehst, bevor er dich sieht (tiefer, Off-Angle, andere Kante).",
+        ]},
+    },
     "duel": {
         "principle": "Die Lage war in Ordnung, das Duell selbst ging verloren. Das trainiert man mit Aim, nicht mit Taktik.",
         "mantra": "Aim warm, Kopf ruhig.",

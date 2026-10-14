@@ -59,7 +59,7 @@ def _duel(match: MatchData, k) -> dict | None:
     from cstaktik.duels import side_of
 
     d = next((d for d in match.duels if d.tick == k.tick and d.loser == k.victim_steamid), None)
-    return side_of(d, k.victim_steamid) if d else None
+    return side_of(d, k.victim_steamid, match.tickrate) if d else None
 
 
 def _other_death(match: MatchData, k, sid: str, name: str) -> Finding:

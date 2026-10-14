@@ -24,7 +24,8 @@ from cstaktik.rules.base import PositionIndex, dist
 
 # ---------------------------------------------------------------- Auftrag (Fokus) über Matches
 
-COUNT_VERSION = 3  # 2: jede Lektion eines Todes zählt; 3: 'Utility' nur bei ungenutzter Flash/Molotov
+COUNT_VERSION = 4  # 2: jede Lektion eines Todes zählt; 3: 'Utility' nur bei ungenutzter Flash/Molotov;
+#                   4: neue Lektion 'Zuerst gesehen' (aus Duell-Sichtung)
 
 
 def now_local() -> str:
@@ -239,7 +240,7 @@ def drills_since(slot: dict, since: str | None) -> int:
 # ---------------------------------------------------------------- "So geht's richtig" aus dem Match
 
 BRIGHT_LESSONS = {"alone", "outnumbered", "utility", "no_shot_close", "moving", "moving_shot", "no_shot_far",
-                  "crosshair"}  # nur für diese sucht der Coach Gegenbeispiele
+                  "crosshair", "seen_first"}  # nur für diese sucht der Coach Gegenbeispiele
 
 
 def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: int = 3,
@@ -298,6 +299,15 @@ def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: i
                         f"neben dem Gegner" + (", zuerst geschossen" if d.w_react_ms == 0 else "") + ", Kill.")
             elif d is not None and lid == "moving" and d.w_speed is not None and d.w_speed < 40:
                 text = f"{name} steht beim ersten Schuss ({d.w_speed} Units/s) und gewinnt das Duell."
+        elif lid == "seen_first":
+            from cstaktik.duels import side_of
+
+            d = next((d for d in match.duels if d.tick == k.tick and d.winner == k.attacker_steamid), None)
+            v = side_of(d, k.attacker_steamid, tr) if d is not None else None
+            if v and v["seen"] == "ich" and (v["seen_ms"] is None or v["seen_ms"] >= 300):
+                lead = f" ({str(round(v['seen_ms'] / 1000, 1)).replace('.', ',')} s früher)" if v["seen_ms"] else ""
+                text = (f"{name} sieht {match.name_of(k.victim_steamid)} zuerst{lead}"
+                        + (f" in {k.victim_place}" if k.victim_place else "") + " und gewinnt das Duell.")
         elif lid == "moving_shot":
             last = max((s for s in match.shots if s.steamid == k.attacker_steamid and s.round == k.round
                         and s.tick <= k.tick), key=lambda s: s.tick, default=None)

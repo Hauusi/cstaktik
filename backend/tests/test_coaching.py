@@ -166,7 +166,10 @@ def test_bright_spots_from_duels_and_honest_none():
     k = next(k for k in m.kills if k.attacker_steamid == MATES[1])
     m.duels = [Duel(round=k.round, tick=k.tick, contact=k.tick - 20, winner=MATES[1], loser=k.victim_steamid,
                     w_err=3.5, l_err=30.0, w_react_ms=0, l_react_ms=200, w_first_hit=True, l_first_hit=False,
-                    w_speed=10, l_speed=200, w_shots=2, l_shots=3)]
+                    w_speed=10, l_speed=200, w_shots=2, l_shots=3,
+                    seen_known=True, w_seen=k.tick - 64, l_seen=k.tick - 10)]
+    assert "sieht" in coaching.bright_spots(m, "seen_first")[0]["text"]
+    assert "zuerst (0,8 s früher)" in coaching.bright_spots(m, "seen_first")[0]["text"]
     spots = coaching.bright_spots(m, "crosshair")
     assert spots and "Fadenkreuz 3,5° neben dem Gegner, zuerst geschossen" in spots[0]["text"]
     assert "steht beim ersten Schuss (10 Units/s)" in coaching.bright_spots(m, "moving")[0]["text"]

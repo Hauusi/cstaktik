@@ -53,6 +53,11 @@ LESSONS = {
               "Der Gegner kam aus einer Richtung, in die du gar nicht geschaut hast. Das ist kein Aim-Problem, "
               "sondern eine Position, die zu viele Winkel gleichzeitig offen lässt.",
               "Positionen wählen, an denen nur ein Winkel auf dich zeigt; den Rest deckt ein Mitspieler oder Utility."),
+    "seen_first": ("Sehen, bevor du gesehen wirst",
+                   "Er hatte dich im Blick, bevor du ihn sehen konntest. Wer zuerst sieht, gewinnt fast jedes Duell, "
+                   "egal wie gut der andere zielt.",
+                   "Nicht an der offenen Kante warten: einen Schritt tiefer in Deckung oder auf einen Off-Angle, "
+                   "damit du ihn siehst, bevor er dich sieht."),
     "duel": ("Duell verloren, Lage war okay",
              "Hier war die Lage nicht das Problem, das Duell selbst ging verloren.",
              "Aim und Peek-Timing im Deathmatch trainieren."),
@@ -72,6 +77,7 @@ def _clock(s: float | None) -> str | None:
 
 CROSSHAIR_BAD_DEG = 20.0  # ab dieser Abweichung im Kontakt-Moment gilt das Fadenkreuz als "nicht vorgehalten"
 WRONG_ANGLE_DEG = 60.0  # ab hier schaute man in eine andere Richtung (Gegner kam von der Seite/hinten)
+SEEN_FIRST_MS = 300  # so viel früher muss der Gegner dich gesehen haben, damit es als "zuerst gesehen" zählt
 
 
 def lesson_id(fx: dict, close_units: int = 600) -> str:
@@ -79,6 +85,9 @@ def lesson_id(fx: dict, close_units: int = 600) -> str:
     duel = fx.get("duel") or {}
     if label in ("Duell verloren", "Ohne Gegenwehr") and duel.get("err") is not None and duel["err"] >= WRONG_ANGLE_DEG:
         return "angle"
+    if label == "Duell verloren" and duel.get("seen") == "gegner" and (
+            duel.get("seen_ms") is None or duel["seen_ms"] <= -SEEN_FIRST_MS):
+        return "seen_first"
     if label == "Duell verloren" and duel.get("err") is not None and duel["err"] >= CROSSHAIR_BAD_DEG:
         return "crosshair"
     if label == "Ohne Gegenwehr":
@@ -224,6 +233,10 @@ def _next(lid: str, fx: dict, snap: dict | None, aktion: str | None = None) -> s
     if lid == "angle":
         return (f"Stell dich so, dass nur ein Winkel auf dich zeigt. {fx.get('aplace') or 'Diese Richtung'} "
                 "muss ein Mitspieler oder eine Smoke abdecken, nicht du nebenbei.")
+    if lid == "seen_first":
+        place = (snap or {}).get("place")
+        return (f"{'In ' + place if place else 'Hier'} nicht an der offenen Kante warten: einen Schritt tiefer oder auf "
+                f"einen Off-Angle, so dass {aplace or 'er'} dich erst sieht, wenn du ihn schon im Fadenkreuz hast.")
     if lid == "crosshair":
         return (f"Fadenkreuz schon vorher auf {aplace or 'den Spot'} legen, auf Kopfhöhe. "
                 "Dann musst du nur noch klicken, nicht erst suchen.")
@@ -279,6 +292,12 @@ def _why(lid: str, fx: dict, snap: dict | None, aktion: str | None) -> str | Non
         if held:
             return f"Du hast allein gehalten{far}. Nach dem ersten Kontakt konnte dich niemand traden."
         return f"Du bist ins Duell gegangen{far}. Dein Tod blieb ohne Antwort."
+    if lid == "seen_first":
+        ms = d.get("seen_ms")
+        lead = f"{_de2(-ms / 1000)} s bevor du ihn gesehen hast" if ms is not None else "und du ihn gar nicht"
+        if held:
+            return f"Du hast gehalten, aber {att}{src} hat dich gesehen, {lead}. Deine Stelle war für ihn zuerst einsehbar."
+        return f"Du bist in seine Sicht gelaufen: {att}{src} hat dich gesehen, {lead}."
     if lid == "moving" and aktion == "zurückgezogen":
         return "Du warst auf dem Rückzug, als er dich erwischt hat: rückwärts laufen ist auch ein bewegtes Ziel."
     return None
