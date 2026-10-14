@@ -112,3 +112,34 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .seen .sn-w > div { display: grid; grid-template-columns: 58px 1fr; align-items: baseline; gap: 8px; font-size: 13px; color: var(--muted); }
 .seen .sn-w > div > b { font-size: 19px; color: var(--text); text-align: right; }
 .seen .sn-w .me > b { color: #46a758; } .seen .sn-w .op > b { color: #e5484d; }
+/* Startseite: Auftrag + drei Schritte */
+.aufs { display: grid; gap: 12px; }
+.aufs .auf + .auf { margin-top: 0; }
+.steps { display: grid; gap: 14px; margin-top: 28px; }
+.step { background: var(--surface); border: 1px solid var(--line); border-top: 3px solid #3a3f48; padding: 16px; }
+.step.now { border-top-color: var(--orange); }
+.step.off { opacity: .55; }
+.step .sh { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+.step .sn { width: 34px; height: 34px; flex: none; display: grid; place-items: center; background: #23272e; color: var(--orange);
+  font-family: var(--cond); font-weight: 800; font-size: 20px; }
+.step.now .sn { background: var(--orange); color: #111; }
+.step .st { font-family: var(--cond); font-weight: 800; font-size: 22px; text-transform: uppercase; line-height: 1; }
+.step .sw { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.step .sl { font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); margin: 16px 0 2px; }
+.step .maps { margin-top: 8px; }
+.step .pre:first-of-type { margin-top: 0; padding-top: 0; border-top: 0; }
+.step .card#form, .step form.card { padding: 0; border: 0; background: none; }
+.step h2 { margin-top: 0; }
+.lastm { display: grid; gap: 2px; margin-top: 14px; padding: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+.lastm b { font-family: var(--cond); font-size: 20px; text-transform: uppercase; }
+.lastm .small { color: var(--orange); }
+.trow { display: grid; gap: 2px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.trow:last-child { border-bottom: 0; }
+.trow span { font-size: 13px; color: var(--muted); }
+@media (min-width: 960px) {
+  .aufs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+}
+.guide .gs + .gs { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.guide .gs > b { font-family: var(--cond); font-size: 19px; text-transform: uppercase; }
+.guide p { margin: 4px 0 0; color: #cfd5de; font-size: 14.5px; }

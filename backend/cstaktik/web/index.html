@@ -1,51 +1,67 @@
 {% extends "base.html" %}
 {% block hero %}
 <h1>Dein Coach</h1>
-<p>{% if auftrag %}Erst üben, dann spielen, dann Demo hochladen.{% else %}Lade ein Match hoch. Der Coach gibt jedem von euch einen Auftrag.{% endif %}</p>
+<p>{% if not n_history %}Lade euer erstes Match hoch. Danach weiß der Coach, woran ihr arbeitet.{% else %}Jedes Match läuft in drei Schritten. Mehr braucht ihr nicht.{% endif %}</p>
 {% endblock %}
 {% block content %}
-<div class="cols">
-<div class="col">
 {% if missing_players %}<a class="card" href="/spieler" style="display:block;border-color:#e5484d;margin-top:18px">
   <b>{{ missing_players }} eingestellte{{ "r" if missing_players == 1 }} Spieler kam im letzten Match nicht vor.</b>
-  <div class="small muted">Der Coach sieht ihn nicht und kann ihn nicht analysieren. Spieler aus euren Matches auswählen ›</div></a>{% endif %}
-<h2>Eure Aufträge</h2>
+  <div class="small muted">Wenn er nicht mitgespielt hat, ist alles in Ordnung. Sonst hier die Spieler prüfen ›</div></a>{% endif %}
+
 {% if auftrag %}
+<h2>Euer Auftrag</h2>
+<div class="aufs">
 {% for a in auftrag %}
 <div class="card auf">
-  <div class="who">{{ a.name }}</div>
+  <div class="who">{{ a.name }}{% if a.mastered %} · {{ a.mastered }} gemeistert{% endif %}</div>
   <div class="atitle">{{ a.title }}</div>
   <div class="mantra">„{{ a.mantra }}“</div>
   {% if a.rueckfall %}<div class="small" style="margin-top:6px;color:#e5484d">Kommt zurück: war am {{ a.rueckfall[8:10] }}.{{ a.rueckfall[5:7] }}. gemeistert, jetzt wieder so oft wie vorher.</div>{% endif %}
   {% include "auftrag_chart.html" %}
-  <details class="pre"><summary><span class="pk">Vor dem nächsten Match · {{ a.routine.minutes }} Min</span> <b>{{ a.routine.title }}</b></summary>
+</div>
+{% endfor %}
+</div>
+{% elif n_history %}
+<h2>Euer Auftrag</h2>
+<div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div>
+{% endif %}
+
+<div class="steps">
+<section class="step{{ ' off' if not n_history }}">
+  <div class="sh"><span class="sn">1</span><div><div class="st">Vor dem Match</div><div class="sw">10 Minuten vorher</div></div></div>
+  {% if n_history %}
+  {% for a in auftrag %}
+  <details class="pre"><summary><span class="pk">{{ a.name }} · Aufwärmen · {{ a.routine.minutes }} Min</span> <b>{{ a.routine.title }}</b></summary>
     <ol>{% for st in a.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
     <div class="small"><b>Im Match:</b> {{ a.in_game }}</div>
   </details>
-  <form action="/training/done?p={{ a.sid }}" method="post"><button class="btn2" type="submit">✓ Übung gemacht{% if a.drills %} ({{ a.drills }}x bisher){% endif %}</button></form>
-  {% if a.scenes %}<a class="tlink" href="/training/situationen?p={{ a.sid }}">▶ Training: {{ a.scenes }} eigene Situationen</a>{% endif %}
-  <a class="more-link" href="/training?p={{ a.sid }}#plan">Wochenplan ansehen ›</a>
-  {% if a.mastered %}<div class="small muted" style="margin-top:8px">{{ a.mastered }} Auftrag{{ "e" if a.mastered != 1 }} schon gemeistert.</div>{% endif %}
-</div>
-{% endfor %}
-{% else %}
-<div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster. Ladet weitere Matches hoch.</div>
-{% endif %}
-</div>
-<div class="col">
-<h2>Vor dem Match</h2>
-<div class="card">
-  <div class="small muted" style="margin-bottom:10px">Map wählen: Kabinenansprache mit euren Fehlern auf dieser Map.</div>
-  <div class="maps">
-    {% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}
-  </div>
-</div>
+  <form action="/training/done?p={{ a.sid }}" method="post"><button class="btn2" type="submit">✓ {{ a.name }}: Übung gemacht{% if a.drills %} ({{ a.drills }}x bisher){% endif %}</button></form>
+  {% endfor %}
+  <div class="sl">Kabine: Map wählen</div>
+  <div class="small muted">Euer Auftrag und die Winkel, aus denen ihr auf dieser Map sterbt.</div>
+  <div class="maps">{% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
+  {% else %}<div class="small muted">Ab dem ersten Match: Aufwärm-Übung zu eurem Auftrag und eine Kabinenansprache je Map.</div>{% endif %}
+</section>
 
-<h2>Match hochladen</h2>
-{% include "upload.html" %}
-{% include "jobs.html" %}
-<a class="more-link" href="/spieler">Spieler einstellen ›</a>
-{% if last %}<a class="more-link" href="/matches">Letztes Match: {{ (last.map or "?").removeprefix("de_")|capitalize }} {{ last.won }}:{{ last.lost }} ›</a>{% endif %}
+<section class="step now">
+  <div class="sh"><span class="sn">2</span><div><div class="st">Nach dem Match</div><div class="sw">Demo hochladen, Report lesen</div></div></div>
+  {% include "jobs.html" %}
+  {% include "upload.html" %}
+  <div class="small muted" style="margin-top:8px">Die .dem-Datei aus CS2 oder FACEIT. Die Analyse dauert ein paar Minuten, danach öffnet sich der Report.</div>
+  {% if last and last.report_file %}<a class="lastm" href="/reports/{{ last.report_file }}">
+    <span class="small muted">Letztes Match</span>
+    <b>{{ (last.map or "?").removeprefix("de_")|capitalize }} <span class="num">{{ last.won }}:{{ last.lost }}</span></b>
+    <span class="small">Report öffnen: erst „Coach“ lesen, dann den Debrief durchklicken ›</span></a>{% endif %}
+</section>
+
+<section class="step{{ ' off' if not n_history }}">
+  <div class="sh"><span class="sn">3</span><div><div class="st">Zwischen den Matches</div><div class="sw">10–20 Minuten, wann ihr wollt</div></div></div>
+  {% if n_history %}
+  {% for a in auftrag if a.scenes %}<a class="tlink" href="/training/situationen?p={{ a.sid }}">▶ {{ a.name }}: {{ a.scenes }} eigene Situationen entscheiden</a>{% endfor %}
+  <a class="trow" href="/training"><b>Wochenplan</b><span>Aufgaben zum Auftrag abhaken ›</span></a>
+  <a class="trow" href="/training#tools"><b>Map-Buch und Lineups</b><span>Wo ihr gut steht, wo ihr sterbt, was Pros werfen ›</span></a>
+  {% else %}<div class="small muted">Ab dem ersten Match: eure eigenen Szenen zum Üben, Wochenplan und Map-Buch.</div>{% endif %}
+</section>
 </div>
-</div>
+<a class="more-link" href="/mehr#anleitung">Wie funktioniert der Coach? ›</a>
 {% endblock %}

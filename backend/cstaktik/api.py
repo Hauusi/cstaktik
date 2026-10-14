@@ -737,12 +737,18 @@ def pro_sync() -> RedirectResponse:
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
 
 
+@app.get("/mehr", response_class=HTMLResponse)
+def more_page() -> str:
+    """Einstellungen, seltene Auswertungen und die Anleitung an einem Ort."""
+    return _env.get_template("mehr.html").render(nav_active="mehr", n_history=len(_load_hist()), n_pro=len(_load_pro()))
+
+
 @app.get("/spieler", response_class=HTMLResponse)
 def players_page() -> str:
     """Wer wird analysiert? Spieler aus den letzten Matches zum Anklicken statt SteamIDs abtippen."""
     from cstaktik.config import load_focus_steamids
 
-    return _env.get_template("spieler.html").render(nav_active="coach", roster=pipeline.roster(),
+    return _env.get_template("spieler.html").render(nav_active="mehr", roster=pipeline.roster(),
                                                     focus=sorted(load_focus_steamids()))
 
 

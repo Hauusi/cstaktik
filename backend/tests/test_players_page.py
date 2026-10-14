@@ -48,3 +48,12 @@ def test_choose_players_recomputes_everything(tmp_path, monkeypatch):
     st = coaching.load(pipeline.COACHING_FILE)
     assert set(st["focus_ids"]) == {ME, BRO}
     assert c.post("/spieler", data={}, follow_redirects=False).status_code == 400
+
+
+def test_more_page_has_guide_and_settings():
+    from fastapi.testclient import TestClient
+
+    from cstaktik import api
+
+    t = TestClient(api.app).get("/mehr").text
+    assert "So arbeitet der Coach" in t and 'href="/spieler"' in t and 'href="/pro"' in t

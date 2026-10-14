@@ -7,7 +7,7 @@
     <span class="muted small" id="fsize">.dem oder .dem.bz2</span>
   </label>
   {% if pro_mode %}<input type="hidden" name="pro" value="1">{% endif %}
-  {% if not pro_mode %}<details><summary>Andere Spieler als in players.yaml</summary>
+  {% if not pro_mode %}<details><summary>Andere Spieler analysieren (SteamID64)</summary>
     <input class="field" type="text" name="steamids" placeholder="SteamID64, kommagetrennt"></details>{% endif %}
   <button class="btn" id="go" type="submit" disabled>{{ "Als Pro-Referenz speichern" if pro_mode else "Analysieren" }}</button>
   <div id="up">

@@ -31,7 +31,7 @@ def test_start_page_and_briefing_route():
     from cstaktik import api
 
     c = TestClient(api.app)
-    assert "Noch kein Auftrag" in c.get("/").text
+    assert "Lade euer erstes Match hoch" in c.get("/").text
     for s in _hist(1):
         history.save(s, pipeline.HISTORY_DIR)
     st = {"active": [], "done": []}

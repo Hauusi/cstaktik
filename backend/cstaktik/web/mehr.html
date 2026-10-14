@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Mehr · cstaktik{% endblock %}
+{% block hero %}
+<h1>Mehr</h1>
+<p>Einstellungen, Rückblick und wie der Coach arbeitet.</p>
+{% endblock %}
+{% block content %}
+<div class="cols">
+<div class="col">
+<h2>Einstellungen</h2>
+<div class="list">
+  <a class="item" href="/spieler"><div class="map">◉</div><div class="meta"><b>Spieler</b><span class="muted small">Wer analysiert wird (ihr beide)</span></div></a>
+  <a class="item" href="/pro"><div class="map">★</div><div class="meta"><b>Pro-Demos</b><span class="muted small">{{ n_pro }} gespeichert · Vergleichsbasis für alle Pro-Werte</span></div></a>
+</div>
+<h2>Rückblick</h2>
+<div class="list">
+  {% if n_history >= 2 %}<a class="item" href="/review"><div class="map">↺</div><div class="meta"><b>Review der letzten Matches</b><span class="muted small">Was wurde besser, was nicht</span></div></a>{% endif %}
+  <a class="item" href="/progress/karte"><div class="map">◎</div><div class="meta"><b>Todes-Karte und alle Kurven</b><span class="muted small">Alle Werte über alle Matches</span></div></a>
+</div>
+</div>
+
+<div class="col">
+<h2 id="anleitung">So arbeitet der Coach</h2>
+<div class="card guide">
+  <div class="gs"><b>1. Ein Auftrag pro Spieler</b>
+    <p>Der Coach sucht den Fehler, der euch über die letzten Matches am meisten Runden kostet. Er wird erst ein Auftrag, wenn er mindestens {{ goal_cfg.min_count }}x vorkommt. An genau diesem einen Fehler arbeitet ihr, nicht an zehn gleichzeitig.</p></div>
+  <div class="gs"><b>2. Vor dem Match: 10 Minuten</b>
+    <p>Startseite, Schritt 1: die Aufwärm-Übung zum Auftrag machen und abhaken. Dann die Kabine für die Map öffnen: Merksatz und die Winkel, aus denen ihr dort am häufigsten sterbt.</p></div>
+  <div class="gs"><b>3. Nach dem Match: Demo hochladen</b>
+    <p>Im Report zuerst den Reiter <b>Coach</b> lesen: Er nennt den einen Punkt des Matches und prüft den Auftrag. Dann <b>Debrief mit dem Coach</b> durchklicken, das sind die wichtigsten Szenen im Replay. <b>Analyse</b> zeigt eure Duell- und Utility-Werte gegen Pros, <b>Runden</b> jede Runde einzeln.</p></div>
+  <div class="gs"><b>4. Zwischen den Matches</b>
+    <p>Im <b>Situations-Training</b> seht ihr eure eigenen Szenen kurz vor dem Tod und entscheidet, was richtig gewesen wäre. Danach zeigt die Karte, woher der Killer kam. Das <b>Map-Buch</b> zeigt je Map, wo ihr gut steht und von wo ihr erschossen werdet.</p></div>
+  <div class="gs"><b>5. Gemeistert</b>
+    <p>Liegt der Fehler {{ goal_cfg.done_after }} Matches in Folge unter dem Ziel und über mindestens {{ goal_cfg.min_master_rounds }} Runden, ist der Auftrag gemeistert und der nächste kommt. Kommt der Fehler zurück, meldet der Coach das.</p></div>
+  <div class="gs"><b>Was der Coach nicht tut</b>
+    <p>Er erfindet nichts. Jede Zahl stammt aus euren Demos oder den Pro-Demos. Bei wenigen Fällen steht die Fallzahl dabei, und Farben (rot, grün) gibt es erst bei klarem Abstand.</p></div>
+</div>
+</div>
+</div>
+{% endblock %}

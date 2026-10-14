@@ -45,7 +45,7 @@
 {% endif %}
 </div>
 <div class="col">
-<h2>Werkzeuge</h2>
+<h2 id="tools">Werkzeuge</h2>
 <div class="tools">
   <div class="card tool"><div class="tt">Map-Buch</div><p>Deine Spots je Map: halten, anpassen oder meiden. Mit Pro-Vergleich.</p>
     <div class="maps">{% for m in maps %}<a class="mapbtn" href="/mapbook/{{ m }}{% if sid %}?p={{ sid }}{% endif %}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div></div>
