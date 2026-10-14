@@ -130,9 +130,13 @@ def fonts_css() -> Response:
     Die Reports betten sie weiter selbst ein, damit sie als einzelne Datei funktionieren."""
     from cstaktik.fonts import font_css
 
+    import hashlib
+
     css = font_css()
-    etag = f'"{hash(css) & 0xFFFFFFFF:x}"'
-    return Response(css, media_type="text/css", headers={"Cache-Control": "public, max-age=604800", "ETag": etag})
+    # ohne geladene Schriften nicht cachen, sonst bleibt die Systemschrift eine Woche, auch wenn sie später da sind
+    cache = "public, max-age=604800" if css else "no-cache"
+    etag = '"' + hashlib.sha1(css.encode()).hexdigest()[:16] + '"'
+    return Response(css, media_type="text/css", headers={"Cache-Control": cache, "ETag": etag})
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -796,7 +800,7 @@ async def analyze_upload(
     # Pro-Demos getrennt ablegen, damit sie nie als eigenes Match ausgewertet werden
     folder = pipeline.PRO_DEMOS_DIR if pro else pipeline.DEMOS_DIR
     folder.mkdir(parents=True, exist_ok=True)
-    suffix = (Path(filename).suffix.lower() if is_arc else ".dem.bz2" if filename.lower().endswith(".bz2") else ".dem")
+    suffix = ((".zip" if filename.lower().endswith(".zip") else ".rar") if is_arc else ".dem.bz2" if filename.lower().endswith(".bz2") else ".dem")
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(filename).name[: -len(suffix)]).strip("._")[:80] if is_arc else None
     target = folder / f"{name or _safe_name(filename)}{suffix}"
     part = target.with_name(f"{target.name}.{uuid.uuid4().hex[:8]}.part")

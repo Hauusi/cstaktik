@@ -59,13 +59,16 @@ def test_more_page_has_guide_and_settings():
     assert "So arbeitet der Coach" in t and 'href="/spieler"' in t and 'href="/pro"' in t
 
 
-def test_fonts_served_once_and_cached():
+def test_fonts_served_once_and_cached(monkeypatch):
     from fastapi.testclient import TestClient
 
-    from cstaktik import api
+    from cstaktik import api, fonts
 
     c = TestClient(api.app)
+    monkeypatch.setattr(fonts, "font_css", lambda: "@font-face{}")
     r = c.get("/fonts.css")
     assert r.status_code == 200 and "max-age" in r.headers["cache-control"] and r.headers["content-type"].startswith("text/css")
+    monkeypatch.setattr(fonts, "font_css", lambda: "")
+    assert c.get("/fonts.css").headers["cache-control"] == "no-cache"  # ohne Schriften nicht eine Woche cachen
     home = c.get("/").text
     assert '<link rel="stylesheet" href="/fonts.css">' in home and "@font-face" not in home

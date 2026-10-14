@@ -1,7 +1,8 @@
 {# CT-Seite des Playbooks: Aufstellungen nach 20 s (Zonen A / Mitte / B aus den Plant-Positionen) #}
 {% if not ct.setups %}
 <div class="card empty" style="margin-top:20px">
-  {% if ct.centers|length < 2 %}Für {{ label }} fehlen noch Plants auf beiden Bombsites, daraus bestimmt der Coach, wo A und B liegen. Mehr Demos dieser Map hochladen{% if who == "pro" %} oder einmal <code>cstaktik pro-update</code> ausführen{% endif %}.
+  {% if map_name == "de_nuke" %}Auf Nuke liegen A und B übereinander. Die Zonen-Einteilung arbeitet nur mit der Karte von oben und wäre hier falsch, deshalb zeigt der Coach für Nuke keine CT-Aufstellungen.
+  {% elif ct.centers|length < 2 %}Für {{ label }} fehlen noch Plants auf beiden Bombsites, daraus bestimmt der Coach, wo A und B liegen. Mehr Demos dieser Map hochladen{% if who == "pro" %} oder einmal <code>cstaktik pro-update</code> ausführen{% endif %}.
   {% elif ct.rounds %}Noch keine Aufstellung mindestens zweimal gleich gespielt ({{ ct.rounds }} CT-Runden).
   {% else %}Noch keine CT-Runden mit Positionen. Auf dem Server einmal <code>cstaktik pro-update</code> ausführen.{% endif %}
 </div>

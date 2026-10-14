@@ -148,7 +148,8 @@ def classify(p: dict, cfg: dict) -> dict:
     if buy == "pistol" and tempo != "default":
         style = "pistol"
     main = main_via(p.get("approach") or {}, style)
-    via = " + ".join(main) if main else None
+    # Eco und Pistole werden nur nach Bombsite gruppiert: Name ohne Weg, sonst trüge die Gruppe den Weg der ersten Runde
+    via = " + ".join(main) if main and style not in ("eco", "pistol") else None
     if style == "default":
         name = f"Default, spät auf {site}" if site else "Default ohne Bombsite"
     else:
@@ -291,6 +292,7 @@ def compare(own: dict, pro: dict, min_rounds: int = 10, min_style: int = 4) -> s
 CT_SNAP_S = 20  # Aufstellung: wo die CT nach so vielen Sekunden stehen
 CT_UTIL_S = 35  # frühe CT-Granaten bis hier
 CT_DEFAULTS = {"zone_units": 1300}
+STACKED_SITES = {"de_nuke"}  # Bombsites übereinander: Zonen nur aus x/y wären falsch, deshalb keine CT-Aufstellungen
 
 
 def ct_plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
@@ -328,6 +330,8 @@ def ct_plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
 
 def site_centers(sources: list[dict], map_name: str) -> dict[str, list[float]]:
     """Mitte jedes Bombsites aus den Plant-Positionen (T- und CT-Runden der Demos): Median x/y je Bombsite."""
+    if map_name in STACKED_SITES:
+        return {}
     pts: dict[str, list] = {}
     for d in sources:
         if d.get("map") != map_name:

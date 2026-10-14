@@ -18,6 +18,8 @@ from pathlib import Path
 
 ARCHIVE_SUFFIXES = (".zip", ".rar")
 TOOL_TIMEOUT_S = 900
+MAX_DEMOS = 10  # mehr Demos in einem Archiv: eher kein Match-Archiv
+MAX_TOTAL_FACTOR = 3  # alle Demos zusammen höchstens 3x die Grenze einer Demo
 
 
 def is_archive_name(name: str) -> bool:
@@ -36,11 +38,12 @@ def _safe(name: str) -> str:
 
 
 def _unique(dest: Path, name: str) -> Path:
-    out, i = dest / name, 2
-    while out.exists():
-        stem, suffix = (name[:-8], ".dem.bz2") if name.endswith(".dem.bz2") else (name[:-4], ".dem")
-        out, i = dest / f"{stem}_{i}{suffix}", i + 1
-    return out
+    """Freier Name in ``dest``. Für .dem.bz2 muss auch die entpackte .dem frei sein (prepare_demo legt sie daneben)."""
+    stem, suffix = (name[:-8], ".dem.bz2") if name.endswith(".dem.bz2") else (name[:-4], ".dem")
+    cand, i = stem, 2
+    while (dest / f"{cand}{suffix}").exists() or (dest / f"{cand}.dem").exists() or (dest / f"{cand}.dem.bz2").exists():
+        cand, i = f"{stem}_{i}", i + 1
+    return dest / f"{cand}{suffix}"
 
 
 def rar_tool() -> list[str] | None:
@@ -54,35 +57,34 @@ def rar_tool() -> list[str] | None:
     return None
 
 
-def _from_zip(src: Path, dest: Path, max_bytes: int) -> list[Path]:
-    out = []
+def _from_zip(src: Path, dest: Path, max_bytes: int, out: list[Path]) -> list[Path]:
+    total = 0
     with zipfile.ZipFile(src) as zf:
-        for info in zf.infolist():
+        infos = [i for i in zf.infolist() if not i.is_dir() and _is_demo(Path(i.filename.replace("\\", "/")).name)]
+        if len(infos) > MAX_DEMOS:
+            raise ValueError(f"Zu viele Demos im Archiv ({len(infos)}, höchstens {MAX_DEMOS}).")
+        for info in infos:
             name = Path(info.filename.replace("\\", "/")).name
-            if info.is_dir() or not _is_demo(name):
-                continue
             if info.file_size > max_bytes:
                 raise ValueError(f"{name} im Archiv ist zu groß.")
             target = _unique(dest, _safe(name))
+            out.append(target)  # vorher eintragen: bei Abbruch wird auch die halbe Datei gelöscht
             written = 0
             with zf.open(info) as fin, target.open("wb") as fout:
                 while chunk := fin.read(1 << 20):
                     written += len(chunk)
-                    if written > max_bytes:  # Angabe im Archiv kann lügen
-                        fout.close()
-                        target.unlink(missing_ok=True)
+                    total += len(chunk)
+                    if written > max_bytes or total > MAX_TOTAL_FACTOR * max_bytes:  # Angabe im Archiv kann lügen
                         raise ValueError(f"{name} im Archiv ist zu groß.")
                     fout.write(chunk)
-            out.append(target)
     return out
 
 
-def _from_rar(src: Path, dest: Path, max_bytes: int) -> list[Path]:
+def _from_rar(src: Path, dest: Path, max_bytes: int, out: list[Path]) -> list[Path]:
     cmd = rar_tool()
     if cmd is None:
         raise ValueError("Für .rar fehlt auf dem Server ein Entpack-Programm. Einmal installieren: "
                          "sudo apt install unar   (oder libarchive-tools). Alternativ die .dem-Dateien entpackt hochladen.")
-    out = []
     with tempfile.TemporaryDirectory(dir=dest, prefix=".unpack-") as tmp:
         args = [a.replace("{src}", str(src)).replace("{dst}", tmp) for a in cmd]
         try:
@@ -93,9 +95,12 @@ def _from_rar(src: Path, dest: Path, max_bytes: int) -> list[Path]:
         if res.returncode != 0 and not found:
             msg = (res.stderr or res.stdout).decode(errors="ignore").strip().splitlines()
             raise ValueError("RAR konnte nicht entpackt werden" + (f": {msg[-1][:200]}" if msg else "."))
+        if len(found) > MAX_DEMOS:
+            raise ValueError(f"Zu viele Demos im Archiv ({len(found)}, höchstens {MAX_DEMOS}).")
         for p in found:
             if p.stat().st_size > max_bytes:
                 raise ValueError(f"{p.name} im Archiv ist zu groß.")
+        for p in found:
             target = _unique(dest, _safe(p.name))
             p.replace(target)
             out.append(target)
@@ -105,14 +110,19 @@ def _from_rar(src: Path, dest: Path, max_bytes: int) -> list[Path]:
 def extract_demos(src: Path, dest: Path, max_bytes: int) -> list[Path]:
     """Alle Demos aus dem Archiv nach ``dest``; das Archiv selbst wird danach gelöscht."""
     dest.mkdir(parents=True, exist_ok=True)
+    out: list[Path] = []
     try:
         if src.name.lower().endswith(".zip"):
             try:
-                out = _from_zip(src, dest, max_bytes)
+                _from_zip(src, dest, max_bytes, out)
             except zipfile.BadZipFile as exc:
                 raise ValueError("Die ZIP-Datei ist beschädigt oder keine ZIP-Datei.") from exc
         else:
-            out = _from_rar(src, dest, max_bytes)
+            _from_rar(src, dest, max_bytes, out)
+    except BaseException:
+        for p in out:  # halb entpacktes Archiv: nichts liegen lassen, was nie ausgewertet wird
+            p.unlink(missing_ok=True)
+        raise
     finally:
         src.unlink(missing_ok=True)
     if not out:

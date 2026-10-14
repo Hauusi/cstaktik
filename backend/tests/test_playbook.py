@@ -234,3 +234,24 @@ def test_weekplan_gets_pro_tactic_task():
     assert task["title"] == "Pro-Taktik: A-Split über Palace + Ramp" and task["link"] == "/playbook/de_mirage#split-A-Palace-Ramp"
     assert "Smoke auf CT" in task["steps"][1]
     assert not any(t["kind"] == "Playbook" for t in weekplan.tasks_for({**ctx, "tactic": None}))
+
+
+def test_eco_name_without_route_and_nuke_without_zones():
+    via = {s: "Apartments" if s in ("t1", "t2", "t3") else "Market" for s in T}
+    route = {s: [(0, "TSpawn", 0, 0), (8, v, 5, 5), (16, "BombsiteB", 9, 9)] for s, v in via.items()}
+    p = playbook.plays(_match(7, route, plant_s=22, equip=1000))[0]
+    assert playbook.classify(p, {})["name"] == "B-Eco-Push"
+    src = [{"map": "de_nuke", "plays": [{"site": "A", "plant": [0, 0]}] * 2 + [{"site": "B", "plant": [0, 10]}] * 2}]
+    assert playbook.site_centers(src, "de_nuke") == {}
+
+
+def test_upgrade_history_survives_broken_cache(tmp_path, monkeypatch):
+    from cstaktik import history, pipeline
+
+    monkeypatch.setattr(pipeline, "HISTORY_DIR", tmp_path / "h")
+    monkeypatch.setattr(pipeline, "CACHE_DIR", tmp_path / "c")
+    (tmp_path / "c").mkdir()
+    history.save({"id": "abc", "map": "de_mirage"}, tmp_path / "h")
+    monkeypatch.setattr(pipeline, "cache_file", lambda i: tmp_path / "c" / "abc.json")
+    (tmp_path / "c" / "abc.json").write_text("{kaputt")
+    assert pipeline.upgrade_history() == 0  # kein Absturz, Eintrag bleibt für später

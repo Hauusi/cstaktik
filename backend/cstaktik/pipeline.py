@@ -418,21 +418,23 @@ def upgrade_history() -> int:
     from cstaktik import history
     from cstaktik.situation import round_states
 
+    from cstaktik.playbook import ct_plays, plays
+
+    focus = load_focus_steamids()
     n = 0
     for h in history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []:
         cache = cache_file(h.get("id"))
         if ("states" in h and "plays" in h and "ct_plays" in h) or cache is None:
             continue
-        m = load_match(cache)
+        try:  # ein kaputter oder veralteter Cache darf Uploads und pro-update nicht blockieren
+            m = load_match(cache)
+        except (OSError, ValueError):
+            continue
         h.setdefault("states", round_states(m))
-        if "plays" not in h:  # eure T-Runden fürs Playbook
-            from cstaktik.playbook import plays
-
-            h["plays"] = plays(m, team=m.focus_ids())
-        if "ct_plays" not in h:
-            from cstaktik.playbook import ct_plays
-
-            h["ct_plays"] = ct_plays(m, team=m.focus_ids())
+        team = focus & {p.steamid for p in m.players} or m.focus_ids()  # aktuelle Spieler-Einstellung zuerst
+        if team:  # ohne Fokus-Spieler nichts speichern, sonst gilt der Eintrag als nachgerüstet
+            h.setdefault("plays", plays(m, team=team))
+            h.setdefault("ct_plays", ct_plays(m, team=team))
         history.save(h, HISTORY_DIR)
         n += 1
     return n

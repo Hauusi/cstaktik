@@ -55,3 +55,21 @@ def test_upload_rejects_other_files():
 
     r = TestClient(api.app).post("/analyze", files={"demo": ("x.7z", b"1")}, headers={"Origin": "http://testserver"})
     assert r.status_code == 400 and "zip" in r.text
+
+
+def test_partial_zip_is_cleaned_and_names_do_not_clash(tmp_path):
+    dest = tmp_path / "d"
+    dest.mkdir()
+    (dest / "m.dem").write_bytes(b"alt")  # schon vorhandene Demo
+    src = _zip(tmp_path / "a.zip", {"a.dem": b"1", "m.dem.bz2": b"2", "z.dem": b"x" * 200})
+    with pytest.raises(ValueError, match="zu groß"):
+        archive.extract_demos(src, dest, 100)
+    assert sorted(p.name for p in dest.iterdir()) == ["m.dem"]  # nichts Halbes liegen geblieben
+    out = archive.extract_demos(_zip(tmp_path / "b.zip", {"m.dem.bz2": b"2"}), dest, 100)
+    assert out[0].name == "m_2.dem.bz2" and (dest / "m.dem").read_bytes() == b"alt"
+
+
+def test_too_many_demos(tmp_path):
+    src = _zip(tmp_path / "a.zip", {f"m{i}.dem": b"1" for i in range(archive.MAX_DEMOS + 1)})
+    with pytest.raises(ValueError, match="Zu viele"):
+        archive.extract_demos(src, tmp_path / "d", 100)
