@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from cstaktik.mechanics import is_gun
 from cstaktik.model import Finding, MatchData
 from cstaktik.rules.base import NotEvaluable
 
@@ -15,9 +16,9 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
     findings = []
     for sid in sorted(match.focus_ids()):
         rounds = []
-        for k in match.kills:
-            if k.victim_steamid != sid:
-                continue
+        duel_deaths = [k for k in match.kills if k.victim_steamid == sid and k.attacker_steamid
+                       and k.attacker_steamid != sid and k.attacker_side != k.victim_side and is_gun(k.weapon)]
+        for k in duel_deaths:  # Bombe, Fallschaden, Granaten, Teamkills sind kein verlorenes Duell
             rnd = match.round_by_num(k.round)
             sides = rnd.sides if rnd else {}
             dealt = sum(  # nur Schaden an Gegnern (Teamschaden zählt nicht)
@@ -27,7 +28,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             )
             if dealt == 0:
                 rounds.append(k.round)
-        deaths = sum(1 for k in match.kills if k.victim_steamid == sid)
+        deaths = len(duel_deaths)
         if len(rounds) < cfg["min_count"]:
             continue
         findings.append(
@@ -39,7 +40,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 steamid=sid,
                 player_name=match.name_of(sid),
                 severity="hoch" if deaths and len(rounds) / deaths >= 0.5 else "mittel",
-                text=f"{len(rounds)} von {deaths} Toden ohne vorher Schaden zu machen.",
+                text=f"{len(rounds)} von {deaths} Toden im Duell ohne vorher Schaden zu machen.",
                 tip="Duelle nur mit Vorteil nehmen: vorgezielt auf Kopfhöhe, kurz peeken, nach Info zurück.",
                 evidence={"runden": sorted(rounds), "tode_gesamt": deaths},
                 rounds=sorted(rounds),

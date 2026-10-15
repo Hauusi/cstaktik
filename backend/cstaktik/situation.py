@@ -126,30 +126,39 @@ class WinModel:
         return (p_ct if side == "ct" else 1 - p_ct), c[1], coarse
 
 
-    def _at(self, level: str, ct: int, t: int, planted: bool, eq: int | None) -> float | None:
-        """CT-Siegchance aus genau einer Tabelle; entschiedene Lagen sind fest."""
+    def _at_n(self, level: str, ct: int, t: int, planted: bool, eq: int | None) -> tuple[float, int] | None:
+        """(CT-Siegchance, Runden) aus genau einer Tabelle; entschiedene Lagen sind fest (0 Runden)."""
         if ct == 0:
-            return 0.0
+            return 0.0, 0
         if t == 0 and not planted:
-            return 1.0
+            return 1.0, 0
         if level == "eq":
             c = self.with_eq.get((ct, t, int(planted), eq)) if eq is not None and t else None
         elif level == "exact":
             c = self.exact.get((ct, t, int(planted)))
         else:
             c = self.coarse.get((max(-3, min(3, ct - t)), int(planted), min(ct, t) > 0))
-        return c[0] / c[1] if c and c[1] >= self.min_n else None
+        return (c[0] / c[1], c[1]) if c and c[1] >= self.min_n else None
+
+    def _at(self, level: str, ct: int, t: int, planted: bool, eq: int | None) -> float | None:
+        r = self._at_n(level, ct, t, planted, eq)
+        return None if r is None else r[0]
+
+    def pair_detail(self, before: tuple, after: tuple, eq: int | None = None) -> dict | None:
+        """Wie ``prob_pair``, mit Tabelle (``level``: eq/exact/coarse) und Rundenzahlen je Seite."""
+        for level in ("eq", "exact", "coarse"):
+            if level == "eq" and eq is None:
+                continue
+            b, a = self._at_n(level, *before, eq), self._at_n(level, *after, eq)
+            if b is not None and a is not None:
+                return {"before": b[0], "after": a[0], "n_before": b[1], "n_after": a[1], "level": level}
+        return None
 
     def prob_pair(self, before: tuple, after: tuple, eq: int | None = None) -> tuple[float, float] | None:
         """CT-Siegchance vor und nach einem Ereignis aus DERSELBEN Tabelle (mit Ausrüstung, exakt, grob).
         Gemischte Tabellen können das Vorzeichen umdrehen (z. B. Eco-Runde: 5v5 mit, 4v5 ohne Ausrüstung)."""
-        for level in ("eq", "exact", "coarse"):
-            if level == "eq" and eq is None:
-                continue
-            b, a = self._at(level, *before, eq), self._at(level, *after, eq)
-            if b is not None and a is not None:
-                return b, a
-        return None
+        d = self.pair_detail(before, after, eq)
+        return None if d is None else (d["before"], d["after"])
 
 
 # ---------------------------------------------------------------- Lage zu einem Zeitpunkt
@@ -445,14 +454,16 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
         after = {side: [s for s in before[side] if s != f.steamid],
                  opp_side: [s for s in before[opp_side] if not (trade and s == death.attacker_steamid)]}
         pl_b = planted_at(match, rnd.num, f.tick) is not None
-        pl_a = planted_at(match, rnd.num, f.tick + int(trade_window_s * tr)) is not None
         eq = eq_bucket(rnd)
-        pb = model.prob(side, len(before["ct"]), len(before["t"]), pl_b, eq)
-        used_eq = model.last_eq
-        pa = model.prob(side, len(after["ct"]), len(after["t"]), pl_a, eq)
-        used_eq = used_eq and model.last_eq
-        if pb is None or pa is None:
+        # vorher und danach aus DERSELBEN Tabelle (wie impact.py), sonst kann der Tod als Gewinn erscheinen;
+        # ein Plant kurz nach dem Tod ist nicht Folge des Todes und zählt nicht in "danach"
+        d = model.pair_detail((len(before["ct"]), len(before["t"]), pl_b), (len(after["ct"]), len(after["t"]), pl_b), eq)
+        if d is None:
             continue
+        conv = (lambda p: p) if side == "ct" else (lambda p: 1 - p)
+        pb = (conv(d["before"]), d["n_before"], d["level"] == "coarse")
+        pa = (conv(d["after"]), d["n_after"], d["level"] == "coarse")
+        used_eq = d["level"] == "eq"
         cost = round(100 * (pb[0] - pa[0]))
         f.evidence["cost_pct"] = cost
         traded = bool(trade)

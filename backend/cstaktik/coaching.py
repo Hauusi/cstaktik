@@ -316,8 +316,18 @@ def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: i
             if last is not None and last.speed is not None and last.speed < 40:
                 text = f"{name} steht beim Schuss ({round(last.speed)} Units/s) und trifft."
         elif lid == "no_shot_far":
-            sm = next((u for u in match.utility if u.round == k.round and u.kind == "smoke"
-                       and u.thrower_steamid in focus and u.start_tick <= k.tick <= (u.end_tick or k.tick)), None)
+            def near_line(u) -> bool:  # Smoke liegt zwischen Schütze und Opfer (Abstand zur Schusslinie)
+                a, v = k.attacker_pos, k.victim_pos
+                if a is None or v is None:
+                    return False
+                dx, dy = v.x - a.x, v.y - a.y
+                L = dx * dx + dy * dy or 1
+                t = max(0.0, min(1.0, ((u.pos.x - a.x) * dx + (u.pos.y - a.y) * dy) / L))
+                return ((a.x + t * dx - u.pos.x) ** 2 + (a.y + t * dy - u.pos.y) ** 2) ** .5 <= 150
+
+            sm = next((u for u in match.utility if u.round == k.round and u.kind == "smoke" and u.end_known
+                       and u.end_tick is not None and u.thrower_steamid in focus
+                       and u.start_tick <= k.tick <= u.end_tick and near_line(u)), None)
             if sm:
                 text = f"Unter eurer Smoke holt {name} den Kill" + (f" in {k.victim_place}." if k.victim_place else ".")
         if text:

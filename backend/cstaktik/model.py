@@ -217,10 +217,12 @@ class MatchData(BaseModel):
         r = self.round_by_num(round_num)
         if r is None:
             return None
-        for sid in self.focus_ids():
-            if sid in r.sides:
-                return r.sides[sid]
-        return None
+        # Seite mit den meisten Fokus-Spielern; bei Gleichstand (ihr spielt gegeneinander) fest nach SteamID,
+        # nicht nach Reihenfolge eines Sets (die ändert sich je Programmstart)
+        sides = [r.sides[sid] for sid in sorted(self.focus_ids()) if sid in r.sides]
+        if not sides:
+            return None
+        return max(("ct", "t"), key=lambda sd: (sides.count(sd), sd == sides[0]))
 
 
 Severity = Literal["hoch", "mittel", "niedrig", "gut"]  # "gut" = Lob, kein Fehler

@@ -84,7 +84,9 @@ def mechanics(match: MatchData, cfg: dict) -> list[dict]:
         moving = [s for s in with_speed if s.speed > cfg["moving_shot_speed_units_s"]]
         my_kills = [k for k in match.kills if k.attacker_steamid == sid and k.victim_side != k.attacker_side
                     and is_gun(k.weapon)]
-        deaths = [k for k in match.kills if k.victim_steamid == sid]
+        # nur Tode im Duell (Gegner mit Schusswaffe): Bombe, Fallschaden, Granaten, Teamkills sind kein "ohne Schuss"
+        deaths = [k for k in match.kills if k.victim_steamid == sid and k.attacker_steamid
+                  and k.attacker_steamid != sid and k.attacker_side != k.victim_side and is_gun(k.weapon)]
         window = int(cfg["no_shot_window_s"] * tr)
         no_shot = [k for k in deaths
                    if not any(s.round == k.round and k.tick - window <= s.tick <= k.tick for s in shots)]
@@ -104,8 +106,9 @@ def mechanics(match: MatchData, cfg: dict) -> list[dict]:
             "kills": len(my_kills),
             "deaths": len(deaths),
             "deaths_no_shot": len(no_shot),
-            "deaths_no_shot_pct": pct(len(no_shot), len(deaths)) if shots or deaths else None,
-            "no_shot_rounds": sorted({k.round for k in no_shot}),
+            # ohne Schussdaten in der Demo wäre jeder Tod "ohne Schuss": dann unbekannt statt 100 %
+            "deaths_no_shot_pct": pct(len(no_shot), len(deaths)) if match.shots else None,
+            "no_shot_rounds": sorted({k.round for k in no_shot}) if match.shots else [],
             "spray_early_pct": pct(early[1], early[0]) if match.damages else None,
             "spray_late_pct": pct(late[1], late[0]) if match.damages else None,
             "spray_late_shots": late[0],

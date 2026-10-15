@@ -23,6 +23,11 @@ _PRIORITY = ["Geblendet", "Ohne Gegenwehr", "Allein, kein Trade", "Utility nicht
              "Im Laufen geschossen", "Im Laufen", "Unterzahl"]
 
 
+def _c(x) -> str:
+    """Zahl mit deutschem Komma (1.2 -> 1,2)."""
+    return str(round(x, 2)).replace(".", ",")
+
+
 def _speed(idx: PositionIndex, rnd: int, sid: str, tick: int, tickrate: int) -> float | None:
     """Laufgeschwindigkeit (Units/s) aus den letzten zwei Positions-Samples vor dem Tod."""
     pts = [p for p in idx.path(rnd, sid) if p.tick <= tick]
@@ -145,12 +150,12 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                            and rnd.sides.get(b.attacker_steamid) == side), None)
         if team_blind and not blind:
             by = "dir selbst" if team_blind.attacker_steamid == sid else match.name_of(team_blind.attacker_steamid)
-            facts.append(f"geblendet {team_blind.duration}s von {by} (eigene Flash)")
+            facts.append(f"geblendet {_c(team_blind.duration)} s von {by} (eigene Flash)")
         if blind:
             ago = round((k.tick - blind.tick) / tr, 1)
             by = match.name_of(blind.attacker_steamid) if blind.attacker_steamid else "?"
-            facts.append(f"geblendet {blind.duration}s von {by}, {ago}s vor dem Tod")
-            issues["Geblendet"] = (f"Flash von {by} kam {ago}s vorher: sofort wegdrehen oder hinter Deckung, "
+            facts.append(f"geblendet {_c(blind.duration)} s von {by}, {_c(ago)} s vor dem Tod")
+            issues["Geblendet"] = (f"Flash von {by} kam {_c(ago)} s vorher: sofort wegdrehen oder hinter Deckung, "
                                    "nicht geblendet im Winkel bleiben.")
 
         # HP vor dem Duell + Herkunft des Schadens

@@ -30,11 +30,11 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 overlay = {}
                 if k.attacker_pos and k.victim_pos:
                     overlay = {"line": [[k.attacker_pos.x, k.attacker_pos.y], [k.victim_pos.x, k.victim_pos.y]],
-                               "label": f"Trade nach {secs}s"}
+                               "label": f"Trade nach {str(secs).replace('.', ',')} s"}
                 findings.append(Finding(
                     rule_id=RULE_ID, title="Trade gegeben", round=k.round, tick=k.tick, steamid=k.attacker_steamid,
                     player_name=match.name_of(k.attacker_steamid), severity="gut",
-                    text=f"{prev.victim_name} gerächt: {k.victim_name} {secs}s nach dessen Kill erwischt.",
+                    text=f"{prev.victim_name} gerächt: {k.victim_name} {str(secs).replace('.', ',')} s nach dessen Kill erwischt.",
                     tip="Genau so: nah am Mitspieler bleiben und sofort nachziehen.",
                     evidence={"tick": k.tick, "getradeter_mitspieler": prev.victim_name, "sekunden": secs},
                     overlay=overlay,

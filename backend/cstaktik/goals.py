@@ -116,12 +116,14 @@ def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) 
             still_active.append(g)
             continue
         pct = _value(summary, g)
-        if pct is None:
+        when = summary.get("analyzed_at") or ""
+        if pct is None or (when and when < (g.get("created_at") or "")):  # älteres Match als das Ziel: zählt nicht
             still_active.append(g)
             continue
         prior = [c for c in g["checks"] if c["match"] != match_id]
         entry = {"match": match_id, "pct": pct, "met": pct <= g["target_pct"], "date": summary.get("analyzed_at")}
-        g["checks"] = prior + [entry]
+        # chronologisch, damit ein später neu ausgewertetes altes Match die Serie nicht verfälscht
+        g["checks"] = sorted(prior + [entry], key=lambda c: c.get("date") or "")
         streak = 0
         for c in reversed(g["checks"]):
             if not c["met"]:
@@ -139,6 +141,9 @@ def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) 
     state["active"] = still_active
 
     active_causes = {g["cause"] for g in state["active"]}
+    # gerade geschafft: nicht aus demselben oder einem älteren Match sofort wieder anlegen
+    when = summary.get("analyzed_at") or ""
+    active_causes |= {g["cause"] for g in state["done"] if (g.get("done_at") or "") >= when}
     new_goals = []
     for cause in summary.get("cause_order", []):
         if len(state["active"]) >= cfg["max_active"]:
@@ -172,6 +177,8 @@ def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) 
             if len(state["active"]) >= cfg["max_active"]:
                 break
             key = f"mech:{metric}:{sid}"
+            if metric == "moving_pct" and "moving" in active_causes:
+                continue  # dasselbe Thema läuft schon als Team-Ziel ("Stehend schießen")
             base = mech.get(metric)
             if key in active_causes or base is None or base < mech_cfg[thr_key]:
                 continue

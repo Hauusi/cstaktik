@@ -236,3 +236,11 @@ def test_scene_frame_positions_and_killer():
     assert len(fr["me"]) == 2 and fr["mates"] and all(len(q) == 3 for q in fr["mates"])  # Mitspieler mit Namen
     assert fr["killer"] and fr["dead"] and fr["kplace"] == "SynthPalace"
     assert fr["spotted"] is False and fr["foes"] == []  # ohne 'spotted' in der Demo keine Gegner zeigen
+
+
+def test_pair_detail_uses_one_table():
+    from cstaktik.situation import WinModel
+
+    rows = [{"w": "t", "s": [[5, 5, 0], [5, 4, 0]], "eq": -1}] * 10 + [{"w": "ct", "s": [[5, 5, 0], [4, 5, 0]]}] * 10
+    d = WinModel(rows).pair_detail((5, 5, False), (4, 5, False), -1)
+    assert d["level"] == "exact" and (d["before"], d["after"]) == (0.5, 1.0) and d["n_after"] == 10

@@ -152,7 +152,7 @@ def test_death_review_facts_and_tip_priority():
     assert set(f) == {2, 3, 4}  # jeder Tod von ME
     r2 = f[2]
     lage = " | ".join(r2.evidence["lage"])
-    assert "5 gegen 5 (erstes Duell der Runde)" in lage and "geblendet 1.8s von Gegner1, 0.5s vor dem Tod" in lage
+    assert "5 gegen 5 (erstes Duell der Runde)" in lage and "geblendet 1,8 s von Gegner1, 0,5 s vor dem Tod" in lage
     assert "37 HP vor dem Duell (vorher 63 durch Molotov von Gegner1)" in lage
     assert r2.title == "Tod: Geblendet" and r2.severity == "hoch"  # Blendung hat Vorrang
     assert r2.text.startswith("Ich stirbt bei 0:20 in SynthMid mit 37 HP, geblendet, gegen Gegner1 (AK-47)")

@@ -140,7 +140,7 @@ def _death_sentence(fx: dict) -> str:
     dist = f", {fx['a_dist']} Units entfernt" if fx.get("a_dist") is not None else ""
     pre = f"Bei {when} " if when else ""
     if fx.get("blind_by"):
-        return (f"{fx['blind_by']} flasht dich, {fx.get('blind_ago')} s später erwischt dich {att}{src}.")
+        return (f"{fx['blind_by']} flasht dich, {str(fx.get('blind_ago')).replace('.', ',')} s später erwischt dich {att}{src}.")
     if fx.get("no_shot"):
         return f"{pre}taucht {att}{src} auf{dist}, und du kommst nicht zum Schuss."
     dealt = fx.get("dealt")
@@ -197,7 +197,7 @@ def _info_sentence(info: dict | None, fx: dict) -> str | None:
     att = fx.get("attacker") or "Der Gegner"
     if info.get("killer_seen_s") is None:
         return f"Keiner von euch hatte {att} auf dem Radar."
-    return f"{att} war {info['killer_seen_s']} s vorher auf dem Radar zu sehen."
+    return f"{att} war {str(info['killer_seen_s']).replace('.', ',')} s vorher auf dem Radar zu sehen."
 
 
 def _next(lid: str, fx: dict, snap: dict | None, aktion: str | None = None) -> str:

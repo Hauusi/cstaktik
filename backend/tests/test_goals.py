@@ -51,3 +51,22 @@ def test_pipeline_writes_goals_and_report_shows_check(tmp_path):
     assert state["active"]  # Economy-Ursache -> Ziel
     html = out.read_text()
     assert 'data-tab="coach"' in html and 'data-tab="runden"' in html and 'class="gnav"' in html
+
+
+def test_reanalysed_old_match_keeps_chronological_streak():
+    from cstaktik import goals
+
+    cfg = {"done_after": 2, "max_active": 3, "target_factor": 0.6}
+    st = {"active": [], "done": []}
+
+    def s(i, pct, date):
+        return {"id": i, "rounds": 20, "cause_rounds": {"alone": pct // 5}, "cause_order": ["alone"],
+                "analyzed_at": date}
+
+    goals.update(st, s("A0", 50, "2026-10-01T10:00"), cfg)
+    for i, pct, d in (("A", 20, "2026-10-02T10:00"), ("B", 50, "2026-10-03T10:00"), ("C", 20, "2026-10-04T10:00")):
+        goals.update(st, s(i, pct, d), cfg)
+    r = goals.update(st, s("A", 20, "2026-10-02T10:00"), cfg)  # altes Match erneut ausgewertet
+    assert r["checks"][0]["streak"] == 1 and not st["done"]
+    goals.update(st, s("D", 20, "2026-10-05T10:00"), cfg)  # jetzt wirklich 2 in Folge
+    assert st["done"] and not any(g["cause"] == "alone" for g in st["active"])  # nicht sofort neu angelegt
