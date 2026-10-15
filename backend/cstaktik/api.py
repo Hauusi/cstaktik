@@ -864,6 +864,14 @@ def progress_page(p: str = "") -> str:
     if p in sids:
         sid = p
     prof = profile(hist, sid, pro.duel_stats(_load_pro())) if sid else None
+    if prof:  # Kaufentscheidungen auf T: Team-Wert aus euren Matches gegen die Pros
+        from cstaktik import playbook
+
+        cfg = load_rules_config().get("playbook")
+        own_b = playbook.buy_mix([h for h in hist if sid in h.get("players", {})], cfg)
+        pro_b = playbook.buy_mix(_load_pro(), cfg)
+        prof["buys"] = {"own": own_b, "pro": pro_b, "reading": playbook.buy_reading(own_b, pro_b),
+                        "cfg": {**playbook.DEFAULTS, **(cfg or {})}} if own_b["total"] else None
     auftrag = next((x for x in _auftrag(hist) if x["sid"] == sid), None)
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in sids]
     return _env.get_template("profil.html").render(nav_active="progress", p=prof, a=auftrag, tabs=tabs)

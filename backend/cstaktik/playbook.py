@@ -436,3 +436,34 @@ def gameplan(pro: list[dict], own: list[dict], map_name: str, cfg: dict | None =
         "compare": compare(mix_own, mix_pro),
     }
     return plan if any(plan.values()) else None
+
+
+BUY_LABEL = {"eco": "Eco", "force": "Force Buy", "full": "Full Buy"}
+
+
+def buy_mix(sources: list[dict], cfg: dict | None = None) -> dict:
+    """T-Runden aller Maps nach Kauf (ohne Pistolenrunden): Anteil und Siegquote je Eco / Force / Full Buy."""
+    c = {**DEFAULTS, **(cfg or {})}
+    rows = [(classify(p, c)["buy"], p["won"]) for d in sources for p in d.get("plays") or []]
+    rows = [r for r in rows if r[0] in BUY_LABEL]
+    out = {}
+    for b, lbl in BUY_LABEL.items():
+        sel = [w for k, w in rows if k == b]
+        if sel:
+            out[b] = {"label": lbl, "n": len(sel), "share": round(100 * len(sel) / len(rows)),
+                      "won": sum(sel), "won_pct": round(100 * sum(sel) / len(sel))}
+    return {"total": len(rows), "buys": out}
+
+
+def buy_reading(own: dict, pro: dict, min_n: int = 8) -> str | None:
+    """Ein Satz zum Kaufverhalten, nur bei klarem Abstand zu den Pros und genug Runden."""
+    o, p = own["buys"].get("force"), pro["buys"].get("force")
+    if o and p and o["n"] >= min_n and p["n"] >= min_n and p["won_pct"] - o["won_pct"] >= 15:
+        return (f"Eure Force-Buys auf T gewinnen {o['won_pct']} % ({o['won']} von {o['n']}), Pros {p['won_pct']} %. "
+                "Bei euch lohnt sich der Force selten: lieber eine volle Eco und die nächste Runde voll kaufen, "
+                "oder den Force gemeinsam auf einen Ort spielen.")
+    o, p = own["buys"].get("eco"), pro["buys"].get("eco")
+    if o and p and o["n"] >= min_n and o["share"] - p["share"] >= 15:
+        return (f"Ihr spielt {o['share']} % eurer T-Runden als Eco, Pros {p['share']} %. Häufige Ecos kosten Runden: "
+                "Geld über die Runden besser einteilen, damit ihr öfter voll kaufen könnt.")
+    return None

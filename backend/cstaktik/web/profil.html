@@ -56,6 +56,19 @@
 </div>
 {% else %}<div class="card empty">Noch keine Fehler-Daten.</div>{% endfor %}
 
+{% if p.buys %}{% set bo, bp = p.buys.own, p.buys.pro %}
+<h2>Kaufentscheidungen auf T</h2>
+<div class="card">
+  {% if p.buys.reading %}<div class="dread">{{ p.buys.reading }}</div>{% endif %}
+  {% for k in ["eco", "force", "full"] %}{% set o = bo.buys.get(k) %}{% set q = bp.buys.get(k) %}
+  {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
+    <span class="small muted num">Ihr {{ o.share if o else 0 }} % der Runden{% if o %}, {{ o.won_pct }} % gewonnen ({{ o.won }}/{{ o.n }}){% endif %}{% if q %} · Pros {{ q.share }} %, {{ q.won_pct }} % gewonnen{% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+  {% endfor %}
+  <div class="small muted num" style="margin-top:8px">{{ bo.total }} eigene T-Runden ohne Pistolenrunden, alle Maps. Kauf = Ausrüstung der 5 T beim Rundenstart (Eco bis {{ p.buys.cfg.eco_max }}, Force bis {{ p.buys.cfg.force_max }}).</div>
+</div>
+{% endif %}
+
 <h2>Maps</h2>
 <div class="card">
 {% for m in p.maps %}

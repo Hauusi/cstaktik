@@ -270,3 +270,12 @@ def test_tactic_task_ticks_itself_when_played():
     assert weekplan.tactic_progress(key, plan, hist) is True
     assert plan["tasks"][0]["played"] == {"n": 2, "won": 1} and f"tactic:de_mirage:{tid}" in plan["done"]
     assert weekplan.tactic_progress(key, plan, hist) is False  # nichts Neues
+
+
+def test_buy_mix_and_reading():
+    def r(eq, won):
+        return {"t_eq": eq, "won": won, "site": "A", "arrive": 30, "approach": {}}
+    own = playbook.buy_mix([{"plays": [r(10000, False)] * 9 + [r(10000, True)] + [r(25000, True)] * 5 + [{**r(800, True), "pistol": True}]}])
+    assert own["total"] == 15 and own["buys"]["force"] == {"label": "Force Buy", "n": 10, "share": 67, "won": 1, "won_pct": 10}
+    pro = playbook.buy_mix([{"plays": [r(10000, True)] * 4 + [r(10000, False)] * 6 + [r(25000, True)] * 10}])
+    assert "Force-Buys auf T gewinnen 10 % (1 von 10), Pros 40 %" in playbook.buy_reading(own, pro)
