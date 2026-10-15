@@ -15,15 +15,15 @@ def test_goal_created_checked_done_and_replaced():
     assert [g["cause"] for g in st["active"]] == ["alone", "opening"]
     g = st["active"][0]
     assert (g["baseline_pct"], g["target_pct"]) == (25.0, 15.0) and g["drills"]
-    assert r1["checks"] == [] and r1["new"] == ["Nicht mehr allein sterben", "Weniger als Erster sterben"]
+    assert r1["checks"] == [] and r1["new"] == ["Nicht ohne Trade-Partner peeken", "Weniger als Erster sterben"]
 
     r2 = goals.update(st, S("2", alone=3, opening=6, order=()), CFG)  # 12.5 % <= 15 % erreicht
-    alone = next(c for c in r2["checks"] if c["title"] == "Nicht mehr allein sterben")
+    alone = next(c for c in r2["checks"] if c["title"] == "Nicht ohne Trade-Partner peeken")
     assert alone["met"] and alone["streak"] == 1 and alone["status"] == "aktiv"
     assert not next(c for c in r2["checks"] if c["title"] == "Weniger als Erster sterben")["met"]
 
     r3 = goals.update(st, S("3", alone=2, opening=5, order=("blind",)) | {"cause_rounds": {"alone": 2, "opening": 5, "blind": 4}}, CFG)
-    assert next(c for c in r3["checks"] if c["title"] == "Nicht mehr allein sterben")["status"] == "geschafft"
+    assert next(c for c in r3["checks"] if c["title"] == "Nicht ohne Trade-Partner peeken")["status"] == "geschafft"
     assert [g["cause"] for g in st["done"]] == ["alone"]
     assert {g["cause"] for g in st["active"]} == {"opening", "blind"}  # freier Platz neu besetzt
 

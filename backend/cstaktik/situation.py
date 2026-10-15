@@ -496,7 +496,8 @@ def pro_decisions(match: MatchData, window_s: float = 5.0) -> list[list]:
     for rnd in match.rounds:
         if rnd.winner is None or rnd.freeze_end_tick is None or not rnd.sides:
             continue
-        moments = [rnd.freeze_end_tick + 15 * tr] + sorted(k.tick + tr for k in match.kills if k.round == rnd.num)
+        # je Tick nur einmal: zwei Kills im selben Tick würden sonst jede Lage doppelt zählen
+        moments = [rnd.freeze_end_tick + 15 * tr] + sorted({k.tick + tr for k in match.kills if k.round == rnd.num})
         for m in moments:
             if m + int(window_s * tr) > rnd.end_tick:
                 continue

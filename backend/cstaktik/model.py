@@ -197,6 +197,17 @@ class MatchData(BaseModel):
     bomb: list[BombEvent] = Field(default_factory=list)
     duels: list[Duel] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)  # Hinweise auf fehlende Datenarten
+    # Kills nach Rundenende (awpy zählt Ereignisse bis official_end): Waffen-Retten, Exit-Frags. Kein Teil der Runde,
+    # deshalb nicht in ``kills`` (Regeln, Statistik, Lagen); nur für "Waffe gerettet?" aufgehoben.
+    post_round_kills: list[Kill] = Field(default_factory=list)
+
+    def split_post_round(self) -> "MatchData":
+        ends = {r.num: r.end_tick for r in self.rounds}
+        late = [k for k in self.kills if k.round in ends and k.tick > ends[k.round]]
+        if late:
+            self.kills = [k for k in self.kills if not (k.round in ends and k.tick > ends[k.round])]
+            self.post_round_kills = sorted(self.post_round_kills + late, key=lambda k: k.tick)
+        return self
 
     def focus_ids(self) -> set[str]:
         return {p.steamid for p in self.players if p.is_focus}

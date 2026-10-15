@@ -138,11 +138,15 @@ def load_any(
         from cstaktik.parser.awpy_adapter import parse_demo, sha256_of
 
         cache = CACHE_DIR / f"{sha256_of(path)}.v{CACHE_SCHEMA}.json"
+        match = None
         if use_cache and cache.exists():
-            match = load_match(cache)
-        else:
+            try:
+                match = load_match(cache)
+            except (OSError, ValueError):  # kaputter Cache (z. B. Absturz beim Schreiben): neu parsen
+                cache.unlink(missing_ok=True)
+        if match is None:
             t0 = time.monotonic()
-            match = parse_demo(path, focus, config["parser"], progress)
+            match = parse_demo(path, focus, config["parser"], progress).split_post_round()
             _record_timing(path.stat().st_size, time.monotonic() - t0)
             save_match(match, cache)
     else:

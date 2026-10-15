@@ -416,7 +416,8 @@ def memory(prev: dict | None, now_lessons: dict, now_rounds: int) -> dict | None
 
     c = compare_rates(before, prev["rounds"], after, now_rounds, min_rounds=0)
     if after == 0:
-        verdict, state = "Heute kein einziges Mal. Jetzt im nächsten Match bestätigen.", "besser"
+        # Text ja, Urteil nur aus dem Vergleich: 1x gegen 0x ist noch kein "besser"
+        verdict, state = "Heute kein einziges Mal. Jetzt im nächsten Match bestätigen.", c["state"]
     elif c["state"] == "besser":
         verdict, state = "Deutlich weniger, das greift.", "besser"
     elif c["state"] == "schlechter":

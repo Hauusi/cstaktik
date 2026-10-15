@@ -11,8 +11,9 @@ def player_stats(match: MatchData, trade_window_s: float) -> list[PlayerStats]:
     window = int(trade_window_s * match.tickrate)
     kills = sorted(match.kills, key=lambda k: k.tick)
     first: dict[int, object] = {}
-    for k in kills:
-        first.setdefault(k.round, k)
+    for k in kills:  # erstes DUELL der Runde: Teamkills, Bombe, Fallschaden zählen nicht als Opening
+        if k.attacker_steamid and k.attacker_side and k.attacker_side != k.victim_side:
+            first.setdefault(k.round, k)
     out = []
     for sid in sorted(match.focus_ids()):
         rounds = sum(1 for r in match.rounds if sid in r.sides)
@@ -20,8 +21,10 @@ def player_stats(match: MatchData, trade_window_s: float) -> list[PlayerStats]:
         my_deaths = [k for k in kills if k.victim_steamid == sid]
         traded = 0
         for d in my_deaths:
+            # Trade = der Killer stirbt kurz danach durch das Team des Opfers (wie history.death_rows, pro.deaths)
             if d.attacker_steamid and any(
-                x.round == d.round and x.victim_steamid == d.attacker_steamid and d.tick < x.tick <= d.tick + window
+                x.round == d.round and x.victim_steamid == d.attacker_steamid and x.attacker_side == d.victim_side
+                and d.tick < x.tick <= d.tick + window
                 for x in kills
             ):
                 traded += 1

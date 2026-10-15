@@ -154,6 +154,9 @@ def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) 
         if not base:
             continue
         title, drills = GOAL_TEXT[cause]
+        from cstaktik.coach_voice import LESSONS
+
+        title = LESSONS[cause][0] if cause in LESSONS else title  # überall dieselbe Sprache wie Auftrag und Report
         state["active"].append({
             "cause": cause,
             "title": title,

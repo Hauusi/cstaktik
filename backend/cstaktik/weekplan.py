@@ -50,7 +50,12 @@ def tasks_for(ctx: dict) -> list[dict]:
             do.append(f"Oder bleiben, aber vorher die Pro-{lu['kind_de']} von {s['place']} nach {lu['to'] or '?'} werfen.")
         if not do:
             do.append("Im Map-Buch ansehen, was an diesem Spot schiefgeht, und Timing oder Position ändern.")
-        check = f"Erfolg: 'als Erster tot' von {s['place']} aus steigt nicht weiter (jetzt {s['first']} von {s['n']} Runden)."
+        # Erfolgskriterium nach dem Auslöser: als Erster gestorben oder ohne Trade gestorben
+        if (s.get("untraded") or 0) > s["first"]:
+            check = (f"Erfolg: 'ohne Trade gestorben' von {s['place']} aus steigt nicht weiter "
+                     f"(jetzt {s['untraded']} von {s['n']} Runden).")
+        else:
+            check = f"Erfolg: 'als Erster tot' von {s['place']} aus steigt nicht weiter (jetzt {s['first']} von {s['n']} Runden)."
         out.append({"id": f"spot:{m}:{s['side']}:{s['place']}", "kind": "Map-Buch",
                     "title": f"{ctx['map_label']} {s['side'].upper()}: {s['place']} klären",
                     "steps": s["why"] + do + [check],

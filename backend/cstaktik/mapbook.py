@@ -101,7 +101,7 @@ def build(hist: list[dict], pro: list[dict], map_name: str, sid: str, cfg: dict)
         alt = []
         if pro_ok:
             for place, ps in sorted(po["spots"].items(), key=lambda kv: -kv[1]["n"])[:5]:
-                alt.append({"place": place, "share": _pct(ps["n"], po["total"]),
+                alt.append({"place": place, "share": _pct(ps["n"], po["total"]), "n": ps["n"],
                             "won_pct": _pct(ps["won"], ps["n"]) if ps["n"] >= 3 else None,
                             "first_pct": _pct(ps["first"], ps["first_known"]) if ps["first_known"] >= 3 else None,
                             "lineups": sum(1 for l in lines if l["side"] == side and l["from"] == place)})
@@ -164,6 +164,8 @@ def worst_spot(book: dict) -> dict | None:
         return None
     s, side = max(cand, key=lambda c: (c[0]["first"] + (c[0]["untraded"] or 0), c[0]["n"]))
     # Alternative aus den Pro-Daten: Spot derselben Seite mit der höchsten Pro-Siegquote (nicht derselbe Ort)
-    alts = [p for p in book["sides"][side]["pro_spots"] if p["place"] != s["place"] and p.get("won_pct") is not None]
+    # nur gut belegte Pro-Spots (mind. 10 Runden): ein Spot mit 3 Runden und 100 % ist Zufall
+    alts = [p for p in book["sides"][side]["pro_spots"] if p["place"] != s["place"] and p.get("won_pct") is not None
+            and p.get("n", 0) >= 10]
     alt = max(alts, key=lambda p: p["won_pct"], default=None)
     return {**s, "side": side, "alt": alt, "at": book.get("at")}

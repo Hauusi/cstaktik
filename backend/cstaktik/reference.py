@@ -56,7 +56,8 @@ def enrich(match: MatchData, findings: list[Finding], histories: list[dict] | No
     tr = match.tickrate
     idx = PositionIndex(match.positions)
     current = timeline(match)
-    past = [t for h in (histories or []) if h.get("map") == match.map_name and h.get("id") != match.source_sha256
+    me = match.source_sha256 or match.source_file  # wie die Verlaufs-ID; sonst zählt dieses Match doppelt
+    past = [t for h in (histories or []) if h.get("map") == match.map_name and h.get("id") != me
             for t in h.get("timeline", [])]
 
     for f in findings:
@@ -68,8 +69,9 @@ def enrich(match: MatchData, findings: list[Finding], histories: list[dict] | No
         side = rnd.sides.get(f.steamid)
         secs = (f.tick - rnd.freeze_end_tick) / tr
         b = _bucket(secs) // STEP_S
-        won = [t for t in current + past
-               if t["sid"] == f.steamid and t["side"] == side and t["won"] and t.get("round") != f.round
+        # dieselbe Runde nur im aktuellen Match ausschließen (Runde N eines anderen Matches ist eine andere Runde)
+        won = [t for t in [x for x in current if x.get("round") != f.round] + past
+               if t["sid"] == f.steamid and t["side"] == side and t["won"]
                and b < len(t["places"]) and t["places"][b]]
         if len(won) < min_samples:
             continue

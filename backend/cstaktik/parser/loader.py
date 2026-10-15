@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from cstaktik.fsutil import write_atomic
 from cstaktik.model import MatchData
 
 
 def load_match(path: Path) -> MatchData:
-    return MatchData.model_validate_json(path.read_text(encoding="utf-8"))
+    return MatchData.model_validate_json(path.read_text(encoding="utf-8")).split_post_round()
 
 
 def save_match(match: MatchData, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(match.model_dump_json(), encoding="utf-8")
+    # atomar: ein abgebrochener Schreibvorgang (20-60 MB) darf keinen halben Cache hinterlassen
+    write_atomic(path, match.model_dump_json())

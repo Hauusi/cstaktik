@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 from cstaktik.model import Finding, MatchData
 
 RULE_ID = "entry_deaths"
@@ -19,7 +21,9 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
         if len(lost) < cfg["min_count"]:
             continue
         places = [first_kill[r].victim_place for r in lost if first_kill[r].victim_place]
-        top_place = max(set(places), key=places.count) if places else None
+        mc = Counter(places).most_common(2)
+        # "meist" nur, wenn ein Ort klar vorn liegt (mindestens 2x und häufiger als der zweite)
+        top_place = mc[0][0] if mc and mc[0][1] >= 2 and (len(mc) == 1 or mc[0][1] > mc[1][1]) else None
         findings.append(
             Finding(
                 rule_id=RULE_ID,
