@@ -273,6 +273,13 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .chipbtn { padding: 11px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
   font-size: 14px; font-weight: 650; text-align: center; line-height: 1.25; }
 .chipbtn span { color: var(--orange); font-variant-numeric: tabular-nums; }
+.glance { display: grid; gap: 6px; margin: 14px 0 20px; }
+.gl { display: grid; grid-template-columns: minmax(70px, 1fr) repeat(4, auto); gap: 4px 14px; align-items: end;
+  padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.gl b { font-size: 14px; align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl span { display: grid; justify-items: end; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.gl i { font-style: normal; font-size: 17px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; }
+.gl i.p { color: var(--win); } .gl i.n { color: var(--loss); }
 .guide { margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px dashed var(--line);
   font-size: 13.5px; color: var(--muted); line-height: 1.45; }
 .guide b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--orange);
@@ -594,6 +601,14 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     <div class="av cond">C</div>
     <div class="say">{% for line in intro %}{{ line }} {% endfor %}</div>
   </section>
+
+  {% if glance %}
+  <section class="glance">
+    {% for g in glance %}<div class="gl"{% if g.sid %} data-sid="{{ g.sid }}"{% endif %}><b>{{ g.name }}</b>
+      <span><i>{{ g.kd }}</i>K/T</span>{% if g.adr is not none %}<span><i>{{ g.adr }}</i>ADR</span>{% endif %}
+      {% if g.imp %}<span><i class="{{ 'p' if g.pos else 'n' }}">{{ g.imp }}</i>Impact</span><span><i>{{ g.rank }}</i>Platz</span>{% endif %}</div>{% endfor %}
+  </section>
+  {% endif %}
 
   {% if checks %}
   <section class="auftraege">

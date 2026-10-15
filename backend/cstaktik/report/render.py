@@ -365,6 +365,19 @@ def _util_cmp(match: MatchData) -> dict:
     return utility_cmp.compare(match, pro.load_all(pipeline.PRO_DIR), load_rules_config().get("utility_cmp"))
 
 
+def _glance(result: AnalysisResult, imp: dict | None) -> list[dict]:
+    """Je Fokus-Spieler die Kernzahlen des Matches für die Kopfzeile im Coach-Reiter (nur vorhandene Werte)."""
+    rows = {r["sid"]: r for r in (imp or {}).get("rows", [])}
+    out = []
+    for st in result.stats:
+        r = rows.get(st.steamid)
+        out.append({"sid": st.steamid, "name": st.name, "kd": f"{st.kills}/{st.deaths}",
+                    "adr": None if st.adr is None else round(st.adr),
+                    "imp": r["total_s"] if r else None, "pos": bool(r and r["total"] > 0),
+                    "rank": f"{r['rank']}/{len(rows)}" if r else None})
+    return out
+
+
 KIND_DE = {"kill": "Kill", "death": "Tod", "plant": "Bombe gelegt", "defuse": "Entschärft", "teamkill": "Teamkill"}
 
 
@@ -528,6 +541,7 @@ def build_context(
         "util_cmp": _util_cmp(match),
         "tactics": tac_now,
         "impact": imp,
+        "glance": _glance(result, imp),
         "auftraege": auftraege,
         "checks": [a for a in auftraege if a.get("check")],
         "goal_cfg": load_rules_config()["goals"],
