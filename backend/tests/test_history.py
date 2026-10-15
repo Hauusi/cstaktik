@@ -74,6 +74,7 @@ def test_run_writes_history_and_progress_route(tmp_path, monkeypatch):
     page = TestClient(api.app).get(f"/progress?p={ME}").text
     assert "Clutch · als Letzter übrig" in page and "1 gegen 2" in page and "Du 1 von 1" in page
     assert "Punkte Siegchance je Runde" in page
+    assert "Tilt-Check" in page and h["seq"]  # seq kommt aus summarize
 
 
 def test_progress_lessons_per_map_and_trend():

@@ -110,9 +110,9 @@ def build(match: MatchData, model: WinModel, focus: set[str] | None = None) -> d
 
 
 def history_row(imp: dict, focus: set[str]) -> dict:
-    """Was im Verlauf gespeichert wird: Summen je Fokus-Spieler (ohne Rundenverlauf), dazu Platz im Match."""
+    """Was im Verlauf gespeichert wird: Summen und Wert je Runde der Fokus-Spieler, dazu Platz im Match."""
     order = sorted(imp["players"], key=lambda s: -imp["players"][s]["total"])
-    return {sid: {**{k: v for k, v in p.items() if k != "rounds"}, "rank": order.index(sid) + 1, "of": len(order)}
+    return {sid: {**p, "rank": order.index(sid) + 1, "of": len(order)}
             for sid, p in imp["players"].items() if sid in focus}
 
 

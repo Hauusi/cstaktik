@@ -114,6 +114,21 @@
 </div>
 {% endfor %}
 
+{% if p.tilt %}{% set tl = p.tilt %}
+<h2>Tilt-Check · nach verlorenen Runden</h2>
+<div class="card">
+  {% if tl.reading %}<div class="dread">{{ tl.reading }}</div>{% else %}<div class="small muted">Noch zu wenige Runden für eine Aussage (je Gruppe mindestens 25 Runden nach Serie und nach Sieg).</div>{% endif %}
+  <details class="sdet"><summary>Alle Werte</summary>
+  {% for k in ["serie", "sonst", "sieg"] %}{% set g = tl.groups[k] %}
+  <div class="mrow"><div><b>{{ g.label }}</b>
+    <span class="small muted num">{{ g.n }} Runden{% if g.n %} · als Erster gestorben {{ g.first }} % · ohne Trade gestorben {{ g.untraded }} %{% endif %}</span></div>
+    {% if g.impact_s %}<b class="num" style="color:{{ '#46a758' if g.impact > 0 else '#e5484d' if g.impact < 0 else 'inherit' }}">{{ g.impact_s }}</b>{% endif %}</div>
+  {% endfor %}
+  <div class="small muted" style="margin-top:8px">Rechts: Impact je Runde (Punkte Siegchance). Pistolenrunden zählen nicht. Ein Unterschied ist ein Zusammenhang, kein Beweis.</div>
+  </details>
+</div>
+{% endif %}
+
 {% if p.clutch %}{% set c = p.clutch %}
 <h2>Clutch · als Letzter übrig</h2>
 <div class="card">

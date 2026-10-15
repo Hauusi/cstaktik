@@ -1,0 +1,37 @@
+from cstaktik import tilt
+
+
+def _hist(n_matches=4):
+    hs = []
+    for m in range(n_matches):
+        seq, deaths, rounds = [], [], {}
+        # Muster: L L L W W L L L W W ... (Runde 1 = Pistole)
+        for num in range(1, 25):
+            won = (num - 1) % 5 >= 3
+            seq.append([num, "ct" if num <= 12 else "t", won])
+            prev_lost_twice = num > 2 and not seq[-2][2] and not seq[-3][2]
+            if prev_lost_twice:
+                deaths.append({"sid": "a", "round": num, "first": True, "traded": False})
+                rounds[str(num)] = -20.0
+            else:
+                rounds[str(num)] = 10.0
+        hs.append({"players": {"a": {}}, "seq": seq, "deaths": deaths,
+                   "impact": {"a": {"total": 0, "rounds": rounds}}})
+    return hs
+
+
+def test_tilt_detected_after_losing_streak():
+    s = tilt.summary(_hist(), "a")
+    g = s["groups"]
+    assert g["serie"]["n"] >= 25 and g["sieg"]["n"] >= 25
+    assert g["serie"]["first"] == 100 and g["sieg"]["first"] == 0
+    assert g["serie"]["impact"] == -20.0 and g["sieg"]["impact"] == 10.0
+    assert s["enough"] and "messbar schlechter" in s["reading"]
+
+
+def test_pistol_rounds_skipped_and_few_rounds():
+    rs = tilt.rows(_hist(1), "a")
+    assert len(rs) == 22  # 24 Runden minus zwei Pistolen
+    s = tilt.summary(_hist(1), "a")
+    assert not s["enough"] and s["reading"] is None
+    assert tilt.summary(_hist(1), "zz") is None

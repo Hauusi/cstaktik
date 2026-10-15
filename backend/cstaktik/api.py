@@ -1233,6 +1233,9 @@ def progress_page(p: str = "") -> str:
         from cstaktik import impact
 
         prof["impact"] = impact.profile(hist, sid)
+        from cstaktik import tilt
+
+        prof["tilt"] = tilt.summary(hist, sid)
     auftrag = next((x for x in _auftrag(hist) if x["sid"] == sid), None)
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(sids)]
     return _env.get_template("profil.html").render(nav_active="progress", p=prof, a=auftrag, tabs=tabs)
