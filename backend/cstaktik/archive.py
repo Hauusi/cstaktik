@@ -80,6 +80,46 @@ def _from_zip(src: Path, dest: Path, max_bytes: int, out: list[Path]) -> list[Pa
     return out
 
 
+MAX_FILES = 200  # mehr Dateien im Archiv: kein Demo-Archiv
+
+
+def _dir_usage(path: Path) -> tuple[int, int]:
+    size = n = 0
+    for p in path.rglob("*"):
+        try:
+            if p.is_file() and not p.is_symlink():
+                size += p.stat().st_size
+                n += 1
+        except OSError:
+            continue
+    return size, n
+
+
+def _run_watched(args: list[str], tmp: Path, limit: int) -> subprocess.CompletedProcess:
+    """Entpack-Programm starten und den Zielordner beobachten: wird er größer als ``limit`` (z. B. ein Archiv, das
+    sich auf viele GB aufbläht) oder dauert es zu lange, wird abgebrochen, bevor die Platte voll ist."""
+    import time
+
+    start = time.monotonic()
+    log = tempfile.TemporaryFile()  # nicht PIPE: bei viel Ausgabe liefe die Pipe voll und alles stünde
+    with log, subprocess.Popen(args, stdout=log, stderr=log) as proc:  # noqa: S603
+        while proc.poll() is None:
+            size, n = _dir_usage(tmp)
+            if size > limit or n > MAX_FILES:
+                proc.kill()
+                raise ValueError("Archiv entpackt zu groß oder zu viele Dateien: abgebrochen.")
+            if time.monotonic() - start > TOOL_TIMEOUT_S:
+                proc.kill()
+                raise ValueError("Entpacken dauerte zu lange.")
+            time.sleep(0.3)
+        log.seek(0)
+        out = log.read()[-4000:]
+    size, n = _dir_usage(tmp)
+    if size > limit or n > MAX_FILES:
+        raise ValueError("Archiv entpackt zu groß oder zu viele Dateien: abgebrochen.")
+    return subprocess.CompletedProcess(args, proc.returncode, out, b"")
+
+
 def _from_rar(src: Path, dest: Path, max_bytes: int, out: list[Path]) -> list[Path]:
     cmd = rar_tool()
     if cmd is None:
@@ -87,10 +127,7 @@ def _from_rar(src: Path, dest: Path, max_bytes: int, out: list[Path]) -> list[Pa
                          "sudo apt install unar   (oder libarchive-tools). Alternativ die .dem-Dateien entpackt hochladen.")
     with tempfile.TemporaryDirectory(dir=dest, prefix=".unpack-") as tmp:
         args = [a.replace("{src}", str(src)).replace("{dst}", tmp) for a in cmd]
-        try:
-            res = subprocess.run(args, capture_output=True, timeout=TOOL_TIMEOUT_S, check=False)  # noqa: S603
-        except subprocess.TimeoutExpired as exc:
-            raise ValueError("Entpacken dauerte zu lange.") from exc
+        res = _run_watched(args, Path(tmp), MAX_TOTAL_FACTOR * max_bytes)
         found = [p for p in Path(tmp).rglob("*") if p.is_file() and not p.is_symlink() and _is_demo(p.name)]
         if res.returncode != 0 and not found:
             msg = (res.stderr or res.stdout).decode(errors="ignore").strip().splitlines()

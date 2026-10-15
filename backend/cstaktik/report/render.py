@@ -337,6 +337,8 @@ def _tactics(match: MatchData) -> dict | None:
         row["rounds"].append(p["r"])
     if len(centers) >= 2:
         for p in ct_plays:
+            if len(p["pos"]) < 3:
+                continue
             z = [playbook.zone(v[0], v[1], centers, units) for v in p["pos"].values()]
             key = f"{z.count('A')}-{z.count('M')}-{z.count('B')}"
             a, b = z.count("A"), z.count("B")

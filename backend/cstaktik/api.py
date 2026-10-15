@@ -36,6 +36,13 @@ def _me() -> str | None:
     return _ME.get()
 
 
+def _own_only(sid: str) -> None:
+    """Mit Steam verbunden: nur den eigenen Plan ändern."""
+    me = _me()
+    if me and sid != me:
+        raise HTTPException(403, "Nur dein eigener Plan.")
+
+
 def _mine(sids):
     """Nur der eigene Spieler, wenn der Nutzer mit Steam verbunden ist; sonst alle (z. B. ohne Login)."""
     me = _me()
@@ -566,6 +573,8 @@ def _auftrag(hist: list[dict]) -> list[dict]:
 def training_done(p: str = "") -> RedirectResponse:
     from cstaktik import coaching, weekplan
 
+    _own_only(p)
+
     state = coaching.load(pipeline.COACHING_FILE)
     slot = state.get("players", {}).get(p)
     if slot and slot.get("focus"):
@@ -771,6 +780,8 @@ def _map_hub(hist: list[dict], sid: str | None) -> list[dict]:
 @app.post("/training/plan")
 def plan_toggle(p: str = "", task: str = "", week: str = "") -> RedirectResponse:
     from cstaktik import coaching, weekplan
+
+    _own_only(p)
 
     state = coaching.load(pipeline.COACHING_FILE)
     slot = state.get("players", {}).get(p)
@@ -1059,6 +1070,8 @@ def _map_lessons(hist: list[dict], map_name: str) -> list[dict]:
     out = []
     focus_titles = {a["title"] for a in _auftrag(hist)}
     for sid, name in names.items():
+        if not _mine([sid]):
+            continue
         # erst ab 3 Vorkommen und 30 Runden auf der Map: ein einzelner Tod ist keine Baustelle
         ls = [l for l in _lessons(hist, sid) if (l["by_map"].get(map_name) or {}).get("count", 0) >= 3
               and l["by_map"][map_name]["rounds"] >= 30]
@@ -1210,7 +1223,11 @@ def review_page(n: int = 5) -> str:
     from cstaktik import review
 
     hist = _load_hist()
-    return _env.get_template("review.html").render(nav_active="matches", r=review.build(hist, max(1, min(n, 20))))
+    r = review.build(hist, max(1, min(n, 20)))
+    if _me():  # mit Steam verbunden: nur das eigene Profil
+        r["players"] = [x for x in r["players"] if x["sid"] == _me()]
+        r["say"] = review._say(r["players"], r["n"]) + [x for x in r["say"] if x.startswith("Als Team")]
+    return _env.get_template("review.html").render(nav_active="matches", r=r)
 
 
 @app.get("/progress", response_class=HTMLResponse)

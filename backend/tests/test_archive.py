@@ -73,3 +73,13 @@ def test_too_many_demos(tmp_path):
     src = _zip(tmp_path / "a.zip", {f"m{i}.dem": b"1" for i in range(archive.MAX_DEMOS + 1)})
     with pytest.raises(ValueError, match="Zu viele"):
         archive.extract_demos(src, tmp_path / "d", 100)
+
+
+def test_rar_bomb_stopped(tmp_path, monkeypatch):
+    src = tmp_path / "bomb.rar"
+    src.write_bytes(b"rar")
+    # "Entpacker", der viel mehr schreibt als erlaubt: wird abgebrochen, nichts bleibt liegen
+    monkeypatch.setattr(archive, "rar_tool", lambda: ["sh", "-c", "head -c 5000 /dev/zero > '{dst}/a.dem'; sleep 5"])
+    with pytest.raises(ValueError, match="zu groß"):
+        archive.extract_demos(src, tmp_path / "out", 1000)
+    assert not [p for p in (tmp_path / "out").rglob("*") if p.is_file()]

@@ -206,9 +206,10 @@ def load_pro_matches(pro: list[dict], map_name: str | None) -> list[MatchData]:
 
 
 def run(
-    path: Path, focus: set[str] | None = None, out_dir: Path = REPORTS_DIR, progress: Progress | None = None
+    path: Path, focus: set[str] | None = None, out_dir: Path | None = None, progress: Progress | None = None
 ) -> Path:
     """``progress(stufe, anteil)``: Parsen belegt 0–0.9, Regeln und Report den Rest."""
+    out_dir = out_dir or REPORTS_DIR  # erst hier auflösen: zur Laufzeit gesetzter Ordner (Tests) gilt
     report = progress or (lambda _stage, _frac: None)
     config = load_rules_config()
     focus = focus or load_focus_steamids()
@@ -432,7 +433,7 @@ def upgrade_history() -> int:
     for h in history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []:
         cache = cache_file(h.get("id"))
         stale = bool(h.get("plays")) and not {"kills", "t_eq"} <= set(h["plays"][0])  # vor Kills/Kauf gespeichert
-        ct_stale = bool(h.get("ct_plays")) and not {"kills", "ct_eq"} <= set(h["ct_plays"][0])
+        ct_stale = bool(h.get("ct_plays")) and not {"kills", "ct_eq", "setup"} <= set(h["ct_plays"][0])
         if ("states" in h and "plays" in h and "ct_plays" in h and "clutch" in h and not stale and not ct_stale) \
                 or cache is None or ("states" in h and h.get("no_team_for") == sorted(focus)):
             continue  # no_team_for: schon geprüft, mit dieser Spieler-Einstellung ist niemand im Match

@@ -340,12 +340,12 @@ def ct_plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
             p = idx.nearest(r.num, sid, tick, tr)
             if p is not None and p.alive:
                 pos[sid] = [round(p.pos.x), round(p.pos.y), p.place]
-        if len(pos) < 3:  # zu viele schon tot oder ohne Daten: keine Aufstellung
-            continue
+        # Runde immer behalten (Kauf, erster Kill, Retake zählen sonst ohne die schnell verlorenen Runden);
+        # unter 3 lebenden CT mit Daten gibt es nur keine Aufstellung ("setup": False)
         plant = plants.get(r.num)
         site = _site_of(_place_near(idx, r.num, plant)) if plant else None
         vals = [e.equip_value for e in r.economy if e.side == "ct" and e.equip_value is not None]
-        out.append({"r": r.num, "won": r.winner == "ct", "pos": pos, "plant_site": site,
+        out.append({"r": r.num, "won": r.winner == "ct", "pos": pos, "setup": len(pos) >= 3, "plant_site": site,
                     "plant": [round(plant.pos.x), round(plant.pos.y)] if plant and plant.pos else None,
                     "plant_t": round((plant.tick - r.freeze_end_tick) / tr, 1) if plant else None,
                     "ct_eq": sum(vals) if vals else None, "pistol": r.num in (1, 13),
@@ -390,6 +390,8 @@ def ct_build(sources: list[dict], map_name: str, centers: dict, cfg: dict | None
         if d.get("map") != map_name:
             continue
         for p in d.get("ct_plays") or []:
+            if len(p.get("pos") or {}) < 3:
+                continue
             total += 1
             zones = {sid: zone(v[0], v[1], centers, c["zone_units"]) for sid, v in p["pos"].items()}
             cnt = Counter(zones.values())

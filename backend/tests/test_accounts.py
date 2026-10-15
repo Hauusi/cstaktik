@@ -208,6 +208,9 @@ def test_logged_in_player_sees_only_own_profile():
     assert "Satoru" in home and "Bruder" not in home
     prog = c.get(f"/progress?p={bro}").text
     assert "Bruder" not in prog  # auch über den Link nicht das fremde Profil
+    assert c.post(f"/training/done?p={bro}", headers=O, follow_redirects=False).status_code == 403
+    assert c.post(f"/training/done?p={me}", headers=O, follow_redirects=False).status_code == 303
+    assert "Bruder" not in c.get("/review").text
 
 
 def test_personal_report_injects_own_steamid(tmp_path):
