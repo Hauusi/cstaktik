@@ -893,7 +893,7 @@ def playbook_index() -> RedirectResponse:
 
 
 @app.get("/playbook/{map_name}", response_class=HTMLResponse)
-def playbook_page(map_name: str, who: str = "pro", side: str = "t") -> str:
+def playbook_page(map_name: str, who: str = "", side: str = "") -> str:
     """T-Taktiken aus den Pro-Demos dieser Map: Laufwege, Granaten, Plant, abspielbar auf dem Radar."""
     import json as _json
 
@@ -907,7 +907,10 @@ def playbook_page(map_name: str, who: str = "pro", side: str = "t") -> str:
     own = [{"map": h.get("map"), "plays": h.get("plays"), "ct_plays": h.get("ct_plays"),
             "source_file": f"{(h.get('analyzed_at') or '')[8:10]}.{(h.get('analyzed_at') or '')[5:7]}."}
            for h in _load_hist() if h.get("plays") or h.get("ct_plays")]
-    who = "ihr" if who == "ihr" else "pro"
+    if who not in ("ihr", "pro"):  # ohne Wahl: Pros, außer es gibt für diese Map keine Pro-Demo, aber eigene Runden
+        has_pro = any(d.get("map") == map_name for d in pro)
+        has_own = any(d.get("map") == map_name for d in own)
+        who = "ihr" if has_own and not has_pro else "pro"
     book = playbook.build(own if who == "ihr" else pro, map_name, cfg)
     mix = {"pro": playbook.style_mix(pro, map_name, cfg), "ihr": playbook.style_mix(own, map_name, cfg)}
     mix["text"] = playbook.compare(mix["ihr"], mix["pro"])
@@ -941,7 +944,11 @@ def playbook_page(map_name: str, who: str = "pro", side: str = "t") -> str:
     for tac in book["tactics"]:
         if img:  # bis zu 8 Runden je Taktik zum Durchblättern, die Beispielrunde zuerst
             tac["draws"] = [d for d in (draw(r) for r in tac["rounds"][:8]) if d]
-    side = "ct" if side == "ct" else "t"
+    if side not in ("t", "ct"):  # ohne Wahl: T, außer es gibt nur CT-Runden (z. B. ihr habt nur CT gespielt)
+        src = own if who == "ihr" else pro
+        has_t = any(d.get("map") == map_name and d.get("plays") for d in src)
+        has_ct = any(d.get("map") == map_name and d.get("ct_plays") for d in src)
+        side = "ct" if has_ct and not has_t else "t"
     from cstaktik import lineups as lu
 
     # Granaten-Set mit Lineups verknüpfen: gleiche Art, Seite und Landeort, häufigster Wurf zuerst
