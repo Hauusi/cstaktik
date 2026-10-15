@@ -49,5 +49,16 @@
   {% if p.checks %}<div style="margin-top:10px" class="small muted">Auftrag-Checks: {% for c in p.checks %}<span class="ck {{ 'ok' if c.met else '' if c.met is none else 'no' }}" title="{{ c.title }}: {{ c.count }}x in {{ c.rounds }} Runden (Ziel {{ c.target }})">{{ '✓' if c.met else '–' if c.met is none else '✗' }}</span>{% endfor %}</div>{% endif %}
 </div>
 {% endfor %}
+{% if r.team %}
+<div class="rp">
+  <div class="who">Team</div>
+  <div class="small muted" style="margin-top:2px">Siegquote in diesen Rundenlagen, letzte {{ r.n }} Matches{% if r.has_before %} gegen die {{ r.n }} davor{% endif %}.</div>
+  {% for t in r.team %}
+  <div class="rl"><div><b>{{ t.label }}</b><span class="num">{{ t.now.won }} von {{ t.now.n }} gewonnen{% if t.before %} · vorher {{ t.before.won_pct }} % ({{ t.before.n }}){% endif %}</span></div>
+    <div class="tr {{ t.trend or '' }} num">{{ t.now.won_pct }} %{% if t.trend == "besser" %} ▲{% elif t.trend == "schlechter" %} ▼{% endif %}</div></div>
+  {% endfor %}
+  <div class="small muted" style="margin-top:6px">Pfeil nur bei mindestens 8 Runden in beiden Zeiträumen und 15 Prozentpunkten Unterschied.</div>
+</div>
+{% endif %}
 {% if not r.players %}<p class="muted">Noch keine Matches im Verlauf.</p>{% endif %}
 {% endblock %}

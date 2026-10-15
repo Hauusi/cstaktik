@@ -80,8 +80,45 @@ def build(histories: list[dict], n: int = 5) -> dict:
                                     "count": c.get("count"), "rounds": c.get("rounds")}
                                    for c in checks]})
     won = sum(1 for h in window if (h.get("won") or 0) > (h.get("lost") or 0))
+    team = _team(window, before)
+    say = _say(players, len(window))
+    moved = [t for t in team if t["trend"] in ("besser", "schlechter")]
+    if moved:
+        say.append("Als Team: " + "; ".join(f"{t['label']} {t['now']['won_pct']} % statt {t['before']['won_pct']} %"
+                                              for t in moved[:3]) + ".")
     return {"n": len(window), "won": won, "lost": len(window) - won, "players": players,
-            "has_before": bool(before), "say": _say(players, len(window))}
+            "has_before": bool(before), "say": say, "team": team}
+
+
+def _team(window: list[dict], before: list[dict], min_n: int = 8, gap: int = 15) -> list[dict]:
+    """Team-Werte (Siegquote in Rundenlagen) jetzt gegen davor: erster Kill, nach dem Plant/Retake, Force Buy.
+    Richtung nur bei mindestens ``min_n`` Runden auf beiden Seiten und ``gap`` Prozentpunkten Abstand."""
+    from cstaktik import playbook
+
+    def total(rows: dict) -> dict | None:
+        n, w = sum(r["n"] for r in rows.values()), sum(r["won"] for r in rows.values())
+        return {"n": n, "won": w, "won_pct": round(100 * w / n)} if n else None
+
+    out = []
+    for side in ("t", "ct"):
+        S = side.upper()
+        items = [
+            (f"{S}: nach eurem ersten Kill", lambda src: playbook.firstblood_mix(src, side)["rows"].get("for")),
+            (f"{S}: nach eurem ersten Tod", lambda src: playbook.firstblood_mix(src, side)["rows"].get("against")),
+            (f"{S}: {'Bombe halten' if side == 't' else 'Retake'}",
+             lambda src: total(playbook.postplant_mix(src, side)["rows"])),
+            (f"{S}: Force Buy", lambda src: playbook.buy_mix(src, None, side)["buys"].get("force")),
+        ]
+        for label, f in items:
+            now, old = f(window), f(before) if before else None
+            if not now:
+                continue
+            trend = None
+            if old and now["n"] >= min_n and old["n"] >= min_n:
+                d = now["won_pct"] - old["won_pct"]
+                trend = "besser" if d >= gap else "schlechter" if d <= -gap else "gleich"
+            out.append({"label": label, "now": now, "before": old, "trend": trend})
+    return out
 
 
 def _say(players: list[dict], n: int) -> list[str]:

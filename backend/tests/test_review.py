@@ -33,3 +33,14 @@ def test_review_page_shows_chain_metrics_and_seen_trend(tmp_path, monkeypatch):
 
     html = api._env.get_template("review.html").render(r=r, nav_active="matches")
     assert "Er sah dich zuerst" in html and "vorher 45 %" in html and "Sehen → Schuss" in html
+
+
+def test_review_team_trends():
+    def m(won_after_first_kill):
+        plays = [{"won": won_after_first_kill, "kills": [{"t": 5, "side": "ct"}], "t_eq": 25000, "plant_t": None}] * 4
+        return {"players": {"a": {"name": "A"}}, "plays": plays, "won": 13, "lost": 5, "rounds": 18}
+    hs = [m(False)] * 5 + [m(True)] * 5
+    r = review.build(hs, 5)
+    row = next(t for t in r["team"] if t["label"] == "T: nach eurem ersten Kill")
+    assert row["now"]["won_pct"] == 100 and row["before"]["won_pct"] == 0 and row["trend"] == "besser"
+    assert any(s.startswith("Als Team: T: nach eurem ersten Kill 100 % statt 0 %") for s in r["say"])

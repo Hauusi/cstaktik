@@ -67,8 +67,12 @@
 
 {% for sd in p.sides %}{% set S = sd.side|upper %}
 <h2>{{ S }}-Seite: erster Kill, {{ "nach dem Plant" if sd.side == "t" else "Retake" }}, Kauf</h2>
+{% set reads = [sd.fb.reading, sd.pp.reading, sd.buys.reading]|select|list %}
 <div class="card">
-  {% for r in [sd.fb.reading, sd.pp.reading, sd.buys.reading] if r %}<div class="dread">{{ r }}</div>{% endfor %}
+  {% for r in reads %}<div class="dread">{{ r }}</div>{% endfor %}
+  {% if not reads %}<div class="small muted">{% if sd.fb.pro.total + sd.pp.pro.total + sd.buys.pro.total == 0 %}Noch kein Pro-Vergleich möglich: Die Pro-Demos haben für diese Seite noch keine Daten (pro-update ausführen oder mehr Pro-Demos hochladen).{% else %}Nichts Auffälliges: Wo genug Runden da sind, liegt ihr nicht klar unter den Pros.{% endif %}</div>{% endif %}
+  <details class="sdet"{% if reads %} open{% endif %}><summary>Alle Werte</summary>
+
   {% if sd.fb.own.total %}
   <div class="small muted" style="margin:4px 0 2px">Nach dem ersten Kill der Runde: wie oft gewinnt ihr die Runde?</div>
   {% for k in ["for", "against"] %}{% set o = sd.fb.own.rows.get(k) %}{% set q = sd.fb.pro.rows.get(k) %}
@@ -91,6 +95,7 @@
     {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
   {% endfor %}{% endif %}
   <div class="small muted num" style="margin-top:8px">{{ sd.pp.own.total }} eigene {{ S }}-Runden mit Plant, {{ sd.buys.own.total }} mit Kaufwerten (ohne Pistolenrunden), alle Maps. Kauf = Ausrüstung der 5 {{ S }} beim Rundenstart (Eco bis {{ p.buy_cfg.eco_max }}, Force bis {{ p.buy_cfg.force_max }}).</div>
+  </details>
 </div>
 {% endfor %}
 

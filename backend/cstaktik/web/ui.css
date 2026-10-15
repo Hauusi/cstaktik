@@ -158,3 +158,5 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .lv b { font-size: 15px; } .lv .lk2 { margin-left: 6px; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 .levhome { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; margin-top: 12px; padding: 12px 14px; }
 .levhome .lg { font-family: var(--cond); font-weight: 800; font-size: 26px; color: var(--win); }
+
+.sdet { margin: 8px 0 0; } .sdet > summary { font-size: 13px; color: var(--muted); cursor: pointer; }
