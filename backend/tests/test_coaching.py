@@ -224,14 +224,20 @@ def test_rerender_reparses_demo_when_cache_is_old(tmp_path, monkeypatch):
     m = build_match()
     monkeypatch.setattr(pipeline, "DEMOS_DIR", tmp_path)
     pipeline.CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    save_match(m, pipeline.CACHE_DIR / "x.v1.json")  # alter Cache
+    from cstaktik.parser.awpy_adapter import sha256_of
+
     (tmp_path / "x.dem").write_bytes(b"demo")
+    sha = sha256_of(tmp_path / "x.dem")
+    save_match(m, pipeline.CACHE_DIR / f"{sha}.v1.json")  # alter Cache
     seen = []
     monkeypatch.setattr(pipeline, "load_any", lambda path, focus, config: seen.append(path.name) or m)
-    pipeline._current_match({"id": "x", "source_file": "x.dem"}, set(), {})
+    pipeline._current_match({"id": sha, "source_file": "x.dem"}, set(), {})
     assert seen == ["x.dem"]
     seen.clear()
-    pipeline._current_match({"id": "x", "source_file": "fehlt.dem"}, set(), {})  # Demo weg: alter Cache
+    pipeline._current_match({"id": sha, "source_file": "fehlt.dem"}, set(), {})  # Demo weg: alter Cache
+    assert seen == []
+    (tmp_path / "x.dem").write_bytes(b"andere demo")  # gleicher Name, anderes Match: alter Cache
+    pipeline._current_match({"id": sha, "source_file": "x.dem"}, set(), {})
     assert seen == []
 
 

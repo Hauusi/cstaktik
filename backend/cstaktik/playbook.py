@@ -91,7 +91,7 @@ def plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
                 paths[sid], places[sid] = pts, pls
         # Ziel: Plant-Ort, sonst erster erreichter Bombsite
         site = _site_of(_place_near(idx, r.num, plant)) if plant else None
-        site = site or _site_of((r.bomb_site or "").replace("bombsite_", "Bombsite").replace("_", ""))
+        # kein Rückgriff auf awpys bomb_site: das setzt fest Entity 220 = A, sonst B, und liegt auf vielen Maps falsch
         first = None
         for i in range(max((len(v) for v in places.values()), default=0)):
             hits = [_site_of(v[i]) for v in places.values() if i < len(v) and _site_of(v[i])]

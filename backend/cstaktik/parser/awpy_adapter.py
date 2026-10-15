@@ -500,9 +500,10 @@ def parse_demo(
                 sid, x, y = _sid(rec.get("steamid")), _num(rec.get("X")), _num(rec.get("Y"))
                 if sid is not None and x is not None and y is not None:
                     xy[(int(rec["tick"]), sid)] = (x, y)
+            shot_set = set(shot_ticks)  # einmal bauen: in der Schleife wäre das quadratisch (lange Matches: Sekunden)
             for (t, sid), (x, y) in xy.items():
                 prev = xy.get((t - 2, sid))
-                if prev is not None and t in set(shot_ticks):
+                if prev is not None and t in shot_set:
                     v = math.hypot(x - prev[0], y - prev[1]) * tickrate / 2
                     if v <= MAX_RUN_SPEED:
                         speed[(t, sid)] = v

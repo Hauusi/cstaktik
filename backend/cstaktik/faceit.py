@@ -13,6 +13,8 @@ Für Schritt 2 braucht der Schlüssel ggf. eine freigeschaltete Downloads-API-Be
 
 from __future__ import annotations
 
+from cstaktik.fsutil import write_atomic
+
 import bz2
 import gzip
 import json
@@ -83,17 +85,17 @@ def download(url: str, dest_dir: Path, name: str, timeout: float = 120.0) -> Pat
     dest_dir.mkdir(parents=True, exist_ok=True)
     raw = dest_dir / f"{name}.part"
     req = urllib.request.Request(url, headers={"User-Agent": "cstaktik"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp, raw.open("wb") as fh:  # noqa: S310
-        size = 0
-        while chunk := resp.read(1 << 20):
-            size += len(chunk)
-            if size > MAX_DEMO_BYTES:
-                raise FaceitError("Demo größer als 2 GB, abgebrochen.")
-            fh.write(chunk)
-    with raw.open("rb") as fh:
-        head = fh.read(8)
     out = dest_dir / f"{name}.dem"
-    try:
+    try:  # auch bei Abbruch im Download (Netz, zu groß) keine halbe Datei liegen lassen
+        with urllib.request.urlopen(req, timeout=timeout) as resp, raw.open("wb") as fh:  # noqa: S310
+            size = 0
+            while chunk := resp.read(1 << 20):
+                size += len(chunk)
+                if size > MAX_DEMO_BYTES:
+                    raise FaceitError("Demo größer als 2 GB, abgebrochen.")
+                fh.write(chunk)
+        with raw.open("rb") as fh:
+            head = fh.read(8)
         if head[:2] == b"\x1f\x8b":
             opener = gzip.open
         elif head[:3] == b"BZh":
@@ -105,12 +107,19 @@ def download(url: str, dest_dir: Path, name: str, timeout: float = 120.0) -> Pat
             raise FaceitError("Demo ist zstd-komprimiert; dieses Format wird noch nicht unterstützt.")
         else:
             raise FaceitError("Unbekanntes Demo-Format (kein .dem, .gz oder .bz2).")
+        written = 0
         with opener(raw, "rb") as fin, out.open("wb") as fout:
-            shutil.copyfileobj(fin, fout, 1 << 20)
+            while chunk := fin.read(1 << 20):
+                written += len(chunk)
+                if written > MAX_DEMO_BYTES:  # entpackt begrenzen: eine kleine Datei kann sich riesig aufblähen
+                    raise FaceitError("Entpackte Demo größer als 2 GB, abgebrochen.")
+                fout.write(chunk)
         return out
+    except BaseException:
+        out.unlink(missing_ok=True)
+        raise
     finally:
         raw.unlink(missing_ok=True)
-
 
 def _load_index(path: Path) -> dict:
     if path.exists():
@@ -175,12 +184,14 @@ def sync(cfg: dict, pro_dir: Path, work_dir: Path, run_pro, log=print, sleep_s: 
                         raise  # betrifft alle Matches: sofort melden
                     index["failed"][mid] = str(exc)
                     log(f"FEHLER  {mid}: {exc}")
+                except OSError as exc:  # Netz/Zeitüberschreitung: beim nächsten Sync erneut versuchen
+                    log(f"FEHLER  {mid}: {type(exc).__name__}: {exc} (wird beim nächsten Sync erneut versucht)")
                 except Exception as exc:  # noqa: BLE001 - einzelnes Match überspringen
                     index["failed"][mid] = f"{type(exc).__name__}: {exc}"
                     log(f"FEHLER  {mid}: {type(exc).__name__}: {exc}")
                 finally:
                     pro_dir.mkdir(parents=True, exist_ok=True)
-                    index_file.write_text(json.dumps(index, indent=1))
+                    write_atomic(index_file, json.dumps(index, indent=1))
                 time.sleep(sleep_s)
     return {"added": added, "total": {m: have.get(m, 0) for m in wanted}}
 

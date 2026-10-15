@@ -575,19 +575,20 @@ def training_done(p: str = "") -> RedirectResponse:
 
     _own_only(p)
 
-    state = coaching.load(pipeline.COACHING_FILE)
-    slot = state.get("players", {}).get(p)
-    if slot and slot.get("focus"):
-        coaching.drill_done(slot, slot["focus"]["lesson"])
-        # dieselbe Übung im Wochenplan abhaken, damit sie nicht doppelt gezählt wird
-        key = weekplan.week_key(weekplan.local_today())
-        plan = slot.get("weeks", {}).get(key)
-        if plan:
-            open_ = next((t["id"] for t in plan["tasks"] if t["id"].startswith("routine") and t["id"] not in plan["done"]),
-                         None)
-            if open_:
-                weekplan.toggle(slot, key, open_)
-        coaching.save(state, pipeline.COACHING_FILE)
+    with coaching.LOCK:
+        state = coaching.load(pipeline.COACHING_FILE)
+        slot = state.get("players", {}).get(p)
+        if slot and slot.get("focus"):
+            coaching.drill_done(slot, slot["focus"]["lesson"])
+            # dieselbe Übung im Wochenplan abhaken, damit sie nicht doppelt gezählt wird
+            key = weekplan.week_key(weekplan.local_today())
+            plan = slot.get("weeks", {}).get(key)
+            if plan:
+                open_ = next((t["id"] for t in plan["tasks"] if t["id"].startswith("routine") and t["id"] not in plan["done"]),
+                             None)
+                if open_:
+                    weekplan.toggle(slot, key, open_)
+            coaching.save(state, pipeline.COACHING_FILE)
     return RedirectResponse("/", status_code=303)
 
 
@@ -749,8 +750,11 @@ def training_page(p: str = "") -> str:
     if sid and focus:
         key, plan, changed = weekplan.ensure(slot, _plan_ctx(hist, _load_pro(), sid, focus))
         changed |= weekplan.tactic_progress(key, plan, hist, load_rules_config().get("playbook"), sid)
-        if changed:
-            coaching.save(state, pipeline.COACHING_FILE)
+        if changed:  # nur den Wochenplan dieses Spielers in den aktuellen Stand schreiben
+            with coaching.LOCK:
+                cur = coaching.load(pipeline.COACHING_FILE)
+                cur.setdefault("players", {}).setdefault(sid, slot)["weeks"] = slot.get("weeks", {})
+                coaching.save(cur, pipeline.COACHING_FILE)
         chk = weekplan.check(key, plan, hist, sid, focus,
                              min_rounds=load_rules_config()["goals"].get("min_master_rounds", 40))
         for k in sorted(slot.get("weeks", {}), reverse=True):
@@ -783,17 +787,18 @@ def plan_toggle(p: str = "", task: str = "", week: str = "") -> RedirectResponse
 
     _own_only(p)
 
-    state = coaching.load(pipeline.COACHING_FILE)
-    slot = state.get("players", {}).get(p)
-    if slot:
-        now = weekplan.toggle(slot, week, task)
-        if task.startswith("routine") and slot.get("focus") and now is not None:
-            if now:
-                coaching.drill_done(slot, slot["focus"]["lesson"])
-            else:
-                coaching.drill_undo(slot, slot["focus"]["lesson"])
-        if now is not None:
-            coaching.save(state, pipeline.COACHING_FILE)
+    with coaching.LOCK:
+        state = coaching.load(pipeline.COACHING_FILE)
+        slot = state.get("players", {}).get(p)
+        if slot:
+            now = weekplan.toggle(slot, week, task)
+            if task.startswith("routine") and slot.get("focus") and now is not None:
+                if now:
+                    coaching.drill_done(slot, slot["focus"]["lesson"])
+                else:
+                    coaching.drill_undo(slot, slot["focus"]["lesson"])
+            if now is not None:
+                coaching.save(state, pipeline.COACHING_FILE)
     return RedirectResponse(f"/training?p={p}#plan", status_code=303)
 
 
@@ -1202,13 +1207,16 @@ async def analyze_upload(
                 if size > pipeline.MAX_DEMO_BYTES:
                     raise HTTPException(413, "Datei zu groß.")
                 fh.write(chunk)
-        if target.exists() and not is_arc:
+        unpacked = target.with_name(target.name[:-4]) if target.name.endswith(".dem.bz2") else None
+        if not is_arc and (target.exists() or (unpacked is not None and unpacked.exists())):
             import filecmp
 
             from cstaktik.archive import _unique
 
-            # gleicher Name, anderer Inhalt: eigener Name, sonst zeigt der alte Report plötzlich das neue Match
-            if not (target.stat().st_size == size and filecmp.cmp(part, target, shallow=False)):
+            # gleicher Name, anderer Inhalt: eigener Name, sonst zeigt der alte Report plötzlich das neue Match.
+            # .dem.bz2 wird nach dem Entpacken gelöscht: dann zählt die entpackte .dem daneben.
+            same = target.exists() and target.stat().st_size == size and filecmp.cmp(part, target, shallow=False)
+            if not same:
                 target = _unique(folder, target.name)
         part.replace(target)  # erst die fertige Datei sichtbar machen
     finally:

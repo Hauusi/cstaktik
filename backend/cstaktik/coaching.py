@@ -60,6 +60,13 @@ def compare_rates(n0: int, r0: int, n1: int, r1: int, min_rounds: int = 40) -> d
     return {"state": "gleich", "text": f"kein klarer Unterschied ({nums})"}
 
 
+import threading
+
+# Laden -> ändern -> speichern von coaching.json nur unter diesem Lock: Seiten (Übung abhaken, Wochenplan) und die
+# Auswertung im Hintergrund schreiben dieselbe Datei; ohne Lock überschreibt der eine die Änderung des anderen.
+LOCK = threading.RLock()
+
+
 def load(path: Path) -> dict:
     if path.exists():
         try:

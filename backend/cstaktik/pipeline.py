@@ -154,10 +154,15 @@ def load_any(
     if focus:  # Fokus-Spieler immer aus der aktuellen Config, nicht aus dem Cache
         for p in match.players:
             p.is_focus = p.steamid in focus
+        # Hinweis auf fehlende Fokus-Spieler ebenfalls aktuell (im Cache steht der Stand vom ersten Parsen)
+        match.missing = [m for m in match.missing if not m.startswith("Fokus-SteamIDs nicht in der Demo")]
+        unknown = focus - {p.steamid for p in match.players}
+        if unknown:
+            match.missing.append(f"Fokus-SteamIDs nicht in der Demo: {', '.join(sorted(unknown))}")
     return match
 
 
-def _coach(match: MatchData, config: dict):
+def _coach(match: MatchData, config: dict, pro_cache: dict | None = None):
     """Regeln + Vorbild (eigene Siegrunden) + Pro-Vergleich. Gemeinsam für run() und rerender_reports()."""
     from cstaktik import history as _history
     from cstaktik import pro as _pro
@@ -185,7 +190,14 @@ def _coach(match: MatchData, config: dict):
     from cstaktik import coach_voice
 
     coach_voice.apply(result.findings, config["rules"]["death_review"]["close_units"])
-    clips = pro_clips(match, result.findings, load_pro_matches(pro, match.map_name), pro)
+    # Pro-Demos je Map nur einmal laden, wenn mehrere Reports nacheinander gebaut werden (je Cache ~1-2 s)
+    if pro_cache is not None:
+        if match.map_name not in pro_cache:
+            pro_cache[match.map_name] = load_pro_matches(pro, match.map_name)
+        pro_matches = pro_cache[match.map_name]
+    else:
+        pro_matches = load_pro_matches(pro, match.map_name)
+    clips = pro_clips(match, result.findings, pro_matches, pro)
 
     return result, clips
 
@@ -248,7 +260,9 @@ def run(
     old = next((h for h in all_hist if h.get("id") == my_id), None)
     # erneut ausgewertet: zählt zum ursprünglichen Zeitpunkt; "vorher" sind nur Matches bis dahin
     when = (old or {}).get("analyzed_at") or coaching_now()
-    past = [h for h in all_hist if h.get("id") != my_id and (h.get("analyzed_at") or "") <= when]
+    ids = [h.get("id") for h in all_hist]
+    # erneut ausgewertet: nur was im Verlauf davor steht (gleiche Minute: Reihenfolge entscheidet)
+    past = all_hist[:ids.index(my_id)] if my_id in ids else [h for h in all_hist if (h.get("analyzed_at") or "") <= when]
     summary = history.summarize(match, result, f"{stem}.html", past=past)
     summary["analyzed_at"] = when
     state = goals.load(GOALS_FILE)
@@ -265,13 +279,21 @@ def run(
             report("Aufträge neu berechnen (einmalig)", 0.95)
             rerender_reports()
             cstate = coaching.load(COACHING_FILE)
-            past = [h for h in history.load_all(HISTORY_DIR) if h.get("id") != my_id
-                    and (h.get("analyzed_at") or "") <= when]
-        cstate["count_version"] = coaching.COUNT_VERSION
-        cstate["focus_ids"] = sorted(load_focus_steamids())
-    summary["focus_check"] = coaching.update_all(cstate, summary, summary.get("lesson_rank_by") or {},
-                                                 past=past, **goal_kw(config))
-    coaching.save(cstate, COACHING_FILE)
+            fresh = history.load_all(HISTORY_DIR)
+            ids = [h.get("id") for h in fresh]
+            past = fresh[:ids.index(my_id)] if my_id in ids else [h for h in fresh
+                                                                  if (h.get("analyzed_at") or "") <= when]
+        stale_fix = True
+    else:
+        stale_fix = False
+    with coaching.LOCK:  # frisch laden: Haken, die Seiten inzwischen gesetzt haben, bleiben erhalten
+        cstate = coaching.load(COACHING_FILE)
+        if stale_fix:
+            cstate["count_version"] = coaching.COUNT_VERSION
+            cstate["focus_ids"] = sorted(load_focus_steamids())
+        summary["focus_check"] = coaching.update_all(cstate, summary, summary.get("lesson_rank_by") or {},
+                                                     past=past, **goal_kw(config))
+        coaching.save(cstate, COACHING_FILE)
     history.save(summary, HISTORY_DIR)
     report("Report bauen", 0.96)
     from cstaktik import coach_voice
@@ -298,9 +320,11 @@ def coaching_stale(state: dict, focus: set[str]) -> bool:
 
 
 def coaching_now() -> str:
-    from cstaktik.coaching import now_local
+    """Auswertungszeitpunkt mit Sekunden: zwei Matches derselben Minute (Archiv-Upload) behalten ihre Reihenfolge."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
 
-    return now_local()
+    return datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None).isoformat(timespec="seconds")
 
 
 def goal_kw(config: dict) -> dict:
@@ -318,6 +342,10 @@ def _current_match(h: dict, focus: set[str], config: dict) -> MatchData:
     demo = DEMOS_DIR / str(h.get("source_file") or "")
     if (cache is None or not cache.name.endswith(f".v{CACHE_SCHEMA}.json")) and h.get("source_file") and demo.exists():
         try:
+            from cstaktik.parser.awpy_adapter import sha256_of
+
+            if sha256_of(demo) != h["id"]:  # gleicher Dateiname, anderes Match: nicht damit neu bauen
+                raise ValueError("andere Demo")
             return load_any(demo, focus, config)
         except Exception:  # noqa: BLE001 - kaputte Demo: alter Cache ist besser als kein Report
             pass
@@ -384,9 +412,13 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
 
     def before(h: dict) -> list[dict]:
         """Matches vor diesem (alle Maps), mit den in diesem Lauf schon neu gezählten Einträgen."""
+        # streng vorher; bei gleichem Zeitpunkt entscheidet die Reihenfolge im Verlauf (nie beide gegenseitig)
+        pos = {x.get("id"): i for i, x in enumerate(everything)}
+        me = ((h.get("analyzed_at") or ""), pos.get(h.get("id"), len(everything)))
         return [x for x in everything if x.get("id") != h.get("id")
-                and (x.get("analyzed_at") or "") <= (h.get("analyzed_at") or "")]
+                and ((x.get("analyzed_at") or ""), pos.get(x.get("id"), -1)) < me]
 
+    pro_cache: dict = {}
     for i, h in enumerate(todo):
         report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
         try:  # ein kaputter Cache überspringt nur dieses Match
@@ -398,7 +430,7 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
                 p.is_focus = p.steamid in focus
         if not match.focus_ids():
             continue
-        result, clips = _coach(match, config)
+        result, clips = _coach(match, config, pro_cache)
         # ganze Zusammenfassung neu (Spieler, Lektionen, Duelle, Tode ...), damit z. B. ein neu gewählter
         # Fokus-Spieler überall auftaucht; Zeitpunkt, Report und Ziel-Check bleiben
         keep = {k: h[k] for k in ("id", "analyzed_at", "report_file", "goal_check", "focus_check") if k in h}
@@ -420,12 +452,13 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
     if rebuild is not None and done:
         # Übungen und Wochenpläne aus dem JETZIGEN Stand übernehmen: Haken, die während des Neubaus gesetzt
         # wurden, gingen sonst verloren (der Neubau kann Minuten dauern)
-        for sid, slot in coaching.load(COACHING_FILE).get("players", {}).items():
-            tgt = rebuild["players"].setdefault(sid, {"focus": None, "done": []})
-            tgt["drills"], tgt["weeks"] = slot.get("drills", []), slot.get("weeks", {})
-        rebuild["count_version"] = coaching.COUNT_VERSION
-        rebuild["focus_ids"] = sorted(focus)
-        coaching.save(rebuild, COACHING_FILE)
+        with coaching.LOCK:
+            for sid, slot in coaching.load(COACHING_FILE).get("players", {}).items():
+                tgt = rebuild["players"].setdefault(sid, {"focus": None, "done": []})
+                tgt["drills"], tgt["weeks"] = slot.get("drills", []), slot.get("weeks", {})
+            rebuild["count_version"] = coaching.COUNT_VERSION
+            rebuild["focus_ids"] = sorted(focus)
+            coaching.save(rebuild, COACHING_FILE)
     return done
 
 
@@ -514,7 +547,8 @@ def run_pro(path: Path, progress: Progress | None = None, use_cache: bool = True
     """Pro-Demo parsen und als Referenz speichern (keine Fokus-Spieler). Danach werden die eigenen
     Reports derselben Map mit den neuen Pro-Daten neu gebaut.
 
-    ``use_cache=False`` (FACEIT-Sync): kein großer JSON-Cache, nur die kleine Zusammenfassung bleibt."""
+    ``use_cache=False``: kein großer JSON-Cache, nur die kleine Zusammenfassung bleibt. ``rerender=False``: Reports
+    nicht neu bauen (FACEIT-Sync baut einmal am Ende)."""
     from cstaktik import pro
 
     report = progress or (lambda _stage, _frac: None)
@@ -543,4 +577,10 @@ def faceit_sync(log=print) -> dict:
     from cstaktik import faceit
 
     cfg = load_rules_config()["faceit"]
-    return faceit.sync(cfg, PRO_DIR, DATA_DIR / "faceit_tmp", lambda p: run_pro(p), log=log)
+    # je Demo nur speichern; die eigenen Reports danach EINMAL je betroffener Map neu bauen (nicht je Demo)
+    res = faceit.sync(cfg, PRO_DIR, DATA_DIR / "faceit_tmp", lambda p: run_pro(p, rerender=False), log=log)
+    maps = {m for m, n in res.get("added", {}).items() if n}
+    if maps:
+        upgrade_pro()
+        res["reports"] = rerender_reports(maps)
+    return res

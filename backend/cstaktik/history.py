@@ -245,8 +245,11 @@ def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None
 
 def previous(histories: list[dict], current: dict) -> dict | None:
     """Das zuletzt ausgewertete andere Match vor ``current`` (nach Auswertungszeit)."""
-    before = [h for h in histories if h.get("id") != current.get("id")
-              and h.get("analyzed_at", "") <= (current.get("analyzed_at") or "9999")]
+    ids = [h.get("id") for h in histories]
+    if current.get("id") in ids:  # im Verlauf: alles davor in der (nach Zeit sortierten) Liste, nie ein späteres
+        before = histories[:ids.index(current.get("id"))]
+    else:
+        before = [h for h in histories if h.get("analyzed_at", "") <= (current.get("analyzed_at") or "9999")]
     return before[-1] if before else None
 
 
@@ -270,4 +273,4 @@ def load_all(history_dir: Path) -> list[dict]:
             items.append(json.loads(f.read_text()))
         except (OSError, ValueError):
             continue
-    return sorted(items, key=lambda h: h.get("analyzed_at", ""))
+    return sorted(items, key=lambda h: (h.get("analyzed_at", ""), str(h.get("id"))))  # feste Reihenfolge bei Gleichstand
