@@ -72,3 +72,20 @@ def test_fonts_served_once_and_cached(monkeypatch):
     assert c.get("/fonts.css").headers["cache-control"] == "no-cache"  # ohne Schriften nicht eine Woche cachen
     home = c.get("/").text
     assert '<link rel="stylesheet" href="/fonts.css">' in home and "@font-face" not in home
+
+
+def test_matches_list_uses_analysis_date_and_topic(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from cstaktik import api, history, pipeline
+
+    monkeypatch.setattr(pipeline, "REPORTS_DIR", tmp_path / "r")
+    monkeypatch.setattr(pipeline, "HISTORY_DIR", tmp_path / "h")
+    (tmp_path / "r").mkdir()
+    for i, (f, at) in enumerate((("a.html", "2026-10-01T20:00"), ("b.html", "2026-10-03T21:30"))):
+        (tmp_path / "r" / f).write_text(f"<title>Mirage {13 - i}:{i} – x</title>")
+        history.save({"id": f, "report_file": f, "analyzed_at": at, "map": "de_mirage", "main_lesson": "alone"},
+                     tmp_path / "h")
+    t = TestClient(api.app).get("/matches").text
+    assert "03.10.2026 21:30" in t and "Thema: Nicht ohne Trade-Partner peeken" in t
+    assert t.index("03.10.2026") < t.index("01.10.2026")  # neuestes Match zuerst, unabhängig von der Dateizeit

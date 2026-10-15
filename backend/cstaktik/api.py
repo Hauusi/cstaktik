@@ -164,9 +164,21 @@ def _running_jobs() -> list[dict]:
 @app.get("/matches", response_class=HTMLResponse)
 def matches_page() -> str:
 
+    from cstaktik.coach_voice import LESSONS
+
     hist = _load_hist()
+    by_file = {h.get("report_file"): h for h in hist if h.get("report_file")}
+    reports = _report_entries()
+    for r in reports:  # Datum und Hauptthema aus dem Verlauf: die Dateizeit ändert sich bei jedem Neubau der Reports
+        h = by_file.get(r["file"])
+        if h and h.get("analyzed_at"):
+            r["date"] = datetime.fromisoformat(h["analyzed_at"]).strftime("%d.%m.%Y %H:%M")
+            r["sort"] = h["analyzed_at"]
+            lid = h.get("main_lesson")
+            r["topic"] = LESSONS[lid][0] if lid in LESSONS and lid != "duel" else None
+    reports.sort(key=lambda r: r.get("sort") or "", reverse=True)
     return _env.get_template("matches.html").render(nav_active="matches", jobs=_running_jobs(),
-                                                    reports=_report_entries(), n_history=len(hist))
+                                                    reports=reports, n_history=len(hist))
 
 
 @app.get("/pro", response_class=HTMLResponse)

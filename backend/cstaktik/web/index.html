@@ -59,8 +59,7 @@
   {% if n_history %}
   {% for a in auftrag if a.scenes %}<a class="tlink" href="/training/situationen?p={{ a.sid }}">▶ {{ a.name }}: {{ a.scenes }} eigene Situationen entscheiden</a>{% endfor %}
   <a class="trow" href="/training"><b>Wochenplan</b><span>Aufgaben zum Auftrag abhaken ›</span></a>
-  <a class="trow" href="/playbook"><b>Playbook</b><span>Taktiken der Pros mit Laufwegen und Granaten ›</span></a>
-  <a class="trow" href="/training#tools"><b>Map-Buch und Lineups</b><span>Wo ihr gut steht, wo ihr sterbt, was Pros werfen ›</span></a>
+  <a class="trow" href="/training#tools"><b>Eure Maps</b><span>Je Map: Map-Buch, Playbook mit Pro-Taktiken, Lineups ›</span></a>
   {% else %}<div class="small muted">Ab dem ersten Match: eure eigenen Szenen zum Üben, Wochenplan und Map-Buch.</div>{% endif %}
 </section>
 </div>

@@ -17,7 +17,7 @@
   {% for r in reports %}
   <a class="item" href="/reports/{{ r.file }}">
     <div class="map">{{ r.map[:2] if r.map else "?" }}</div>
-    <div class="meta"><b>{{ r.map or r.name }}</b><span class="muted small">{{ r.date }}</span></div>
+    <div class="meta"><b>{{ r.map or r.name }}</b><span class="muted small">{{ r.date }}{% if r.topic %} · Thema: {{ r.topic }}{% endif %}</span></div>
     {% if r.won is not none %}<div class="score num"><span class="w">{{ r.won }}</span><span class="muted">:</span><span class="l">{{ r.lost }}</span></div>{% endif %}
   </a>
   {% endfor %}
