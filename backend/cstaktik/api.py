@@ -673,8 +673,9 @@ def briefing_page(map_name: str) -> str:
     cfg = load_rules_config().get("playbook")
     plan = playbook.gameplan(pro, own, map_name, cfg)
     # Gewohnheiten über alle Maps (Kauf, nach dem Plant): nur wenn klar schlechter als Pros
-    habits = [x for x in (playbook.buy_reading(playbook.buy_mix(own, cfg), playbook.buy_mix(pro, cfg)),
-                          playbook.postplant_reading(playbook.postplant_mix(own), playbook.postplant_mix(pro))) if x]
+    habits = [x for side in ("t", "ct") for x in (
+        playbook.buy_reading(playbook.buy_mix(own, cfg, side), playbook.buy_mix(pro, cfg, side), side=side),
+        playbook.postplant_reading(playbook.postplant_mix(own, side), playbook.postplant_mix(pro, side), side=side)) if x]
     if habits:
         plan = {**(plan or {}), "habits": habits}
     return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
@@ -899,14 +900,17 @@ def progress_page(p: str = "") -> str:
         from cstaktik import playbook
 
         cfg = load_rules_config().get("playbook")
-        own_b = playbook.buy_mix([h for h in hist if sid in h.get("players", {})], cfg)
-        pro_b = playbook.buy_mix(_load_pro(), cfg)
-        own_pp = playbook.postplant_mix([h for h in hist if sid in h.get("players", {})])
-        pro_pp = playbook.postplant_mix(_load_pro())
-        prof["postplant"] = ({"own": own_pp, "pro": pro_pp, "reading": playbook.postplant_reading(own_pp, pro_pp)}
-                             if own_pp["total"] else None)
-        prof["buys"] = {"own": own_b, "pro": pro_b, "reading": playbook.buy_reading(own_b, pro_b),
-                        "cfg": {**playbook.DEFAULTS, **(cfg or {})}} if own_b["total"] else None
+        mine, pros = [h for h in hist if sid in h.get("players", {})], _load_pro()
+        prof["sides"] = []
+        for side in ("t", "ct"):  # je Seite: nach dem Plant (T halten / CT Retake) und Kaufentscheidungen
+            own_pp, pro_pp = playbook.postplant_mix(mine, side), playbook.postplant_mix(pros, side)
+            own_b, pro_b = playbook.buy_mix(mine, cfg, side), playbook.buy_mix(pros, cfg, side)
+            if own_pp["total"] or own_b["total"]:
+                prof["sides"].append({
+                    "side": side, "pp": {"own": own_pp, "pro": pro_pp,
+                                         "reading": playbook.postplant_reading(own_pp, pro_pp, side=side)},
+                    "buys": {"own": own_b, "pro": pro_b, "reading": playbook.buy_reading(own_b, pro_b, side=side)}})
+        prof["buy_cfg"] = {**playbook.DEFAULTS, **(cfg or {})}
     auftrag = next((x for x in _auftrag(hist) if x["sid"] == sid), None)
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in sids]
     return _env.get_template("profil.html").render(nav_active="progress", p=prof, a=auftrag, tabs=tabs)

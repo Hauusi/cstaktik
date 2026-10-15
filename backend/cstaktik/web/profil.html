@@ -56,31 +56,27 @@
 </div>
 {% else %}<div class="card empty">Noch keine Fehler-Daten.</div>{% endfor %}
 
-{% if p.postplant %}{% set po, pq = p.postplant.own, p.postplant.pro %}
-<h2>Nach dem Plant (T)</h2>
+{% for sd in p.sides %}{% set S = sd.side|upper %}
+<h2>{{ S }}-Seite: {{ "nach dem Plant" if sd.side == "t" else "Retake" }} und Kauf</h2>
 <div class="card">
-  {% if p.postplant.reading %}<div class="dread">{{ p.postplant.reading }}</div>{% endif %}
-  {% for k in ["up", "even", "down"] %}{% set o = po.rows.get(k) %}{% set q = pq.rows.get(k) %}
-  {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }} beim Plant</b>
+  {% for r in [sd.pp.reading, sd.buys.reading] if r %}<div class="dread">{{ r }}</div>{% endfor %}
+  {% if sd.pp.own.total %}
+  <div class="small muted" style="margin:4px 0 2px">{{ "Bombe liegt: wer gewinnt, je nach Spielerzahl beim Plant" if sd.side == "t" else "Bombe liegt, ihr müsst zurückholen: je nach Spielerzahl beim Plant" }}</div>
+  {% for k in ["up", "even", "down"] %}{% set o = sd.pp.own.rows.get(k) %}{% set q = sd.pp.pro.rows.get(k) %}
+  {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
     <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {{ q.won_pct }} % ({{ q.n }}){% endif %}</span></div>
     {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
-  {% endfor %}
-  <div class="small muted num" style="margin-top:8px">{{ po.total }} eigene T-Runden mit Plant, alle Maps. Überzahl = mehr lebende T als CT im Moment des Plants.</div>
-</div>
-{% endif %}
-
-{% if p.buys %}{% set bo, bp = p.buys.own, p.buys.pro %}
-<h2>Kaufentscheidungen auf T</h2>
-<div class="card">
-  {% if p.buys.reading %}<div class="dread">{{ p.buys.reading }}</div>{% endif %}
-  {% for k in ["eco", "force", "full"] %}{% set o = bo.buys.get(k) %}{% set q = bp.buys.get(k) %}
+  {% endfor %}{% endif %}
+  {% if sd.buys.own.total %}
+  <div class="small muted" style="margin:12px 0 2px">Kauf: wie oft und mit welchem Ergebnis</div>
+  {% for k in ["eco", "force", "full"] %}{% set o = sd.buys.own.buys.get(k) %}{% set q = sd.buys.pro.buys.get(k) %}
   {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
-    <span class="small muted num">Ihr {{ o.share if o else 0 }} % der Runden{% if o %}, {{ o.won_pct }} % gewonnen ({{ o.won }}/{{ o.n }}){% endif %}{% if q %} · Pros {{ q.share }} %, {{ q.won_pct }} % gewonnen{% endif %}</span></div>
+    <span class="small muted num">Ihr {{ o.share if o else 0 }} % der Runden{% if o %}, {{ o.won }}/{{ o.n }} gewonnen{% endif %}{% if q %} · Pros {{ q.share }} %, {{ q.won_pct }} % gewonnen{% endif %}</span></div>
     {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
-  {% endfor %}
-  <div class="small muted num" style="margin-top:8px">{{ bo.total }} eigene T-Runden ohne Pistolenrunden, alle Maps. Kauf = Ausrüstung der 5 T beim Rundenstart (Eco bis {{ p.buys.cfg.eco_max }}, Force bis {{ p.buys.cfg.force_max }}).</div>
+  {% endfor %}{% endif %}
+  <div class="small muted num" style="margin-top:8px">{{ sd.pp.own.total }} eigene {{ S }}-Runden mit Plant, {{ sd.buys.own.total }} mit Kaufwerten (ohne Pistolenrunden), alle Maps. Kauf = Ausrüstung der 5 {{ S }} beim Rundenstart (Eco bis {{ p.buy_cfg.eco_max }}, Force bis {{ p.buy_cfg.force_max }}).</div>
 </div>
-{% endif %}
+{% endfor %}
 
 <h2>Maps</h2>
 <div class="card">

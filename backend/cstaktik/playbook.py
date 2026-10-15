@@ -130,9 +130,7 @@ def _place_near(idx, rnd: int, plant) -> str | None:
 def classify(p: dict, cfg: dict) -> dict:
     """Kauf, Tempo, Split und Name einer T-Runde."""
     c = {**DEFAULTS, **(cfg or {})}
-    eq = p.get("t_eq")
-    buy = ("pistol" if p.get("pistol") else None) or (None if eq is None else "eco" if eq <= c["eco_max"]
-                                                         else "force" if eq <= c["force_max"] else "full")
+    buy = buy_of(p.get("t_eq"), p.get("pistol", False), c)
     arrive, site = p.get("arrive"), p.get("site")
     groups = sorted(set((p.get("approach") or {}).values()))
     if site is None or arrive is None:
@@ -325,7 +323,10 @@ def ct_plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
     idx = PositionIndex(match.positions)
     tr = match.tickrate
     plants = {b.round: b for b in match.bomb if b.event == "plant"}
+    from cstaktik.pro import deaths as round_deaths
+
     ct_nades = [n for n in round_nades(match) if n["side"] == "ct" and n["t"] <= CT_UTIL_S] if match.grenades else []
+    all_kills = round_deaths(match)
     out = []
     for r in match.rounds:
         if r.freeze_end_tick is None or r.winner is None:
@@ -343,8 +344,13 @@ def ct_plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
             continue
         plant = plants.get(r.num)
         site = _site_of(_place_near(idx, r.num, plant)) if plant else None
+        vals = [e.equip_value for e in r.economy if e.side == "ct" and e.equip_value is not None]
         out.append({"r": r.num, "won": r.winner == "ct", "pos": pos, "plant_site": site,
                     "plant": [round(plant.pos.x), round(plant.pos.y)] if plant and plant.pos else None,
+                    "plant_t": round((plant.tick - r.freeze_end_tick) / tr, 1) if plant else None,
+                    "ct_eq": sum(vals) if vals else None, "pistol": r.num in (1, 13),
+                    "kills": [{"t": x["t"], "side": x["side"], "place": x.get("place"), "sid": x.get("sid"),
+                               "first": x.get("first")} for x in all_kills if x["r"] == r.num],
                     "nades": [n for n in ct_nades if n["r"] == r.num]})
     return out
 
@@ -448,10 +454,22 @@ def gameplan(pro: list[dict], own: list[dict], map_name: str, cfg: dict | None =
 BUY_LABEL = {"eco": "Eco", "force": "Force Buy", "full": "Full Buy"}
 
 
-def buy_mix(sources: list[dict], cfg: dict | None = None) -> dict:
-    """T-Runden aller Maps nach Kauf (ohne Pistolenrunden): Anteil und Siegquote je Eco / Force / Full Buy."""
+def buy_of(eq: int | None, pistol: bool, cfg: dict | None = None) -> str | None:
+    """Kauf aus der Ausrüstung der 5 Spieler einer Seite: pistol / eco / force / full (None = unbekannt)."""
     c = {**DEFAULTS, **(cfg or {})}
-    rows = [(classify(p, c)["buy"], p["won"]) for d in sources for p in d.get("plays") or []]
+    if pistol:
+        return "pistol"
+    return None if eq is None else "eco" if eq <= c["eco_max"] else "force" if eq <= c["force_max"] else "full"
+
+
+SIDE_KEYS = {"t": ("plays", "t_eq"), "ct": ("ct_plays", "ct_eq")}
+
+
+def buy_mix(sources: list[dict], cfg: dict | None = None, side: str = "t") -> dict:
+    """Runden einer Seite aller Maps nach Kauf (ohne Pistolenrunden): Anteil und Siegquote je Eco / Force / Full."""
+    key, eq = SIDE_KEYS[side]
+    rows = [(buy_of(p.get(eq), p.get("pistol", False), cfg), p["won"]) for d in sources for p in d.get(key) or []
+            if "won" in p]
     rows = [r for r in rows if r[0] in BUY_LABEL]
     out = {}
     for b, lbl in BUY_LABEL.items():
@@ -462,16 +480,16 @@ def buy_mix(sources: list[dict], cfg: dict | None = None) -> dict:
     return {"total": len(rows), "buys": out}
 
 
-def buy_reading(own: dict, pro: dict, min_n: int = 8) -> str | None:
+def buy_reading(own: dict, pro: dict, min_n: int = 8, side: str = "t") -> str | None:
     """Ein Satz zum Kaufverhalten, nur bei klarem Abstand zu den Pros und genug Runden."""
     o, p = own["buys"].get("force"), pro["buys"].get("force")
     if o and p and o["n"] >= min_n and p["n"] >= min_n and p["won_pct"] - o["won_pct"] >= 15:
-        return (f"Eure Force-Buys auf T gewinnen {o['won_pct']} % ({o['won']} von {o['n']}), Pros {p['won_pct']} %. "
+        return (f"Eure Force-Buys auf {side.upper()} gewinnen {o['won_pct']} % ({o['won']} von {o['n']}), Pros {p['won_pct']} %. "
                 "Bei euch lohnt sich der Force selten: lieber eine volle Eco und die nächste Runde voll kaufen, "
                 "oder den Force gemeinsam auf einen Ort spielen.")
     o, p = own["buys"].get("eco"), pro["buys"].get("eco")
     if o and p and o["n"] >= min_n and o["share"] - p["share"] >= 15:
-        return (f"Ihr spielt {o['share']} % eurer T-Runden als Eco, Pros {p['share']} %. Häufige Ecos kosten Runden: "
+        return (f"Ihr spielt {o['share']} % eurer {side.upper()}-Runden als Eco, Pros {p['share']} %. Häufige Ecos kosten Runden: "
                 "Geld über die Runden besser einteilen, damit ihr öfter voll kaufen könnt.")
     return None
 
@@ -479,18 +497,21 @@ def buy_reading(own: dict, pro: dict, min_n: int = 8) -> str | None:
 POSTPLANT = (("up", "Überzahl"), ("even", "Gleichstand"), ("down", "Unterzahl"))
 
 
-def postplant_mix(sources: list[dict]) -> dict:
-    """T-Runden mit Plant (alle Maps): Spieler beim Plant (T gegen CT, aus den Kills bis zum Plant, 5 gegen 5 zu
-    Beginn) und ob die Runde gewonnen wurde, je Überzahl / Gleichstand / Unterzahl. Nur Runden mit Kill-Daten."""
+def postplant_mix(sources: list[dict], side: str = "t") -> dict:
+    """Runden mit Plant (alle Maps) aus Sicht einer Seite: Spieler beim Plant (aus den Kills bis zum Plant, 5 gegen 5
+    zu Beginn) und ob die Runde gewonnen wurde, je Überzahl / Gleichstand / Unterzahl. T = Bombe halten,
+    CT = Retake. Nur Runden mit Kill-Daten."""
+    key = SIDE_KEYS[side][0]
     rows = []
     for d in sources:
-        for p in d.get("plays") or []:
-            if p.get("plant_t") is None or "kills" not in p:
+        for p in d.get(key) or []:
+            if p.get("plant_t") is None or "kills" not in p or "won" not in p:
                 continue
             dead = [k for k in p["kills"] if k["t"] <= p["plant_t"]]
             t = 5 - sum(k["side"] == "t" for k in dead)
             ct = 5 - sum(k["side"] == "ct" for k in dead)
-            rows.append(("up" if t > ct else "even" if t == ct else "down", p["won"]))
+            mine, theirs = (t, ct) if side == "t" else (ct, t)
+            rows.append(("up" if mine > theirs else "even" if mine == theirs else "down", p["won"]))
     out = {}
     for key, lbl in POSTPLANT:
         sel = [w for k, w in rows if k == key]
@@ -499,7 +520,7 @@ def postplant_mix(sources: list[dict]) -> dict:
     return {"total": len(rows), "rows": out}
 
 
-def postplant_reading(own: dict, pro: dict, min_n: int = 6) -> str | None:
+def postplant_reading(own: dict, pro: dict, min_n: int = 6, side: str = "t") -> str | None:
     """Ein Satz, wenn ihr eine gelegte Bombe in einer Lage klar seltener nach Hause bringt als Pros."""
     worst = None
     for key, _lbl in POSTPLANT:
@@ -510,8 +531,15 @@ def postplant_reading(own: dict, pro: dict, min_n: int = 6) -> str | None:
     if not worst:
         return None
     key, o, p = worst
-    tip = {"up": "In Überzahl nicht mehr peeken: Bombe aus sicheren Winkeln halten, die CT müssen kommen.",
-           "even": "Nach dem Plant nicht vereinzeln: Crossfire auf die Bombe aufbauen und Utility für den Retake aufheben.",
-           "down": "In Unterzahl auf Zeit spielen: versteckt halten, Molotov oder Smoke auf die Bombe, wenn sie defusen."}
-    return (f"Nach dem Plant in {o['label']} gewinnt ihr {o['won_pct']} % ({o['won']} von {o['n']}), Pros "
-            f"{p['won_pct']} %. {tip[key]}")
+    tip = {"t": {"up": "In Überzahl nicht mehr peeken: Bombe aus sicheren Winkeln halten, die CT müssen kommen.",
+                 "even": "Nach dem Plant nicht vereinzeln: Crossfire auf die Bombe aufbauen und Utility für den Retake "
+                         "aufheben.",
+                 "down": "In Unterzahl auf Zeit spielen: versteckt halten, Molotov oder Smoke auf die Bombe, wenn sie "
+                         "defusen."},
+           "ct": {"up": "In Überzahl gemeinsam retaken: auf die anderen warten, dann zusammen mit Flash rein, nicht "
+                        "einzeln nacheinander.",
+                  "even": "Utility für den Retake aufheben und von zwei Seiten gleichzeitig kommen.",
+                  "down": "In Unterzahl nicht einzeln sterben: reicht die Zeit nicht, die Waffe retten (Save)."}}
+    what = "Nach dem Plant" if side == "t" else "Im Retake"
+    return (f"{what} in {o['label']} gewinnt ihr {o['won_pct']} % ({o['won']} von {o['n']}), Pros "
+            f"{p['won_pct']} %. {tip[side][key]}")

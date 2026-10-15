@@ -425,7 +425,8 @@ def upgrade_history() -> int:
     for h in history.load_all(HISTORY_DIR) if HISTORY_DIR.exists() else []:
         cache = cache_file(h.get("id"))
         stale = bool(h.get("plays")) and not {"kills", "t_eq"} <= set(h["plays"][0])  # vor Kills/Kauf gespeichert
-        if ("states" in h and "plays" in h and "ct_plays" in h and not stale) or cache is None:
+        ct_stale = bool(h.get("ct_plays")) and not {"kills", "ct_eq"} <= set(h["ct_plays"][0])
+        if ("states" in h and "plays" in h and "ct_plays" in h and not stale and not ct_stale) or cache is None:
             continue
         try:  # ein kaputter oder veralteter Cache darf Uploads und pro-update nicht blockieren
             m = load_match(cache)
@@ -436,6 +437,8 @@ def upgrade_history() -> int:
         if team:  # ohne Fokus-Spieler nichts speichern, sonst gilt der Eintrag als nachgerüstet
             if stale:
                 h.pop("plays", None)
+            if ct_stale:
+                h.pop("ct_plays", None)
             h.setdefault("plays", plays(m, team=team))
             h.setdefault("ct_plays", ct_plays(m, team=team))
         history.save(h, HISTORY_DIR)

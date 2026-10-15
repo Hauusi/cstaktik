@@ -319,3 +319,29 @@ def test_no_site_rounds_are_not_a_tactic_and_missing_equip_is_not_eco():
         e.equip_value = None
     p = playbook.plays(m)[0]
     assert p["t_eq"] is None and playbook.classify(p, {})["buy"] is None
+
+
+def test_ct_retake_and_ct_buys():
+    def p(won, t_dead, ct_dead, eq=25000):
+        kills = [{"t": 10, "side": "t"}] * t_dead + [{"t": 12, "side": "ct"}] * ct_dead
+        return {"r": 3, "plant_t": 40, "won": won, "kills": kills, "ct_eq": eq}
+    own = [{"ct_plays": [p(False, 2, 0)] * 6 + [p(True, 2, 0)] + [p(False, 0, 0, 10000)] * 8}]
+    pp = playbook.postplant_mix(own, "ct")
+    assert pp["rows"]["up"] == {"label": "Überzahl", "n": 7, "won": 1, "won_pct": 14}  # 5 CT gegen 3 T
+    pro = [{"ct_plays": [p(True, 2, 0)] * 6 + [p(False, 2, 0)] + [p(True, 0, 0, 10000)] * 4 + [p(False, 0, 0, 10000)] * 4}]
+    r = playbook.postplant_reading(pp, playbook.postplant_mix(pro, "ct"), side="ct")
+    assert r.startswith("Im Retake in Überzahl gewinnt ihr 14 % (1 von 7), Pros 86 %.") and "gemeinsam retaken" in r
+    b = playbook.buy_reading(playbook.buy_mix(own, side="ct"), playbook.buy_mix(pro, side="ct"), side="ct")
+    assert b.startswith("Eure Force-Buys auf CT gewinnen 0 % (0 von 8), Pros 50 %.")
+
+
+def test_ct_plays_store_kills_plant_and_equip():
+    from cstaktik.model import BombEvent, PlayerEconomy
+
+    std = {"c1": (0, 0, "BombsiteA"), "c2": (100, 0, "Jungle"), "c3": (2500, 0, "Window"),
+           "c4": (5000, 0, "BombsiteB"), "c5": (5100, 0, "Market")}
+    m = _ct_match(3, std)
+    m.rounds[0].economy = [PlayerEconomy(steamid=s, side="ct", equip_value=5000) for s in CT]
+    m.bomb = [BombEvent(round=3, tick=1000 + 50 * 64, event="plant", steamid="t1", pos=Vec(x=0, y=0))]
+    p = playbook.ct_plays(m)[0]
+    assert p["plant_t"] == 50.0 and p["ct_eq"] == 25000 and p["kills"] == [] and p["pistol"] is False
