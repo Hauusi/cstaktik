@@ -1045,7 +1045,7 @@ def _kabine(hist: list[dict], map_name: str) -> dict | None:
         ang = {side: mapbook.angles(hist, map_name, a["sid"], side) for side in ("ct", "t")}
         angles = {side: g["killer_top"][:1] for side, g in ang.items()}
         seen_at = {s.upper(): g["seen"]["places"][0] for s, g in ang.items() if g["seen"] and g["seen"]["places"]}
-        players.append({**a, "color": colors[i % len(colors)], "points": pts,
+        players.append({**a, "color": colors[i % len(colors)], "points": pts, "mind": _mind(hist, a["sid"]),
                         "top_place": top[0] if top and top[0][1] >= 2 else None,
                         "angles": {s.upper(): v[0] for s, v in angles.items() if v}, "seen_at": seen_at})
     if img:
@@ -1060,6 +1060,27 @@ def _kabine(hist: list[dict], map_name: str) -> dict | None:
             for q in pl["points"]:
                 q["px"], q["py"] = 512 + (q["x"] - cx) / span * 1024, 512 - (q["y"] - cy) / span * 1024
     return {"img": img, "players": players, "has_points": bool(pts_all)}
+
+
+def _mind(hist: list[dict], sid: str) -> list[str]:
+    """Für die Kabine: was die Impact-, Tilt- und Clutch-Auswertung über alle Maps für dieses Match mitgibt."""
+    from cstaktik import clutch, impact, tilt
+
+    out = []
+    im = impact.profile(hist, sid)
+    if im and im.get("ctx"):
+        sure = [c for c in im["ctx"] if c["enough"] and c["ctx"] != "bomb"]
+        if sure and sure[0]["per_match"] <= -0.15:
+            w = sure[0]
+            out.append(f"{w['label']} kostet dich {w['per_match_s'].lstrip('-')} Runden pro Match: {impact.CTX_TIP[w['ctx']]}")
+    t = tilt.summary(hist, sid)
+    if t and t["reading"] and "messbar schlechter" in t["reading"]:
+        out.append("Nach zwei verlorenen Runden in Folge spielst du messbar schlechter. Dann bewusst eine ruhige "
+                   "Standard-Runde zu zweit.")
+    c = clutch.summary(hist, sid, _load_pro())
+    if c and c["reading"] and "liegen" in c["reading"]:
+        out.append("Im Clutch: Zeit nutzen, Gegner einzeln nehmen.")
+    return out
 
 
 def _map_lessons(hist: list[dict], map_name: str) -> list[dict]:

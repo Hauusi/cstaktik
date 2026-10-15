@@ -84,3 +84,13 @@ def test_contexts_opening_trade_clutch():
     rows = [({"rounds": 1}, {"ctx": {"opening": [-300.0, 12], "trade": [200.0, 12]}})]
     ctx, txt = impact.contexts(rows)
     assert ctx[0]["ctx"] == "opening" and "in Opening-Duellen: -3,0" in txt and "bei Trades" in txt
+
+
+def test_kabine_mind_uses_impact_context():
+    from cstaktik import api
+
+    hist = [{"rounds": 20, "players": {"a": {}},
+             "impact": {"a": {"total": -100, "ctx": {"opening": [-60.0, 4], "up": [-40.0, 3]}}}}] * 3
+    lines = api._mind(hist, "a")
+    assert lines and lines[0].startswith("Opening-Duell kostet dich 0,6 Runden pro Match")
+    assert api._mind([{"rounds": 20, "players": {"a": {}}}], "a") == []
