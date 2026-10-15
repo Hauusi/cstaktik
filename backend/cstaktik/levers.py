@@ -48,6 +48,14 @@ def build(hist: list[dict], pro: list[dict], sid: str, cfg: dict | None = None, 
                 o, q = own_b["buys"][k], pro_b["buys"][k]
                 out.append({"kind": "Kauf", "gain": g, "title": f"{lbl} auf {S}", "link": "/progress",
                             "text": f"Ihr gewinnt {o['won_pct']} % ({o['won']} von {o['n']}), Pros {q['won_pct']} %."})
+        own_f, pro_f = playbook.firstblood_mix(hs, side), playbook.firstblood_mix(pro, side)
+        for k, lbl in playbook.FIRSTBLOOD:
+            g = _gap(own_f["rows"].get(k), pro_f["rows"].get(k), per, 8)
+            if g:
+                o, q = own_f["rows"][k], pro_f["rows"][k]
+                out.append({"kind": "Erster Kill", "gain": g, "title": f"{lbl} auf {S}", "link": "/progress",
+                            "text": f"Ihr gewinnt {o['won_pct']} % dieser Runden ({o['won']} von {o['n']}), Pros "
+                                    f"{q['won_pct']} %."})
         own_p, pro_p = playbook.postplant_mix(hs, side), playbook.postplant_mix(pro, side)
         for k, lbl in playbook.POSTPLANT:
             g = _gap(own_p["rows"].get(k), pro_p["rows"].get(k), per, 6)

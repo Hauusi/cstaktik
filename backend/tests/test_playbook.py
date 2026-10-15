@@ -345,3 +345,16 @@ def test_ct_plays_store_kills_plant_and_equip():
     m.bomb = [BombEvent(round=3, tick=1000 + 50 * 64, event="plant", steamid="t1", pos=Vec(x=0, y=0))]
     p = playbook.ct_plays(m)[0]
     assert p["plant_t"] == 50.0 and p["ct_eq"] == 25000 and p["kills"] == [] and p["pistol"] is False
+
+
+def test_firstblood_conversion():
+    def p(first_side, won):
+        return {"won": won, "kills": [{"t": 30, "side": "ct"}, {"t": 12, "side": first_side}]}
+    own = playbook.firstblood_mix([{"plays": [p("ct", False)] * 7 + [p("ct", True)] * 3 + [p("t", False)] * 4}], "t")
+    assert own["rows"]["for"] == {"label": "Erster Kill für euch (5 gegen 4)", "n": 10, "won": 3, "won_pct": 30}
+    assert own["rows"]["against"]["n"] == 4
+    pro = playbook.firstblood_mix([{"plays": [p("ct", True)] * 8 + [p("ct", False)] * 2}], "t")
+    r = playbook.firstblood_reading(own, pro, "t")
+    assert r.startswith("Auf T gewinnt ihr nach eurem ersten Kill 30 % der Runden (3 von 10), Pros 80 %.")
+    ct = playbook.firstblood_mix([{"ct_plays": [p("t", True)]}], "ct")
+    assert ct["rows"]["for"]["n"] == 1  # erster Tod auf T-Seite = Kill für die CT

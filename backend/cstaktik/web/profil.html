@@ -66,11 +66,18 @@
 {% else %}<div class="card empty">Noch keine Fehler-Daten.</div>{% endfor %}
 
 {% for sd in p.sides %}{% set S = sd.side|upper %}
-<h2>{{ S }}-Seite: {{ "nach dem Plant" if sd.side == "t" else "Retake" }} und Kauf</h2>
+<h2>{{ S }}-Seite: erster Kill, {{ "nach dem Plant" if sd.side == "t" else "Retake" }}, Kauf</h2>
 <div class="card">
-  {% for r in [sd.pp.reading, sd.buys.reading] if r %}<div class="dread">{{ r }}</div>{% endfor %}
+  {% for r in [sd.fb.reading, sd.pp.reading, sd.buys.reading] if r %}<div class="dread">{{ r }}</div>{% endfor %}
+  {% if sd.fb.own.total %}
+  <div class="small muted" style="margin:4px 0 2px">Nach dem ersten Kill der Runde: wie oft gewinnt ihr die Runde?</div>
+  {% for k in ["for", "against"] %}{% set o = sd.fb.own.rows.get(k) %}{% set q = sd.fb.pro.rows.get(k) %}
+  {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
+    <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {{ q.won_pct }} % ({{ q.n }}){% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+  {% endfor %}{% endif %}
   {% if sd.pp.own.total %}
-  <div class="small muted" style="margin:4px 0 2px">{{ "Bombe liegt: wer gewinnt, je nach Spielerzahl beim Plant" if sd.side == "t" else "Bombe liegt, ihr müsst zurückholen: je nach Spielerzahl beim Plant" }}</div>
+  <div class="small muted" style="margin:12px 0 2px">{{ "Bombe liegt: wer gewinnt, je nach Spielerzahl beim Plant" if sd.side == "t" else "Bombe liegt, ihr müsst zurückholen: je nach Spielerzahl beim Plant" }}</div>
   {% for k in ["up", "even", "down"] %}{% set o = sd.pp.own.rows.get(k) %}{% set q = sd.pp.pro.rows.get(k) %}
   {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
     <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {{ q.won_pct }} % ({{ q.n }}){% endif %}</span></div>

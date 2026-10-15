@@ -682,7 +682,8 @@ def briefing_page(map_name: str) -> str:
     # Gewohnheiten über alle Maps (Kauf, nach dem Plant): nur wenn klar schlechter als Pros
     habits = [x for side in ("t", "ct") for x in (
         playbook.buy_reading(playbook.buy_mix(own, cfg, side), playbook.buy_mix(pro, cfg, side), side=side),
-        playbook.postplant_reading(playbook.postplant_mix(own, side), playbook.postplant_mix(pro, side), side=side)) if x]
+        playbook.postplant_reading(playbook.postplant_mix(own, side), playbook.postplant_mix(pro, side), side=side),
+        playbook.firstblood_reading(playbook.firstblood_mix(own, side), playbook.firstblood_mix(pro, side), side)) if x]
     if habits:
         plan = {**(plan or {}), "habits": habits}
     return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
@@ -913,7 +914,9 @@ def progress_page(p: str = "") -> str:
             own_pp, pro_pp = playbook.postplant_mix(mine, side), playbook.postplant_mix(pros, side)
             own_b, pro_b = playbook.buy_mix(mine, cfg, side), playbook.buy_mix(pros, cfg, side)
             if own_pp["total"] or own_b["total"]:
+                own_fb, pro_fb = playbook.firstblood_mix(mine, side), playbook.firstblood_mix(pros, side)
                 prof["sides"].append({
+                    "fb": {"own": own_fb, "pro": pro_fb, "reading": playbook.firstblood_reading(own_fb, pro_fb, side)},
                     "side": side, "pp": {"own": own_pp, "pro": pro_pp,
                                          "reading": playbook.postplant_reading(own_pp, pro_pp, side=side)},
                     "buys": {"own": own_b, "pro": pro_b, "reading": playbook.buy_reading(own_b, pro_b, side=side)}})

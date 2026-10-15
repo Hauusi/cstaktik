@@ -543,3 +543,48 @@ def postplant_reading(own: dict, pro: dict, min_n: int = 6, side: str = "t") -> 
     what = "Nach dem Plant" if side == "t" else "Im Retake"
     return (f"{what} in {o['label']} gewinnt ihr {o['won_pct']} % ({o['won']} von {o['n']}), Pros "
             f"{p['won_pct']} %. {tip[side][key]}")
+
+
+FIRSTBLOOD = (("for", "Erster Kill für euch (5 gegen 4)"), ("against", "Erster Tod bei euch (4 gegen 5)"))
+
+
+def firstblood_mix(sources: list[dict], side: str = "t") -> dict:
+    """Runden einer Seite nach dem ersten Kill der Runde: wie oft gewonnen, wenn er für bzw. gegen euch fiel."""
+    key = SIDE_KEYS[side][0]
+    rows = []
+    for d in sources:
+        for p in d.get(key) or []:
+            kills = [k for k in p.get("kills") or [] if k.get("t") is not None]
+            if not kills or "won" not in p:
+                continue
+            first = min(kills, key=lambda k: k["t"])
+            rows.append(("against" if first["side"] == side else "for", p["won"]))
+    out = {}
+    for k, lbl in FIRSTBLOOD:
+        sel = [w for kk, w in rows if kk == k]
+        if sel:
+            out[k] = {"label": lbl, "n": len(sel), "won": sum(sel), "won_pct": round(100 * sum(sel) / len(sel))}
+    return {"total": len(rows), "rows": out}
+
+
+def firstblood_reading(own: dict, pro: dict, side: str = "t", min_n: int = 8) -> str | None:
+    """Ein Satz, wenn ihr nach dem ersten Kill klar schlechter umsetzt als Pros (Vorteil verschenkt / nicht aufgeholt)."""
+    tips = {"for": {"t": "Nach dem ersten Kill nicht einzeln nachpushen: Überzahl nutzen, gemeinsam mit Utility auf "
+                         "einen Bombsite, Trades sicherstellen.",
+                    "ct": "Nach dem ersten Kill nicht hinterherjagen: Positionen halten, Info nutzen, die T müssen "
+                          "jetzt in Unterzahl kommen."},
+            "against": {"t": "Nach dem ersten Tod langsamer werden: neu sammeln, Utility zusammen einsetzen, nicht "
+                             "einzeln in denselben Winkel.",
+                        "ct": "Nach dem ersten Tod früh rotieren und zusammenziehen, statt allein weiter zu halten."}}
+    best = None
+    for k, _lbl in FIRSTBLOOD:
+        o, p = own["rows"].get(k), pro["rows"].get(k)
+        if o and p and o["n"] >= min_n and p["n"] >= min_n and p["won_pct"] - o["won_pct"] >= 15:
+            if best is None or p["won_pct"] - o["won_pct"] > best[2]["won_pct"] - best[1]["won_pct"]:
+                best = (k, o, p)
+    if not best:
+        return None
+    k, o, p = best
+    what = "nach eurem ersten Kill" if k == "for" else "nach eurem ersten Tod"
+    return (f"Auf {side.upper()} gewinnt ihr {what} {o['won_pct']} % der Runden ({o['won']} von {o['n']}), Pros "
+            f"{p['won_pct']} %. {tips[k][side]}")
