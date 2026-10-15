@@ -56,9 +56,9 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
 </div>
 <h2>Gefundene Matches</h2>
 <div class="card codes">
-  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ ("gefunden" if autodl.config else "gefunden, Demo noch hochladen") if c.status == "neu" else c.status }}</span></div>
+  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ ("gefunden" if (gcpd.on or autodl.config) else "gefunden, Demo noch hochladen") if c.status == "neu" else c.status }}</span></div>
   {% else %}<div class="muted">Noch keine. Neue Matches erscheinen hier, sobald Steam sie meldet.</div>{% endfor %}
-  {% if not autodl.config %}<div class="small muted" style="margin-top:6px">Damit der Coach die Demos selbst lädt: rechts „Automatischer Download“ einrichten. Bis dahin die Demo selbst hochladen.</div>{% endif %}
+  {% if not gcpd.on and not autodl.config %}<div class="small muted" style="margin-top:6px">Damit der Coach die Demos selbst lädt: „Automatischer Download“ einrichten. Bis dahin die Demo selbst hochladen.</div>{% endif %}
 </div>
 {% endif %}
 </div>
@@ -72,9 +72,41 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
   <button class="btn2" type="submit">Schlüssel speichern</button>
 </form>
 
-<h2>Automatischer Download</h2>
+<h2 id="autodl">Automatischer Download</h2>
 <div class="card kf">
-  <div class="small">Lädt die Demos deiner Valve-Matches selbst und wertet sie aus. Dafür braucht der Server einen eigenen Steam-Account, der kurz CS2 startet.</div>
+  {% if gcpd.on %}
+  <div class="small"><b style="color:#46a758">Aktiv.</b> Der Coach lädt deine neuen Valve-Matches selbst und wertet sie aus. Er schaut alle 20 Minuten.</div>
+  {% if gcpd.checked %}<div class="small muted" style="margin-top:4px">Zuletzt geprüft: {{ gcpd.checked[8:10] }}.{{ gcpd.checked[5:7] }}. {{ gcpd.checked[11:16] }}</div>{% endif %}
+  {% if gcpd.error %}<div class="err">{{ gcpd.error }}</div>{% endif %}
+  <form method="post" action="/konto/steamlogout" style="margin-top:10px"><button class="btn2" type="submit">Beenden und Anmeldung löschen</button></form>
+  {% elif gcpd.pending %}
+  <form method="post" action="/konto/steamcode">
+    <div class="small">{% if gcpd.needs == "mail" %}Steam hat dir einen Code per E-Mail geschickt.{% elif gcpd.needs == "confirm" %}Bestätige die Anmeldung in deiner Steam-App, dann auf „Weiter“ tippen.{% else %}Öffne die Steam-App und gib den aktuellen Steam-Guard-Code ein. Oder bestätige die Anmeldung dort und lass das Feld leer.{% endif %}</div>
+    {% if gcpd.needs != "confirm" %}<label for="sc">Steam-Guard-Code</label><input class="field" id="sc" name="code" autocomplete="one-time-code" maxlength="5" style="text-transform:uppercase">{% endif %}
+    <button class="btn" type="submit">Weiter</button>
+  </form>
+  {% elif not https %}
+  <div class="small">Der Coach kann deine Valve-Matches selbst laden. Dafür meldest du dich einmal mit deinem Steam-Account an. Das geht aus Sicherheitsgründen nur über HTTPS. Öffne die App über deine HTTPS-Adresse.</div>
+  {% else %}
+  <div class="small">Der Coach lädt deine Valve-Matches (Premier, Competitive, Wingman) selbst und wertet sie aus. Dafür meldest du dich einmal mit deinem Steam-Account an.</div>
+  <form method="post" action="/konto/steamlogin" style="margin-top:8px">
+    <label for="su">Steam-Login-Name</label><input class="field" id="su" name="steam_user" autocomplete="username">
+    <label for="sp">Steam-Passwort</label><input class="field" id="sp" name="steam_pass" type="password" autocomplete="current-password">
+    <button class="btn" type="submit" {{ "disabled" if not (steam and steam.steamid) }}>Anmelden</button>
+  </form>
+  <details class="how"><summary>Was passiert mit meinem Passwort?</summary>
+    <ul>
+      <li>Es geht verschlüsselt an Steam und wird nicht gespeichert.</li>
+      <li>Danach fragt Steam nach deinem Steam-Guard-Code.</li>
+      <li>Gespeichert wird nur der Anmelde-Schlüssel von Steam, auf deinem Server. Er läuft nach einigen Monaten ab.</li>
+      <li>Damit liest der Coach nur deine Seite „Persönliche Spieldaten“ von CS2 mit den Demo-Links deiner letzten Matches.</li>
+      <li>Wer deinen Server übernimmt, könnte den Schlüssel nutzen. Halte den Server geschützt.</li>
+    </ul></details>
+  {% endif %}
+  {% if autodl.imported %}<div class="small muted" style="margin-top:8px">Zuletzt geladen:</div>
+  {% for x in autodl.imported[:5] %}<div class="small">{{ x.at[8:10] }}.{{ x.at[5:7] }}. {{ x.at[11:16] }} · {% if x.error %}<span style="color:#e5484d">{{ x.error }}</span>{% else %}ausgewertet{% endif %}</div>{% endfor %}{% endif %}
+  <details class="opt"><summary>Alternative: mit einem Bot-Account (Docker)</summary>
+  <div class="small">Dafür braucht der Server einen eigenen Steam-Account, der kurz CS2 startet.</div>
   <div class="steps-ad">
     <div class="{{ 'ok' if autodl.key }}"><b>1</b> Steam-Web-API-Schlüssel (oben)</div>
     <div class="{{ 'ok' if steam and steam.auth_code }}"><b>2</b> Auth-Code und Match-Token (links)</div>
@@ -96,9 +128,7 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
     <div class="hint">Danach läuft der Download von selbst, auch nach einem Neustart. Er prüft alle 20 Minuten. Logs: <code>docker logs cs-demo-downloader</code></div>
   </details>
   {% endif %}
-  {% if autodl.imported %}<div class="small muted" style="margin-top:8px">Zuletzt übernommen:</div>
-  {% for x in autodl.imported[:5] %}<div class="small">{{ x.at[8:10] }}.{{ x.at[5:7] }}. {{ x.at[11:16] }} · {{ x.name }}{% if x.error %} · <span style="color:#e5484d">{{ x.error }}</span>{% else %} · ausgewertet{% endif %}</div>{% endfor %}
-  {% elif autodl.config %}<div class="small muted" style="margin-top:8px">Noch keine Demo geladen. Valve hält Demos nur einige Wochen bereit.</div>{% endif %}
+  </details>
 </div>
 
 <h2>Nutzer</h2>

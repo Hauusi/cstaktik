@@ -390,7 +390,13 @@ def konto_page(request: Request, saved: str = "", error: str = "") -> str:
     return _env.get_template("konto.html").render(
         nav_active="mehr", user=user, steam=accounts.get_steam(user) if user else None, saved=saved, error=error,
         has_key=bool(key), key_hint=f"…{key[-4:]}" if key else None, autodl=autodl.status(),
-        bot_user=accounts.get_setting("autodl_bot_user"), docker_cmd=autodl.docker_command())
+        bot_user=accounts.get_setting("autodl_bot_user"), docker_cmd=autodl.docker_command(),
+        https=request.url.scheme == "https",
+        gcpd={"on": bool(user and accounts.get_setting(f"gcpd_token:{user}")),
+              "error": accounts.get_setting(f"gcpd_error:{user}") if user else None,
+              "checked": accounts.get_setting(f"gcpd_checked:{user}") if user else None,
+              "pending": bool(user and user in _STEAM_LOGINS),
+              "needs": (_STEAM_LOGINS.get(user) or {}).get("needs") if user else None})
 
 
 def _need_user(request: Request) -> str:
@@ -526,6 +532,105 @@ async def konto_bot(request: Request) -> Response:
     return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
 
 
+_STEAM_LOGINS: dict[str, dict] = {}  # angefangene Steam-Anmeldungen je Nutzer (nur im Speicher, 5 Minuten)
+
+
+@app.post("/konto/steamlogin")
+async def konto_steam_login(request: Request) -> Response:
+    """Schritt 1: Steam-Login-Name und Passwort. Das Passwort geht verschlüsselt an Steam und wird nicht gespeichert."""
+    from urllib.parse import quote
+
+    from cstaktik import gcpd
+
+    user = _need_user(request)
+    if request.url.scheme != "https":  # Passwort nie unverschlüsselt über das Netz
+        return RedirectResponse("/konto?error=" + quote("Die Steam-Anmeldung geht nur über HTTPS. Erst HTTPS einrichten."),
+                                status_code=303)
+    if not _me():
+        return RedirectResponse("/konto?error=" + quote("Erst oben mit Steam verbinden."), status_code=303)
+    form = await request.form()
+    name, pw = str(form.get("steam_user", "")).strip(), str(form.get("steam_pass", ""))
+    if not name or not pw:
+        return RedirectResponse("/konto?error=" + quote("Login-Name und Passwort eintragen."), status_code=303)
+    try:
+        sess = await run_in_threadpool(gcpd.begin_login, name, pw)
+    except gcpd.SteamLoginError as exc:
+        return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
+    if sess["steamid"] != _me():
+        return RedirectResponse("/konto?error=" + quote("Das ist nicht der Steam-Account, mit dem du verbunden bist."),
+                                status_code=303)
+    _STEAM_LOGINS[user] = {**sess, "until": time.time() + 300}
+    if sess["needs"] == "none":  # Steam will keine Bestätigung: direkt fertig machen
+        return await _finish_steam_login(user, "")
+    return RedirectResponse("/konto?steamcode=1#autodl", status_code=303)
+
+
+@app.post("/konto/steamcode")
+async def konto_steam_code(request: Request) -> Response:
+    """Schritt 2: Steam-Guard-Code (oder in der Steam-App bestätigt, dann leer)."""
+    user = _need_user(request)
+    form = await request.form()
+    return await _finish_steam_login(user, str(form.get("code", "")))
+
+
+async def _finish_steam_login(user: str, code: str) -> Response:
+    from urllib.parse import quote
+
+    from cstaktik import accounts, gcpd
+
+    sess = _STEAM_LOGINS.get(user)
+    if not sess or sess["until"] < time.time():
+        _STEAM_LOGINS.pop(user, None)
+        return RedirectResponse("/konto?error=" + quote("Anmeldung abgelaufen. Bitte noch einmal starten."),
+                                status_code=303)
+    try:
+        token = await run_in_threadpool(gcpd.finish_login, sess, code)
+    except gcpd.SteamLoginError as exc:
+        return RedirectResponse("/konto?steamcode=1&error=" + quote(str(exc)) + "#autodl", status_code=303)
+    _STEAM_LOGINS.pop(user, None)
+    accounts.set_setting(f"gcpd_token:{user}", token)
+    accounts.set_setting(f"gcpd_error:{user}", None)
+    threading.Thread(target=_gcpd_run, args=([user],), daemon=True).start()  # gleich einmal nach Demos schauen
+    return RedirectResponse("/konto?saved=" + quote("Angemeldet. Der Coach lädt deine neuen Matches jetzt selbst "
+                                                    "und wertet sie aus.") + "#autodl", status_code=303)
+
+
+@app.post("/konto/steamlogout")
+def konto_steam_logout(request: Request) -> Response:
+    from urllib.parse import quote
+
+    from cstaktik import accounts
+
+    user = _need_user(request)
+    for k in ("gcpd_token", "gcpd_error", "gcpd_checked"):
+        accounts.set_setting(f"{k}:{user}", None)
+    return RedirectResponse("/konto?saved=" + quote("Automatischer Download beendet, Anmeldung gelöscht."),
+                            status_code=303)
+
+
+def _gcpd_users() -> list[str]:
+    from contextlib import closing
+
+    from cstaktik import accounts
+
+    if not accounts.DB_FILE.exists():
+        return []
+    with closing(accounts.db()) as con:
+        return [r["key"].split(":", 1)[1] for r in con.execute("SELECT key FROM settings WHERE key LIKE 'gcpd_token:%'")]
+
+
+def _gcpd_run(users: list[str] | None = None) -> None:
+    """Für alle angemeldeten Nutzer neue Demos laden; die Übernahme in die Auswertung macht _autodl_import."""
+    from cstaktik import gcpd
+
+    for u in users if users is not None else _gcpd_users():
+        try:
+            gcpd.fetch_new(u)
+        except Exception:  # noqa: BLE001 - Fehler stehen am Nutzer (gcpd_error), der Lauf geht weiter
+            continue
+    _autodl_import()
+
+
 def _autodl_import() -> int:
     """Fertig heruntergeladene Demos übernehmen und auswerten (wie ein Upload, ohne Besitzer: sichtbar für alle,
     die im Match mitgespielt haben)."""
@@ -560,12 +665,16 @@ def _start_autodl() -> None:
     """Jede Minute nach automatisch geladenen Demos schauen; alle 10 Minuten die Konfiguration auffrischen."""
     from cstaktik import autodl
 
+    from cstaktik import gcpd
+
     def loop():
         i = 0
         while True:
             try:
                 if i % 10 == 0:
                     autodl.write_config()
+                if i % (gcpd.INTERVAL_S // autodl.SCAN_S) == 0:  # eigener Account: alle 20 Minuten
+                    _gcpd_run()
                 _autodl_import()
             except Exception:  # noqa: BLE001 - darf den Server nie stoppen
                 pass
