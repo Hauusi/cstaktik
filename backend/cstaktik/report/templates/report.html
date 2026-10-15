@@ -273,7 +273,7 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .chipbtn { padding: 11px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
   font-size: 14px; font-weight: 650; text-align: center; line-height: 1.25; }
 .chipbtn span { color: var(--orange); font-variant-numeric: tabular-nums; }
-.glance { display: grid; gap: 6px; margin: 14px 0 20px; }
+.glance { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 6px; margin: 14px 0 20px; }
 .gl { display: grid; grid-template-columns: minmax(70px, 1fr) repeat(4, auto); gap: 4px 14px; align-items: end;
   padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
 .gl b { font-size: 14px; align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
