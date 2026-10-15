@@ -37,15 +37,15 @@ def build(map_name: str, histories: list[dict], goals_state: dict, min_count: in
             u = untraded.get((sid, place), 0)
             # Tipp aus dem, was dort am häufigsten schiefging (statt eines Standard-Satzes)
             if u * 2 > n:
-                tip = f"In {place} meist ohne Trade: nur mit Mitspieler in Reichweite spielen oder früher zurückfallen."
+                tip = f"In {place} stirbst du meist ohne Trade. Spiel dort nur mit Mitspieler in Reichweite oder fall früher zurück."
             elif f * 2 > n:
-                tip = f"In {place} meist der erste Tod der Runde: nicht als Erster ohne Info oder Utility zeigen."
+                tip = f"In {place} fällt meist der erste Tod der Runde. Zeig dich dort nicht ohne Info oder Utility als Erster."
             else:
-                tip = f"{place} ist gelesen: Timing ändern, mit Utility nehmen oder Position wechseln."
+                tip = f"{place} ist gelesen. Ändere das Timing, nimm den Spot mit Utility oder wechsle die Position."
             notes.append({
                 "side": SIDE_DE[side],
-                "text": f"{names.get(sid, sid)}: {n}x in {place} gestorben (von {all_side[sid]} {SIDE_DE[side]}-Toden)"
-                        + (f", davon {f}x als Erster" if f else "") + (f", {u}x ohne Trade" if u else ""),
+                "text": f"{names.get(sid, sid)}: {n}x in {place} gestorben, von {all_side[sid]} {SIDE_DE[side]}-Toden."
+                        + (f" Davon {f}x als Erster." if f else "") + (f" {u}x ohne Trade." if u else ""),
                 "tip": tip,
             })
 

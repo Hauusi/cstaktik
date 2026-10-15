@@ -21,7 +21,7 @@ def test_briefing_from_history():
     b = briefing.build("de_mirage", hs, {"active": [{"title": "Z", "tip": "T", "target_pct": 10}]})
     assert b["matches"] == 2 and b["goals"][0]["title"] == "Z"
     # Ich stirbt 3x pro Match in SynthMid als CT -> 6x, alle als Erster
-    assert any("Ich: 6x in SynthMid gestorben (von " in n["text"] and "davon 6x als Erster" in n["text"]
+    assert any("Ich: 6x in SynthMid gestorben, von " in n["text"] and "Davon 6x als Erster" in n["text"]
                and n["side"] == "CT" and "meist ohne Trade" in n["tip"] for n in b["notes"])
     empty = briefing.build("de_inferno", hs, {"active": []})
     assert empty["matches"] == 0 and empty["notes"] == [] and empty["watch"] == []

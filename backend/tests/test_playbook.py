@@ -103,7 +103,7 @@ def test_own_plays_only_with_team_and_compare_to_pros():
     q = playbook.plays(_match(9, slow, plant_s=80, equip=5000))[0]
     pro = playbook.style_mix([{"map": "de_mirage", "plays": [q] * 8 + [p] * 4}], "de_mirage")
     s = playbook.compare(own, pro)
-    assert s.startswith("Ihr spielt Split deutlich öfter als Pros: 100 % eurer T-Runden, Pros 33 %.")
+    assert s.startswith("Ihr spielt Split deutlich öfter als Pros. Das sind 100 % eurer T-Runden, bei Pros 33 %.")
     assert playbook.compare({**own, "total": 5}, pro) is None  # zu wenig eigene Runden
 
 
@@ -220,7 +220,7 @@ def test_report_renders_tactics_section(tmp_path, monkeypatch):
     monkeypatch.setattr(render, "_tactics", lambda match: fake)
     html = render.render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
     assert "Eure Taktiken heute" in html and "Pros 60 % (5 Runden)" in html and '"tac":"B-Rush über Apartments"' in html
-    assert "Zum Mitnehmen" in html and "Nicht wiederholen: B-Rush über Apartments (1 von 3 gewonnen), Pros gewinnen damit 60 %" in html
+    assert "Zum Mitnehmen" in html and "Nicht wiederholen: B-Rush über Apartments. Nur 1 von 3 gewonnen, Pros gewinnen damit 60 %" in html
 
 
 def test_weekplan_gets_pro_tactic_task():
@@ -278,7 +278,7 @@ def test_buy_mix_and_reading():
     own = playbook.buy_mix([{"plays": [r(10000, False)] * 9 + [r(10000, True)] + [r(25000, True)] * 5 + [{**r(800, True), "pistol": True}]}])
     assert own["total"] == 15 and own["buys"]["force"] == {"label": "Force Buy", "n": 10, "share": 67, "won": 1, "won_pct": 10}
     pro = playbook.buy_mix([{"plays": [r(10000, True)] * 4 + [r(10000, False)] * 6 + [r(25000, True)] * 10}])
-    assert "Force-Buys auf T gewinnen 10 % (1 von 10), Pros 40 %" in playbook.buy_reading(own, pro)
+    assert "Ihr gewinnt 10 %, 1 von 10. Pros: 40 %" in playbook.buy_reading(own, pro)
 
 
 def test_postplant_by_numbers():
@@ -289,7 +289,7 @@ def test_postplant_by_numbers():
     assert own["total"] == 9 and own["rows"]["up"] == {"label": "Überzahl", "n": 8, "won": 2, "won_pct": 25}
     assert own["rows"]["even"]["n"] == 1  # Kill nach dem Plant zählt nicht
     pro = playbook.postplant_mix([{"plays": [p(True, 0, 2)] * 7 + [p(False, 0, 2)]}])
-    assert playbook.postplant_reading(own, pro).startswith("Nach dem Plant in Überzahl gewinnt ihr 25 % (2 von 8), Pros 88 %.")
+    assert playbook.postplant_reading(own, pro).startswith("Nach dem Plant in Überzahl gewinnt ihr klar seltener als Pros. Bei euch sind es 25 %, 2 von 8. Pros: 88 %.")
 
 
 def test_tactic_task_respects_manual_untick_and_player():
@@ -330,9 +330,9 @@ def test_ct_retake_and_ct_buys():
     assert pp["rows"]["up"] == {"label": "Überzahl", "n": 7, "won": 1, "won_pct": 14}  # 5 CT gegen 3 T
     pro = [{"ct_plays": [p(True, 2, 0)] * 6 + [p(False, 2, 0)] + [p(True, 0, 0, 10000)] * 4 + [p(False, 0, 0, 10000)] * 4}]
     r = playbook.postplant_reading(pp, playbook.postplant_mix(pro, "ct"), side="ct")
-    assert r.startswith("Im Retake in Überzahl gewinnt ihr 14 % (1 von 7), Pros 86 %.") and "gemeinsam retaken" in r
+    assert r.startswith("Im Retake in Überzahl gewinnt ihr klar seltener als Pros. Bei euch sind es 14 %, 1 von 7. Pros: 86 %.") and "Retaket in Überzahl gemeinsam" in r
     b = playbook.buy_reading(playbook.buy_mix(own, side="ct"), playbook.buy_mix(pro, side="ct"), side="ct")
-    assert b.startswith("Eure Force-Buys auf CT gewinnen 0 % (0 von 8), Pros 50 %.")
+    assert b.startswith("Force-Buys auf CT lohnen sich bei euch selten. Ihr gewinnt 0 %, 0 von 8. Pros: 50 %.")
 
 
 def test_ct_plays_store_kills_plant_and_equip():
@@ -355,6 +355,6 @@ def test_firstblood_conversion():
     assert own["rows"]["against"]["n"] == 4
     pro = playbook.firstblood_mix([{"plays": [p("ct", True)] * 8 + [p("ct", False)] * 2}], "t")
     r = playbook.firstblood_reading(own, pro, "t")
-    assert r.startswith("Auf T gewinnt ihr nach eurem ersten Kill 30 % der Runden (3 von 10), Pros 80 %.")
+    assert r.startswith("Auf T verschenkt ihr den Vorteil nach eurem ersten Kill öfter als Pros. Ihr gewinnt 30 % dieser Runden, 3 von 10. Pros: 80 %.")
     ct = playbook.firstblood_mix([{"ct_plays": [p("t", True)]}], "ct")
     assert ct["rows"]["for"]["n"] == 1  # erster Tod auf T-Seite = Kill für die CT

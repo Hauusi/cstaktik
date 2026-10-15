@@ -34,8 +34,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 findings.append(Finding(
                     rule_id=RULE_ID, title="Trade gegeben", round=k.round, tick=k.tick, steamid=k.attacker_steamid,
                     player_name=match.name_of(k.attacker_steamid), severity="gut",
-                    text=f"{prev.victim_name} gerächt: {k.victim_name} {str(secs).replace('.', ',')} s nach dessen Kill erwischt.",
-                    tip="Genau so: nah am Mitspieler bleiben und sofort nachziehen.",
+                    text=f"{prev.victim_name} gerächt. {k.victim_name} fiel {str(secs).replace('.', ',')} s nach seinem Kill.",
+                    tip="Genau so. Bleib nah am Mitspieler und zieh sofort nach.",
                     evidence={"tick": k.tick, "getradeter_mitspieler": prev.victim_name, "sekunden": secs},
                     overlay=overlay,
                 ))
@@ -48,7 +48,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 findings.append(Finding(
                     rule_id=RULE_ID, title=f"{len(rk)} Kills", round=r.num, tick=rk[-1].tick, steamid=sid,
                     player_name=match.name_of(sid), severity="gut",
-                    text=f"{len(rk)} Kills in Runde {r.num} ({', '.join(k.victim_name for k in rk)}).",
+                    text=f"{len(rk)} Kills in Runde {r.num}: {', '.join(k.victim_name for k in rk)}.",
                     tip="Starke Runde. Schau dir an, was die Duelle hier leicht gemacht hat.",
                     evidence={"ticks": [k.tick for k in rk]},
                 ))
@@ -71,7 +71,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                             rule_id=RULE_ID, title=f"Clutch 1v{len(alive_enemies)}", round=r.num, tick=k.tick,
                             steamid=sid, player_name=match.name_of(sid), severity="gut",
                             text=f"Allein gegen {len(alive_enemies)} und die Runde geholt.",
-                            tip="Ruhe bewahrt. Merke dir, wie du die Duelle einzeln isoliert hast.",
+                            tip="Ruhe bewahrt. Merk dir, wie du die Gegner einzeln isoliert hast.",
                             evidence={"tick": k.tick, "gegner_am_leben": len(alive_enemies)},
                         ))
                     break

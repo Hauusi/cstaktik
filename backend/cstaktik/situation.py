@@ -367,30 +367,31 @@ def _pct(p: float) -> str:
 def info_text(info: dict | None, killer_name: str | None, rnd_freeze: int, tr: int) -> str | None:
     if info is None:
         return None
-    parts = [f"{info['seen_now']} Gegner auf dem Radar sichtbar" if info["seen_now"] else "kein Gegner auf dem Radar"]
+    parts = [f"{info['seen_now']} Gegner auf dem Radar sichtbar." if info["seen_now"] else "Kein Gegner auf dem Radar."]
     if killer_name:
         if info["killer_seen"] is not None:
-            parts.append(f"{killer_name} war ab {_clock((info['killer_seen'] - rnd_freeze) / tr)} sichtbar")
+            parts.append(f"{killer_name} war ab {_clock((info['killer_seen'] - rnd_freeze) / tr)} sichtbar.")
         else:
-            parts.append(f"{killer_name} war vorher nicht gesichtet (Überraschung)")
-    return "Info: " + ", ".join(parts) + "."
+            parts.append(f"{killer_name} war vorher nicht gesichtet, also eine Überraschung.")
+    return "Info: " + " ".join(parts)
 
 
 def lage_text(snap: dict, kind: str, nades: list[str]) -> str:
     parts = [f"{snap['own']} gegen {snap['enemy']}"]
     if snap["hp"] is not None:
-        parts.append(f"du {snap['hp']} HP")
+        parts.append(f"du hast {snap['hp']} HP")
     parts.append("Bombe liegt" if snap["planted"] else "Bombe nicht gelegt")
     parts.append(f"noch ca. {_clock(snap['time_left'])}")
+    extra = []
     if snap["mate"] and snap["mate_d"] is not None:
-        parts.append(f"{snap['mate']} {snap['mate_d']} Units weg")
+        extra.append(f"{snap['mate']} ist {snap['mate_d']} Units weg.")
     elif snap["own"] == 1:
-        parts.append("kein Mitspieler mehr")
+        extra.append("Kein Mitspieler lebt mehr.")
     if nades:
-        parts.append("du hattest " + ", ".join(f"{n}x {k}" if n > 1 else k for k, n in Counter(nades).items()))
-    verb = "gehst los" if kind == "bewegt" else "hältst Position"
+        extra.append("Du hattest " + ", ".join(f"{n}x {k}" if n > 1 else k for k, n in Counter(nades).items()) + ".")
     where = f" in {snap['place']}" if snap["place"] else ""
-    return f"{_clock(snap['secs'])}: Du {verb}{where}. Lage: " + ", ".join(parts) + "."
+    act = f"gehst{where} los" if kind == "bewegt" else f"hältst{where} Position"
+    return " ".join([f"{_clock(snap['secs'])}: Du {act}. Lage: " + ", ".join(parts) + "."] + extra)
 
 
 def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cfg: dict,
@@ -467,12 +468,12 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
         cost = round(100 * (pb[0] - pa[0]))
         f.evidence["cost_pct"] = cost
         traded = bool(trade)
-        rough = " (grobe Lage, wenig Daten)" if pb[2] or pa[2] else ""
+        rough = " Grobe Lage, wenig Daten." if pb[2] or pa[2] else ""
         f.evidence["chance"] = (f"Rundenchance vorher {_pct(pb[0])}, danach {_pct(pa[0])}"
-                                + (" (inkl. Trade)" if traded else "") + rough
-                                + (", bei gleicher Ausrüstungslage" if used_eq else "")
-                                + f". Vorher-Lage aus {pb[1]} Runden"
-                                + (f", danach aus {pa[1]} Runden gezählt." if pa[1] else ", danach entschieden."))
+                                + (", inklusive Trade" if traded else "")
+                                + (", bei gleicher Ausrüstungslage" if used_eq else "") + "." + rough
+                                + f" Gezählt aus {pb[1]} Runden vorher"
+                                + (f" und {pa[1]} danach." if pa[1] else ". Danach war die Runde entschieden."))
         f.evidence["cost_n"] = min(n for n in (pb[1], pa[1]) if n) if (pb[1] or pa[1]) else 0
 
 
@@ -545,11 +546,11 @@ def compare(pro: list[dict], map_name: str | None, side: str, own: int, enemy: i
 def compare_text(cmp: dict, side: str, own: int, enemy: int, planted: bool, mine: str | None) -> str:
     lage = f"{side.upper()}, {own} gegen {enemy}, Bombe {'liegt' if planted else 'nicht gelegt'}"
     if cmp["coarse"]:
-        lage += f" (ähnlich: gleiche Differenz {own - enemy:+d})"
-    parts = [f"{ACTION_DE[b['act']]} {b['n']}x ({round(100 * b['won'] / b['n'])} % Siege)" for b in cmp["by"]]
-    text = f"Pros in dieser Lage ({lage}), {cmp['n']} Fälle aus {cmp.get('rounds', '?')} Runden in {cmp['demos']} " \
-           f"Demo{'s' if cmp['demos'] != 1 else ''}: " \
-           + ", ".join(parts) + "."
+        lage += f". Ähnliche Lage mit gleicher Differenz {own - enemy:+d}"
+    parts = [f"{ACTION_DE[b['act']]} {b['n']}x, davon {round(100 * b['won'] / b['n'])} % gewonnen." for b in cmp["by"]]
+    text = f"Pros in dieser Lage: {lage}. Basis: {cmp['n']} Fälle aus {cmp.get('rounds', '?')} Runden in " \
+           f"{cmp['demos']} Demo{'s' if cmp['demos'] != 1 else ''}. " \
+           + " ".join(parts)
     if mine:
         text += f" Du: {ACTION_DE.get(mine, mine)}."
     return text
@@ -582,6 +583,6 @@ def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict], min_n
             mine_r = rate.get(mine, (None, 0))
             if mine and mine != cmp["best"] and (mine_r[0] is None or best_r - mine_r[0] >= 0.15):
                 vs = f" ({round(100 * mine_r[0])} %)" if mine_r[0] is not None and mine_r[1] >= 3 else ""
-                f.evidence["pro_tip"] = (f"In dieser Lage gewinnen Pros am häufigsten mit "
-                                         f"\"{ACTION_DE[cmp['best']]}\" ({round(100 * best_r)} % Siege), "
-                                         f"bei dir: {ACTION_DE.get(mine, mine)}{vs}.")
+                f.evidence["pro_tip"] = (f"Pros gewinnen diese Lage am häufigsten mit "
+                                         f"\"{ACTION_DE[cmp['best']]}\", zu {round(100 * best_r)} %. "
+                                         f"Du: {ACTION_DE.get(mine, mine)}{vs}.")

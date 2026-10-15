@@ -39,7 +39,7 @@ def build(hist: list[dict], pro: list[dict], sid: str, cfg: dict | None = None, 
                 cost[sc["lesson"]] = cost.get(sc["lesson"], 0) + max(0, sc["cost"]) / 100
     for lid, c in cost.items():
         out.append({"kind": "Fehler", "gain": c * per, "title": LESSONS[lid][0], "link": "/training",
-                    "text": f"Kostet euch etwa {_de(c * per)} Runden pro Match (verlorene Rundenchance in diesen Szenen)."})
+                    "text": f"Kostet euch etwa {_de(c * per)} Runden pro Match. Gemessen an der verlorenen Rundenchance in diesen Szenen."})
     for side in ("t", "ct"):
         S = side.upper()
         own_b, pro_b = playbook.buy_mix(hs, cfg, side), playbook.buy_mix(pro, cfg, side)
@@ -48,15 +48,15 @@ def build(hist: list[dict], pro: list[dict], sid: str, cfg: dict | None = None, 
             if g:
                 o, q = own_b["buys"][k], pro_b["buys"][k]
                 out.append({"kind": "Kauf", "gain": g, "title": f"{lbl} auf {S}", "link": "/progress",
-                            "text": f"Ihr gewinnt {o['won_pct']} % ({o['won']} von {o['n']}), Pros {q['won_pct']} %."})
+                            "text": f"Ihr gewinnt {o['won_pct']} % dieser Runden, {o['won']} von {o['n']}. Pros: {q['won_pct']} %."})
         own_f, pro_f = playbook.firstblood_mix(hs, side), playbook.firstblood_mix(pro, side)
         for k, lbl in playbook.FIRSTBLOOD:
             g = _gap(own_f["rows"].get(k), pro_f["rows"].get(k), per, 8)
             if g:
                 o, q = own_f["rows"][k], pro_f["rows"][k]
                 out.append({"kind": "Erster Kill", "gain": g, "title": f"{lbl} auf {S}", "link": "/progress",
-                            "text": f"Ihr gewinnt {o['won_pct']} % dieser Runden ({o['won']} von {o['n']}), Pros "
-                                    f"{q['won_pct']} %."})
+                            "text": f"Ihr gewinnt {o['won_pct']} % dieser Runden, {o['won']} von {o['n']}. "
+                                    f"Pros: {q['won_pct']} %."})
         own_p, pro_p = playbook.postplant_mix(hs, side), playbook.postplant_mix(pro, side)
         for k, lbl in playbook.POSTPLANT:
             g = _gap(own_p["rows"].get(k), pro_p["rows"].get(k), per, 6)
@@ -64,15 +64,15 @@ def build(hist: list[dict], pro: list[dict], sid: str, cfg: dict | None = None, 
                 o, q = own_p["rows"][k], pro_p["rows"][k]
                 what = "Bombe halten" if side == "t" else "Retake"
                 out.append({"kind": "Nach dem Plant", "gain": g, "title": f"{what} in {lbl}", "link": "/progress",
-                            "text": f"Ihr gewinnt {o['won_pct']} % ({o['won']} von {o['n']}), Pros {q['won_pct']} %."})
+                            "text": f"Ihr gewinnt {o['won_pct']} % dieser Runden, {o['won']} von {o['n']}. Pros: {q['won_pct']} %."})
     # Clutch: eigene Siege gegen die Pro-Erwartung in denselben Lagen (Seite, Gegnerzahl, Bombe)
     from cstaktik import clutch
 
     cl = clutch.summary(hs, sid, pro)
     if cl and cl["exp"] is not None and cl["exp_n"] >= clutch.MIN_OWN:
         out.append({"kind": "Clutch", "gain": (cl["exp"] - cl["won_cmp"]) * per, "title": "Clutches als Letzter",
-                    "link": "/progress", "text": f"{cl['won_cmp']} von {cl['exp_n']} gewonnen, Pros hätten in denselben "
-                                                 f"Lagen etwa {_de(cl['exp'])} gewonnen."})
+                    "link": "/progress", "text": f"Du hast {cl['won_cmp']} von {cl['exp_n']} gewonnen. Pros hätten in "
+                                                 f"denselben Lagen etwa {_de(cl['exp'])} gewonnen."})
     # Taktikart auf T über alle Maps, nur Full-Buy-Runden: sonst zählt ein schlechter Kauf doppelt (Kauf und Taktik)
     def full_only(src):
         return [{**d, "plays": [p for p in d.get("plays") or []
@@ -98,8 +98,8 @@ def build(hist: list[dict], pro: list[dict], sid: str, cfg: dict | None = None, 
         g = _gap(o, q, per, 6)
         if g:
             out.append({"kind": "Taktik", "gain": g, "title": f"{o['label']} auf T", "link": "/playbook",
-                        "text": f"Mit vollem Kauf gewinnt ihr {o['won_pct']} % eurer {o['label']}-Runden ({o['won']} von {o['n']}), "
-                                f"Pros {q['won_pct']} %. Im Playbook ansehen, wie Pros das spielen."})
+                        "text": f"Mit vollem Kauf gewinnt ihr {o['won_pct']} % eurer {o['label']}-Runden, {o['won']} von {o['n']}. "
+                                f"Pros: {q['won_pct']} %. Tipp: Schaut im Playbook, wie Pros das spielen."})
     out = [x for x in out if x["gain"] >= MIN_GAIN]
     out.sort(key=lambda x: -x["gain"])
     for x in out:

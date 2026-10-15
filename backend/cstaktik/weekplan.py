@@ -43,53 +43,57 @@ def tasks_for(ctx: dict) -> list[dict]:
         do = []
         if s.get("alt"):
             a = s["alt"]
-            do.append(f"Nächste {s['side'].upper()}-Runden: nach {s.get('at') or '0:20'} statt {s['place']} in {a['place']} "
-                      f"stehen (Pros dort: {a['won_pct']} % Siege, {a['share']} % der Runden).")
+            do.append(f"Stell dich in den nächsten {s['side'].upper()}-Runden nach {s.get('at') or '0:20'} nach "
+                      f"{a['place']} statt {s['place']}. Pros stehen dort in {a['share']} % der Runden und gewinnen "
+                      f"{a['won_pct']} %.")
         if s.get("lineups"):
             lu = s["lineups"][0]
-            do.append(f"Oder bleiben, aber vorher die Pro-{lu['kind_de']} von {s['place']} nach {lu['to'] or '?'} werfen.")
+            do.append(f"Oder bleib dort. Wirf aber vorher die Pro-{lu['kind_de']} von {s['place']} nach {lu['to'] or '?'}.")
         if not do:
-            do.append("Im Map-Buch ansehen, was an diesem Spot schiefgeht, und Timing oder Position ändern.")
+            do.append("Schau im Map-Buch, was an diesem Spot schiefgeht. Ändere dann Timing oder Position.")
         # Erfolgskriterium nach dem Auslöser: als Erster gestorben oder ohne Trade gestorben
         if (s.get("untraded") or 0) > s["first"]:
-            check = (f"Erfolg: 'ohne Trade gestorben' von {s['place']} aus steigt nicht weiter "
-                     f"(jetzt {s['untraded']} von {s['n']} Runden).")
+            check = (f"Erfolg: Tode ohne Trade von {s['place']} aus steigen nicht weiter. "
+                     f"Jetzt sind es {s['untraded']} von {s['n']} Runden.")
         else:
-            check = f"Erfolg: 'als Erster tot' von {s['place']} aus steigt nicht weiter (jetzt {s['first']} von {s['n']} Runden)."
+            check = (f"Erfolg: Tode als Erster von {s['place']} aus steigen nicht weiter. "
+                     f"Jetzt sind es {s['first']} von {s['n']} Runden.")
         out.append({"id": f"spot:{m}:{s['side']}:{s['place']}", "kind": "Map-Buch",
                     "title": f"{ctx['map_label']} {s['side'].upper()}: {s['place']} klären",
                     "steps": s["why"] + do + [check],
                     "link": f"/mapbook/{m}?p={sid}#spot-{s['side']}-{s['place']}"})
     elif m:
         out.append({"id": f"mapbook:{m}", "kind": "Map-Buch", "title": f"Map-Buch {ctx['map_label']} durchsehen",
-                    "steps": ["Deine Spots und ihre Bewertung ansehen."], "link": f"/mapbook/{m}?p={sid}"})
+                    "steps": ["Sieh dir deine Spots und ihre Bewertung an."], "link": f"/mapbook/{m}?p={sid}"})
     if m and ctx.get("lineup"):
         lu = ctx["lineup"]
         out.append({"id": f"lineup:{lu['id']}", "kind": "Lineup",
                     "title": f"{lu['kind_de']} lernen: {lu['from'] or '?'} → {lu['to'] or '?'}",
-                    "steps": ["Eigener Server, sv_cheats 1, Position mit dem Befehl setzen.",
-                              f"10x werfen. Sitzt = landet im Kreis auf der Karte (Pros streuen höchstens {lu['spread']} Units).",
-                              "Dann 5x ohne Befehl von Hand anstellen.",
-                              f"Im Match: Pros werfen sie meist bei {lu['t'] // 60}:{lu['t'] % 60:02d} Rundenzeit."],
+                    "steps": ["Starte einen eigenen Server mit sv_cheats 1. Setz die Position mit dem Befehl.",
+                              (f"Wirf 10x. Sie sitzt, wenn sie im Kreis auf der Karte landet. Pros streuen "
+                               f"höchstens {lu['spread']} Units."),
+                              "Stell dich dann 5x ohne Befehl von Hand an.",
+                              f"Im Match werfen Pros sie meist bei {lu['t'] // 60}:{lu['t'] % 60:02d} Rundenzeit."],
                     "link": f"/lineups/{m}?l={lu['id']}&p={sid}"})
     if m and ctx.get("tactic"):
         t = ctx["tactic"]
         nades = ", ".join(f"{ {'smoke': 'Smoke', 'flash': 'Flash', 'molotov': 'Molotov'}.get(c['kind'], c['kind'])} "
                           f"auf {c['to']}" for c in t.get("common", [])[:4])
         out.append({"id": f"tactic:{m}:{t['id']}", "kind": "Playbook", "title": f"Pro-Taktik: {t['name']}",
-                    "steps": [f"Im Playbook abspielen. Pros gewinnen damit {t['won_pct']} % ({t['won']} von {t['n']} Runden).",
-                              *([f"Granaten-Set: {nades}. Lineups dazu sind dort verlinkt."] if nades else []),
-                              "Zu zweit absprechen: wer welchen Weg nimmt und wer welche Granate wirft.",
-                              "Im nächsten Match auf T mindestens einmal genau so spielen. Der Report zeigt sie dann unter "
-                              "'Eure Taktiken heute'."],
+                    "steps": [(f"Spielt sie im Playbook ab. Pros gewinnen damit {t['won_pct']} %, {t['won']} von "
+                               f"{t['n']} Runden."),
+                              *([f"Granaten-Set: {nades}. Die Lineups dazu sind dort verlinkt."] if nades else []),
+                              "Sprecht zu zweit ab, wer welchen Weg nimmt und wer welche Granate wirft.",
+                              ("Spielt sie im nächsten Match auf T mindestens einmal genau so. Der Report zeigt sie "
+                               "dann unter 'Eure Taktiken heute'.")],
                     "link": f"/playbook/{m}#{t['id']}"})
     if ctx.get("scenes"):
-        out.append({"id": "quiz", "kind": "Situationen", "title": "Situations-Training: eigene Szenen entscheiden",
-                    "steps": ["Jede Szene: erst entscheiden, dann auflösen."], "link": f"/training/situationen?p={sid}"})
+        out.append({"id": "quiz", "kind": "Situationen", "title": "Situations-Training",
+                    "steps": ["Entscheide bei jeder Szene zuerst. Löse sie erst danach auf."], "link": f"/training/situationen?p={sid}"})
     out.append({"id": f"routine2:{ctx['lesson']}", "kind": "Übung", "title": f"{r['title']} (Wiederholung)",
                 "minutes": r["minutes"],
                 "steps": ["Wie die erste Übung oben.",
-                          "Diesmal direkt danach ein Match spielen: Der Auftrag-Check zeigt, ob es dort klappt."]})
+                          "Spiel diesmal direkt danach ein Match. Der Auftrag-Check zeigt, ob es dort klappt."]})
     return out
 
 

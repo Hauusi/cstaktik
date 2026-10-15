@@ -20,7 +20,7 @@
 {% block hero %}
 <a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Lineups {{ label }}</h1>
-<p>{{ total }} Würfe, die Pros in {{ n_demos }} Demo{{ "s" if n_demos != 1 }} mindestens zweimal gleich gemacht haben.</p>
+<p>{{ total }} Würfe, die Pros in {{ n_demos }} Demo{{ "s" if n_demos != 1 }} mindestens zweimal gleich geworfen haben.</p>
 {% endblock %}
 {% block content %}
 {% if img %}<svg width="0" height="0" style="position:absolute"><defs><image id="rad" href="{{ img }}" width="1024" height="1024"/></defs></svg>{% endif %}
@@ -30,7 +30,9 @@
 <div class="filters">
   <a href="?side={{ side }}&p={{ sid }}" class="{{ 'on' if not kind }}">Alle</a>{% for k, v in kinds.items() %}<a href="?side={{ side }}&kind={{ k }}&p={{ sid }}" class="{{ 'on' if kind == k }}">{{ v }}</a>{% endfor %}
 </div>
-<p class="note">Üben: eigener Server mit <code>sv_cheats 1</code>, Befehl in die Konsole, dann werfen. Die Demo verrät nicht, ob links oder rechts geworfen wurde. Sprung und Laufen sind aus dem Tempo gemessen{% if items and items[0].tech.duck is none %}, Ducken liefert diese Demo nicht{% endif %}.</p>
+<p class="note">So übst du: eigener Server mit <code>sv_cheats 1</code>, Befehl in die Konsole, werfen.</p>
+<details class="how" style="margin:-6px 0 12px"><summary>Wie wird das gemessen?</summary>
+  <p>Sprung und Laufen sind aus dem Tempo gemessen.{% if items and items[0].tech.duck is none %} Ducken liefert diese Demo nicht.{% endif %} Ob links oder rechts geworfen wurde, verrät die Demo nicht.</p></details>
 {% if items %}
 <div class="lgrid">
 {% for l in items %}
@@ -57,7 +59,7 @@
 {% endfor %}
 </div>
 {% else %}
-<div class="card empty">{% if total %}Kein Lineup für diesen Filter.{% else %}Noch keine Lineups für {{ label }}. Dafür braucht es Pro-Demos dieser Map, die mit der aktuellen Version geparst wurden (<code>cstaktik pro-update</code>). <a href="/pro" style="color:var(--orange)">Pro-Demos ›</a>{% endif %}</div>
+<div class="card empty">{% if total %}Kein Lineup für diesen Filter.{% else %}Noch keine Lineups für {{ label }}. Dafür braucht es Pro-Demos dieser Map, geparst mit der aktuellen Version. Einmal <code>cstaktik pro-update</code> ausführen. <a href="/pro" style="color:var(--orange)">Pro-Demos ›</a>{% endif %}</div>
 {% endif %}
 {% endblock %}
 {% block script %}

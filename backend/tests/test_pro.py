@@ -110,10 +110,10 @@ def test_pro_scene_util_trade_and_lineup_overlay():
     res = analyze(m, load_rules_config())
     enrich_pro(m, res.findings, [_scene_pro()])
     f = next(f for f in res.findings if f.rule_id == "death_review" and f.round == 2)
-    assert f.evidence["pro_util"] == ("Pros (CT) in SynthMid um 0:20: in 4 von 6 Siegrunden kam vorher "
-                                      "Utility von dort (Molotov 4).")
+    assert f.evidence["pro_util"] == ("Pros (CT) in SynthMid um 0:20: In 4 von 6 Siegrunden kam vorher "
+                                      "Utility von dort. Würfe: Molotov 4.")
     assert "Molotov aus SynthMid nach SynthB (4x)" in f.evidence["pro_lineup"]
-    assert f.evidence["pro_trade"] == "Pros, die in SynthMid sterben (CT), werden zu 60 % getradet (10 Tode)."
+    assert f.evidence["pro_trade"] == "Pros auf CT, die in SynthMid sterben, werden zu 60 % getradet. Basis: 10 Tode."
     assert f.overlay["pro_nade"] == {"kind": "molotov", "xy": [0, 0, 500, 0]}
 
 
@@ -180,7 +180,7 @@ def test_pro_clip_found_and_in_report():
     clips = pro_clips(m, res.findings, [pm])
     f = next(f for f in res.findings if f.rule_id == "death_review" and f.round == 2)
     assert len(clips) == 1 and f.overlay["pro_clip"] == 0
-    assert ("in SynthMid um 0:20, Gegner wie bei dir aus SynthPalace. Runde gewonnen: überlebt, "
+    assert ("in SynthMid um 0:20. Der Gegner kam wie bei dir aus SynthPalace. Runde gewonnen: überlebt, "
             "tötet 1 Gegner aus SynthPalace") in f.evidence["pro_clip"]
 
     d = build_payload(m, res, pro_clips=clips)

@@ -35,26 +35,26 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
 
 <h2>2 · Matches automatisch finden</h2>
 <form class="card kf" method="post" action="/konto">
-  {% if not steam.steamid %}<div class="small muted">Erst Schritt 1.</div>{% endif %}
+  {% if not steam.steamid %}<div class="small muted">Erst Schritt 1 erledigen.</div>{% endif %}
   <label for="ac">Game Authentication Code</label>
   <input class="field" id="ac" name="auth_code" value="{{ steam.auth_code or '' }}" placeholder="XXXX-XXXXX-XXXX" autocomplete="off" required {{ "disabled" if not steam.steamid }}>
-  <div class="hint">Erstellst du in der Steam-Hilfe bei Counter-Strike 2 (Authentifizierungscode für den Matchverlauf). Er erlaubt nur, deine Match-Liste zu lesen.</div>
+  <div class="hint">Du erstellst ihn in der Steam-Hilfe unter Counter-Strike 2. Dort heißt er „Authentifizierungscode für den Matchverlauf“. Er erlaubt nur, deine Match-Liste zu lesen.</div>
   <label for="lc">Match-Token (Sharecode eines deiner letzten Matches)</label>
   <input class="field" id="lc" name="last_code" value="{{ steam.last_code or '' }}" placeholder="CSGO-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" required {{ "disabled" if not steam.steamid }}>
-  <div class="hint">Ab diesem Match sucht der Coach alle neueren und merkt sich danach selbst den neuesten. Steam liefert nur neuere Matches, keine älteren, und nur Valve-Matches (Premier, Competitive, Wingman), kein FACEIT.</div>
+  <div class="hint">Ab diesem Match sucht der Coach alle neueren. Den neuesten merkt er sich danach selbst. Ältere Matches liefert Steam nicht. Es zählen nur Valve-Matches: Premier, Competitive, Wingman. FACEIT nicht.</div>
   <button class="btn" type="submit" {{ "disabled" if not steam.steamid }}>Speichern und Matches suchen</button>
 </form>
 {% if steam.auth_code %}
 <div class="card" style="margin-top:12px">
   <div class="small muted">Zuletzt geprüft: {{ steam.checked[8:10] ~ "." ~ steam.checked[5:7] ~ ". " ~ steam.checked[11:16] if steam.checked else "noch nie" }}{% if has_key %} · prüft alle 30 Minuten selbst{% endif %}</div>
   {% if steam.error %}<div class="err">{{ steam.error }}</div>{% endif %}
-  <form method="post" action="/konto/sync"><button class="btn2" type="submit">Jetzt nach neuen Matches suchen</button></form>
+  <form method="post" action="/konto/sync"><button class="btn2" type="submit">Jetzt nach Matches suchen</button></form>
 </div>
 <h2>Gefundene Matches</h2>
 <div class="card codes">
   {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ c.status }}</span></div>
   {% else %}<div class="muted">Noch keine. Neue Matches erscheinen hier, sobald Steam sie meldet.</div>{% endfor %}
-  <div class="small muted" style="margin-top:6px">Die Demo-Dateien selbst lädt der Coach noch nicht automatisch. Bis dahin die Demo wie bisher hochladen.</div>
+  <div class="small muted" style="margin-top:6px">Die Demo-Dateien lädt der Coach noch nicht selbst. Bis dahin die Demo wie bisher hochladen.</div>
 </div>
 {% endif %}
 </div>
@@ -64,7 +64,7 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
 <form class="card kf" method="post" action="/konto/key">
   <label for="k">Steam-Web-API-Schlüssel</label>
   <input class="field" id="k" name="key" placeholder="{{ 'gespeichert (' ~ key_hint ~ '), neu eintragen zum Ändern' if has_key else '32 Zeichen' }}" autocomplete="off">
-  <div class="hint">Einmal für den ganzen Server. Bekommst du kostenlos auf steamcommunity.com/dev/apikey (als Domain die Adresse dieser App eintragen). Ohne ihn kann der Coach keine neuen Matches finden.</div>
+  <div class="hint">Gilt für den ganzen Server. Kostenlos auf steamcommunity.com/dev/apikey. Als Domain die Adresse dieser App eintragen. Ohne Schlüssel findet der Coach keine neuen Matches.</div>
   <button class="btn2" type="submit">Schlüssel speichern</button>
 </form>
 

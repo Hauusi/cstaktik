@@ -51,11 +51,11 @@
 {% endblock %}
 {% block hero %}
 <h1>{% if me_name %}Hi {{ me_name }}{% else %}Dein Coach{% endif %}</h1>
-<p>{% if jobs %}Dein Match wird gerade ausgewertet. Gleich ist der Report da.
-{% elif need_link %}Verbinde deinen Steam-Account, dann zeigt der Coach deine Matches.
+<p>{% if jobs %}Dein Match wird ausgewertet. Gleich ist der Report da.
+{% elif need_link %}Verbinde deinen Steam-Account. Dann zeigt der Coach deine Matches.
 {% elif not n_history %}Lade dein erstes Match hoch. In ein paar Minuten weißt du, woran du arbeiten solltest.
 {% elif last and last.topic %}Letztes Match: {{ last.map_label }} {{ last.won }}:{{ last.lost }}. Thema: {{ last.topic }}.
-{% else %}Match hochladen, Report lesen, üben. Mehr braucht es nicht.{% endif %}</p>
+{% else %}Hochladen, Report lesen, üben. Mehr braucht es nicht.{% endif %}</p>
 {% if not n_history and not need_link %}{# nur beim Einstieg: danach kennt man den Ablauf, dann ist es nur Platz #}
 <div class="flow" aria-label="So funktioniert es">
   <div class="on"><b>Hochladen</b><span>Demo nach dem Match</span></div>
@@ -66,14 +66,14 @@
 {% endblock %}
 {% block content %}
 {% if missing_players %}<a class="card" href="/spieler" style="display:block;border-color:#e5484d;margin-top:18px">
-  <b>{{ missing_players }} eingestellte{{ "r" if missing_players == 1 }} Spieler kam im letzten Match nicht vor.</b>
-  <div class="small muted">Wenn er nicht mitgespielt hat, ist alles in Ordnung. Sonst hier die Spieler prüfen ›</div></a>{% endif %}
+  <b>{{ missing_players }} eingestellte{{ "r" if missing_players == 1 }} Spieler {{ "fehlt" if missing_players == 1 else "fehlen" }} im letzten Match.</b>
+  <div class="small muted">Hat er nicht mitgespielt, ist alles in Ordnung. Sonst die Spieler prüfen ›</div></a>{% endif %}
 
 {% if need_link %}
 <section class="card upbox first" style="margin-top:18px">
   <div class="kicker">Ein Schritt fehlt</div>
   <h3>Mit Steam verbinden</h3>
-  <p>Der Coach zeigt dir nur deine eigenen Matches. Dafür muss er wissen, welcher Steam-Account du bist. Die Anmeldung läuft direkt bei Steam, dein Passwort sieht der Coach nie.</p>
+  <p>Der Coach zeigt dir nur deine eigenen Matches. Dafür muss er deinen Steam-Account kennen. Die Anmeldung läuft direkt bei Steam. Dein Passwort sieht der Coach nie.</p>
   <a class="go" href="/auth/steam">Mit Steam verbinden ›</a>
 </section>
 {% else %}
@@ -85,30 +85,30 @@
   <a class="last" href="/reports/{{ last.report_file }}">
     <div class="top"><span class="kicker">Letztes Match{% if last.when %} · {{ last.when }}{% endif %}</span><span class="res {{ last.res }}">{{ last.result }}</span></div>
     <h3>{{ last.map_label }} <span class="num">{{ last.won }}:{{ last.lost }}</span></h3>
-    {% if last.topic %}<div class="topic">Das Thema des Matches: <b>{{ last.topic }}</b></div>{% endif %}
+    {% if last.topic %}<div class="topic">Thema: <b>{{ last.topic }}</b></div>{% endif %}
     {% if last_imp %}<div class="imps">{% for i in last_imp %}<span>{{ i.name }} <b class="{{ 'p' if i.pos else 'n' }}">{{ i.total }}</b> Runden Impact{% if i.rank %} · Platz {{ i.rank }}/{{ i.of }}{% endif %}</span>{% endfor %}</div>{% endif %}
     <div class="go">Report öffnen ›</div>
-    <div class="hint">Erst „Coach“ lesen, dann den Debrief durchklicken. Dauert 5 Minuten.</div>
+    <div class="hint">Erst „Coach“ lesen, dann den Debrief. Dauert 5 Minuten.</div>
   </a>
   {% endif %}
 
   <section class="card upbox{{ ' first' if not n_history }}">
     <div class="kicker">{{ "Schritt 1" if not n_history else "Nächstes Match" }}</div>
     <h3>Demo hochladen</h3>
-    <p>Die .dem-Datei aus CS2 oder FACEIT (auch .zip/.rar). Die Auswertung startet sofort und dauert ein paar Minuten.</p>
+    <p>Die .dem-Datei aus CS2 oder FACEIT, auch als .zip oder .rar. Die Auswertung dauert ein paar Minuten.</p>
     {% set embedded = true %}{% include "upload.html" %}
     <details class="where"><summary>Wo finde ich die Demo?</summary>
       <ul>
-        <li><b>CS2 (Premier, Wettkampf):</b> im Spiel unter „Sehen“ → „Deine Matches“ das Match herunterladen. Die Datei liegt danach im Steam-Ordner unter <code>…\Counter-Strike Global Offensive\game\csgo\replays</code>.</li>
-        <li><b>FACEIT:</b> auf der Match-Seite „Demo ansehen/herunterladen“. Die .dem.gz oder .zip direkt hier hochladen.</li>
-        <li><b>Automatisch:</b> in den <a href="/konto">Optionen</a> mit Steam verbinden und den Match-Token eintragen, dann findet der Coach neue Valve-Matches selbst.</li>
+        <li><b>CS2 (Premier, Wettkampf):</b> Im Spiel unter „Sehen“ → „Deine Matches“ das Match herunterladen. Die Datei liegt dann unter <code>…\Counter-Strike Global Offensive\game\csgo\replays</code>.</li>
+        <li><b>FACEIT:</b> Auf der Match-Seite „Demo ansehen/herunterladen“. Die .dem.gz oder .zip direkt hier hochladen.</li>
+        <li><b>Automatisch:</b> In den <a href="/konto">Optionen</a> mit Steam verbinden und den Match-Token eintragen. Dann findet der Coach neue Valve-Matches selbst.</li>
       </ul>
     </details>
     {% if not n_history %}
     <div class="gets">
       <div>Ein Report mit 2D-Replay: jede Runde, jeder Tod, jede Granate.</div>
-      <div>Ein Coach, der den einen Fehler findet, der euch am meisten Runden kostet.</div>
-      <div>Ein Auftrag mit Übung und Wochenplan, damit es im nächsten Match besser wird.</div>
+      <div>Der Fehler, der euch die meisten Runden kostet.</div>
+      <div>Ein Auftrag mit Übung und Wochenplan für das nächste Match.</div>
     </div>
     {% endif %}
   </section>
@@ -121,16 +121,16 @@
     <div class="who">{{ a.name }} · Dein Auftrag{% if a.mastered %} · {{ a.mastered }} gemeistert{% endif %}</div>
     <div class="atitle">{{ a.title }}</div>
     <div class="mantra">„{{ a.mantra }}“</div>
-    {% if a.rueckfall %}<div class="small" style="margin-top:6px;color:#e5484d">Kommt zurück: war am {{ a.rueckfall[8:10] }}.{{ a.rueckfall[5:7] }}. gemeistert, jetzt wieder so oft wie vorher.</div>{% endif %}
+    {% if a.rueckfall %}<div class="small" style="margin-top:6px;color:#e5484d">Der Fehler ist zurück. Am {{ a.rueckfall[8:10] }}.{{ a.rueckfall[5:7] }}. war er gemeistert, jetzt passiert er wieder so oft wie vorher.</div>{% endif %}
     {% include "auftrag_chart.html" %}
     {% if loop.last %}<a class="week" href="/training">
       {% if week %}<div class="wl"><span>Wochenplan</span><b class="num">{{ week.done }}/{{ week.total }} erledigt ›</b></div><div class="bar"><i style="width:{{ week.pct }}%"></i></div>
-      {% else %}<div class="wl"><span>Wochenplan mit Übungen zum Auftrag</span><b>Öffnen ›</b></div>{% endif %}
+      {% else %}<div class="wl"><span>Wochenplan zum Auftrag</span><b>Öffnen ›</b></div>{% endif %}
     </a>{% endif %}
   </div>
   {% endfor %}
   {% elif n_history %}
-  <div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div>
+  <div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler in euren letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Ein einzelner Fehler ist noch kein Muster.</div>
   {% endif %}
 
   {% if lever %}
@@ -148,12 +148,12 @@
     </details>
     <form action="/training/done?p={{ a.sid }}" method="post"><button class="btn2" type="submit">✓ {{ a.name }}: Übung gemacht{% if a.drills %} ({{ a.drills }}x bisher){% endif %}</button></form>
     {% endfor %}
-    <div class="small muted" style="margin-top:12px">Kabine: Matchplan und eure gefährlichsten Winkel auf der Map</div>
+    <div class="small muted" style="margin-top:12px">Kabine: Matchplan und gefährliche Winkel je Map</div>
     <div class="maps">{% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
   </section>
 
   {% for a in auftrag if a.scenes %}
-  <a class="mini" href="/training/situationen?p={{ a.sid }}"><div><b>Situations-Training</b><span>{{ a.name }}: {{ a.scenes }} eigene Szenen entscheiden, wie die Pros</span></div><i>▶</i></a>
+  <a class="mini" href="/training/situationen?p={{ a.sid }}"><div><b>Situations-Training</b><span>{{ a.name }}: {{ a.scenes }} eigene Szenen. Entscheide und vergleiche mit den Pros.</span></div><i>▶</i></a>
   {% endfor %}
   {% endif %}
 </div>

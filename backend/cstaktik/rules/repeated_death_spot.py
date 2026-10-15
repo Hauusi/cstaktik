@@ -57,8 +57,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                     steamid=sid,
                     player_name=match.name_of(sid),
                     severity="hoch" if len(group) >= 3 else "mittel",
-                    text=f"{len(group)}x als {side.upper()} gestorben in {place} (Runden {', '.join(map(str, rounds))}).",
-                    tip="Die Position ist gelesen: Spot wechseln, anders timen oder nur mit Utility spielen.",
+                    text=f"{len(group)}x als {side.upper()} in {place} gestorben. Runden: {', '.join(map(str, rounds))}.",
+                    tip="Die Position ist gelesen. Wechsle den Spot, time anders oder spiel ihn nur mit Utility.",
                     evidence={
                         "ort": place,
                         "tode": len(group),

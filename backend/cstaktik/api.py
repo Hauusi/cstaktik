@@ -303,13 +303,13 @@ def steam_callback(request: Request) -> Response:
         if accounts.linked_steamids() != before and _load_hist():
             # ausgewertet werden nur verbundene Spieler: bisherige Matches für die neue Auswahl neu berechnen
             _start_rerender()
-            msg += " Deine Matches werden im Hintergrund neu ausgewertet (ein paar Minuten)."
+            msg += " Deine Matches werden jetzt neu ausgewertet. Das dauert ein paar Minuten."
         r = RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
     else:  # einloggen: nur, wenn dieser Steam-Account mit einem Nutzer verbunden ist
         name = accounts.user_by_steamid(sid)
         if not name:
-            return RedirectResponse("/login?error=" + quote("Dieser Steam-Account ist mit keinem Nutzer verbunden. "
-                                                            "Erst mit Name und Passwort einloggen und in den "
+            return RedirectResponse("/login?error=" + quote("Dieser Steam-Account gehört zu keinem Nutzer. "
+                                                            "Erst mit Name und Passwort einloggen. Dann in den "
                                                             "Optionen mit Steam verbinden."), status_code=303)
         r = _session_redirect(request, name, "/")
     r.delete_cookie("cstaktik_steam_state")
@@ -333,7 +333,7 @@ async def login_post(request: Request) -> Response:
     key = (ip, name.lower())  # je Name: hinter einem Proxy sperrt ein Fremder sonst alle aus
     fails = [t for t in _FAILS.get(key, []) if now - t < 900]
     if len(fails) >= 10:
-        return RedirectResponse(f"/login?next={quote(nxt)}&error=" + quote("Zu viele Versuche. In 15 Minuten erneut."),
+        return RedirectResponse(f"/login?next={quote(nxt)}&error=" + quote("Zu viele Versuche. Bitte in 15 Minuten erneut versuchen."),
                                 status_code=303)
     if not await run_in_threadpool(accounts.verify, name, pw):
         _FAILS[key] = fails + [now]
@@ -391,8 +391,8 @@ def _sync_msg(res: dict) -> str:
     if res["error"]:
         return f"{res['new']} neue Matches gefunden. {res['error']}"
     if not res["new"]:
-        return ("Verbindung zu Steam klappt. Es gibt noch kein Match nach deinem Match-Token: Steam meldet nur "
-                "neuere Matches. Nach deinem nächsten Match erscheint es hier (Prüfung alle 30 Minuten).")
+        return ("Die Verbindung zu Steam klappt. Nach deinem Match-Token gibt es noch kein neues Match. "
+                "Steam meldet nur neuere Matches. Dein nächstes erscheint hier. Der Coach prüft alle 30 Minuten.")
     return f"{res['new']} neue Match{'es' if res['new'] != 1 else ''} gefunden."
 
 
@@ -406,7 +406,7 @@ async def konto_key(request: Request) -> Response:
     _need_user(request)
     key = str((await request.form()).get("key", "")).strip()
     if key and not re.fullmatch(r"[0-9A-Fa-f]{32}", key):
-        return RedirectResponse("/konto?error=" + quote("Der Schlüssel hat 32 Zeichen (0-9, A-F)."), status_code=303)
+        return RedirectResponse("/konto?error=" + quote("Der Schlüssel hat 32 Zeichen: 0–9 und A–F."), status_code=303)
     accounts.set_setting("steam_web_api_key", key.upper() or None)
     return RedirectResponse("/konto?saved=" + quote("Schlüssel gespeichert." if key else "Schlüssel entfernt."),
                             status_code=303)
@@ -1186,8 +1186,8 @@ def _mind(hist: list[dict], sid: str) -> list[str]:
         sure = [c for c in im["ctx"] if c["enough"] and c["ctx"] != "bomb"]
         if sure and sure[0]["per_match"] <= -0.15:
             w = sure[0]
-            out.append(f"{w['label']} kostet dich {w['per_match_s'].lstrip('-')} Runden pro Match mehr als den "
-                       f"Schnitt: {impact.CTX_TIP[w['ctx']]}")
+            out.append(f"{w['label']}: Das kostet dich {w['per_match_s'].lstrip('-')} Runden pro Match mehr als im "
+                       f"Schnitt. {impact.CTX_TIP[w['ctx']]}")
     t = tilt.summary(hist, sid)
     if t and t["reading"] and "messbar schlechter" in t["reading"]:
         out.append("Nach zwei verlorenen Runden in Folge spielst du messbar schlechter. Dann bewusst eine ruhige "
@@ -1299,8 +1299,8 @@ async def analyze_upload(
 
     filename = demo.filename or ""
     if _USER.get() is not None and not _me() and not pro:
-        raise HTTPException(400, "Erst unter Optionen mit Steam verbinden: Der Coach wertet die Matches des "
-                                 "verbundenen Steam-Accounts aus und zeigt sie nur dir.")
+        raise HTTPException(400, "Erst unter Optionen mit Steam verbinden. Der Coach wertet die Matches "
+                                 "deines Steam-Accounts aus und zeigt sie nur dir.")
     is_arc = is_archive_name(filename)
     if not pipeline.is_demo_name(filename) and not is_arc:
         raise HTTPException(400, "Nur .dem, .dem.gz, .dem.bz2, .zip oder .rar.")
@@ -1367,7 +1367,7 @@ def _get_job(job_id: str) -> dict:
     with _jobs_lock:
         job = _jobs.get(job_id)
         if job is None or not _own_job(job):
-            raise HTTPException(404, "Auftrag unbekannt (Server neu gestartet?). Reports stehen auf der Startseite.")
+            raise HTTPException(404, "Auswertung nicht gefunden. Vielleicht wurde der Server neu gestartet. Reports stehen auf der Startseite.")
         return _job_view(job_id, job)
 
 
@@ -1442,9 +1442,10 @@ def _profile_summary(p: dict, a: dict | None) -> list[dict]:
         if last and last.get("rate") is not None:
             ok = last.get("met")  # wie der Auftrag-Check: None = zu wenige Runden, zählt nicht
             out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "" if ok is None else "good" if ok else "bad",
-                        "text": f"{a['title']}: im letzten Match {str(last['rate']).replace('.', ',')} pro 10 Runden, "
+                        "text": f"{a['title']}. Letztes Match: {str(last['rate']).replace('.', ',')} pro 10 Runden, "
                                 f"Ziel höchstens {str(a['target']).replace('.', ',')}."
-                                + (" Zu wenige Runden, zählt nicht." if ok is None else " Weiter so." if ok else "")})
+                                + (" Zu wenige Runden, das Match zählt nicht." if ok is None
+                                   else " Weiter so." if ok else "")})
         else:
             out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "",
                         "text": f"{a['title']}: „{a['mantra']}“ Noch kein Match seit dem Auftrag."})
@@ -1551,7 +1552,7 @@ async def players_save(request: Request) -> RedirectResponse:
     from cstaktik.config import save_focus_steamids
 
     if accounts.linked_steamids():
-        raise HTTPException(400, "Ausgewertet werden die mit Steam verbundenen Accounts. Die Auswahl hier gilt nur ohne.")
+        raise HTTPException(400, "Ausgewertet werden die mit Steam verbundenen Accounts. Die Auswahl hier gilt nur ohne Steam.")
 
     form = await request.form()
     chosen = [str(x) for x in form.getlist("sid") if str(x).isdigit()][:2]

@@ -24,53 +24,53 @@ from cstaktik.rules.base import PositionIndex, dist
 CAUSES = {
     "alone": {
         "title": "Getrennt gespielt, keine Trades",
-        "explain": "Ihr sterbt ohne Mitspieler in der Nähe, niemand kann nachziehen. Jeder Tod ist ein reiner Verlust.",
-        "tip": "Zu zweit spielen: einer peekt, der andere steht so, dass er sofort traden kann.",
+        "explain": "Ihr sterbt ohne Mitspieler in der Nähe. Niemand kann nachziehen, jeder Tod ist ein reiner Verlust.",
+        "tip": "Spielt zu zweit. Einer peekt, der andere steht so, dass er sofort traden kann.",
     },
     "opening": {
         "title": "Erste Tode der Runde",
         "explain": "Wer als Erster stirbt, bringt das Team in 4 gegen 5. Das passiert euch zu oft.",
-        "tip": "Nicht als Erster ohne Info oder Utility peeken. Den ersten Kontakt mit Flash oder zu zweit nehmen.",
+        "tip": "Peekt nicht als Erster ohne Info oder Utility. Nehmt den ersten Kontakt mit Flash oder zu zweit.",
     },
     "blind": {
         "title": "Geblendet gestorben",
         "explain": "Gegner-Flashes kommen an, ihr bleibt im Winkel stehen.",
-        "tip": "Bei Flash-Sound wegdrehen oder einen Schritt hinter Deckung, danach neu peeken.",
+        "tip": "Dreht euch beim Flash-Sound weg oder geht einen Schritt hinter Deckung. Peekt danach neu.",
     },
     "low_hp": {
         "title": "Mit wenig HP weiter gesucht",
-        "explain": "Nach erlittenem Schaden nehmt ihr das nächste Duell trotzdem.",
-        "tip": "Mit wenig HP Info geben und auf Trades spielen, nicht selbst das Duell suchen.",
+        "explain": "Ihr habt Schaden genommen und sucht trotzdem das nächste Duell.",
+        "tip": "Gebt mit wenig HP Info und spielt auf Trades. Sucht nicht selbst das Duell.",
     },
     "outnumbered": {
         "title": "In Unterzahl Duelle gesucht",
-        "explain": "Ihr sucht in Unterzahl allein die Duelle statt Zeit zu spielen oder gemeinsam zu gehen.",
-        "tip": "In Unterzahl zusammen ziehen oder Zeit spielen, keine Einzel-Peeks.",
+        "explain": "Ihr sucht in Unterzahl allein die Duelle. Besser wäre, Zeit zu spielen oder gemeinsam zu gehen.",
+        "tip": "Zieht in Unterzahl zusammen oder spielt auf Zeit. Keine Einzel-Peeks.",
     },
     "moving": {
         "title": "Im Laufen gestorben",
         "explain": "Beim Tod wart ihr in Bewegung. In CS2 trifft man im Laufen schlecht.",
-        "tip": "Vor dem Schuss stoppen (Counter-Strafe), Winkel nicht offen anlaufen.",
+        "tip": "Stoppt vor dem Schuss mit Counter-Strafe. Lauft Winkel nicht offen an.",
     },
     "no_shot": {
         "title": "Erwischt ohne Gegenwehr",
-        "explain": "Ihr sterbt, ohne vorher einen Schuss abzugeben: der Gegner war schneller oder unerwartet da.",
-        "tip": "Vorzielen auf Kopfhöhe an die Stellen, wo Gegner auftauchen; Winkel einzeln und vorbereitet klären.",
+        "explain": "Ihr sterbt, ohne einen Schuss abzugeben. Der Gegner war schneller oder kam unerwartet.",
+        "tip": "Zielt auf Kopfhöhe dorthin vor, wo Gegner auftauchen. Klärt Winkel einzeln und vorbereitet.",
     },
     "utility": {
         "title": "Utility nicht eingesetzt",
-        "explain": "Granaten im Inventar beim Tod oder erster Kontakt ganz ohne Utility.",
-        "tip": "Vor jedem geplanten Peek eine Granate einplanen: Flash für den Peek, Molotov gegen die Position.",
+        "explain": "Ihr sterbt mit Granaten im Inventar oder nehmt den ersten Kontakt ganz ohne Utility.",
+        "tip": "Plant vor jedem Peek eine Granate ein. Flash für den Peek, Molotov gegen die Position.",
     },
     "advantage": {
         "title": "Überzahl verspielt",
-        "explain": "Runden mit Überzahl gingen trotzdem verloren.",
-        "tip": "In Überzahl nicht einzeln jagen: gemeinsam spielen, Trades sichern, Zeit für euch nutzen.",
+        "explain": "Ihr verliert Runden trotz Überzahl.",
+        "tip": "Jagt in Überzahl nicht einzeln. Spielt gemeinsam, sichert Trades und lasst die Zeit für euch arbeiten.",
     },
     "economy": {
         "title": "Economy-Fehler",
-        "explain": "Uneinheitliche Käufe oder Force-Buys, die die Folgerunde kosten.",
-        "tip": "Vor der Runde Kauf absprechen: alle kaufen oder alle sparen.",
+        "explain": "Ihr kauft uneinheitlich oder forced so, dass die Folgerunde leidet.",
+        "tip": "Sprecht den Kauf vor der Runde ab. Alle kaufen oder alle sparen.",
     },
 }
 
@@ -181,11 +181,11 @@ def diagnose(match: MatchData, result: AnalysisResult, cfg: dict, mech_cfg: dict
     good = [f for f in result.findings if f.severity == "gut"]
     won, lost = len(won_rounds), len(lost_rounds)
     if top:
-        parts = [f"{c['title']} ({len(c['lost_rounds'])} von {lost} verlorenen Runden"
-                 + (f", {len(c['won_rounds'])} von {won} gewonnenen" if won else "") + ")" for c in top[:2]]
-        sentence = "Hauptgründe: " + "; ".join(parts) + "."
+        parts = [f"„{c['title']}“ in {len(c['lost_rounds'])} von {lost} verlorenen Runden"
+                 + (f" und {len(c['won_rounds'])} von {won} gewonnenen" if won else "") + "." for c in top[:2]]
+        sentence = "Hauptgründe: " + " ".join(parts)
     elif lost:
-        sentence = "Kein klares Muster in den verlorenen Runden gefunden."
+        sentence = "Kein klares Muster in den verlorenen Runden."
     else:
         sentence = "Keine verlorene Runde."
     rounds_with = {cid: sum(1 for r in lost_rounds + won_rounds if per.get(r, {}).get(cid)) for cid in CAUSES}
@@ -303,8 +303,8 @@ def duo(match: MatchData, cfg: dict) -> dict | None:
     names = {a: match.name_of(a), b: match.name_of(b)}
     t, p = together, apart
     if t["rounds"] and p["rounds"]:
-        sentence = (f"Zusammen (unter {cfg['duo_close_units']} Units): {t['won']} von {t['rounds']} Runden gewonnen. "
-                    f"Getrennt: {p['won']} von {p['rounds']}.")
+        sentence = (f"Zusammen gewinnt ihr {t['won']} von {t['rounds']} Runden, getrennt {p['won']} von {p['rounds']}. "
+                    f"Zusammen heißt: unter {cfg['duo_close_units']} Units Abstand.")
     else:
         sentence = f"Ø Abstand zwischen euch: {round(mean(dists_all))} Units."
     return {

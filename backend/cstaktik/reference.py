@@ -84,15 +84,15 @@ def enrich(match: MatchData, findings: list[Finding], histories: list[dict] | No
             # kein klarer Schwerpunkt: Verteilung nennen statt "meist"
             spread = ", ".join(f"{pl} {c}x" for pl, c in counts.most_common(3))
             mm, ss = divmod(_bucket(secs), 60)
-            f.evidence["vorbild"] = (f"In gewonnenen {side.upper()}-Runden nach {mm}:{ss:02d} kein fester Ort "
-                                     f"({len(won)} Runden: {spread}).")
+            f.evidence["vorbild"] = (f"In gewonnenen {side.upper()}-Runden hattest du nach {mm}:{ss:02d} keinen festen "
+                                     f"Ort. Verteilung aus {len(won)} Runden: {spread}.")
             continue
         if here and top == here:
-            text = (f"Auch in Siegrunden warst du nach {when} meist in {top} ({n} von {len(won)}). "
-                    "Die Position passt, entscheidend war eher das Wie (siehe Lage).")
+            text = (f"Auch in Siegrunden warst du nach {when} meist in {top}, in {n} von {len(won)}. "
+                    "Die Position passt. Entscheidend war eher das Wie, siehe Lage.")
         else:
-            text = (f"In gewonnenen {side.upper()}-Runden warst du nach {when} meist in {top} "
-                    f"({n} von {len(won)})" + (f", hier in {here}." if here else "."))
+            text = (f"In gewonnenen {side.upper()}-Runden warst du nach {when} meist in {top}, in {n} von "
+                    f"{len(won)}." + (f" Hier bist du in {here} gestorben." if here else ""))
         f.evidence["vorbild"] = text
 
         # Siegrunde aus diesem Match mit dem Spieler am Vorbild-Ort: als Geist + Sprungziel
@@ -156,8 +156,8 @@ def pro_spots(pro: list[dict], map_name: str | None, side: str, seconds: float, 
 def pro_text(ps: dict, side: str) -> str:
     mm, ss = divmod(ps["at"], 60)
     spots = ", ".join(f"{s['place']} {s['pct']} %" for s in ps["spots"])
-    return (f"Pros auf {side.upper()} in Siegrunden nach {mm}:{ss:02d}: {spots} "
-            f"(Anteil der Spieler-Positionen, {ps['demos']} Demo{'s' if ps['demos'] != 1 else ''})")
+    return (f"Pros auf {side.upper()} in Siegrunden nach {mm}:{ss:02d}: {spots}. Das ist der Anteil der "
+            f"Spieler-Positionen aus {ps['demos']} Demo{'s' if ps['demos'] != 1 else ''}.")
 
 
 PRO_MIN_ROUNDS = 5  # so viele passende Pro-Runden braucht der Szenen-Vergleich
@@ -220,12 +220,12 @@ def pro_trade(pro: list[dict], map_name: str | None, side: str, place: str) -> d
 def scene_text(sc: dict, side: str, place: str) -> str:
     mm, ss = divmod(sc["at"], 60)
     if not sc["with_util"]:
-        return (f"In {sc['rounds']} Pro-Siegrunden ({side.upper()}, {place}, um {mm}:{ss:02d}) "
-                "kam vorher keine Utility: dort entscheidet das Duell/Timing.")
+        return (f"Pros ({side.upper()}) in {place} um {mm}:{ss:02d}: In {sc['rounds']} Siegrunden kam vorher "
+                "keine Utility. Dort entscheiden Duell und Timing.")
     kinds = ", ".join(f"{NADE_NAMES[k]} {n}" for k, n in sc["kinds"])
     where = "dorthin" if side == "t" else "von dort"
-    return (f"Pros ({side.upper()}) in {place} um {mm}:{ss:02d}: in {sc['with_util']} von {sc['rounds']} "
-            f"Siegrunden kam vorher Utility {where} ({kinds}).")
+    return (f"Pros ({side.upper()}) in {place} um {mm}:{ss:02d}: In {sc['with_util']} von {sc['rounds']} "
+            f"Siegrunden kam vorher Utility {where}. Würfe: {kinds}.")
 
 
 def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict]) -> None:
@@ -258,12 +258,12 @@ def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict]) -> No
             if lu:
                 f.evidence["pro_lineup"] = (f"Häufigster Pro-Wurf dabei: {NADE_NAMES[lu['kind']]} aus "
                                             f"{lu['from'] or '?'} nach {lu['to'] or '?'} ({lu['n']}x). "
-                                            "Im Replay lila gestrichelt.")
+                                            "Im Replay ist er lila gestrichelt.")
                 f.overlay["pro_nade"] = {"kind": lu["kind"], "xy": lu["xy"]}
         pt = pro_trade(pro, match.map_name, side, place)
         if pt:
-            f.evidence["pro_trade"] = (f"Pros, die in {place} sterben ({side.upper()}), werden zu {pt['pct']} % "
-                                       f"getradet ({pt['n']} Tode).")
+            f.evidence["pro_trade"] = (f"Pros auf {side.upper()}, die in {place} sterben, werden zu {pt['pct']} % "
+                                       f"getradet. Basis: {pt['n']} Tode.")
 
 
 def pro_utility(pro: list[dict], map_name: str | None, side: str, top: int = 4, min_n: int = 3) -> list[dict]:
@@ -419,8 +419,8 @@ def pro_clips(match: MatchData, findings: list[Finding], pro_matches: list[Match
             did.append(f"{n} weitere{'r' if n == 1 else ''} Kill{'s' if n != 1 else ''}")
         if info["team_kills"]:
             did.append(f"Team tötet {info['team_kills']} aus {aplace}")
-        f.evidence["pro_clip"] = (f"{pname} ({side.upper()}) in {place} um {mm}:{ss:02d}, Gegner wie bei dir aus "
-                                  f"{aplace}. Runde gewonnen: " + ", ".join(did) + ".")
+        f.evidence["pro_clip"] = (f"{pname} ({side.upper()}) in {place} um {mm}:{ss:02d}. Der Gegner kam wie bei dir "
+                                  f"aus {aplace}. Runde gewonnen: " + ", ".join(did) + ".")
         clips[keys[key]].setdefault("desc", f.evidence["pro_clip"])
         f.overlay["pro_clip"] = keys[key]
         f.overlay["pro_tick"] = moment

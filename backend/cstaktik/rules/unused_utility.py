@@ -41,8 +41,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 steamid=k.victim_steamid,
                 player_name=match.name_of(k.victim_steamid),
                 severity="mittel" if len(nades) >= 2 else "niedrig",
-                text=f"Gestorben in {k.victim_place or 'unbekannter Ort'} mit {', '.join(nades)} im Inventar.",
-                tip="Utility vor dem Duell werfen (Flash für den Peek, Molly/Smoke gegen die Position).",
+                text=f"Gestorben {'in ' + k.victim_place if k.victim_place else 'an unbekanntem Ort'} mit {', '.join(nades)} im Inventar.",
+                tip="Wirf Utility vor dem Duell. Flash für den Peek, Molly oder Smoke gegen die Position.",
                 evidence={"tick": k.tick, "inventar": k.victim_inventory, "ungenutzt": nades},
             )
         )

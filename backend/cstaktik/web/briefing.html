@@ -41,12 +41,12 @@
   <div class="ktitle">{{ a.title }}</div>
   <div class="kmantra">„{{ a.mantra }}“</div>
   <div class="kline"><b>Im Match:</b> {{ a.in_game }}</div>
-  {% for side, k in a.angles.items() %}<div class="kline"><b>{{ side }}: meist erschossen aus {{ k.place }}</b> ({{ k.n }}x, {{ k.share }} % deiner {{ side }}-Tode hier). Dorthin vorzielen.</div>{% endfor %}
-  {% for side, k in a.seen_at.items() %}<div class="kline"><b>{{ side }}: in {{ k.place }} sieht er dich zuerst</b> ({{ k.n }}x). Dort nicht offen stehen, erst mit Utility oder von anderer Position.</div>{% endfor %}
-  {% if a.top_place %}<div class="kline"><b>Achtung in {{ a.top_place[0] }}:</b> dort {{ a.top_place[1] }} deiner Szenen zu diesem Auftrag auf {{ b.label }}.</div>{% endif %}
-  {% if a.points %}<div class="kline muted">{{ a.points|length }} Szene{{ "n" if a.points|length != 1 }} auf {{ b.label }}, Punkte auf der Karte.</div>{% endif %}
+  {% for side, k in a.angles.items() %}<div class="kline"><b>{{ side }}: meist erschossen aus {{ k.place }}.</b> {{ k.n }}x, das sind {{ k.share }} % deiner {{ side }}-Tode hier. Dorthin vorzielen.</div>{% endfor %}
+  {% for side, k in a.seen_at.items() %}<div class="kline"><b>{{ side }}: In {{ k.place }} sieht er dich zuerst.</b> {{ k.n }}x. Dort nicht offen stehen. Erst Utility nutzen oder anders hinstellen.</div>{% endfor %}
+  {% if a.top_place %}<div class="kline"><b>Achtung in {{ a.top_place[0] }}.</b> Dort passieren {{ a.top_place[1] }} deiner Szenen zu diesem Auftrag auf {{ b.label }}.</div>{% endif %}
+  {% if a.points %}<div class="kline muted">{{ a.points|length }} Szene{{ "n" if a.points|length != 1 }} auf {{ b.label }}. Die Punkte stehen auf der Karte.</div>{% endif %}
   {% for m in a.mind %}<div class="kline"><b>Im Kopf:</b> {{ m }}</div>{% endfor %}
-  <div class="kline muted">Vorher geübt? {{ a.routine.title }} ({{ a.routine.minutes }} Min){% if a.drills %}, bisher {{ a.drills }}x{% endif %}.</div>
+  <div class="kline muted">Vorher üben: {{ a.routine.title }}, {{ a.routine.minutes }} Min.{% if a.drills %} Bisher {{ a.drills }}x gemacht.{% endif %}</div>
 </div>
 {% endfor %}
 {% endif %}
@@ -55,16 +55,16 @@
 <h2>Matchplan</h2>
 <div class="card mplan">
   {% if plan.t_pro %}<a class="mp" href="/playbook/{{ map_name }}#{{ plan.t_pro.id }}"><span class="mk t">T</span><div><b>{{ "Pro-Empfehlung: " if plan.t_pro.why == "best" else "Pros spielen hier am häufigsten: " }}{{ plan.t_pro.name }}</b>
-    <span>Pros gewinnen damit {{ plan.t_pro.won_pct }} % ({{ plan.t_pro.won }} von {{ plan.t_pro.n }}){% if plan.t_pro.common %}. Granaten: {% for c in plan.t_pro.common[:3] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
+    <span>Pros gewinnen damit {{ plan.t_pro.won_pct }} %, {{ plan.t_pro.won }} von {{ plan.t_pro.n }}{% if plan.t_pro.common %}. Granaten: {% for c in plan.t_pro.common[:3] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
   {% if plan.t_own %}<a class="mp" href="/playbook/{{ map_name }}?who=ihr#{{ plan.t_own.id }}"><span class="mk t">T</span><div><b>Eure Stärke: {{ plan.t_own.name }}</b>
-    <span>{{ plan.t_own.won_pct }} % gewonnen ({{ plan.t_own.won }} von {{ plan.t_own.n }}). Dabei bleiben. Ansehen ›</span></div></a>{% endif %}
+    <span>Ihr gewinnt {{ plan.t_own.won_pct }} %, {{ plan.t_own.won }} von {{ plan.t_own.n }}. Dabei bleiben. Ansehen ›</span></div></a>{% endif %}
   {% if plan.t_weak %}<div class="mp"><span class="mk no">!</span><div><b>Weniger: {{ plan.t_weak.label }}</b>
-    <span>Ihr gewinnt nur {{ plan.t_weak.won_pct }} % eurer {{ plan.t_weak.label }}-Runden ({{ plan.t_weak.won }} von {{ plan.t_weak.n }}).</span></div></div>{% endif %}
+    <span>Ihr gewinnt nur {{ plan.t_weak.won_pct }} % eurer {{ plan.t_weak.label }}-Runden, {{ plan.t_weak.won }} von {{ plan.t_weak.n }}.</span></div></div>{% endif %}
   {% if plan.compare %}<div class="mp"><span class="mk">≠</span><div><span>{{ plan.compare }}</span></div></div>{% endif %}
   {% if plan.ct_pro %}<a class="mp" href="/playbook/{{ map_name }}?side=ct#{{ plan.ct_pro.id }}"><span class="mk ct">CT</span><div><b>{{ "Pro-Empfehlung" if plan.ct_pro.why == "best" else "Häufigste Pro-Aufstellung" }}: {{ plan.ct_pro.name }}</b>
-    <span>Pros halten damit {{ plan.ct_pro.won_pct }} % ({{ plan.ct_pro.won }} von {{ plan.ct_pro.n }}){% if plan.ct_pro.util %}. Früh: {% for c in plan.ct_pro.util[:2] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
+    <span>Pros halten damit {{ plan.ct_pro.won_pct }} %, {{ plan.ct_pro.won }} von {{ plan.ct_pro.n }}{% if plan.ct_pro.util %}. Früh: {% for c in plan.ct_pro.util[:2] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
   {% if plan.ct_weak %}<a class="mp" href="/playbook/{{ map_name }}?who=ihr&side=ct#{{ plan.ct_weak.id }}"><span class="mk no">!</span><div><b>Eure Aufstellung {{ plan.ct_weak.name }} hält schlecht</b>
-    <span>{{ plan.ct_weak.won_pct }} % ({{ plan.ct_weak.won }} von {{ plan.ct_weak.n }}). Ansehen ›</span></div></a>{% endif %}
+    <span>Gehalten: {{ plan.ct_weak.won_pct }} %, {{ plan.ct_weak.won }} von {{ plan.ct_weak.n }}. Ansehen ›</span></div></a>{% endif %}
   {% for h in plan.habits or [] %}<div class="mp"><span class="mk no">!</span><div><span>{{ h }}</span></div></div>{% endfor %}
   <div class="small muted">Nur Taktiken und Aufstellungen mit mindestens 3 Runden. Siegquoten aus wenigen Runden sind Tendenzen.</div>
 </div>
@@ -86,7 +86,7 @@
 <details class="more-map"{% if not kabine %} open{% endif %}><summary class="cond">Mehr zu {{ b.label }}</summary>
 {% if map_lessons %}
 <h2>Eure Baustellen auf {{ b.label }}</h2>
-{% for l in map_lessons %}<div class="note"><b>{{ l.name }}: {{ l.title }}</b> <span class="empty num">· {{ l.rate }} pro 10 Runden hier ({{ l.count }}x in {{ l.rounds }} Runden)</span>
+{% for l in map_lessons %}<div class="note"><b>{{ l.name }}: {{ l.title }}</b> <span class="empty num">· {{ l.rate }} pro 10 Runden, {{ l.count }}x in {{ l.rounds }} Runden</span>
   <div class="tp">{{ l.drill }}</div></div>{% endfor %}
 {% endif %}
 <div class="cols"><div class="col">
@@ -100,7 +100,7 @@
 </div><div class="col">
 {% if b.win_spots %}
 <h2>Wo ihr in Siegrunden steht</h2>
-{% for w in b.win_spots %}<div class="note"><span class="side {{ w.side }}">{{ w.side }}</span>{{ w.name }}: in Siegrunden nach {{ w.at }} meist in <b>{{ w.place }}</b> <span class="empty num">({{ w.n }} von {{ w.total }})</span></div>{% endfor %}
+{% for w in b.win_spots %}<div class="note"><span class="side {{ w.side }}">{{ w.side }}</span>{{ w.name }}: In Siegrunden nach {{ w.at }} meist in <b>{{ w.place }}</b> <span class="empty num">· {{ w.n }} von {{ w.total }}</span></div>{% endfor %}
 {% endif %}
 
 {% if b.notes %}
@@ -114,7 +114,7 @@
 {% endif %}
 
 {% if not b.notes and not b.watch and not b.win_spots %}
-<p class="empty sec">Für diese Map gibt es noch keine Muster. Nach der ersten ausgewerteten Demo auf {{ b.label }} steht hier euer Briefing.</p>
+<p class="empty sec">Noch keine Muster für diese Map. Euer Briefing erscheint nach der ersten Demo auf {{ b.label }}.</p>
 {% endif %}
 </div></div>
 </details>

@@ -84,8 +84,9 @@ def build(histories: list[dict], n: int = 5) -> dict:
     say = _say(players, len(window))
     moved = [t for t in team if t["trend"] in ("besser", "schlechter")]
     if moved:
-        say.append("Als Team: " + "; ".join(f"{t['label']} {t['now']['won_pct']} % statt {t['before']['won_pct']} %"
-                                              for t in moved[:3]) + ".")
+        say.append("Als Team hat sich etwas bewegt. " + " ".join(
+            f"{t['label']} jetzt {t['now']['won_pct']} % gewonnen statt {t['before']['won_pct']} %."
+            for t in moved[:3]))
     return {"n": len(window), "won": won, "lost": len(window) - won, "players": players,
             "has_before": bool(before), "say": say, "team": team}
 
@@ -128,21 +129,23 @@ def _say(players: list[dict], n: int) -> list[str]:
         if not p["lessons"]:
             continue
         top = p["lessons"][0]
-        s = f"{p['name']}: In den letzten {n} Matches hat dich „{top['title']}“ am meisten gekostet, {top['count']}x"
+        s = (f"{p['name']}: „{top['title']}“ hat dich in den letzten {n} Matches am meisten gekostet. "
+             f"Das passierte {top['count']}x")
         if top["rounds_lost"] >= 0.3:
             s += f", rechnerisch etwa {_de(top['rounds_lost'])} Runden"
         s += "."
         if top["trend"] == "besser":
-            s += " Weniger als davor, das greift."
+            s += " Es wird weniger als davor. Das greift."
         elif top["trend"] == "schlechter":
-            s += " Mehr als davor. Hier musst du ran."
+            s += " Es wird mehr als davor. Hier musst du ran."
         d, o = p["duels"], p["duels_before"]
         if d.get("err") is not None and o.get("err") is not None and abs(d["err"] - o["err"]) >= 3:
-            s += (f" Dein Fadenkreuz liegt im Duell jetzt {_de(d['err'], 0)}° daneben, vorher {_de(o['err'], 0)}°"
-                  + (" – besser." if d["err"] < o["err"] else " – schlechter."))
+            s += (f" Dein Fadenkreuz liegt im Duell jetzt {_de(d['err'], 0)}° daneben, vorher {_de(o['err'], 0)}°."
+                  + (" Das ist besser." if d["err"] < o["err"] else " Das ist schlechter."))
         if (d.get("seen_opp") is not None and o.get("seen_opp") is not None and (d.get("seen_n") or 0) >= 15
                 and (o.get("seen_n") or 0) >= 15 and abs(d["seen_opp"] - o["seen_opp"]) >= 10):
-            s += (f" Der Gegner sieht dich in {d['seen_opp']} % der Duelle zuerst, vorher {o['seen_opp']} %"
-                  + (" – deine Positionen werden besser." if d["seen_opp"] < o["seen_opp"] else " – du stehst wieder offener."))
+            s += (f" Der Gegner sieht dich in {d['seen_opp']} % der Duelle zuerst, vorher {o['seen_opp']} %."
+                  + (" Deine Positionen werden besser." if d["seen_opp"] < o["seen_opp"]
+                     else " Du stehst wieder offener."))
         out.append(s)
     return out

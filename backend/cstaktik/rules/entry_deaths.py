@@ -34,10 +34,10 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 player_name=match.name_of(sid),
                 severity="hoch" if len(lost) > len(won) else "mittel",
                 text=(
-                    f"{len(lost)}x als Erster gestorben, {len(won)}x den ersten Kill geholt"
-                    f"{f'; meist in {top_place}' if top_place else ''}."
+                    f"{len(lost)}x als Erster gestorben, {len(won)}x den ersten Kill geholt."
+                    f"{f' Meist in {top_place}.' if top_place else ''}"
                 ),
-                tip="Nicht als Erster ohne Info oder Flash peeken. Lieber den zweiten Platz nehmen und traden.",
+                tip="Peek nicht als Erster ohne Info oder Flash. Nimm lieber den zweiten Platz und trade.",
                 evidence={"erste_tode_runden": lost, "erste_kills_runden": won, "haeufigster_ort": top_place},
                 rounds=lost,
             )

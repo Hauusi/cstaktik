@@ -22,40 +22,40 @@ from cstaktik.coach import CAUSES
 # Ziel-Formulierung und Training je Ursache. Übungen bewusst allgemein (keine Workshop-Map-Namen).
 GOAL_TEXT = {
     "alone": ("Nicht mehr allein sterben", [
-        "Im nächsten Match: vor jedem Peek kurz checken, ob der Bruder in Trade-Reichweite steht.",
-        "Callout vor dem Peek: 'Ich peeke X, komm nach'. Erst peeken, wenn er da ist.",
+        "Prüf im nächsten Match vor jedem Peek, ob dein Bruder in Trade-Reichweite steht.",
+        "Sag vor dem Peek an: 'Ich peeke X, komm nach'. Peek erst, wenn er da ist.",
     ]),
     "opening": ("Weniger als Erster sterben", [
-        "Die ersten 20 Sekunden einer Runde nicht aktiv nach dem ersten Duell suchen, sondern Info sammeln.",
-        "Ersten Kontakt nur mit Flash oder zu zweit nehmen.",
+        "Such in den ersten 20 Sekunden nicht aktiv das erste Duell. Sammle lieber Info.",
+        "Nimm den ersten Kontakt nur mit Flash oder zu zweit.",
     ]),
     "blind": ("Gegner-Flashes ausweichen", [
-        "Deathmatch/Retake: bei jedem Flash-Geräusch sofort wegdrehen, auch wenn es zu spät wirkt.",
-        "Nach dem Wegdrehen einen Schritt zurück, dann neu peeken.",
+        "Dreh dich in Deathmatch oder Retake bei jedem Flash-Geräusch sofort weg. Auch wenn es zu spät wirkt.",
+        "Geh nach dem Wegdrehen einen Schritt zurück. Peek dann neu.",
     ]),
     "low_hp": ("Mit wenig HP passiv spielen", [
-        "Unter 50 HP: Position halten, Info geben, auf Trade spielen. Kein neues Duell suchen.",
+        "Unter 50 HP hältst du Position, gibst Info und spielst auf Trade. Such kein neues Duell.",
     ]),
     "outnumbered": ("In Unterzahl zusammen spielen", [
-        "In Unterzahl: mit dem nächsten Mitspieler zusammenziehen oder Zeit spielen, keine Einzel-Peeks.",
+        "Zieh in Unterzahl mit dem nächsten Mitspieler zusammen oder spiel auf Zeit. Keine Einzel-Peeks.",
     ]),
     "moving": ("Stehend schießen", [
-        "10 Minuten Deathmatch vor dem Match: nur schießen, wenn du stehst (Counter-Strafe), Treffer zählen.",
-        "Peeks kurz und kontrolliert: rauslaufen, stoppen, schießen.",
+        "Spiel vor dem Match 10 Minuten Deathmatch. Schieß nur im Stehen (Counter-Strafe) und zähl deine Treffer.",
+        "Peek kurz und kontrolliert: rauslaufen, stoppen, schießen.",
     ]),
     "no_shot": ("Nicht mehr ohne Gegenwehr sterben", [
-        "Vor dem Match 5 Minuten Prefire üben: Ecken einzeln klären, Fadenkreuz vorher auf Kopfhöhe.",
-        "Im Match: an bekannten Gegner-Spots langsam und vorgezielt clearen statt durchzulaufen.",
+        "Üb vor dem Match 5 Minuten Prefire. Kläre Ecken einzeln, das Fadenkreuz vorher auf Kopfhöhe.",
+        "Cleare bekannte Gegner-Spots im Match langsam und vorgezielt. Lauf nicht einfach durch.",
     ]),
     "utility": ("Utility vor dem Duell einsetzen", [
-        "Pro Runde mindestens eine Granate werfen, bevor du stirbst.",
-        "Für eure Standard-Positionen je eine Flash zum Selbst-Peeken einüben (Offline-Server).",
+        "Wirf pro Runde mindestens eine Granate, bevor du stirbst.",
+        "Üb für eure Standard-Positionen je eine Flash zum Selbst-Peeken ein. Am besten auf einem Offline-Server.",
     ]),
     "advantage": ("Überzahl sauber zu Ende spielen", [
-        "In Überzahl: zu zweit gehen, Trades sichern, keine Einzeljagd.",
+        "Geht in Überzahl zu zweit und sichert Trades. Keine Einzeljagd.",
     ]),
     "economy": ("Gemeinsam kaufen", [
-        "Vor jeder Runde ansagen: kaufen, force oder sparen. Alle gleich.",
+        "Sagt vor jeder Runde an: kaufen, force oder sparen. Alle machen dasselbe.",
     ]),
 }
 
@@ -63,15 +63,15 @@ GOAL_TEXT = {
 # Mechanik-Ziele je Spieler: Kennzahl aus history["mech"][steamid]
 MECH_GOALS = {
     "moving_pct": ("Stehend schießen", "Anteil eurer Schüsse in Bewegung", "goal_moving_pct", [
-        "10 Minuten Deathmatch vor dem Match: nur schießen, wenn du stehst (Counter-Strafe).",
-        "Peeks: rauslaufen, stoppen, schießen. Nicht im Laufen sprayen.",
+        "Spiel vor dem Match 10 Minuten Deathmatch. Schieß nur im Stehen (Counter-Strafe).",
+        "Peek so: rauslaufen, stoppen, schießen. Spray nicht im Laufen.",
     ], "Schüsse im Laufen streuen stark. Ein Teil deiner Duelle geht deshalb verloren.",
-        "Vor dem Schuss stoppen (Counter-Strafe), dann schießen."),
+        "Stopp vor dem Schuss mit Counter-Strafe. Dann schieß."),
     "deaths_no_shot_pct": ("Nicht ohne eigenen Schuss sterben", "Anteil deiner Tode ohne eigenen Schuss",
                            "goal_no_shot_pct", [
-        "Prefire-Routine vor dem Match: Ecken einzeln klären, Fadenkreuz vorher auf Kopfhöhe.",
-    ], "Du stirbst oft, ohne zu schießen: überrascht oder zu langsam.",
-        "Vorzielen und Winkel einzeln klären, nicht unvorbereitet laufen."),
+        "Mach vor dem Match eine Prefire-Routine. Kläre Ecken einzeln, das Fadenkreuz vorher auf Kopfhöhe.",
+    ], "Du stirbst oft, ohne zu schießen. Du wirst überrascht oder bist zu langsam.",
+        "Ziel vor und kläre Winkel einzeln. Lauf nicht unvorbereitet."),
 }
 
 

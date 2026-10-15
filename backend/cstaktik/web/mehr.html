@@ -2,40 +2,66 @@
 {% block title %}Mehr · cstaktik{% endblock %}
 {% block hero %}
 <h1>Mehr</h1>
-<p>Einstellungen, Rückblick und wie der Coach arbeitet.</p>
+<p>Einstellungen, Rückblick und Anleitung.</p>
 {% endblock %}
 {% block content %}
 <div class="cols">
 <div class="col">
 <h2>Einstellungen</h2>
 <div class="list">
-  <a class="item" href="/konto"><div class="map">⚿</div><div class="meta"><b>Optionen</b><span class="muted small">Steam verbinden, Matches automatisch finden, Nutzer</span></div></a>
+  <a class="item" href="/konto"><div class="map">⚿</div><div class="meta"><b>Optionen</b><span class="muted small">Steam, Matches automatisch finden, Nutzer</span></div></a>
   <a class="item" href="/spieler"><div class="map">◉</div><div class="meta"><b>Spieler</b><span class="muted small">Wer analysiert wird</span></div></a>
-  <a class="item" href="/pro"><div class="map">★</div><div class="meta"><b>Pro-Demos</b><span class="muted small">{{ n_pro }} gespeichert · Vergleichsbasis für alle Pro-Werte</span></div></a>
+  <a class="item" href="/pro"><div class="map">★</div><div class="meta"><b>Pro-Demos</b><span class="muted small">{{ n_pro }} gespeichert · Basis für alle Pro-Vergleiche</span></div></a>
 </div>
 <h2>Rückblick</h2>
 <div class="list">
-  {% if n_history >= 2 %}<a class="item" href="/review"><div class="map">↺</div><div class="meta"><b>Review der letzten Matches</b><span class="muted small">Was wurde besser, was nicht</span></div></a>{% endif %}
-  <a class="item" href="/highlights"><div class="map">✦</div><div class="meta"><b>Highlights</b><span class="muted small">Deine besten Plays und teuersten Momente über alle Matches</span></div></a>
-  <a class="item" href="/progress/karte"><div class="map">◎</div><div class="meta"><b>Todes-Karte und alle Kurven</b><span class="muted small">Alle Werte über alle Matches</span></div></a>
+  {% if n_history >= 2 %}<a class="item" href="/review"><div class="map">↺</div><div class="meta"><b>Review</b><span class="muted small">Was besser wurde, was nicht</span></div></a>{% endif %}
+  <a class="item" href="/highlights"><div class="map">✦</div><div class="meta"><b>Highlights</b><span class="muted small">Deine besten und teuersten Momente</span></div></a>
+  <a class="item" href="/progress/karte"><div class="map">◎</div><div class="meta"><b>Todes-Karte und Kurven</b><span class="muted small">Alle Werte über alle Matches</span></div></a>
 </div>
 </div>
 
 <div class="col">
 <h2 id="anleitung">So arbeitet der Coach</h2>
 <div class="card guide">
-  <div class="gs"><b>1. Nach dem Match: Demo hochladen</b>
-    <p>Auf der Startseite die .dem-Datei wählen oder hineinziehen (aus CS2 oder FACEIT, auch .zip/.rar). Die Auswertung startet sofort und dauert ein paar Minuten. Mit Steam verbunden (Optionen) findet der Coach neue Valve-Matches selbst.</p></div>
-  <div class="gs"><b>2. Report lesen: 5 Minuten</b>
-    <p>Im Report zuerst <b>Coach</b>: der eine Punkt des Matches und der Check deines Auftrags. Dann <b>Debrief mit dem Coach</b> durchklicken, das sind die wichtigsten Szenen im Replay. <b>Analyse</b> zeigt Impact, Duelle gegen Pros, Utility und eure Taktiken, <b>Runden</b> jede Runde einzeln.</p></div>
-  <div class="gs"><b>3. Üben: ein Auftrag, ein Wochenplan</b>
-    <p>Der Coach sucht den Fehler, der euch über die letzten Matches am meisten Runden kostet. Er wird erst ein Auftrag, wenn er mindestens {{ goal_cfg.min_count }}x vorkommt. Dazu gibt es eine Übung und einen <b>Wochenplan</b> unter Training. Im <b>Situations-Training</b> entscheidest du deine eigenen Szenen kurz vor dem Tod, danach siehst du, was Pros in derselben Lage am häufigsten machen.</p></div>
-  <div class="gs"><b>Vor dem nächsten Match: 10 Minuten</b>
-    <p>Startseite: Aufwärm-Übung zum Auftrag machen und abhaken, dann die <b>Kabine</b> der Map öffnen: Merksatz, die Winkel, aus denen ihr dort am häufigsten sterbt, und der Matchplan (welche T-Taktik und CT-Aufstellung Pros dort am erfolgreichsten spielen).</p></div>
+  <div class="gs"><b>1. Demo hochladen</b>
+    <p>Direkt nach dem Match, auf der Startseite.</p>
+    <ul>
+      <li>Datei wählen oder hineinziehen: .dem, .zip oder .rar, aus CS2 oder FACEIT.</li>
+      <li>Die Auswertung dauert ein paar Minuten.</li>
+      <li>Mit Steam verbunden (Optionen) findet der Coach neue Valve-Matches selbst.</li>
+    </ul></div>
+  <div class="gs"><b>2. Report lesen</b>
+    <p>Dauert etwa 5 Minuten.</p>
+    <ul>
+      <li><b>Coach:</b> der wichtigste Punkt des Matches und der Check deines Auftrags.</li>
+      <li><b>Debrief mit dem Coach:</b> die wichtigsten Szenen im Replay.</li>
+      <li><b>Analyse:</b> Impact, Duelle gegen Pros, Utility und eure Taktiken.</li>
+      <li><b>Runden:</b> jede Runde einzeln.</li>
+    </ul></div>
+  <div class="gs"><b>3. Üben</b>
+    <p>Ein Auftrag, ein Wochenplan.</p>
+    <ul>
+      <li>Der Coach sucht den Fehler, der euch die meisten Runden kostet.</li>
+      <li>Ab {{ goal_cfg.min_count }}x über die letzten Matches wird er zum Auftrag.</li>
+      <li>Dazu gibt es eine Übung und einen <b>Wochenplan</b> unter Training.</li>
+      <li><b>Situations-Training:</b> Du entscheidest deine Szenen kurz vor dem Tod. Danach siehst du, was Pros dort meist tun.</li>
+    </ul></div>
+  <div class="gs"><b>Vor dem Match</b>
+    <p>10 Minuten auf der Startseite.</p>
+    <ul>
+      <li>Aufwärm-Übung zum Auftrag machen und abhaken.</li>
+      <li>Die <b>Kabine</b> der Map öffnen: Merksatz, eure gefährlichsten Winkel und der Matchplan.</li>
+      <li>Der Matchplan zeigt die T-Taktik und CT-Aufstellung, mit denen Pros dort am meisten gewinnen.</li>
+    </ul></div>
   <div class="gs"><b>Gemeistert</b>
-    <p>Liegt der Fehler {{ goal_cfg.done_after }} Matches in Folge unter dem Ziel und über mindestens {{ goal_cfg.min_master_rounds }} Runden, ist der Auftrag gemeistert und der nächste kommt. Kommt der Fehler zurück, meldet der Coach das.</p></div>
+    <p>{{ goal_cfg.done_after }} Matches in Folge unter dem Ziel, mindestens {{ goal_cfg.min_master_rounds }} Runden: Der Auftrag ist gemeistert. Dann kommt der nächste. Kehrt der Fehler zurück, meldet der Coach das.</p></div>
   <div class="gs"><b>Was der Coach nicht tut</b>
-    <p>Er erfindet nichts. Jede Zahl stammt aus euren Demos oder den Pro-Demos. Bei wenigen Fällen steht die Fallzahl dabei, und Farben (rot, grün) gibt es erst bei klarem Abstand.</p></div>
+    <p>Er erfindet nichts. Jede Zahl stammt aus euren Demos oder den Pro-Demos.</p>
+    <ul>
+      <li>Bei wenigen Fällen steht die Fallzahl dabei.</li>
+      <li>Rot und Grün gibt es erst bei klarem Abstand.</li>
+    </ul></div>
 </div>
 </div>
 </div>

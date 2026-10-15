@@ -3,7 +3,7 @@
 {% block hero %}
 <h1>Training</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if plan %}Woche {{ chk.from }}–{{ chk.to }} · Thema{% if who and who != "Ich" %} {{ who }}{% endif %}: <b>{{ title }}</b>{% else %}Erst ein Match hochladen, dann gibt es einen Wochenplan.{% endif %}</p>
+<p>{% if plan %}Woche {{ chk.from }}–{{ chk.to }} · Thema{% if who and who != "Ich" %} {{ who }}{% endif %}: <b>{{ title }}</b>{% else %}Lade ein Match hoch. Dann gibt es einen Wochenplan.{% endif %}</p>
 {% endblock %}
 {% block head %}<style>
 .hub { display: grid; gap: 10px; }
@@ -25,15 +25,15 @@
   <div><b class="{{ 'ok' if chk.matches >= chk.need }}">{{ chk.matches }}/{{ chk.need }}</b><span>Matches</span></div>
   <div><b class="{{ '' if chk.met is none else ('ok' if chk.met else 'no') }}">{{ chk.rate|string|replace(".", ",") if chk.rate is not none else "–" }}</b><span>Fehler / 10 Runden</span>{% if chk.target is defined %}<span style="display:block">Ziel ≤ {{ chk.target|string|replace(".", ",") }}</span>{% endif %}</div>
 </div>
-<div class="small muted num" style="margin-top:6px">Diese Woche: {{ chk.count }}x in {{ chk.rounds }} Runden{% if chk.met is defined and chk.met is none %} · ein Urteil gibt es ab {{ goal_cfg.min_master_rounds }} Runden{% endif %}.</div>
+<div class="small muted num" style="margin-top:6px">Diese Woche: {{ chk.count }}x in {{ chk.rounds }} Runden.{% if chk.met is defined and chk.met is none %} Ein Urteil gibt es ab {{ goal_cfg.min_master_rounds }} Runden.{% endif %}</div>
 <div style="margin-top:10px">
 {% for t in plan.tasks %}{% set d = t.id in plan.done %}
 <div class="task {{ 'done' if d }}">
   <form action="/training/plan?p={{ sid }}&week={{ week }}&task={{ t.id|urlencode }}" method="post"><button class="chk" type="submit" aria-label="{{ 'Haken entfernen' if d else 'Erledigt' }}">✓</button></form>
   <div class="k">{{ t.kind }}{% if t.minutes %} · {{ t.minutes }} Min{% endif %}</div>
   <div class="tt">{{ t.title }}</div>
-  {% if t.played is defined and t.played.n %}<div class="small num" style="color:var(--win)">Gespielt: {{ t.played.n }} Runde{{ "n" if t.played.n != 1 }} diese Woche, {{ t.played.won }} gewonnen. Automatisch abgehakt.</div>
-  {% elif t.played is defined %}<div class="small muted">Noch nicht gespielt. Hakt sich selbst ab, sobald ihr sie in einem Match spielt.</div>{% endif %}
+  {% if t.played is defined and t.played.n %}<div class="small num" style="color:var(--win)">Diese Woche {{ t.played.n }} Runde{{ "n" if t.played.n != 1 }} gespielt, {{ t.played.won }} gewonnen. Automatisch abgehakt.</div>
+  {% elif t.played is defined %}<div class="small muted">Noch nicht gespielt. Hakt sich ab, sobald ihr sie im Match spielt.</div>{% endif %}
   <div>{% if t.steps %}<details><summary>So geht's</summary><ol>{% for s in t.steps %}<li>{{ s }}</li>{% endfor %}</ol></details>{% endif %}
     {% if t.link %}<a class="go" href="{{ t.link }}">Öffnen ›</a>{% endif %}</div>
 </div>
@@ -42,11 +42,11 @@
   <form><button class="chk" type="button" disabled aria-label="zählt automatisch">✓</button></form>
   <div class="k">Match · zählt automatisch</div>
   <div class="tt">{{ chk.need }} Matches spielen und hochladen</div>
-  <div class="small muted">{{ chk.matches }} diese Woche. Der Coach prüft dann, ob der Auftrag sitzt.</div>
+  <div class="small muted">{{ chk.matches }} diese Woche. Danach prüft der Coach, ob der Auftrag sitzt.</div>
 </div>
 </div>
 {% else %}
-<div class="card empty">Noch kein Auftrag: Er entsteht, sobald ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. <a href="/" style="color:var(--orange)">Match hochladen ›</a></div>
+<div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler in euren letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. <a href="/" style="color:var(--orange)">Match hochladen ›</a></div>
 {% endif %}
 {% if past %}
 <h2>Letzte Wochen</h2>
@@ -69,10 +69,10 @@
     {% if m.pro %}<a href="/lineups/{{ m.map }}"><b>Lineups</b><span>Granaten üben</span></a>{% endif %}
   </div>
 </div>
-{% else %}<div class="card empty">Noch keine Maps: erst ein Match oder eine Pro-Demo hochladen.</div>{% endfor %}
+{% else %}<div class="card empty">Noch keine Maps. Lade ein Match oder eine Pro-Demo hoch.</div>{% endfor %}
 </div>
 <h2>Jederzeit</h2>
-<a class="card tool sit" href="/training/situationen{% if sid %}?p={{ sid }}{% endif %}"><div class="tt">Situations-Training</div><p>Eure echten Szenen kurz vor dem Tod: erst entscheiden, dann auflösen. Danach zeigt die Karte, woher der Killer kam.</p></a>
+<a class="card tool sit" href="/training/situationen{% if sid %}?p={{ sid }}{% endif %}"><div class="tt">Situations-Training</div><p>Eure echten Szenen kurz vor dem Tod. Erst entscheiden, dann auflösen. Die Karte zeigt, woher der Killer kam.</p></a>
 </div>
 </div>
 </div>

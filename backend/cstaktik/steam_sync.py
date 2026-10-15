@@ -47,9 +47,9 @@ def next_codes(steamid: str, auth_code: str, known: str, key: str, get=None) -> 
             out.append(nxt)
             cur = nxt
             continue
-        err = {403: "Steam lehnt ab: Game Authentication Code oder SteamID passt nicht.",
-               412: "Steam kennt den Match-Token nicht (zu alt oder falsch). Einen aktuellen eintragen.",
-               429: "Steam begrenzt gerade die Anfragen. Später erneut.",
+        err = {403: "Steam lehnt ab. Game Authentication Code oder SteamID passen nicht.",
+               412: "Steam kennt den Match-Token nicht. Er ist zu alt oder falsch. Trag einen aktuellen ein.",
+               429: "Steam begrenzt gerade die Anfragen. Versuch es später erneut.",
                0: "Steam ist gerade nicht erreichbar. Der Coach versucht es in 30 Minuten erneut."}.get(
             status, f"Steam-API antwortet {status}.")
         return out, err
@@ -59,7 +59,7 @@ def next_codes(steamid: str, auth_code: str, known: str, key: str, get=None) -> 
 def sync_user(row: dict, key: str | None = None, get=None, path=None) -> dict:
     key = key or accounts.steam_key(path)
     if not key:
-        msg = "Es fehlt der Steam-Web-API-Schlüssel (Optionen → Server)."
+        msg = "Es fehlt der Steam-Web-API-Schlüssel. Trag ihn unter Optionen → Server ein."
         accounts.record_codes(row["user"], [], None, msg, path)
         return {"new": 0, "error": msg}
     codes, err = next_codes(row["steamid"], row["auth_code"], row["last_code"], key, get)

@@ -60,8 +60,8 @@ def test_snapshot_text_category_and_action():
     f = _finding(m)
     enrich(m, [f], None, CFG)
     e = f.evidence
-    assert e["entscheidung"].startswith("0:14: Du gehst los in SynthA. Lage: 4 gegen 5, du 20 HP, Bombe nicht gelegt")
-    assert "Bruder 2050 Units weg" in e["entscheidung"] and "du hattest Smoke, Flash" in e["entscheidung"]
+    assert e["entscheidung"].startswith("0:14: Du gehst in SynthA los. Lage: 4 gegen 5, du hast 20 HP, Bombe nicht gelegt")
+    assert "Bruder ist 2050 Units weg." in e["entscheidung"] and "Du hattest Smoke, Flash." in e["entscheidung"]
     assert e["situation"] == "Allein vorrücken (CT)" and e["aktion"] == "Richtung Gegner"
     assert abs(f.overlay["decision"][2] - (m.rounds[0].freeze_end_tick + 14 * TR)) <= TR // 4  # Glättung: 1 Sample
 
@@ -99,7 +99,7 @@ def test_info_from_spotted():
     m.kills[-1].attacker_name = "Gegner1"
     f = _finding(m)
     enrich(m, [f], None, CFG)
-    assert f.evidence["info"] == "Info: kein Gegner auf dem Radar, Gegner1 war ab 0:16 sichtbar."
+    assert f.evidence["info"] == "Info: Kein Gegner auf dem Radar. Gegner1 war ab 0:16 sichtbar."
 
     for p in m.positions:
         p.spotted = None
@@ -124,8 +124,8 @@ def test_pro_decisions_and_compare_by_situation():
     cmp = compare(pro, "de_synth", "ct", 4, 5, False, min_n=8)
     assert cmp["best"] == "gehalten" and cmp["n"] == 10 and not cmp["coarse"]
     assert compare_text(cmp, "ct", 4, 5, False, "Richtung Gegner") == (
-        "Pros in dieser Lage (CT, 4 gegen 5, Bombe nicht gelegt), 10 Fälle aus 10 Runden in 1 Demo: Position gehalten 6x "
-        "(67 % Siege), Richtung Gegner 4x (25 % Siege). Du: Richtung Gegner.")
+        "Pros in dieser Lage: CT, 4 gegen 5, Bombe nicht gelegt. Basis: 10 Fälle aus 10 Runden in 1 Demo. "
+        "Position gehalten 6x, davon 67 % gewonnen. Richtung Gegner 4x, davon 25 % gewonnen. Du: Richtung Gegner.")
     assert compare(pro, "de_other", "ct", 4, 5, False) is None
 
     m = _match(moving_at_death=True)
@@ -154,8 +154,8 @@ def test_pro_tip_and_situation_clip():
     f = _finding(m)
     enrich(m, [f], None, CFG)
     enrich_pro(m, [f], pro)
-    assert f.evidence["pro_tip"] == ('In dieser Lage gewinnen Pros am häufigsten mit "Position gehalten" '
-                                     '(100 % Siege), bei dir: Richtung Gegner (25 %).')
+    assert f.evidence["pro_tip"] == ('Pros gewinnen diese Lage am häufigsten mit "Position gehalten", '
+                                     'zu 100 %. Du: Richtung Gegner (25 %).')
     clips = pro_clips(m, [f], [pm], pro)  # kein Pro am selben Ort -> Szene nach Lage
     assert len(clips) == 1 and clips[0]["sid"] == MATES[2]
     assert f.evidence["pro_clip"].startswith("Gleiche Lage (CT, 4 gegen 5, Bombe nicht gelegt): Mate3 hat "

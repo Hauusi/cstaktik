@@ -28,7 +28,7 @@ def test_enrich_adds_reference_and_ghost():
     res = analyze(m, CFG)
     enrich(m, res.findings)
     f = next(f for f in res.findings if f.rule_id == "death_review" and f.round == 2)
-    assert "In gewonnenen CT-Runden warst du nach 0:20 meist in SynthJungle (2 von 2), hier in SynthMid." == f.evidence["vorbild"]
+    assert "In gewonnenen CT-Runden warst du nach 0:20 meist in SynthJungle, in 2 von 2. Hier bist du in SynthMid gestorben." == f.evidence["vorbild"]
     assert f.overlay["ghost_round"] in (3, 4) and f.overlay["ghost_offset_s"] == 20 and len(f.overlay["ghost"]) == 2
 
 

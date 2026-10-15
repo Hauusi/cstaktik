@@ -52,7 +52,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                         f"Full-Buy: {', '.join(match.name_of(e.steamid) for e in full)}. "
                         f"Save: {', '.join(match.name_of(e.steamid) for e in eco)}."
                     ),
-                    tip="Vor der Runde absprechen: alle kaufen oder alle sparen, Drops einplanen.",
+                    tip="Sprecht euch vor der Runde ab: alle kaufen oder alle sparen. Plant Drops ein.",
                     evidence={
                         "tick": r.economy_tick,
                         "equip": {match.name_of(e.steamid): e.equip_value for e in team},
@@ -84,8 +84,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 steamid=None,
                 player_name=None,
                 severity="mittel",
-                text=f"Force (Ø Equip {avg}) verloren, Runde {nxt.num} nur Ø Equip {next_avg}.",
-                tip="Force nur, wenn die Runde danach trotzdem ein Full-Buy ist, sonst sauber sparen.",
+                text=f"Force mit Ø Equip {avg} verloren. In Runde {nxt.num} blieb nur Ø Equip {next_avg}.",
+                tip="Forced nur, wenn die Runde danach trotzdem ein Full-Buy wird. Sonst spart sauber.",
                 evidence={
                     "tick": r.economy_tick,
                     "runde_equip_avg": avg,

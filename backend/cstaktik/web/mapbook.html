@@ -32,7 +32,7 @@
 <a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Map-Buch {{ label }}</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/mapbook/{{ map_name }}?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if book %}{{ who }} · {{ book.matches }} Match{{ "es" if book.matches != 1 }} auf {{ label }}. Spot = wo du nach {{ book.at }} Rundenzeit stehst.{% else %}Noch keine Matches auf {{ label }}.{% endif %}</p>
+<p>{% if book %}{{ who }} · {{ book.matches }} Match{{ "es" if book.matches != 1 }} auf {{ label }}. Ein Spot ist, wo du nach {{ book.at }} Rundenzeit stehst.{% else %}Noch keine Matches auf {{ label }}.{% endif %}</p>
 {% endblock %}
 {% block content %}
 {% if img %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><image id="mbrad" href="{{ img }}" width="1024" height="1024"/></defs></svg>{% endif %}
@@ -59,8 +59,8 @@
   <div class="small" style="margin-top:6px">Diese Winkel vorzielen, bevor du sie betrittst oder hältst. Fadenkreuz auf Kopfhöhe an die Kante, aus der er kommt.</div>
   {% endif %}
   {% if sd.seen and sd.seen.known >= 3 %}
-  <div class="seenline"><b class="num">{{ sd.seen.opp }} von {{ sd.seen.known }}</b> Toden: Er hat dich zuerst gesehen{% if sd.seen.me %}, {{ sd.seen.me }}x du ihn{% endif %}.
-    {% if sd.seen.places %}Am häufigsten in {% for p in sd.seen.places %}<b>{{ p.place }}</b> ({{ p.n }}x){{ ", " if not loop.last }}{% endfor %}: Dort stehst du sichtbar, bevor du selbst etwas siehst. Anders hinstellen oder erst mit Utility rein.{% endif %}</div>
+  <div class="seenline">Bei <b class="num">{{ sd.seen.opp }} von {{ sd.seen.known }}</b> Toden hat er dich zuerst gesehen{% if sd.seen.me %}, {{ sd.seen.me }}x du ihn{% endif %}.
+    {% if sd.seen.places %}Am häufigsten in {% for p in sd.seen.places %}<b>{{ p.place }}</b> ({{ p.n }}x){{ ", " if not loop.last }}{% endfor %}. Dort stehst du sichtbar, bevor du selbst etwas siehst. Anders hinstellen oder erst mit Utility rein.{% endif %}</div>
   {% endif %}
 </div>
 {% endif %}
@@ -83,12 +83,12 @@
   <div class="small muted num" style="margin-top:8px">{{ s.n }} Runden · {{ s.first }}x als Erster tot{% if s.untraded is not none %} · {{ s.untraded }}x ohne Trade{% endif %}</div>
   <ul class="why">{% for w in s.why if s.verdict in ("tendenz", "offen") %}<li>{{ w }}</li>{% endfor %}
     {% if s.verdict == "problem" %}{% set alt = sd.pro_spots|rejectattr("place", "equalto", s.place)|selectattr("won_pct")|sort(attribute="won_pct", reverse=True)|first %}
-    {% if alt %}<li><b>Statt dessen:</b> nach {{ book.at }} in {{ alt.place }} stehen (Pros dort {{ alt.won_pct }} % Siege){% if s.lineups %} oder vorher die {{ s.lineups[0].kind_de }} nach {{ s.lineups[0].to }} werfen{% endif %}.</li>{% endif %}{% endif %}
+    {% if alt %}<li><b>Stattdessen:</b> Nach {{ book.at }} in {{ alt.place }} stehen. Pros gewinnen dort {{ alt.won_pct }} %.{% if s.lineups %} Oder vorher die {{ s.lineups[0].kind_de }} nach {{ s.lineups[0].to }} werfen.{% endif %}</li>{% endif %}{% endif %}
     {% if s.killer_places %}<li><b>Erschossen aus:</b> {% for p, n in s.killer_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}. Dorthin vorzielen.</li>
     {% elif s.death_places %}<li>Gestorben in: {% for p, n in s.death_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}</li>{% endif %}</ul>
   {% if s.pro is defined %}
   <div class="prol"><b class="h">Pros auf {{ label }} ({{ sd.label }})</b>
-    {% if s.pro.n %}Stehen nach {{ book.at }} in {{ s.pro.share }} % der Runden hier.
+    {% if s.pro.n %}Pros stehen nach {{ book.at }} in {{ s.pro.share }} % der Runden hier.
     {% else %}Kein Pro stand in euren Pro-Demos nach {{ book.at }} hier.{% endif %}
     {% if s.lineups %}<div class="chips">{% for l in s.lineups %}<a href="/lineups/{{ map_name }}?l={{ l.id }}&p={{ sid }}">{{ l.kind_de }} → {{ l.to or "?" }} ({{ l.n }}x)</a>{% endfor %}</div>{% endif %}
   </div>
@@ -103,12 +103,17 @@
   {% for p in sd.pro_spots %}<tr><td><b>{{ p.place }}</b></td><td>{{ p.share }} %</td><td>{{ p.won_pct ~ " %" if p.won_pct is not none else "–" }}</td><td>{{ p.first_pct ~ " %" if p.first_pct is not none else "–" }}</td><td>{% if p.lineups %}<a href="/lineups/{{ map_name }}?side={{ side }}&p={{ sid }}" style="color:var(--orange)">{{ p.lineups }}</a>{% else %}–{% endif %}</td></tr>{% endfor %}
 </table></div>
 {% elif sd.spots %}
-<p class="small muted">Pro-Vergleich ab {{ cfg.min_pro_rounds }} Pro-Runden auf dieser Map und Seite. <a href="/pro" style="color:var(--orange)">Pro-Demos hochladen ›</a></p>
+<p class="small muted">Den Pro-Vergleich gibt es ab {{ cfg.min_pro_rounds }} Pro-Runden auf dieser Map und Seite. <a href="/pro" style="color:var(--orange)">Pro-Demos hochladen ›</a></p>
 {% endif %}
 </div>
 {% endfor %}
 </div>
-<p class="small muted" style="margin-top:20px">Bewertung: „Anpassen“ ab {{ cfg.first_death_bad_pct }} % der Runden als Erster bzw. {{ cfg.untraded_bad_pct }} % ohne Trade gestorben, „Halten“ ab {{ cfg.win_good_pct }} % Siegen und höchstens {{ cfg.first_death_good_pct }} % als Erster tot, ab {{ cfg.min_rounds }} Runden (rules.yaml, mapbook). Zahlen aus euren Demos.</p>
+<p class="small muted" style="margin-top:20px">Die Bewertung der Spots kommt aus euren Demos.</p>
+<details class="how"><summary>Wie wird das gemessen?</summary>
+  <ul><li>Bewertet wird ab {{ cfg.min_rounds }} Runden auf einem Spot.</li>
+    <li>„Anpassen“: ab {{ cfg.first_death_bad_pct }} % der Runden als Erster gestorben. Oder ab {{ cfg.untraded_bad_pct }} % ohne Trade gestorben.</li>
+    <li>„Halten“: ab {{ cfg.win_good_pct }} % Siegen und höchstens {{ cfg.first_death_good_pct }} % als Erster tot.</li>
+    <li>Die Grenzwerte stehen in rules.yaml unter mapbook.</li></ul></details>
 {% else %}
 <div class="card empty">Noch keine Matches auf {{ label }}.</div>
 {% endif %}

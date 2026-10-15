@@ -13,11 +13,11 @@
 {% block hero %}
 <h1>Highlights{% if name %} · {{ name }}{% endif %}</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/highlights?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>Die Aktionen, die die Siegchance einer Runde am stärksten verschoben haben. Antippen springt im Replay genau dorthin.</p>
+<p>Die Aktionen, die die Siegchance am stärksten verschoben haben. Antippen öffnet die Stelle im Replay.</p>
 {% endblock %}
 {% block content %}
 {% if not hl or not hl.n %}
-<div class="card empty">Noch keine Momente. Sie entstehen mit dem nächsten ausgewerteten Match (oder einmal <code>cstaktik pro-update</code> für die bisherigen).</div>
+<div class="card empty">Noch keine Momente. Sie entstehen mit dem nächsten ausgewerteten Match. Für bisherige Matches einmal <code>cstaktik pro-update</code> ausführen.</div>
 {% else %}
 <div class="cols">
 <div class="col">
@@ -30,6 +30,8 @@
 {% for r in hl.worst %}{% include "hl_row.html" %}{% else %}<div class="card empty">Noch keine.</div>{% endfor %}
 </div>
 </div>
-<p class="small muted" style="margin-top:14px">Prozent = Änderung der Siegchance eures Teams durch diese Aktion (gezählt aus euren Matches und den Pro-Demos). Gespeichert sind je Match die fünf größten in jede Richtung.</p>
+<p class="small muted" style="margin-top:14px">Die Prozentzahl zeigt, wie stark die Aktion die Siegchance eures Teams verändert hat.</p>
+<details class="how"><summary>Wie wird das gemessen?</summary>
+  <p>Die Siegchancen sind aus euren Matches und den Pro-Demos gezählt. Je Match sind die fünf größten Momente in jede Richtung gespeichert.</p></details>
 {% endif %}
 {% endblock %}

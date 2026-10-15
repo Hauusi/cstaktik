@@ -131,23 +131,23 @@ def summary(hist: list[dict], sid: str, pros: list[dict]) -> dict | None:
 
 
 def reading(s: dict) -> str | None:
-    """Ein Satz Bewertung, nur mit genug Fällen und Pro-Vergleich; sonst None."""
+    """Kurze Bewertung, nur mit genug Fällen und Pro-Vergleich; sonst None."""
     parts = []
     if s["exp"] is not None and s["exp_n"] >= MIN_OWN:
         diff = s["won_cmp"] - s["exp"]
-        base = (f"{s['won_cmp']} von {s['exp_n']} Clutches gewonnen; Pros hätten in denselben Lagen im Schnitt "
-                f"{str(s['exp']).replace('.', ',')} gewonnen")
+        base = (f"Du hast {s['won_cmp']} von {s['exp_n']} Clutches gewonnen. Pros hätten in denselben Lagen "
+                f"im Schnitt {str(s['exp']).replace('.', ',')} gewonnen.")
         if diff <= -1.5:
-            parts.append(base + ". Hier lässt du Runden liegen: im Clutch Zeit nutzen, Gegner einzeln nehmen, "
-                         "nicht in zwei gleichzeitig laufen.")
+            parts.append("Im Clutch lässt du Runden liegen. " + base + " Tipp: Nutze die Zeit und nimm die Gegner "
+                         "einzeln. Lauf nie in zwei gleichzeitig.")
         elif diff >= 1.5:
-            parts.append(base + ". Clutches sind eine Stärke von dir.")
+            parts.append("Clutches sind eine Stärke von dir. " + base)
         else:
-            parts.append(base + ", also etwa Pro-Niveau.")
+            parts.append("Im Clutch spielst du etwa auf Pro-Niveau. " + base)
     tp = s["t_plant"]
     if tp["n"] >= MIN_OWN and tp["pro_pct"] is not None:
         mine = _pct(tp["planted"], tp["n"])
         if mine is not None and tp["pro_pct"] - mine >= 20:
-            parts.append(f"Als letzter T ohne gelegte Bombe legst du nur in {mine} % der Fälle noch "
-                         f"(Pros {tp['pro_pct']} %). Mit Bombe am Boden muss der Gegner zu dir kommen.")
+            parts.append(f"Als letzter T ohne Bombe am Boden legst du zu selten noch. Du schaffst es in {mine} % "
+                         f"der Fälle, Pros in {tp['pro_pct']} %. Tipp: Leg die Bombe. Dann muss der Gegner zu dir.")
     return " ".join(parts) or None

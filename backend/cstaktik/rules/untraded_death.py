@@ -71,10 +71,10 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 text=(
                     f"{'Erster Tod der Runde' if first_death else 'Tod'} in {place}"
                     f"{f' ({t}s)' if t is not None else ''} gegen {k.attacker_name or '?'}"
-                    f"{f' ({k.weapon})' if k.weapon else ''}. Nächster Mitspieler "
-                    f"{match.name_of(nearest_id)}: {round(nearest_d)} Units weg, kein Trade."
+                    f"{f' ({k.weapon})' if k.weapon else ''}. Der nächste Mitspieler "
+                    f"{match.name_of(nearest_id)} war {round(nearest_d)} Units weg. Kein Trade."
                 ),
-                tip="Nur peeken, wenn ein Mitspieler direkt nachziehen kann. Sonst Info geben und zurückfallen.",
+                tip="Peek nur, wenn ein Mitspieler direkt nachziehen kann. Sonst gib Info und fall zurück.",
                 overlay={
                     "line": [[k.victim_pos.x, k.victim_pos.y], [mate_pos[nearest_id].x, mate_pos[nearest_id].y]],
                     "label": f"{round(nearest_d)} Units zu {match.name_of(nearest_id)}",

@@ -40,8 +40,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 steamid=sid,
                 player_name=match.name_of(sid),
                 severity="hoch" if deaths and len(rounds) / deaths >= 0.5 else "mittel",
-                text=f"{len(rounds)} von {deaths} Toden im Duell ohne vorher Schaden zu machen.",
-                tip="Duelle nur mit Vorteil nehmen: vorgezielt auf Kopfhöhe, kurz peeken, nach Info zurück.",
+                text=f"In {len(rounds)} von {deaths} Duell-Toden hast du vorher keinen Schaden gemacht.",
+                tip="Nimm Duelle nur mit Vorteil. Ziel auf Kopfhöhe vor, peek kurz und geh nach der Info zurück.",
                 evidence={"runden": sorted(rounds), "tode_gesamt": deaths},
                 rounds=sorted(rounds),
             )

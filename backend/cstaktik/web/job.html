@@ -39,9 +39,9 @@ let job = null, fetchedAt = 0;
 async function poll() {
   try {
     const r = await fetch('/api/jobs/{{ job_id }}', { cache: 'no-store' });
-    if (r.status === 404) { showError('Auftrag unbekannt (Server neu gestartet?). Fertige Reports stehen unter Matches.'); return; }
+    if (r.status === 404) { showError('Auswertung nicht gefunden. Vielleicht wurde der Server neu gestartet. Fertige Reports stehen unter Matches.'); return; }
     if (r.status === 401) { location.href = '/login?next=' + encodeURIComponent(location.pathname); return; }
-    if (!r.ok) { showError('Server-Fehler ' + r.status + '. Seite neu laden; fertige Reports stehen unter Matches.'); return; }
+    if (!r.ok) { showError('Server-Fehler ' + r.status + '. Seite neu laden. Fertige Reports stehen unter Matches.'); return; }
     job = await r.json(); fetchedAt = performance.now();
     if (job.status === 'fertig') {
       if (job.report) { location.replace('/reports/' + job.report); return; }
@@ -79,7 +79,7 @@ function tick() {
       $('note').textContent = 'Restzeit geschätzt aus ' + job.samples + ' bisherigen Auswertung(en) auf diesem Server.';
     } else {
       $('eta').textContent = '';
-      $('note').textContent = job.cached ? 'Demo schon geparst, geht schnell.' : 'Erste Auswertung auf diesem Server: noch keine Restzeit-Schätzung möglich.';
+      $('note').textContent = job.cached ? 'Demo ist schon geparst. Das geht schnell.' : 'Erste Auswertung auf diesem Server. Die Restzeit lässt sich noch nicht schätzen.';
     }
     const cur = job.status === 'wartet' ? -1 : STEPS.findLastIndex(s => job.frac >= s[1]);
     if (cur !== shownStep) {

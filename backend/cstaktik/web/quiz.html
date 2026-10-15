@@ -38,13 +38,13 @@
 <a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Situationen</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training/situationen?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if title %}{% if who and who != "Ich" %}Auftrag {{ who }}:{% else %}Dein Auftrag:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Entscheide, bevor du siehst, was passiert ist.</p>
+<p>{% if title %}{% if who and who != "Ich" %}Auftrag {{ who }}:{% else %}Dein Auftrag:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Erst entscheiden, dann siehst du, was passiert ist.</p>
 {% endblock %}
 {% block content %}
 {% if radars %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{% for m, img in radars.items() %}<image id="rad-{{ m }}" href="{{ img }}" width="1024" height="1024"/>{% endfor %}</defs></svg>{% endif %}
 <div id="list"></div>
 <div class="score num" id="score"></div>
-{% if not n %}<p class="muted">Noch keine Situationen. Nach der nächsten Auswertung (oder "cstaktik pro-update") stehen hier eure Szenen.</p>{% endif %}
+{% if not n %}<p class="muted">Noch keine Situationen. Eure Szenen erscheinen nach der nächsten Auswertung. Für ältere Matches einmal „cstaktik pro-update“ ausführen.</p>{% endif %}
 <script type="application/json" id="data">{{ data_json|safe }}</script>
 <script>
 (() => {
@@ -122,8 +122,8 @@ S.forEach((sc, i) => {
       if (best) { n++; if (k === best) ok++; }
       save(KEY(sc), { ok: best ? k === best : null, date: Date.now() });  // ohne Pro-Vergleich kein richtig/falsch
       answered++;
-      const v = best ? (k === best ? el('div', 'v ok', 'Richtig: Mit dieser Option gewinnen Pros diese Lage am häufigsten.') : el('div', 'v no', 'Pros gewinnen diese Lage am häufigsten mit: ' + OPTS.find(o => o[0] === best)[1] + '.'))
-                     : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage');
+      const v = best ? (k === best ? el('div', 'v ok', 'Richtig. Damit gewinnen Pros diese Lage am häufigsten.') : el('div', 'v no', 'Pros gewinnen hier am häufigsten mit: ' + OPTS.find(o => o[0] === best)[1] + '.'))
+                     : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage.');
       if (map) { map.classList.add('done');
         if (sc.view.kplace) res.appendChild(el('div', 'kfrom', 'Der Killer kam aus ' + sc.view.kplace + ' (rote Linie).')); }
       res.append(v, el('div', 'meta', 'Lektion: ' + sc.lesson_title), el('div', null, sc.happened));

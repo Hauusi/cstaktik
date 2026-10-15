@@ -68,16 +68,16 @@ def summary(hist: list[dict], sid: str) -> dict | None:
         parts = []
         if a["impact"] is not None and b["impact"] is not None and a["impact_n"] >= MIN_ROUNDS \
                 and b["impact_n"] >= MIN_ROUNDS and b["impact"] - a["impact"] >= IMPACT_GAP:
-            parts.append(f"Impact {a['impact_s']} statt {b['impact_s']} Punkte je Runde")
+            parts.append(f"Dein Impact sinkt auf {a['impact_s']} statt {b['impact_s']} Punkte je Runde.")
         if a["first"] - b["first"] >= FIRST_GAP:
-            parts.append(f"als Erster gestorben in {a['first']} % statt {b['first']} % der Runden")
+            parts.append(f"Du stirbst in {a['first']} % statt {b['first']} % der Runden als Erster.")
         if a["untraded"] - b["untraded"] >= FIRST_GAP:
-            parts.append(f"ohne Trade gestorben in {a['untraded']} % statt {b['untraded']} %")
+            parts.append(f"Ohne Trade stirbst du in {a['untraded']} % statt {b['untraded']} % der Runden.")
         if parts:
-            out["reading"] = (f"Nach {STREAK}+ verlorenen Runden in Folge spielst du messbar schlechter: "
-                              + ", ".join(parts) + ". Genau dann hilft eine ruhige Standard-Runde zu zweit mehr als "
-                              "ein Einzel-Peek, der es wieder rausreißen soll.")
+            out["reading"] = (f"Nach {STREAK}+ verlorenen Runden in Folge spielst du messbar schlechter. "
+                              + " ".join(parts) + " Tipp: Spiel genau dann eine ruhige Standard-Runde zu zweit, "
+                              "keinen Einzel-Peek.")
         else:
-            out["reading"] = (f"Nach Niederlagen-Serien spielst du nicht schlechter als nach Siegen "
-                              f"({a['n']} und {b['n']} Runden verglichen). Kein Tilt erkennbar.")
+            out["reading"] = (f"Kein Tilt erkennbar. Nach Niederlagen-Serien spielst du nicht schlechter als "
+                              f"nach Siegen. Verglichen wurden {a['n']} und {b['n']} Runden.")
     return out

@@ -133,28 +133,28 @@ def _verdict(row: dict, cfg: dict) -> dict:
     """Bewertung nach festen Schwellen; ``why`` nennt die Zahlen dahinter."""
     n = row["n"]
     if n < cfg.get("min_rounds", 3):
-        return {"verdict": "offen", "why": [f"Erst {n} Runde{'n' if n != 1 else ''} hier, zu wenig für eine Bewertung."]}
+        return {"verdict": "offen", "why": [f"Erst {n} Runde{'n' if n != 1 else ''} hier. Das reicht noch nicht für eine Bewertung."]}
     why = []
     bad = False
     min_bad = cfg.get("min_bad_count", 3)  # Prozent allein reicht nicht: 2 von 4 ist noch Zufall
     if row["first_pct"] >= cfg.get("first_death_bad_pct", 40) and row["first"] >= min_bad:
         bad = True
-        why.append(f"In {row['first']} von {n} Runden von diesem Spot aus als Erster gestorben.")
+        why.append(f"Hier stirbst du oft als Erster: in {row['first']} von {n} Runden.")
     if (row["untraded_pct"] is not None and row["untraded_pct"] >= cfg.get("untraded_bad_pct", 40)
             and row["untraded"] >= min_bad):
         bad = True
-        why.append(f"In {row['untraded']} von {n} Runden von diesem Spot aus ohne Trade gestorben.")
+        why.append(f"Hier stirbst du oft ohne Trade: in {row['untraded']} von {n} Runden.")
     if n < cfg.get("verdict_rounds", 8):
         # wenige Runden: nur eine Tendenz zeigen, damit die Bewertung nicht mit jeder Runde kippt
         lean = "eher Problem" if bad else "eher gut" if row["won_pct"] >= cfg.get("win_good_pct", 55) else "offen"
-        return {"verdict": "tendenz", "why": [f"Tendenz {lean}, erst {n} Runden (Bewertung ab "
-                                              f"{cfg.get('verdict_rounds', 8)})."] + why}
+        return {"verdict": "tendenz", "why": [f"Tendenz: {lean}. Erst {n} Runden hier, bewertet wird ab "
+                                              f"{cfg.get('verdict_rounds', 8)}."] + why}
     if bad:
         return {"verdict": "problem", "why": why}
     if row["won_pct"] >= cfg.get("win_good_pct", 55) and row["first_pct"] <= cfg.get("first_death_good_pct", 25):
-        return {"verdict": "stark", "why": [(f"{row['won_pct']} % der Runden gewonnen, selten als Erster gestorben "
-                                              f"({row['first']} von {n}).")]}
-    return {"verdict": "okay", "why": [f"{row['won_pct']} % gewonnen, {row['first']} von {n} Runden als Erster gestorben."]}
+        return {"verdict": "stark", "why": [(f"{row['won_pct']} % der Runden gewonnen. Als Erster gestorben bist du "
+                                              f"selten, nur in {row['first']} von {n}.")]}
+    return {"verdict": "okay", "why": [f"{row['won_pct']} % der Runden gewonnen. In {row['first']} von {n} als Erster gestorben."]}
 
 
 def worst_spot(book: dict) -> dict | None:

@@ -27,19 +27,19 @@ DEFAULTS = {"eco_max": 6000, "force_max": 18000, "rush_s": 25, "late_s": 55, "na
             "nade_after_s": 5, "common_share": 0.5}
 
 STYLE_TEXT = {
-    "rush": ("Rush", "Alle schnell auf einen Bombsite, bevor die CT rotieren können. Funktioniert über Tempo und "
-                     "Überzahl am Ort, nicht über Utility. Gut gegen passive CT und in Eco-Runden."),
-    "split": ("Split", "Das Team greift einen Bombsite aus zwei Richtungen gleichzeitig an. Die CT am Ort müssen "
-                       "zwei Winkel halten, Crossfires brechen auf. Entscheidend ist das Timing: Beide Gruppen "
-                       "müssen zur selben Zeit reinkommen."),
-    "execute": ("Execute", "Geplanter Angriff mit festem Granaten-Set: Smokes nehmen die Sichtlinien der CT weg, "
-                           "Flashes blenden beim Reinlaufen, Molotovs räumen Ecken. Dann alle zusammen rein."),
-    "default": ("Default", "Erst die Map kontrollieren und Infos sammeln, verteilt auf mehrere Orte. Die Entscheidung "
-                           "für einen Bombsite fällt spät, oft nach einem Pick oder einer Info."),
-    "eco": ("Eco-Push", "Mit wenig Geld gewinnt man selten ein faires Duell. Deshalb zusammen und schnell auf einen "
-                        "Ort drücken, Überzahl im ersten Kontakt suchen und Waffen der Gegner aufheben."),
-    "pistol": ("Pistolenrunde", "Erste Runde der Halbzeit: alle mit Pistole, Utility ist knapp und wertvoll. "
-                                "Meist zusammen spielen, Trades sind wichtiger als Einzelaktionen."),
+    "rush": ("Rush", "Alle gehen schnell auf einen Bombsite, bevor die CT rotieren. Das lebt von Tempo und "
+                     "Überzahl, nicht von Utility. Gut gegen passive CT und in Eco-Runden."),
+    "split": ("Split", "Das Team greift einen Bombsite aus zwei Richtungen an. Die CT müssen zwei Winkel halten. "
+                       "So brechen ihre Crossfires auf. Entscheidend ist das Timing. Beide Gruppen müssen "
+                       "gleichzeitig reinkommen."),
+    "execute": ("Execute", "Ein geplanter Angriff mit festem Granaten-Set. Smokes nehmen den CT die Sicht. "
+                           "Flashes blenden beim Reinlaufen, Molotovs räumen Ecken. Dann gehen alle zusammen rein."),
+    "default": ("Default", "Erst kontrolliert ihr die Map und sammelt Infos, verteilt auf mehrere Orte. Der Bombsite "
+                           "wird spät gewählt, oft nach einem Pick oder einer Info."),
+    "eco": ("Eco-Push", "Mit wenig Geld gewinnt man selten ein faires Duell. Deshalb drückt ihr zusammen und schnell "
+                        "auf einen Ort. Sucht Überzahl im ersten Kontakt und hebt die Waffen der Gegner auf."),
+    "pistol": ("Pistolenrunde", "Die erste Runde der Halbzeit. Alle haben nur Pistolen, Utility ist knapp und wertvoll. "
+                                "Spielt meist zusammen. Trades sind wichtiger als Einzelaktionen."),
 }
 
 
@@ -302,8 +302,9 @@ def compare(own: dict, pro: dict, min_rounds: int = 10, min_style: int = 4) -> s
         return None
     st, diff, o, p = best
     more = "öfter" if diff > 0 else "seltener"
-    tail = (f" Eure {o['label']}-Runden: {o['won_pct']} % gewonnen ({o['n']} Runden)." if o["n"] >= min_style else "")
-    return f"Ihr spielt {o['label']} deutlich {more} als Pros: {o['share']} % eurer T-Runden, Pros {p['share']} %.{tail}"
+    tail = (f" Davon gewinnt ihr {o['won_pct']} %, aus {o['n']} Runden." if o["n"] >= min_style else "")
+    return (f"Ihr spielt {o['label']} deutlich {more} als Pros. Das sind {o['share']} % eurer T-Runden, "
+            f"bei Pros {p['share']} %.{tail}")
 
 
 # ---------------------------------------------------------------- CT-Seite: Aufstellungen
@@ -486,13 +487,13 @@ def buy_reading(own: dict, pro: dict, min_n: int = 8, side: str = "t") -> str | 
     """Ein Satz zum Kaufverhalten, nur bei klarem Abstand zu den Pros und genug Runden."""
     o, p = own["buys"].get("force"), pro["buys"].get("force")
     if o and p and o["n"] >= min_n and p["n"] >= min_n and p["won_pct"] - o["won_pct"] >= 15:
-        return (f"Eure Force-Buys auf {side.upper()} gewinnen {o['won_pct']} % ({o['won']} von {o['n']}), Pros {p['won_pct']} %. "
-                "Bei euch lohnt sich der Force selten: lieber eine volle Eco und die nächste Runde voll kaufen, "
-                "oder den Force gemeinsam auf einen Ort spielen.")
+        return (f"Force-Buys auf {side.upper()} lohnen sich bei euch selten. Ihr gewinnt {o['won_pct']} %, "
+                f"{o['won']} von {o['n']}. Pros: {p['won_pct']} %. Tipp: Spielt lieber eine volle Eco und kauft "
+                "danach voll. Oder spielt den Force gemeinsam auf einen Ort.")
     o, p = own["buys"].get("eco"), pro["buys"].get("eco")
     if o and p and o["n"] >= min_n and o["share"] - p["share"] >= 15:
-        return (f"Ihr spielt {o['share']} % eurer {side.upper()}-Runden als Eco, Pros {p['share']} %. Häufige Ecos kosten Runden: "
-                "Geld über die Runden besser einteilen, damit ihr öfter voll kaufen könnt.")
+        return (f"Ihr spielt deutlich öfter Eco als Pros. Das sind {o['share']} % eurer {side.upper()}-Runden, bei Pros "
+                f"{p['share']} %. Tipp: Teilt euer Geld besser ein. Dann könnt ihr öfter voll kaufen.")
     return None
 
 
@@ -533,18 +534,17 @@ def postplant_reading(own: dict, pro: dict, min_n: int = 6, side: str = "t") -> 
     if not worst:
         return None
     key, o, p = worst
-    tip = {"t": {"up": "In Überzahl nicht mehr peeken: Bombe aus sicheren Winkeln halten, die CT müssen kommen.",
-                 "even": "Nach dem Plant nicht vereinzeln: Crossfire auf die Bombe aufbauen und Utility für den Retake "
-                         "aufheben.",
-                 "down": "In Unterzahl auf Zeit spielen: versteckt halten, Molotov oder Smoke auf die Bombe, wenn sie "
-                         "defusen."},
-           "ct": {"up": "In Überzahl gemeinsam retaken: auf die anderen warten, dann zusammen mit Flash rein, nicht "
-                        "einzeln nacheinander.",
-                  "even": "Utility für den Retake aufheben und von zwei Seiten gleichzeitig kommen.",
-                  "down": "In Unterzahl nicht einzeln sterben: reicht die Zeit nicht, die Waffe retten (Save)."}}
+    tip = {"t": {"up": "Peekt in Überzahl nicht mehr. Haltet die Bombe aus sicheren Winkeln, die CT müssen kommen.",
+                 "even": "Verteilt euch nach dem Plant nicht einzeln. Baut ein Crossfire auf die Bombe und hebt "
+                         "Utility für den Retake auf.",
+                 "down": "Spielt in Unterzahl auf Zeit und bleibt versteckt. Werft Molotov oder Smoke auf die Bombe, "
+                         "wenn sie defusen."},
+           "ct": {"up": "Retaket in Überzahl gemeinsam. Wartet auf die anderen und geht zusammen mit Flash rein.",
+                  "even": "Hebt Utility für den Retake auf. Kommt von zwei Seiten gleichzeitig.",
+                  "down": "Sterbt in Unterzahl nicht einzeln. Reicht die Zeit nicht, rettet die Waffe."}}
     what = "Nach dem Plant" if side == "t" else "Im Retake"
-    return (f"{what} in {o['label']} gewinnt ihr {o['won_pct']} % ({o['won']} von {o['n']}), Pros "
-            f"{p['won_pct']} %. {tip[side][key]}")
+    return (f"{what} in {o['label']} gewinnt ihr klar seltener als Pros. Bei euch sind es {o['won_pct']} %, "
+            f"{o['won']} von {o['n']}. Pros: {p['won_pct']} %. Tipp: {tip[side][key]}")
 
 
 FIRSTBLOOD = (("for", "Erster Kill für euch (5 gegen 4)"), ("against", "Erster Tod bei euch (4 gegen 5)"))
@@ -571,13 +571,12 @@ def firstblood_mix(sources: list[dict], side: str = "t") -> dict:
 
 def firstblood_reading(own: dict, pro: dict, side: str = "t", min_n: int = 8) -> str | None:
     """Ein Satz, wenn ihr nach dem ersten Kill klar schlechter umsetzt als Pros (Vorteil verschenkt / nicht aufgeholt)."""
-    tips = {"for": {"t": "Nach dem ersten Kill nicht einzeln nachpushen: Überzahl nutzen, gemeinsam mit Utility auf "
-                         "einen Bombsite, Trades sicherstellen.",
-                    "ct": "Nach dem ersten Kill nicht hinterherjagen: Positionen halten, Info nutzen, die T müssen "
-                          "jetzt in Unterzahl kommen."},
-            "against": {"t": "Nach dem ersten Tod langsamer werden: neu sammeln, Utility zusammen einsetzen, nicht "
-                             "einzeln in denselben Winkel.",
-                        "ct": "Nach dem ersten Tod früh rotieren und zusammenziehen, statt allein weiter zu halten."}}
+    tips = {"for": {"t": "Pusht nach dem ersten Kill nicht einzeln nach. Nutzt die Überzahl und geht gemeinsam mit "
+                         "Utility auf einen Bombsite.",
+                    "ct": "Jagt nach dem ersten Kill nicht hinterher. Haltet eure Positionen, die T müssen jetzt in "
+                          "Unterzahl kommen."},
+            "against": {"t": "Werdet nach dem ersten Tod langsamer. Sammelt euch neu und setzt Utility zusammen ein.",
+                        "ct": "Rotiert nach dem ersten Tod früh und zieht zusammen. Haltet nicht allein weiter."}}
     best = None
     for k, _lbl in FIRSTBLOOD:
         o, p = own["rows"].get(k), pro["rows"].get(k)
@@ -587,6 +586,7 @@ def firstblood_reading(own: dict, pro: dict, side: str = "t", min_n: int = 8) ->
     if not best:
         return None
     k, o, p = best
-    what = "nach eurem ersten Kill" if k == "for" else "nach eurem ersten Tod"
-    return (f"Auf {side.upper()} gewinnt ihr {what} {o['won_pct']} % der Runden ({o['won']} von {o['n']}), Pros "
-            f"{p['won_pct']} %. {tips[k][side]}")
+    what = ("verschenkt ihr den Vorteil nach eurem ersten Kill öfter" if k == "for"
+            else "holt ihr nach eurem ersten Tod seltener auf")
+    return (f"Auf {side.upper()} {what} als Pros. Ihr gewinnt {o['won_pct']} % dieser Runden, "
+            f"{o['won']} von {o['n']}. Pros: {p['won_pct']} %. Tipp: {tips[k][side]}")

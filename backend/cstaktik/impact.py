@@ -32,13 +32,13 @@ CTX_IN = {"opening": "in Opening-Duellen", "trade": "bei Trades", "clutch": "im 
           "up": "in Überzahl", "even": "bei Gleichstand", "down": "in Unterzahl"}
 
 
-CTX_TIP = {"opening": "Erstes Duell nur mit Flash, Info oder zu zweit nehmen, nicht trocken peeken.",
-           "clutch": "Zeit nutzen, Gegner einzeln isolieren, nicht in zwei gleichzeitig laufen.",
-           "trade": "Näher am Mitspieler stehen, damit der Trade sofort kommt.",
-           "postplant": "Nach dem Plant Zeit für euch spielen lassen (T) bzw. gemeinsam retaken (CT), nicht einzeln.",
-           "up": "In Überzahl nicht einzeln peeken: zusammen gehen, die Zeit arbeitet für euch.",
-           "even": "Bei Gleichstand Duelle vorbereiten: Utility, Pre-Aim, Trade-Partner.",
-           "down": "In Unterzahl nicht allein das Duell suchen: zusammenziehen oder Waffe retten."}
+CTX_TIP = {"opening": "Nimm das erste Duell nur mit Flash, Info oder zu zweit.",
+           "clutch": "Nutze die Zeit und isoliere die Gegner einzeln. Lauf nie in zwei gleichzeitig.",
+           "trade": "Steh näher am Mitspieler. Dann kommt der Trade sofort.",
+           "postplant": "Als T lasst ihr die Zeit für euch spielen. Als CT retaket ihr gemeinsam, nicht einzeln.",
+           "up": "Peek in Überzahl nicht allein. Geht zusammen, die Zeit arbeitet für euch.",
+           "even": "Bereite Duelle bei Gleichstand vor: Utility, Pre-Aim, Trade-Partner.",
+           "down": "Such in Unterzahl nicht allein das Duell. Zieht zusammen oder rette die Waffe."}
 
 
 def _ctx(own: int, enemy: int, first: bool, planted: bool, trade: bool = False) -> str:
@@ -258,11 +258,11 @@ def contexts(rows: list[tuple[dict, dict]]) -> tuple[list[dict], str | None]:
     parts = []
     if sure and sure[0]["per_match"] <= -0.15:
         w = sure[0]
-        parts.append(f"Am meisten Runden verlierst du {CTX_IN[w['ctx']]}: {w['per_match_s']} Runden pro Match gegenüber "
-                     f"dem Durchschnitt eurer Matches ({w['n']} Kills und Tode). {CTX_TIP[w['ctx']]}")
+        parts.append(f"Am meisten Runden verlierst du {CTX_IN[w['ctx']]}. Das sind {w['per_match_s']} Runden pro Match "
+                     f"gegenüber dem Schnitt, aus {w['n']} Kills und Toden. Tipp: {CTX_TIP[w['ctx']]}")
     if sure and sure[-1]["per_match"] >= 0.15:
         b = sure[-1]
-        parts.append(f"Am meisten holst du {CTX_IN[b['ctx']]}: {b['per_match_s']} Runden pro Match über dem Schnitt.")
+        parts.append(f"Am meisten holst du {CTX_IN[b['ctx']]}. Das sind {b['per_match_s']} Runden pro Match über dem Schnitt.")
     return out, " ".join(parts) or None
 
 
@@ -292,7 +292,7 @@ def highlights(hist: list[dict], sid: str, top: int = 8) -> dict:
         if r["ctx"]:
             ctx_worst[r["ctx"]] = ctx_worst.get(r["ctx"], 0) + 1
     common = max(ctx_worst.items(), key=lambda kv: kv[1]) if ctx_worst else None
-    note = (f"{common[1]} deiner {len(worst)} teuersten Momente: {common[0]}." if common and common[1] >= 3 else None)
+    note = (f"{common[1]} deiner {len(worst)} teuersten Momente fallen in diese Lage: {common[0]}." if common and common[1] >= 3 else None)
     return {"best": best, "worst": worst, "note": note, "n": len(rows)}
 
 

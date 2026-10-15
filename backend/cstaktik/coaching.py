@@ -49,15 +49,15 @@ def compare_rates(n0: int, r0: int, n1: int, r1: int, min_rounds: int = 40) -> d
     ``state``: besser | schlechter | gleich | wenig; ``text`` nennt immer die Zahlen."""
     nums = f"{n0}x in {r0} Runden → {n1}x in {r1} Runden"
     if r0 < min_rounds or r1 < min_rounds or n0 + n1 < 3:
-        return {"state": "wenig", "text": f"{nums}: zu wenig für einen Trend"}
+        return {"state": "wenig", "text": f"{nums}. Zu wenig für einen Trend."}
     expected = n0 / r0 * r1
     sd = max(expected, 1.0) ** 0.5
     rate0, rate1 = 10 * n0 / r0, 10 * n1 / r1
     if n1 <= expected - 2 * sd:
-        return {"state": "besser", "text": f"besser ({_de(rate0)} → {_de(rate1)} pro 10 Runden; {nums})"}
+        return {"state": "besser", "text": f"Besser: {_de(rate0)} → {_de(rate1)} pro 10 Runden. Gezählt: {nums}."}
     if n1 >= expected + 2 * sd:
-        return {"state": "schlechter", "text": f"schlechter ({_de(rate0)} → {_de(rate1)} pro 10 Runden; {nums})"}
-    return {"state": "gleich", "text": f"kein klarer Unterschied ({nums})"}
+        return {"state": "schlechter", "text": f"Schlechter: {_de(rate0)} → {_de(rate1)} pro 10 Runden. Gezählt: {nums}."}
+    return {"state": "gleich", "text": f"Kein klarer Unterschied. Gezählt: {nums}."}
 
 
 import threading
@@ -305,7 +305,7 @@ def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: i
             d = next((d for d in match.duels if d.tick == k.tick and d.winner == k.attacker_steamid), None)
             if d is not None and lid in ("no_shot_close", "crosshair") and d.w_err is not None and d.w_err < 10:
                 text = (f"{name} hat {k.victim_place or 'den Spot'} vorgezielt: Fadenkreuz {str(d.w_err).replace('.', ',')}° "
-                        f"neben dem Gegner" + (", zuerst geschossen" if d.w_react_ms == 0 else "") + ", Kill.")
+                        f"neben dem Gegner" + (", zuerst geschossen" if d.w_react_ms == 0 else "") + ". Kill.")
             elif d is not None and lid == "moving" and d.w_speed is not None and d.w_speed < 40:
                 text = f"{name} steht beim ersten Schuss ({d.w_speed} Units/s) und gewinnt das Duell."
         elif lid == "seen_first":

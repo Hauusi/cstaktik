@@ -56,7 +56,7 @@ def test_mapbook_rates_spots_and_compares_with_pros():
     ct = book["sides"]["ct"]
     con = ct["spots"][0]
     assert con["place"] == "Connector" and con["n"] == 8 and con["first"] == 4 and con["untraded"] == 4
-    assert con["verdict"] == "problem" and "In 4 von 8 Runden von diesem Spot aus als Erster gestorben." in con["why"]
+    assert con["verdict"] == "problem" and "Hier stirbst du oft als Erster: in 4 von 8 Runden." in con["why"]
     assert con["pro"]["share"] == 33 and con["pro"]["n"] == 4  # 4 von 12 Pro-Runden
     assert con["lineups"] and con["lineups"][0]["to"] == "Mid"
     assert ct["spots"][1]["verdict"] == "offen"  # Jungle: nur 1 Runde
@@ -137,7 +137,7 @@ def test_mapbook_few_rounds_only_tendency():
     h[0]["timeline"] = [t for t in h[0]["timeline"] if t["round"] in (1, 2, 3, 5, 6)]  # 5 Runden, 3 erste Tode
     book = mapbook.build(h, [], "de_mirage", "me", CFG)
     con = book["sides"]["ct"]["spots"][0]
-    assert con["verdict"] == "tendenz" and con["why"][0].startswith("Tendenz eher Problem, erst 5 Runden")
+    assert con["verdict"] == "tendenz" and con["why"][0].startswith("Tendenz: eher Problem. Erst 5 Runden")
     assert mapbook.worst_spot(book) is None  # keine Wochenaufgabe aus einer Tendenz
 
 

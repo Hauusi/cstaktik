@@ -77,14 +77,14 @@ def _other_death(match: MatchData, k, sid: str, name: str) -> Finding:
     if any(x in w for x in ("knife", "bayonet", "taser")):
         what = "Zeus" if "taser" in w else "Messer"
     if k.attacker_steamid == sid:
-        title, tip = "Eigener Schaden", f"Durch die eigene {what} gestorben: Abstand zur eigenen Granate halten."
+        title, tip = "Eigener Schaden", f"Durch die eigene {what} gestorben. Halte Abstand zur eigenen Granate."
     elif k.attacker_steamid and k.attacker_side == k.victim_side:
         title, tip = "Teamschaden", f"Getötet von Mitspieler {by} ({what})."
     elif what in ("Messer", "Zeus"):
-        title, tip = what, f"{by} kam unbemerkt bis auf Nahkampf-Distanz: Rücken und Sound im Blick behalten."
+        title, tip = what, f"{by} kam unbemerkt bis auf Nahkampf-Distanz. Behalte Rücken und Sound im Blick."
     elif what in ("Molotov", "HE"):
-        title, tip = what, (f"{what} von {by}: aus der Wurflinie und dem Bereich raus, "
-                                            "nicht im Feuer oder an bekannten HE-Spots warten.")
+        title, tip = what, (f"{what} von {by}. Geh aus der Wurflinie und dem Bereich raus. "
+                                            "Warte nicht im Feuer oder an bekannten HE-Spots.")
     else:
         title, tip = what, f"Kein Duell ({what})."
     place = k.victim_place or "unbekanntem Ort"
@@ -155,8 +155,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             ago = round((k.tick - blind.tick) / tr, 1)
             by = match.name_of(blind.attacker_steamid) if blind.attacker_steamid else "?"
             facts.append(f"geblendet {_c(blind.duration)} s von {by}, {_c(ago)} s vor dem Tod")
-            issues["Geblendet"] = (f"Flash von {by} kam {_c(ago)} s vorher: sofort wegdrehen oder hinter Deckung, "
-                                   "nicht geblendet im Winkel bleiben.")
+            issues["Geblendet"] = (f"Die Flash von {by} kam {_c(ago)} s vorher. Dreh dich sofort weg oder geh "
+                                   "hinter Deckung. Bleib nicht geblendet im Winkel.")
 
         # HP vor dem Duell + Herkunft des Schadens
         hp = None
@@ -181,8 +181,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                                     for k_, v in sorted(src.items(), key=lambda x: -x[1]))
                 facts.append(f"{hp} HP vor dem Duell (vorher {src_txt})")
             if hp < cfg["hp_low"] and not opening:
-                issues["Wenig HP"] = (f"Mit {hp} HP nicht das nächste Duell suchen: zurückfallen, Info geben, "
-                                      "auf den Trade deiner Mitspieler spielen.")
+                issues["Wenig HP"] = (f"Such mit {hp} HP nicht das nächste Duell. Fall zurück, gib Info und "
+                                      "spiel auf den Trade deiner Mitspieler.")
 
         # Schüsse / Bewegung
         my_shots = [s for s in match.shots if s.steamid == sid and s.round == k.round and is_gun(s.weapon)
@@ -206,12 +206,12 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             if not my_shots:
                 facts.append("kein eigener Schuss vor dem Tod")
                 if a_dist is not None and a_dist < cfg["close_units"]:
-                    tip = (f"{k.attacker_place or 'Der Gegner'} war nah ({a_dist} Units): Ecke vorher vorzielen "
-                           "oder mit Flash/Molotov prüfen, nicht hineinlaufen.")
+                    tip = (f"{k.attacker_place or 'Der Gegner'} war nah, nur {a_dist} Units. Ziel die Ecke vorher "
+                           "vor oder prüf sie mit Flash oder Molotov. Lauf nicht einfach hinein.")
                 else:
                     src_place = k.attacker_place or "dieser Position"
-                    tip = (f"Langer Blick aus {src_place}" + (f" ({a_dist} Units)" if a_dist else "")
-                           + ": diese Linie nicht offen kreuzen, Smoke setzen oder anderen Weg nehmen.")
+                    tip = (f"Langer Blick aus {src_place}" + (f", {a_dist} Units" if a_dist else "")
+                           + ". Kreuz diese Linie nicht offen. Setz eine Smoke oder nimm einen anderen Weg.")
                 if {"Smoke", "Flash"} & set(nade_names):
                     tip += f" Du hattest {_list_de([n for n in nade_names if n in ('Smoke', 'Flash')])} dabei."
                 issues["Ohne Gegenwehr"] = tip
@@ -221,14 +221,14 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 if (last.speed is not None and mech.get("moving_shot_speed_units_s", 80) < last.speed
                         <= cfg["max_plausible_speed_units_s"]):
                     facts.append(f"letzter Schuss im Laufen ({round(last.speed)} Units/s)")
-                    issues["Im Laufen geschossen"] = (f"Letzter Schuss bei {round(last.speed)} Units/s: "
-                                                      "vor dem Schuss stoppen (Counter-Strafe), dann schießen.")
+                    issues["Im Laufen geschossen"] = (f"Dein letzter Schuss kam bei {round(last.speed)} Units/s. "
+                                                      "Stopp vor dem Schuss mit Counter-Strafe, dann schieß.")
         else:
             unchecked.append("Schüsse")
             speed = _speed(idx, k.round, sid, k.tick, tr)
             if speed is not None and cfg["moving_speed_units_s"] < speed <= cfg["max_plausible_speed_units_s"]:
                 facts.append(f"in Bewegung ({round(speed)} Units/s)")
-                issues["Im Laufen"] = "Vor dem Schuss stoppen (Counter-Strafe), nicht offen in Winkel laufen."
+                issues["Im Laufen"] = "Stopp vor dem Schuss mit Counter-Strafe. Lauf nicht offen in Winkel."
 
         # Mitspieler / Trade
         traded = bool(k.attacker_steamid) and any(
@@ -249,8 +249,9 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                        "label": f"{round(d)} Units zu {match.name_of(m)}"}
             if d > cfg["trade_distance_units"] and not traded:
                 issues["Allein, kein Trade"] = (f"{match.name_of(m)} war {round(d)} Units weg"
-                                                + (f" ({smp.place})" if smp.place else "")
-                                                + " und konnte nicht nachziehen. Duelle nur dort nehmen oder halten, wo ein Mitspieler nachziehen kann.")
+                                                + (f" in {smp.place}" if smp.place else "")
+                                                + " und konnte nicht nachziehen. Nimm oder halte Duelle nur dort, "
+                                                "wo ein Mitspieler nachziehen kann.")
         if mates and not near:
             unchecked.append("Mitspieler-Positionen")
         if traded:
@@ -271,24 +272,25 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
         if unused:
             facts.append("beim Tod im Inventar: " + ", ".join(unused))
         if duel_nades:
-            issues["Utility nicht genutzt"] = (f"Du bist mit {_list_de(duel_nades)} gestorben: "
-                                               "vor dem Duell werfen, genau dafür ist sie da.")
+            issues["Utility nicht genutzt"] = (f"Du bist mit {_list_de(duel_nades)} gestorben. "
+                                               "Wirf sie vor dem Duell, genau dafür ist sie da.")
         elif match.grenades and opening and not thrown and k.victim_inventory is None:  # Inventar unbekannt
-            issues["Utility nicht genutzt"] = "Erstes Duell ganz ohne Utility: Flash oder Molotov vor dem ersten Kontakt."
+            issues["Utility nicht genutzt"] = ("Das erste Duell lief ganz ohne Utility. "
+                                               "Wirf Flash oder Molotov vor dem ersten Kontakt.")
 
         # Unterzahl nur, wenn sie in der Runde entstanden ist
         if not opening and now_diff < start_diff and now_diff < 0:
-            issues["Unterzahl"] = (f"{len(mates) + 1} gegen {len(enemies)}: nicht allein Duelle suchen, "
-                                   "mit dem nächsten Mitspieler zusammen gehen oder Zeit spielen.")
+            issues["Unterzahl"] = (f"Ihr wart {len(mates) + 1} gegen {len(enemies)}. Such nicht allein Duelle. "
+                                   "Geh mit dem nächsten Mitspieler zusammen oder spiel auf Zeit.")
 
         ordered = [lbl for lbl in _PRIORITY if lbl in issues]
         if ordered:
             label, tip = ordered[0], issues[ordered[0]]
         elif unchecked:
             label, tip = "Duell verloren", ("Keine klare Ursache in den Daten. Nicht prüfbar: " + ", ".join(unchecked)
-                                            + ". Vorzielen auf Kopfhöhe und Peek-Timing prüfen.")
+                                            + ". Prüf Vorzielen auf Kopfhöhe und Peek-Timing.")
         else:
-            label, tip = "Duell verloren", "Die Lage war in Ordnung. Vorzielen auf Kopfhöhe und Peek-Timing prüfen."
+            label, tip = "Duell verloren", "Die Lage war in Ordnung. Prüf Vorzielen auf Kopfhöhe und Peek-Timing."
         sev = "hoch" if len(ordered) >= 2 else "mittel" if ordered else "niedrig"
 
         # Ein Satz, was passiert ist
