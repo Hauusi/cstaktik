@@ -151,3 +151,10 @@ details { margin: 12px 0; } summary { color: var(--muted); font-size: 13px; curs
 .dstep .dsh span { width: 22px; height: 22px; display: inline-grid; place-items: center; background: #ff9f1c; color: #111; font-size: 14px; align-self: center; }
 .dstep .dsh i { font-family: system-ui, sans-serif; font-style: normal; font-weight: 400; font-size: 12.5px; text-transform: none; letter-spacing: 0; color: var(--muted); }
 .dstep .seen { margin-top: 4px; padding-top: 0; border-top: 0; }
+
+.lev { display: grid; gap: 2px; }
+.lv { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.lv .lg { font-family: var(--cond); font-weight: 800; font-size: 24px; color: var(--win); text-align: right; line-height: 1.1; }
+.lv b { font-size: 15px; } .lv .lk2 { margin-left: 6px; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.levhome { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; margin-top: 12px; padding: 12px 14px; }
+.levhome .lg { font-family: var(--cond); font-weight: 800; font-size: 26px; color: var(--win); }

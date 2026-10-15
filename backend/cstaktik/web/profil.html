@@ -36,6 +36,15 @@
 </div>
 {% else %}<div class="card empty">Kein laufender Auftrag.</div>{% endif %}
 
+{% if p.levers %}
+<h2>Eure größten Hebel</h2>
+<div class="card lev">
+  {% for l in p.levers %}<a class="lv" href="{{ l.link }}"><span class="lg num">+{{ l.gain_s }}</span>
+    <div><b>{{ l.title }}</b><span class="lk2">{{ l.kind }}</span><div class="small muted">{{ l.text }}</div></div></a>{% endfor %}
+  <div class="small muted" style="margin-top:8px">Runden pro Match, gerechnet aus euren letzten Matches: bei Fehlern die verlorene Rundenchance, sonst der Abstand zu den Pros, wenn ihr diese Runden so oft gewinnen würdet wie sie. Rechnungen, keine Garantie; Hebel können sich teilweise überschneiden.</div>
+</div>
+{% endif %}
+
 <h2>Duell-Profil · letzte {{ p.duels.matches if p.duels else 0 }} Matches</h2>
 {% if p.duels %}{% set d = p.duels %}{% set pr = p.pro %}
 <div class="card">

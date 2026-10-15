@@ -150,9 +150,16 @@ def index() -> str:
 
     # eingestellter Spieler, der im letzten Match nicht vorkommt: der Coach sieht ihn nicht -> Hinweis
     missing = len(load_focus_steamids() - set((hist[-1].get("players") or {}) if hist else ()))
+    from cstaktik import levers
+
+    lever = None
+    for sid in sorted(load_focus_steamids() | set(_players_state())):  # größter Hebel über die Fokus-Spieler
+        top = levers.build(hist, _load_pro(), sid, load_rules_config().get("playbook"), top=1)
+        if top and (lever is None or top[0]["gain"] > lever["gain"]):
+            lever = {**top[0], "who": _names(hist).get(sid, sid), "sid": sid}
     return _env.get_template("index.html").render(
         nav_active="coach", jobs=jobs, n_history=len(hist), last=hist[-1] if hist else None, briefing_maps=maps,
-        auftrag=_auftrag(hist), missing_players=missing if hist else 0,
+        auftrag=_auftrag(hist), missing_players=missing if hist else 0, lever=lever,
     )
 
 
@@ -911,6 +918,9 @@ def progress_page(p: str = "") -> str:
                                          "reading": playbook.postplant_reading(own_pp, pro_pp, side=side)},
                     "buys": {"own": own_b, "pro": pro_b, "reading": playbook.buy_reading(own_b, pro_b, side=side)}})
         prof["buy_cfg"] = {**playbook.DEFAULTS, **(cfg or {})}
+        from cstaktik import levers
+
+        prof["levers"] = levers.build(hist, pros, sid, cfg)
     auftrag = next((x for x in _auftrag(hist) if x["sid"] == sid), None)
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in sids]
     return _env.get_template("profil.html").render(nav_active="progress", p=prof, a=auftrag, tabs=tabs)

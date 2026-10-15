@@ -26,6 +26,10 @@
 <div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div>
 {% endif %}
 
+{% if lever %}
+<a class="card levhome" href="/progress?p={{ lever.sid }}"><span class="lg num">+{{ lever.gain_s }}</span>
+  <div><div class="small muted">Größter Hebel · {{ lever.who }} · Runden pro Match</div><b>{{ lever.title }}</b><div class="small muted">{{ lever.text }}</div></div></a>
+{% endif %}
 <div class="steps">
 <section class="step{{ ' off' if not n_history }}">
   <div class="sh"><span class="sn">1</span><div><div class="st">Vor dem Match</div><div class="sw">10 Minuten vorher</div></div></div>
