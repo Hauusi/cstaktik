@@ -418,6 +418,7 @@ def upgrade_history() -> int:
     from cstaktik import history
     from cstaktik.situation import round_states
 
+    from cstaktik.clutch import clutches
     from cstaktik.playbook import ct_plays, plays
 
     focus = load_focus_steamids()
@@ -426,7 +427,8 @@ def upgrade_history() -> int:
         cache = cache_file(h.get("id"))
         stale = bool(h.get("plays")) and not {"kills", "t_eq"} <= set(h["plays"][0])  # vor Kills/Kauf gespeichert
         ct_stale = bool(h.get("ct_plays")) and not {"kills", "ct_eq"} <= set(h["ct_plays"][0])
-        if ("states" in h and "plays" in h and "ct_plays" in h and not stale and not ct_stale) or cache is None:
+        if ("states" in h and "plays" in h and "ct_plays" in h and "clutch" in h and not stale and not ct_stale) \
+                or cache is None:
             continue
         try:  # ein kaputter oder veralteter Cache darf Uploads und pro-update nicht blockieren
             m = load_match(cache)
@@ -441,6 +443,7 @@ def upgrade_history() -> int:
                 h.pop("ct_plays", None)
             h.setdefault("plays", plays(m, team=team))
             h.setdefault("ct_plays", ct_plays(m, team=team))
+            h.setdefault("clutch", clutches(m, team=team))
         history.save(h, HISTORY_DIR)
         n += 1
     return n

@@ -1,5 +1,6 @@
 """Eure größten Hebel: alles, was sich in Runden messen lässt, auf eine Einheit gebracht (Runden pro Match).
 
+- Clutch: erwartete Siege nach Pro-Quote derselben Lage minus eigene Siege, je Match.
 - Fehler (Coach-Lektionen): Summe der verlorenen Rundenchance der Szenen (situation.cost_pct, Prozentpunkte) je Match.
   Bedeutung: "kostet euch etwa so viele Runden pro Match".
 - Kauf, nach dem Plant, Retake, Taktikart (nur Full Buy, damit der Kauf nicht doppelt zählt): eure Runden dieser Art
@@ -64,6 +65,14 @@ def build(hist: list[dict], pro: list[dict], sid: str, cfg: dict | None = None, 
                 what = "Bombe halten" if side == "t" else "Retake"
                 out.append({"kind": "Nach dem Plant", "gain": g, "title": f"{what} in {lbl}", "link": "/progress",
                             "text": f"Ihr gewinnt {o['won_pct']} % ({o['won']} von {o['n']}), Pros {q['won_pct']} %."})
+    # Clutch: eigene Siege gegen die Pro-Erwartung in denselben Lagen (Seite, Gegnerzahl, Bombe)
+    from cstaktik import clutch
+
+    cl = clutch.summary(hs, sid, pro)
+    if cl and cl["exp"] is not None and cl["exp_n"] >= clutch.MIN_OWN:
+        out.append({"kind": "Clutch", "gain": (cl["exp"] - cl["won_cmp"]) * per, "title": "Clutches als Letzter",
+                    "link": "/progress", "text": f"{cl['won_cmp']} von {cl['exp_n']} gewonnen, Pros hätten in denselben "
+                                                 f"Lagen etwa {_de(cl['exp'])} gewonnen."})
     # Taktikart auf T über alle Maps, nur Full-Buy-Runden: sonst zählt ein schlechter Kauf doppelt (Kauf und Taktik)
     def full_only(src):
         return [{**d, "plays": [p for p in d.get("plays") or []

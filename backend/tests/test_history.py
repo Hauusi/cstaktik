@@ -65,6 +65,13 @@ def test_run_writes_history_and_progress_route(tmp_path, monkeypatch):
     page = TestClient(api.app).get("/progress")
     assert page.status_code == 200 and "Fortschritt" in page.text and "Ich" in page.text
     assert "Noch keine Matches" in render_progress([])
+    h = json.loads(files[0].read_text())
+    assert h["clutch"] == []  # Synth-Match hat keinen Clutch, Feld ist trotzdem da (kein Nachrüsten nötig)
+    h["clutch"] = [{"sid": ME, "side": "t", "vs": 2, "planted": False, "won": True, "kills": 2, "alive": True,
+                    "plant": True}]
+    files[0].write_text(json.dumps(h))
+    page = TestClient(api.app).get(f"/progress?p={ME}").text
+    assert "Clutch · als Letzter übrig" in page and "1 gegen 2" in page and "Du 1 von 1" in page
 
 
 def test_progress_lessons_per_map_and_trend():

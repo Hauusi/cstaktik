@@ -99,6 +99,20 @@
 </div>
 {% endfor %}
 
+{% if p.clutch %}{% set c = p.clutch %}
+<h2>Clutch · als Letzter übrig</h2>
+<div class="card">
+  {% if c.reading %}<div class="dread">{{ c.reading }}</div>{% else %}<div class="small muted">{% if c.exp_n < 5 %}Noch zu wenige Clutches mit Pro-Vergleich für eine Bewertung (ab 5).{% else %}Nichts Auffälliges.{% endif %}</div>{% endif %}
+  <details class="sdet"{% if c.reading %} open{% endif %}><summary>Alle Werte</summary>
+  {% for r in c.rows %}<div class="mrow"><div><b>{{ r.label }}</b>
+    <span class="small muted num">{% if r.n %}Du {{ r.won }} von {{ r.n }}{% else %}Du noch keiner{% endif %}{% if r.pro_pct is not none %} · Pros {{ r.pro_pct }} % ({{ r.pro_n }}){% endif %}</span></div>
+    {% if r.n %}<b class="num" style="color:{{ '#46a758' if r.pro_pct is not none and r.won_pct - r.pro_pct >= 10 else '#e5484d' if r.pro_pct is not none and r.pro_pct - r.won_pct >= 10 and r.n >= 5 else 'inherit' }}">{{ r.won_pct }} %</b>{% endif %}</div>
+  {% endfor %}
+  <div class="small muted num" style="margin-top:8px">{{ c.n }} Clutches, {{ c.won }} gewonnen, {{ c.kills }} Kills darin.{% if c.lost %} Von {{ c.lost }} verlorenen {{ c.saved }} überlebt (Waffe gerettet).{% endif %}{% if c.t_plant.n %} Als T ohne gelegte Bombe {{ c.t_plant.planted }} von {{ c.t_plant.n }} Mal noch gelegt{% if c.t_plant.pro_pct is not none %} (Pros {{ c.t_plant.pro_pct }} %){% endif %}.{% endif %} Pro-Quoten aus den Rundenverläufen der Pro-Demos, alle Maps.</div>
+  </details>
+</div>
+{% endif %}
+
 <h2>Maps</h2>
 <div class="card">
 {% for m in p.maps %}

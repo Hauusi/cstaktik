@@ -61,6 +61,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "scenes": scenes(result, report_file, match.map_name),
         "plays": _plays(match),  # eure T-Runden für das Playbook (Laufwege, Granaten, Plant)
         "ct_plays": _ct_plays(match),  # eure CT-Aufstellungen
+        "clutch": _clutch(match),  # Clutch-Situationen der Fokus-Spieler (clutch.py)
         "won": won,
         "lost": lost,
         "players": {
@@ -136,6 +137,12 @@ def _ct_plays(match: MatchData) -> list[dict]:
     from cstaktik.playbook import ct_plays
 
     return ct_plays(match, team=match.focus_ids())
+
+
+def _clutch(match: MatchData) -> list[dict]:
+    from cstaktik.clutch import clutches
+
+    return clutches(match, team=match.focus_ids())
 
 
 def _plays(match: MatchData) -> list[dict]:
