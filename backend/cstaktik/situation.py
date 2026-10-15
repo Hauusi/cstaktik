@@ -37,17 +37,22 @@ def round_states(match: MatchData) -> list[dict]:
         if r.winner is None or not r.sides:
             continue
         alive = {"ct": {s for s, sd in r.sides.items() if sd == "ct"}, "t": {s for s, sd in r.sides.items() if sd == "t"}}
-        plant = next((b.tick for b in match.bomb if b.round == r.num and b.event == "plant"), None)
-        events = sorted([(k.tick, "k", k.victim_steamid) for k in match.kills if k.round == r.num]
-                        + ([(plant, "p", None)] if plant is not None else []))
+        plant = next((b.tick for b in match.bomb if b.round == r.num and b.event == "plant" and b.tick <= r.end_tick),
+                     None)
+        # nur bis Rundenende (Kills danach sind Waffen-Retten, keine Lage mehr)
+        events = sorted([(k.tick, "k", k.victim_steamid) for k in match.kills
+                         if k.round == r.num and k.tick <= r.end_tick]
+                        + ([(plant, "p", "")] if plant is not None else []))
         planted = 0
         states = [[len(alive["ct"]), len(alive["t"]), 0]]
-        for _tick, kind, victim in events:
+        for i, (tick, kind, victim) in enumerate(events):
             if kind == "p":
                 planted = 1
             else:
                 alive["ct"].discard(victim)
                 alive["t"].discard(victim)
+            if i + 1 < len(events) and events[i + 1][0] == tick:
+                continue  # gleicher Tick: erst alles verbuchen, sonst entsteht kurz eine Lage, die es nie gab
             st = [len(alive["ct"]), len(alive["t"]), planted]
             if st != states[-1]:
                 states.append(st)

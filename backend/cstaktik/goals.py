@@ -11,6 +11,8 @@ Gespeichert in data/goals.json. Schwellen in rules.yaml unter ``goals`` (Heurist
 
 from __future__ import annotations
 
+from cstaktik.fsutil import write_atomic
+
 import json
 from datetime import datetime
 from pathlib import Path
@@ -97,7 +99,7 @@ def load(path: Path) -> dict:
 
 def save(state: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=1))
+    write_atomic(path, json.dumps(state, ensure_ascii=False, indent=1))
 
 
 def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) -> dict:

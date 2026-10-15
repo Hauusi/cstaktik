@@ -41,9 +41,10 @@ def rounds(match: MatchData, model: WinModel) -> dict[int, dict]:
 
         cur = p_ct()
         line = [[t0, round(cur, 1)]] if cur is not None else []
-        events = sorted([(k.tick, 0, "kill", k) for k in match.kills if k.round == r.num]
+        events = sorted([(k.tick, 0, "kill", k) for k in match.kills if k.round == r.num and k.tick <= r.end_tick]
                         + [(b.tick, 1, b.event, b) for b in match.bomb
-                           if b.round == r.num and b.event in ("plant", "defuse")], key=lambda e: (e[0], e[1]))
+                           if b.round == r.num and b.event in ("plant", "defuse") and b.tick <= r.end_tick],
+                        key=lambda e: (e[0], e[1]))  # nach Rundenende zählt nichts mehr
         evs = []
         for tick, _o, kind, e in events:
             before = cur

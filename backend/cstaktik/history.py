@@ -6,6 +6,8 @@ weil die Demo selbst kein Spieldatum enthält.
 
 from __future__ import annotations
 
+from cstaktik.fsutil import write_atomic
+
 import json
 from collections import Counter
 from datetime import datetime
@@ -237,7 +239,7 @@ def save(summary: dict, history_dir: Path) -> Path:
             summary["analyzed_at"] = json.loads(out.read_text())["analyzed_at"]
         except (OSError, ValueError, KeyError):
             pass
-    out.write_text(json.dumps(summary, ensure_ascii=False))
+    write_atomic(out, json.dumps(summary, ensure_ascii=False))
     return out
 
 

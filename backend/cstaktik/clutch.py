@@ -29,8 +29,9 @@ def clutches(match: MatchData, team: set[str] | None = None) -> list[dict]:
         if r.winner is None or not r.sides:
             continue
         alive = {sd: {s for s, x in r.sides.items() if x == sd} for sd in ("ct", "t")}
-        bomb = [b for b in match.bomb if b.round == r.num and b.event in ("plant", "defuse")]
-        kills = [k for k in match.kills if k.round == r.num]
+        # nur bis Rundenende: danach (Gegner retten Waffen) gibt es keinen Clutch mehr
+        bomb = [b for b in match.bomb if b.round == r.num and b.event in ("plant", "defuse") and b.tick <= r.end_tick]
+        kills = [k for k in match.kills if k.round == r.num and k.tick <= r.end_tick]
         ticks = sorted({k.tick for k in kills} | {b.tick for b in bomb})
         planted, started = False, {}
         for t in ticks:

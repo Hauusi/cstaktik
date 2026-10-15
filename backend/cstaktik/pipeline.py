@@ -384,7 +384,10 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
 
     for i, h in enumerate(todo):
         report(f"Report {i + 1}/{len(todo)} aktualisieren", i / max(1, len(todo)))
-        match = _current_match(h, focus, config)
+        try:  # ein kaputter Cache überspringt nur dieses Match
+            match = _current_match(h, focus, config)
+        except Exception:  # noqa: BLE001
+            continue
         if focus:  # wie load_any: Fokus aus der aktuellen Config, sonst aus dem Cache
             for p in match.players:
                 p.is_focus = p.steamid in focus
@@ -431,8 +434,8 @@ def upgrade_history() -> int:
         stale = bool(h.get("plays")) and not {"kills", "t_eq"} <= set(h["plays"][0])  # vor Kills/Kauf gespeichert
         ct_stale = bool(h.get("ct_plays")) and not {"kills", "ct_eq"} <= set(h["ct_plays"][0])
         if ("states" in h and "plays" in h and "ct_plays" in h and "clutch" in h and not stale and not ct_stale) \
-                or cache is None:
-            continue
+                or cache is None or ("states" in h and h.get("no_team_for") == sorted(focus)):
+            continue  # no_team_for: schon geprüft, mit dieser Spieler-Einstellung ist niemand im Match
         try:  # ein kaputter oder veralteter Cache darf Uploads und pro-update nicht blockieren
             m = load_match(cache)
         except (OSError, ValueError):
@@ -447,9 +450,23 @@ def upgrade_history() -> int:
             h.setdefault("plays", plays(m, team=team))
             h.setdefault("ct_plays", ct_plays(m, team=team))
             h.setdefault("clutch", clutches(m, team=team))
+            h.pop("no_team_for", None)
+        else:  # sonst würde jeder Upload diesen Cache erneut laden
+            h["no_team_for"] = sorted(focus)
         history.save(h, HISTORY_DIR)
         n += 1
     return n
+
+
+def _mark_failed(d: dict) -> None:
+    """Pro-Eintrag als für diese Version nicht nachrüstbar markieren (bleibt mit alten Feldern nutzbar)."""
+    from cstaktik import pro
+
+    d["upgrade_failed"] = pro.VERSION
+    try:
+        pro.save(d, PRO_DIR)
+    except OSError:
+        pass
 
 
 def upgrade_pro() -> int:
@@ -458,7 +475,7 @@ def upgrade_pro() -> int:
 
     n = 0
     for d in pro.load_all(PRO_DIR):
-        if d.get("version", 1) >= pro.VERSION:
+        if d.get("version", 1) >= pro.VERSION or d.get("upgrade_failed") == pro.VERSION:
             continue
         cache = cache_file(d.get("id"))
         demo = PRO_DEMOS_DIR / str(d.get("source_file") or "")
@@ -467,12 +484,16 @@ def upgrade_pro() -> int:
             try:
                 run_pro(demo, rerender=False)
                 n += 1
-            except Exception:  # noqa: BLE001 - einzelne Demo überspringen
-                pass
+            except Exception:  # noqa: BLE001 - einzelne Demo überspringen, nicht bei jedem Upload erneut
+                _mark_failed(d)
             continue
         if cache is None:
             continue
-        summary = pro.summarize(load_match(cache), load_rules_config()["coach"]["trade_window_s"])
+        try:  # ein kaputter Cache darf eigene Uploads nicht blockieren
+            summary = pro.summarize(load_match(cache), load_rules_config()["coach"]["trade_window_s"])
+        except Exception:  # noqa: BLE001
+            _mark_failed(d)
+            continue
         summary["analyzed_at"] = d.get("analyzed_at", summary["analyzed_at"])
         pro.save(summary, PRO_DIR)
         n += 1

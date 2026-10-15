@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from cstaktik import pipeline
@@ -52,7 +53,7 @@ async def _personal_report(resp: Response, me: str) -> Response:
 
 
 _PUBLIC = {"/login", "/fonts.css", "/setup", "/auth/steam", "/auth/steam/callback"}
-_FAILS: dict[str, list[float]] = {}  # Login-Fehlversuche je IP (Schutz gegen Durchprobieren)
+_FAILS: dict[tuple, list[float]] = {}  # Login-Fehlversuche je IP und Name (Schutz gegen Durchprobieren)
 
 
 @app.middleware("http")
@@ -196,8 +197,8 @@ async def setup_post(request: Request) -> Response:
     name, pw, pw2 = str(form.get("name", "")).strip(), str(form.get("password", "")), str(form.get("password2", ""))
     if pw != pw2:
         return RedirectResponse("/login?error=" + quote("Passwörter stimmen nicht überein."), status_code=303)
-    try:
-        accounts.add_user(name, pw)
+    try:  # Passwort-Hash rechnet ~0,5 s: nicht im Event-Loop, sonst steht die ganze App
+        await run_in_threadpool(accounts.add_user, name, pw)
     except ValueError as exc:
         return RedirectResponse("/login?error=" + quote(str(exc)), status_code=303)
     return _session_redirect(request, name, "/konto?saved=" + quote("Account angelegt. Jetzt mit Steam verbinden."))
@@ -208,7 +209,7 @@ def _session_redirect(request: Request, name: str, to: str) -> Response:
 
     r = RedirectResponse(to, status_code=303)
     r.set_cookie(accounts.COOKIE, accounts.make_session(name), max_age=accounts.SESSION_DAYS * 86400, httponly=True,
-                 samesite="lax", secure=request.url.scheme == "https")
+                 samesite="lax", secure=_base(request).startswith("https"))
     return r
 
 
@@ -227,7 +228,7 @@ def steam_start(request: Request) -> Response:
     base = _base(request)
     r = RedirectResponse(steam_openid.login_url(f"{base}/auth/steam/callback?state={state}", base), status_code=303)
     r.set_cookie("cstaktik_steam_state", state, max_age=600, httponly=True, samesite="lax",
-                 secure=request.url.scheme == "https")
+                 secure=base.startswith("https"))
     return r
 
 
@@ -241,7 +242,7 @@ def steam_callback(request: Request) -> Response:
     want = request.cookies.get("cstaktik_steam_state", "")
     params = dict(request.query_params)
     sid = None
-    if state and want and secrets.compare_digest(state, want):
+    if state and want and secrets.compare_digest(state.encode(), want.encode()):
         sid = steam_openid.verify(params, f"{_base(request)}/auth/steam/callback?state={state}")
     user = accounts.read_session(request.cookies.get(accounts.COOKIE))
     if not sid:
@@ -277,14 +278,17 @@ async def login_post(request: Request) -> Response:
     nxt = nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"
     ip = request.client.host if request.client else "?"
     now = time.time()
-    fails = [t for t in _FAILS.get(ip, []) if now - t < 900]
+    for k in [k for k, v in _FAILS.items() if not v or now - v[-1] >= 900]:  # alte Einträge aufräumen
+        _FAILS.pop(k, None)
+    key = (ip, name.lower())  # je Name: hinter einem Proxy sperrt ein Fremder sonst alle aus
+    fails = [t for t in _FAILS.get(key, []) if now - t < 900]
     if len(fails) >= 10:
         return RedirectResponse(f"/login?next={quote(nxt)}&error=" + quote("Zu viele Versuche. In 15 Minuten erneut."),
                                 status_code=303)
-    if not accounts.verify(name, pw):
-        _FAILS[ip] = fails + [now]
+    if not await run_in_threadpool(accounts.verify, name, pw):
+        _FAILS[key] = fails + [now]
         return RedirectResponse(f"/login?next={quote(nxt)}&error=" + quote("Name oder Passwort falsch."), status_code=303)
-    _FAILS.pop(ip, None)
+    _FAILS.pop(key, None)
     return _session_redirect(request, name, nxt)
 
 
@@ -328,7 +332,7 @@ async def konto_save(request: Request) -> Response:
     except ValueError as exc:
         return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
     row = next((r for r in accounts.steam_users() if r["user"] == user), None)
-    res = steam_sync.sync_user(row) if row else {"new": 0, "error": None}
+    res = await run_in_threadpool(steam_sync.sync_user, row) if row else {"new": 0, "error": None}
     msg = _sync_msg(res)
     return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
 
@@ -368,7 +372,7 @@ async def konto_add_user(request: Request) -> Response:
     _need_user(request)
     form = await request.form()
     try:
-        accounts.add_user(str(form.get("name", "")).strip(), str(form.get("password", "")))
+        await run_in_threadpool(accounts.add_user, str(form.get("name", "")).strip(), str(form.get("password", "")))
     except ValueError as exc:
         return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
     return RedirectResponse("/konto?saved=" + quote(f"Nutzer {form.get('name')} angelegt."), status_code=303)
@@ -382,13 +386,14 @@ async def konto_password(request: Request) -> Response:
 
     user = _need_user(request)
     form = await request.form()
-    if not accounts.verify(user, str(form.get("old", ""))):
+    if not await run_in_threadpool(accounts.verify, user, str(form.get("old", ""))):
         return RedirectResponse("/konto?error=" + quote("Altes Passwort stimmt nicht."), status_code=303)
     try:
-        accounts.set_password(user, str(form.get("new", "")))
+        await run_in_threadpool(accounts.set_password, user, str(form.get("new", "")))
     except ValueError as exc:
         return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
-    return RedirectResponse("/konto?saved=" + quote("Passwort geändert."), status_code=303)
+    # alte Sitzungen sind damit ungültig (Passwort steckt in der Signatur): diese hier neu ausstellen
+    return _session_redirect(request, user, "/konto?saved=" + quote("Passwort geändert. Andere Geräte sind abgemeldet."))
 
 
 @app.post("/konto/sync")
@@ -1162,6 +1167,14 @@ async def analyze_upload(
                 if size > pipeline.MAX_DEMO_BYTES:
                     raise HTTPException(413, "Datei zu groß.")
                 fh.write(chunk)
+        if target.exists() and not is_arc:
+            import filecmp
+
+            from cstaktik.archive import _unique
+
+            # gleicher Name, anderer Inhalt: eigener Name, sonst zeigt der alte Report plötzlich das neue Match
+            if not (target.stat().st_size == size and filecmp.cmp(part, target, shallow=False)):
+                target = _unique(folder, target.name)
         part.replace(target)  # erst die fertige Datei sichtbar machen
     finally:
         part.unlink(missing_ok=True)

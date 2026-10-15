@@ -10,12 +10,17 @@ def test_password_hash_and_session():
     h = accounts.hash_password("Geheim-12345")
     assert "Geheim" not in h and accounts.check_password("Geheim-12345", h)
     assert not accounts.check_password("falsch-12345", h)
+    assert accounts.read_session(accounts.make_session("Hausi")) is None  # Nutzer gibt es (noch) nicht
+    accounts.add_user("Hausi", "Test-Passwort-1")
     tok = accounts.make_session("Hausi")
     assert accounts.read_session(tok) == "Hausi"
+    assert accounts.read_session("Hausi|9999999999|ä") is None  # kein Absturz bei Sonderzeichen
     assert accounts.read_session(tok.replace("Hausi", "Admin")) is None  # Signatur passt nicht mehr
     assert accounts.read_session(accounts.make_session("Hausi", days=-1)) is None  # abgelaufen
+    accounts.set_password("Hausi", "Neues-Passwort-2")
+    assert accounts.read_session(tok) is None  # Passwortwechsel meldet alte Sitzungen ab
     with pytest.raises(ValueError):
-        accounts.add_user("Hausi", "kurz")
+        accounts.add_user("Hausi2", "kurz")
 
 
 def test_login_required_once_users_exist():

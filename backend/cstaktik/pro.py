@@ -10,6 +10,8 @@ Pro-Demos z. B. von HLTV am PC herunterladen, die .dem aus dem Archiv entpacken 
 
 from __future__ import annotations
 
+from cstaktik.fsutil import write_atomic
+
 import json
 from datetime import datetime
 from pathlib import Path
@@ -163,7 +165,7 @@ def save(summary: dict, pro_dir: Path) -> Path:
     pro_dir.mkdir(parents=True, exist_ok=True)
     key = "".join(ch for ch in str(summary["id"]) if ch.isalnum())[:40] or "pro"
     out = pro_dir / f"{key}.json"
-    out.write_text(json.dumps(summary, ensure_ascii=False))
+    write_atomic(out, json.dumps(summary, ensure_ascii=False))
     return out
 
 

@@ -131,20 +131,31 @@ def _secret(path: Path | None = None) -> bytes:
     return p.read_bytes()
 
 
+def _pw_tag(name: str, path: Path | None = None) -> str | None:
+    """Teil des Passwort-Hashes in der Sitzung: Passwort ändern meldet alle alten Sitzungen ab. None = kein Nutzer."""
+    with closing(db(path)) as con:
+        row = con.execute("SELECT pw_hash FROM users WHERE name = ?", (name,)).fetchone()
+    return None if row is None else hashlib.sha256(row["pw_hash"].encode()).hexdigest()[:16]
+
+
 def make_session(name: str, days: int = SESSION_DAYS, secret_path: Path | None = None) -> str:
     exp = int(time.time()) + days * 86400
     body = f"{name}|{exp}"
-    sig = hmac.new(_secret(secret_path), body.encode(), hashlib.sha256).hexdigest()
+    sig = hmac.new(_secret(secret_path), f"{body}|{_pw_tag(name) or ''}".encode(), hashlib.sha256).hexdigest()
     return f"{body}|{sig}"
 
 
 def read_session(value: str | None, secret_path: Path | None = None) -> str | None:
-    """Nutzername aus einem gültigen, nicht abgelaufenen Sitzungs-Cookie, sonst None."""
-    if not value or value.count("|") != 2:
+    """Nutzername aus einem gültigen, nicht abgelaufenen Sitzungs-Cookie, sonst None (auch für gelöschte Nutzer und
+    nach einem Passwortwechsel)."""
+    if not value or value.count("|") != 2 or not value.isascii():
         return None
     name, exp, sig = value.split("|")
-    want = hmac.new(_secret(secret_path), f"{name}|{exp}".encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(sig, want) or not exp.isdigit() or int(exp) < time.time():
+    tag = _pw_tag(name)
+    if tag is None:
+        return None
+    want = hmac.new(_secret(secret_path), f"{name}|{exp}|{tag}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig.encode(), want.encode()) or not exp.isdigit() or int(exp) < time.time():
         return None
     return name
 

@@ -50,3 +50,16 @@ def test_clutch_lever():
     hist = [{"players": {"me": {}}, "clutch": own}, {"players": {"me": {}}, "clutch": []}]
     lv = next(x for x in levers.build(hist, pros, "me", top=0) if x["kind"] == "Clutch")
     assert lv["gain"] == 6 * 0.75 / 2 and "0 von 6" in lv["text"]
+
+
+def test_kills_after_round_end_ignored():
+    # CT gewinnt, danach (nach end_tick) zwei Kills an rettenden T: kein Clutch, keine falsche Lage
+    m = _match([_kill(100, "e1", "m2", "t"), _kill(9500, "e1", "me", "t")], winner="ct")
+    m.rounds[0].end_tick = 9000
+    assert [c["sid"] for c in clutch.clutches(m)] == ["me"]  # 1 gegen 2 entstand vor Rundenende
+    m2 = _match([_kill(9500, "e1", "m2", "t"), _kill(9600, "e1", "me", "t")], winner="ct")
+    m2.rounds[0].end_tick = 9000
+    assert clutch.clutches(m2) == []
+    from cstaktik.situation import round_states
+
+    assert round_states(m2)[0]["s"] == [[2, 2, 0]]
