@@ -30,10 +30,13 @@ def _get(params: dict, timeout: float = 15) -> tuple[int, dict]:
             return r.status, json.loads(r.read(100_000) or b"{}")
     except urllib.error.HTTPError as e:
         return e.code, {}
+    except (OSError, ValueError):  # Netz weg, Zeitüberschreitung, kaputte Antwort
+        return 0, {}
 
 
-def next_codes(steamid: str, auth_code: str, known: str, key: str, get=_get) -> tuple[list[str], str | None]:
+def next_codes(steamid: str, auth_code: str, known: str, key: str, get=None) -> tuple[list[str], str | None]:
     """Alle Sharecodes nach ``known``. Rückgabe: (neue Codes, Fehlertext oder None)."""
+    get = get or _get
     out, cur = [], known
     for _ in range(MAX_PER_RUN):
         status, data = get({"key": key, "steamid": steamid, "steamidkey": auth_code, "knowncode": cur})
@@ -46,12 +49,14 @@ def next_codes(steamid: str, auth_code: str, known: str, key: str, get=_get) -> 
             continue
         err = {403: "Steam lehnt ab: Game Authentication Code oder SteamID passt nicht.",
                412: "Steam kennt den Match-Token nicht (zu alt oder falsch). Einen aktuellen eintragen.",
-               429: "Steam begrenzt gerade die Anfragen. Später erneut."}.get(status, f"Steam-API antwortet {status}.")
+               429: "Steam begrenzt gerade die Anfragen. Später erneut.",
+               0: "Steam ist gerade nicht erreichbar. Der Coach versucht es in 30 Minuten erneut."}.get(
+            status, f"Steam-API antwortet {status}.")
         return out, err
     return out, None
 
 
-def sync_user(row: dict, key: str | None = None, get=_get, path=None) -> dict:
+def sync_user(row: dict, key: str | None = None, get=None, path=None) -> dict:
     key = key or accounts.steam_key(path)
     if not key:
         msg = "Es fehlt der Steam-Web-API-Schlüssel (Optionen → Server)."

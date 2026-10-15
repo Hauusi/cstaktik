@@ -170,3 +170,13 @@ def test_entered_token_is_listed_and_empty_sync_explained(monkeypatch):
                headers=O, follow_redirects=False)
     assert "Verbindung%20zu%20Steam%20klappt" in r.headers["location"]
     assert [x["code"] for x in accounts.get_steam("Hausi")["codes"]] == ["CSGO-aaaaa-aaaaa-aaaaa-aaaaa-aaaaa"]
+
+
+def test_steam_unreachable_gives_message_not_crash(monkeypatch):
+    import urllib.request
+
+    def boom(*a, **k):
+        raise OSError("Netz weg")
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    codes, err = steam_sync.next_codes("7656", "ABCD-ABCDE-ABCD", "CSGO-aaaaa-aaaaa-aaaaa-aaaaa-aaaaa", "k")
+    assert codes == [] and "nicht erreichbar" in err
