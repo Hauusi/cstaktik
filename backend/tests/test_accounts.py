@@ -263,3 +263,35 @@ def test_only_steam_linked_players_are_analysed(monkeypatch):
     c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
     assert "verbundenen Accounts" in c.get("/spieler").text
     assert c.post("/spieler", data={"sid": "76561198000000002"}, headers=O).status_code == 400
+
+
+def test_each_account_sees_only_own_matches():
+    from cstaktik import api, history, pipeline
+
+    me, bro = "76561198000000001", "76561198000000002"
+    pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    for i, sid, name in (("m1", me, "Satoru"), ("m2", bro, "Datenschutzduhund")):
+        history.save({"id": i, "map": "de_mirage", "rounds": 20, "analyzed_at": f"2026-10-0{i[-1]}T10:00",
+                      "report_file": f"{i}.html", "won": 13, "lost": 7, "players": {sid: {"name": name}},
+                      "scenes": []}, pipeline.HISTORY_DIR)
+        (pipeline.REPORTS_DIR / f"{i}.html").write_text(f"<html><head><title>Mirage 13:7 – x</title></head>{name}</html>")
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.add_user("Bruder", "Geheim-12345")
+    accounts.link_steamid("Hausi", me)
+    a, b = TestClient(api.app), TestClient(api.app)
+    a.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
+    b.post("/login", data={"name": "Bruder", "password": "Geheim-12345"}, headers=O)
+    # Bruder noch nicht verbunden: sieht nichts, wird zum Verbinden aufgefordert, darf nicht hochladen
+    home_b = b.get("/").text
+    assert "Mit Steam verbinden" in home_b and "Satoru" not in home_b
+    blocked = "Report nicht gefunden."  # Antwort des Filters (die Reports selbst liegen im Test nicht im Mount-Ordner)
+    assert b.get("/reports/m1.html").text == blocked
+    assert b.post("/analyze", files={"demo": ("x.dem", b"demo")}, headers=O).status_code == 400
+    # ich: nur mein Match
+    ma = a.get("/matches").text
+    assert "m1.html" in ma and "m2.html" not in ma
+    assert a.get("/reports/m2.html").text == blocked and a.get("/reports/m1.html").text != blocked
+    # Bruder verbunden: nur sein Match
+    accounts.link_steamid("Bruder", bro)
+    mb = b.get("/matches").text
+    assert "m2.html" in mb and "m1.html" not in mb and b.get("/reports/m1.html").text == blocked

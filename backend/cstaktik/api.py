@@ -32,8 +32,21 @@ import contextvars
 _ME: contextvars.ContextVar[str | None] = contextvars.ContextVar("cstaktik_me", default=None)
 
 
+# Name des eingeloggten Nutzers (auch ohne Steam-Verbindung), None ohne Accounts
+_USER: contextvars.ContextVar[str | None] = contextvars.ContextVar("cstaktik_user", default=None)
+
+
 def _me() -> str | None:
     return _ME.get()
+
+
+def _visible(h: dict) -> bool:
+    """Darf der eingeloggte Nutzer dieses Match sehen? Nur Matches, in denen er (mit Steam verbunden) mitgespielt
+    hat. Eingeloggt ohne Steam-Verbindung: keine. Ohne Accounts (kein Login): alle."""
+    if _USER.get() is None:
+        return True
+    me = _me()
+    return bool(me) and me in (h.get("players") or {})
 
 
 def _own_only(sid: str) -> None:
@@ -46,6 +59,8 @@ def _own_only(sid: str) -> None:
 def _mine(sids):
     """Nur der eigene Spieler, wenn der Nutzer mit Steam verbunden ist; sonst alle (z. B. ohne Login)."""
     me = _me()
+    if _USER.get() is not None and not me:  # eingeloggt, aber (noch) nicht mit Steam verbunden: niemand
+        return []
     return [s for s in sids if s == me] if me else list(sids)
 
 
@@ -84,6 +99,10 @@ async def _password(request: Request, call_next):
             request.state.user = user
             me = (accounts.get_steam(user).get("steamid") or None) if user else None
             _ME.set(me)
+            _USER.set(user)
+            m = re.fullmatch(r"/reports/([^/]+\.html)", request.url.path)
+            if user and m and not _report_visible(m.group(1)):  # fremdes Match: gibt es für diesen Nutzer nicht
+                return Response("Report nicht gefunden.", status_code=404)
             if me and request.url.path.startswith("/reports/"):  # keine 304 aus dem Cache: die Seite wird angepasst
                 request.scope["headers"] = [(k, v) for k, v in request.scope["headers"]
                                             if k not in (b"if-none-match", b"if-modified-since")]
@@ -504,6 +523,7 @@ def index() -> str:
         nav_active="coach", jobs=jobs, n_history=len(hist), last=_last_view(hist[-1]) if hist else None,
         briefing_maps=maps, auftrag=auftrag, missing_players=missing if hist else 0, lever=lever, last_imp=last_imp,
         me_name=names.get(_me()) if _me() else None, week=week,
+        need_link=_USER.get() is not None and not _me(),
     )
 
 
@@ -539,7 +559,12 @@ def _week_progress(sids: list[str]) -> dict | None:
 
 def _running_jobs() -> list[dict]:
     with _jobs_lock:
-        return [_job_view(i, j) for i, j in _jobs.items() if j["status"] in ("wartet", "läuft")]
+        return [_job_view(i, j) for i, j in _jobs.items() if j["status"] in ("wartet", "läuft") and _own_job(j)]
+
+
+def _own_job(job: dict) -> bool:
+    """Uploads sieht nur, wer sie hochgeladen hat; Hintergrund-Aufträge (Neuberechnen, FACEIT) alle."""
+    return job.get("owner") is None or _USER.get() is None or job["owner"] == _USER.get()
 
 
 @app.get("/matches", response_class=HTMLResponse)
@@ -550,6 +575,8 @@ def matches_page() -> str:
     hist = _load_hist()
     by_file = {h.get("report_file"): h for h in hist if h.get("report_file")}
     reports = _report_entries()
+    if _USER.get() is not None:  # eingeloggt: nur Reports der eigenen Matches
+        reports = [r for r in reports if r["file"] in by_file]
     for r in reports:  # Datum und Hauptthema aus dem Verlauf: die Dateizeit ändert sich bei jedem Neubau der Reports
         h = by_file.get(r["file"])
         if h and h.get("analyzed_at"):
@@ -742,7 +769,15 @@ def _dir_cached(name: str, folder: Path, loader) -> list[dict]:
 def _load_hist() -> list[dict]:
     from cstaktik import history
 
-    return _dir_cached("hist", pipeline.HISTORY_DIR, history.load_all)
+    return [h for h in _dir_cached("hist", pipeline.HISTORY_DIR, history.load_all) if _visible(h)]
+
+
+def _report_visible(file: str) -> bool:
+    """Report gehört zu einem Match, das der Nutzer sehen darf (Report ohne Verlaufs-Eintrag: nicht)."""
+    from cstaktik import history
+
+    hist = _dir_cached("hist", pipeline.HISTORY_DIR, history.load_all)
+    return any(h.get("report_file") == file and _visible(h) for h in hist)
 
 
 def _load_pro() -> list[dict]:
@@ -1263,6 +1298,9 @@ async def analyze_upload(
     from cstaktik.archive import is_archive_name
 
     filename = demo.filename or ""
+    if _USER.get() is not None and not _me() and not pro:
+        raise HTTPException(400, "Erst unter Optionen mit Steam verbinden: Der Coach wertet die Matches des "
+                                 "verbundenen Steam-Accounts aus und zeigt sie nur dir.")
     is_arc = is_archive_name(filename)
     if not pipeline.is_demo_name(filename) and not is_arc:
         raise HTTPException(400, "Nur .dem, .dem.gz, .dem.bz2, .zip oder .rar.")
@@ -1309,6 +1347,7 @@ async def analyze_upload(
     job_id = uuid.uuid4().hex[:12]
     with _jobs_lock:
         _jobs[job_id] = {
+            "owner": _USER.get(),
             "status": "wartet",
             "name": _safe_name(filename),
             "stage": "Wartet",
@@ -1327,7 +1366,7 @@ async def analyze_upload(
 def _get_job(job_id: str) -> dict:
     with _jobs_lock:
         job = _jobs.get(job_id)
-        if job is None:
+        if job is None or not _own_job(job):
             raise HTTPException(404, "Auftrag unbekannt (Server neu gestartet?). Reports stehen auf der Startseite.")
         return _job_view(job_id, job)
 

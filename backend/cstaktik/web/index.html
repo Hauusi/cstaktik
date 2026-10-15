@@ -52,10 +52,11 @@
 {% block hero %}
 <h1>{% if me_name %}Hi {{ me_name }}{% else %}Dein Coach{% endif %}</h1>
 <p>{% if jobs %}Dein Match wird gerade ausgewertet. Gleich ist der Report da.
+{% elif need_link %}Verbinde deinen Steam-Account, dann zeigt der Coach deine Matches.
 {% elif not n_history %}Lade dein erstes Match hoch. In ein paar Minuten weißt du, woran du arbeiten solltest.
 {% elif last and last.topic %}Letztes Match: {{ last.map_label }} {{ last.won }}:{{ last.lost }}. Thema: {{ last.topic }}.
 {% else %}Match hochladen, Report lesen, üben. Mehr braucht es nicht.{% endif %}</p>
-{% if not n_history %}{# nur beim Einstieg: danach kennt man den Ablauf, dann ist es nur Platz #}
+{% if not n_history and not need_link %}{# nur beim Einstieg: danach kennt man den Ablauf, dann ist es nur Platz #}
 <div class="flow" aria-label="So funktioniert es">
   <div class="on"><b>Hochladen</b><span>Demo nach dem Match</span></div>
   <div><b>Report lesen</b><span>Coach &amp; Debrief</span></div>
@@ -68,6 +69,14 @@
   <b>{{ missing_players }} eingestellte{{ "r" if missing_players == 1 }} Spieler kam im letzten Match nicht vor.</b>
   <div class="small muted">Wenn er nicht mitgespielt hat, ist alles in Ordnung. Sonst hier die Spieler prüfen ›</div></a>{% endif %}
 
+{% if need_link %}
+<section class="card upbox first" style="margin-top:18px">
+  <div class="kicker">Ein Schritt fehlt</div>
+  <h3>Mit Steam verbinden</h3>
+  <p>Der Coach zeigt dir nur deine eigenen Matches. Dafür muss er wissen, welcher Steam-Account du bist. Die Anmeldung läuft direkt bei Steam, dein Passwort sieht der Coach nie.</p>
+  <a class="go" href="/auth/steam">Mit Steam verbinden ›</a>
+</section>
+{% else %}
 <div class="home">
 <div class="col">
   {% include "jobs.html" %}
@@ -149,5 +158,6 @@
   {% endif %}
 </div>
 </div>
+{% endif %}
 <a class="more-link" href="/mehr#anleitung">Wie funktioniert der Coach? ›</a>
 {% endblock %}
