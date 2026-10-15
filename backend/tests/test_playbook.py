@@ -279,3 +279,14 @@ def test_buy_mix_and_reading():
     assert own["total"] == 15 and own["buys"]["force"] == {"label": "Force Buy", "n": 10, "share": 67, "won": 1, "won_pct": 10}
     pro = playbook.buy_mix([{"plays": [r(10000, True)] * 4 + [r(10000, False)] * 6 + [r(25000, True)] * 10}])
     assert "Force-Buys auf T gewinnen 10 % (1 von 10), Pros 40 %" in playbook.buy_reading(own, pro)
+
+
+def test_postplant_by_numbers():
+    def p(won, t_dead, ct_dead):
+        kills = [{"t": 10, "side": "t"}] * t_dead + [{"t": 12, "side": "ct"}] * ct_dead + [{"t": 99, "side": "t"}]
+        return {"plant_t": 40, "won": won, "kills": kills}
+    own = playbook.postplant_mix([{"plays": [p(False, 0, 2)] * 6 + [p(True, 0, 2)] * 2 + [p(True, 1, 1)] + [{"plant_t": None}]}])
+    assert own["total"] == 9 and own["rows"]["up"] == {"label": "Überzahl", "n": 8, "won": 2, "won_pct": 25}
+    assert own["rows"]["even"]["n"] == 1  # Kill nach dem Plant zählt nicht
+    pro = playbook.postplant_mix([{"plays": [p(True, 0, 2)] * 7 + [p(False, 0, 2)]}])
+    assert playbook.postplant_reading(own, pro).startswith("Nach dem Plant in Überzahl gewinnt ihr 25 % (2 von 8), Pros 88 %.")

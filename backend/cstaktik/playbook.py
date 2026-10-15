@@ -467,3 +467,44 @@ def buy_reading(own: dict, pro: dict, min_n: int = 8) -> str | None:
         return (f"Ihr spielt {o['share']} % eurer T-Runden als Eco, Pros {p['share']} %. Häufige Ecos kosten Runden: "
                 "Geld über die Runden besser einteilen, damit ihr öfter voll kaufen könnt.")
     return None
+
+
+POSTPLANT = (("up", "Überzahl"), ("even", "Gleichstand"), ("down", "Unterzahl"))
+
+
+def postplant_mix(sources: list[dict]) -> dict:
+    """T-Runden mit Plant (alle Maps): Spieler beim Plant (T gegen CT, aus den Kills bis zum Plant, 5 gegen 5 zu
+    Beginn) und ob die Runde gewonnen wurde, je Überzahl / Gleichstand / Unterzahl. Nur Runden mit Kill-Daten."""
+    rows = []
+    for d in sources:
+        for p in d.get("plays") or []:
+            if p.get("plant_t") is None or "kills" not in p:
+                continue
+            dead = [k for k in p["kills"] if k["t"] <= p["plant_t"]]
+            t = 5 - sum(k["side"] == "t" for k in dead)
+            ct = 5 - sum(k["side"] == "ct" for k in dead)
+            rows.append(("up" if t > ct else "even" if t == ct else "down", p["won"]))
+    out = {}
+    for key, lbl in POSTPLANT:
+        sel = [w for k, w in rows if k == key]
+        if sel:
+            out[key] = {"label": lbl, "n": len(sel), "won": sum(sel), "won_pct": round(100 * sum(sel) / len(sel))}
+    return {"total": len(rows), "rows": out}
+
+
+def postplant_reading(own: dict, pro: dict, min_n: int = 6) -> str | None:
+    """Ein Satz, wenn ihr eine gelegte Bombe in einer Lage klar seltener nach Hause bringt als Pros."""
+    worst = None
+    for key, _lbl in POSTPLANT:
+        o, p = own["rows"].get(key), pro["rows"].get(key)
+        if o and p and o["n"] >= min_n and p["n"] >= min_n and p["won_pct"] - o["won_pct"] >= 15:
+            if worst is None or p["won_pct"] - o["won_pct"] > worst[2]["won_pct"] - worst[1]["won_pct"]:
+                worst = (key, o, p)
+    if not worst:
+        return None
+    key, o, p = worst
+    tip = {"up": "In Überzahl nicht mehr peeken: Bombe aus sicheren Winkeln halten, die CT müssen kommen.",
+           "even": "Nach dem Plant nicht vereinzeln: Crossfire auf die Bombe aufbauen und Utility für den Retake aufheben.",
+           "down": "In Unterzahl auf Zeit spielen: versteckt halten, Molotov oder Smoke auf die Bombe, wenn sie defusen."}
+    return (f"Nach dem Plant in {o['label']} gewinnt ihr {o['won_pct']} % ({o['won']} von {o['n']}), Pros "
+            f"{p['won_pct']} %. {tip[key]}")

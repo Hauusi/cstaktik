@@ -645,7 +645,13 @@ def briefing_page(map_name: str) -> str:
     pro = _load_pro()
     b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=pro)
     own = [{"map": h.get("map"), "plays": h.get("plays"), "ct_plays": h.get("ct_plays")} for h in hist]
-    plan = playbook.gameplan(pro, own, map_name, load_rules_config().get("playbook"))
+    cfg = load_rules_config().get("playbook")
+    plan = playbook.gameplan(pro, own, map_name, cfg)
+    # Gewohnheiten über alle Maps (Kauf, nach dem Plant): nur wenn klar schlechter als Pros
+    habits = [x for x in (playbook.buy_reading(playbook.buy_mix(own, cfg), playbook.buy_mix(pro, cfg)),
+                          playbook.postplant_reading(playbook.postplant_mix(own), playbook.postplant_mix(pro))) if x]
+    if habits:
+        plan = {**(plan or {}), "habits": habits}
     return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
                                                      kabine=_kabine(hist, map_name), plan=plan, map_name=map_name)
 
@@ -870,6 +876,10 @@ def progress_page(p: str = "") -> str:
         cfg = load_rules_config().get("playbook")
         own_b = playbook.buy_mix([h for h in hist if sid in h.get("players", {})], cfg)
         pro_b = playbook.buy_mix(_load_pro(), cfg)
+        own_pp = playbook.postplant_mix([h for h in hist if sid in h.get("players", {})])
+        pro_pp = playbook.postplant_mix(_load_pro())
+        prof["postplant"] = ({"own": own_pp, "pro": pro_pp, "reading": playbook.postplant_reading(own_pp, pro_pp)}
+                             if own_pp["total"] else None)
         prof["buys"] = {"own": own_b, "pro": pro_b, "reading": playbook.buy_reading(own_b, pro_b),
                         "cfg": {**playbook.DEFAULTS, **(cfg or {})}} if own_b["total"] else None
     auftrag = next((x for x in _auftrag(hist) if x["sid"] == sid), None)

@@ -76,6 +76,7 @@
     <span>Pros halten damit {{ plan.ct_pro.won_pct }} % ({{ plan.ct_pro.won }} von {{ plan.ct_pro.n }}){% if plan.ct_pro.util %}. Früh: {% for c in plan.ct_pro.util[:2] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
   {% if plan.ct_weak %}<a class="mp" href="/playbook/{{ map_name }}?who=ihr&side=ct#{{ plan.ct_weak.id }}"><span class="mk no">!</span><div><b>Eure Aufstellung {{ plan.ct_weak.name }} hält schlecht</b>
     <span>{{ plan.ct_weak.won_pct }} % ({{ plan.ct_weak.won }} von {{ plan.ct_weak.n }}). Ansehen ›</span></div></a>{% endif %}
+  {% for h in plan.habits or [] %}<div class="mp"><span class="mk no">!</span><div><span>{{ h }}</span></div></div>{% endfor %}
   <div class="small muted">Nur Taktiken und Aufstellungen mit mindestens 3 Runden. Siegquoten aus wenigen Runden sind Tendenzen.</div>
 </div>
 {% endif %}

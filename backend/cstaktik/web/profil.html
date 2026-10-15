@@ -56,6 +56,19 @@
 </div>
 {% else %}<div class="card empty">Noch keine Fehler-Daten.</div>{% endfor %}
 
+{% if p.postplant %}{% set po, pq = p.postplant.own, p.postplant.pro %}
+<h2>Nach dem Plant (T)</h2>
+<div class="card">
+  {% if p.postplant.reading %}<div class="dread">{{ p.postplant.reading }}</div>{% endif %}
+  {% for k in ["up", "even", "down"] %}{% set o = po.rows.get(k) %}{% set q = pq.rows.get(k) %}
+  {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }} beim Plant</b>
+    <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {{ q.won_pct }} % ({{ q.n }}){% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+  {% endfor %}
+  <div class="small muted num" style="margin-top:8px">{{ po.total }} eigene T-Runden mit Plant, alle Maps. Überzahl = mehr lebende T als CT im Moment des Plants.</div>
+</div>
+{% endif %}
+
 {% if p.buys %}{% set bo, bp = p.buys.own, p.buys.pro %}
 <h2>Kaufentscheidungen auf T</h2>
 <div class="card">
