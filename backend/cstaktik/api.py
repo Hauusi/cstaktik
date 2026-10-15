@@ -295,8 +295,17 @@ async def konto_save(request: Request) -> Response:
         return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
     row = next((r for r in accounts.steam_users() if r["user"] == user), None)
     res = steam_sync.sync_user(row) if row else {"new": 0, "error": None}
-    msg = f"Gespeichert. {res['new']} neue Matches gefunden." + (f" {res['error']}" if res["error"] else "")
+    msg = _sync_msg(res)
     return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
+
+
+def _sync_msg(res: dict) -> str:
+    if res["error"]:
+        return f"{res['new']} neue Matches gefunden. {res['error']}"
+    if not res["new"]:
+        return ("Verbindung zu Steam klappt. Es gibt noch kein Match nach deinem Match-Token: Steam meldet nur "
+                "neuere Matches. Nach deinem nächsten Match erscheint es hier (Prüfung alle 30 Minuten).")
+    return f"{res['new']} neue Match{'es' if res['new'] != 1 else ''} gefunden."
 
 
 @app.post("/konto/key")
@@ -359,7 +368,7 @@ def konto_sync(request: Request) -> Response:
     if not row:
         return RedirectResponse("/konto?error=" + quote("Erst Steam-Daten eintragen."), status_code=303)
     res = steam_sync.sync_user(row)
-    msg = f"{res['new']} neue Matches gefunden." + (f" {res['error']}" if res["error"] else "")
+    msg = _sync_msg(res)
     return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
 
 

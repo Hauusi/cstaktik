@@ -155,3 +155,18 @@ def test_options_key_codes_and_second_user():
     assert accounts.verify("Bruder", "Bruder-12345")
     with pytest.raises(ValueError, match="anderen Nutzer"):
         accounts.link_steamid("Bruder", "76561198000000001")
+
+
+def test_entered_token_is_listed_and_empty_sync_explained(monkeypatch):
+    from cstaktik import api, steam_sync
+
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.link_steamid("Hausi", "76561198000000001")
+    monkeypatch.setattr(steam_sync, "_get", lambda params, timeout=15: (202, {"result": {"nextcode": "n/a"}}))
+    accounts.set_setting("steam_web_api_key", "K")
+    c = TestClient(api.app)
+    c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
+    r = c.post("/konto", data={"auth_code": "ABCD-ABCDE-ABCD", "last_code": "CSGO-aaaaa-aaaaa-aaaaa-aaaaa-aaaaa"},
+               headers=O, follow_redirects=False)
+    assert "Verbindung%20zu%20Steam%20klappt" in r.headers["location"]
+    assert [x["code"] for x in accounts.get_steam("Hausi")["codes"]] == ["CSGO-aaaaa-aaaaa-aaaaa-aaaaa-aaaaa"]

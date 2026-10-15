@@ -244,3 +244,5 @@ def save_codes(name: str, auth_code: str, last_code: str, path: Path | None = No
             raise ValueError("Erst mit Steam verbinden.")
         con.execute("UPDATE steam SET auth_code = ?, last_code = ?, error = NULL WHERE user = ?",
                     (auth_code, last_code, name))
+        # das eingetragene Match selbst gehört auch dazu (die Steam-API liefert nur neuere)
+        con.execute("INSERT OR IGNORE INTO sharecodes (code, user, found) VALUES (?, ?, ?)", (last_code, name, _now()))

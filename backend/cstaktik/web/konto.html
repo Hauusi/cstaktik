@@ -41,7 +41,7 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
   <div class="hint">Erstellst du in der Steam-Hilfe bei Counter-Strike 2 (Authentifizierungscode für den Matchverlauf). Er erlaubt nur, deine Match-Liste zu lesen.</div>
   <label for="lc">Match-Token (Sharecode eines deiner letzten Matches)</label>
   <input class="field" id="lc" name="last_code" value="{{ steam.last_code or '' }}" placeholder="CSGO-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" required {{ "disabled" if not steam.steamid }}>
-  <div class="hint">Ab diesem Match sucht der Coach alle neueren und merkt sich danach selbst den neuesten.</div>
+  <div class="hint">Ab diesem Match sucht der Coach alle neueren und merkt sich danach selbst den neuesten. Steam liefert nur neuere Matches, keine älteren, und nur Valve-Matches (Premier, Competitive, Wingman), kein FACEIT.</div>
   <button class="btn" type="submit" {{ "disabled" if not steam.steamid }}>Speichern und Matches suchen</button>
 </form>
 {% if steam.auth_code %}
