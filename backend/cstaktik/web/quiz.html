@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Situationen – cstaktik{% endblock %}
+{% block title %}Situationen · cstaktik{% endblock %}
 {% block head %}
 <style>
 .back { font-size: 13px; color: var(--muted); }
@@ -119,7 +119,7 @@ S.forEach((sc, i) => {
       if (best) { n++; if (k === best) ok++; }
       save(KEY(sc), { ok: best ? k === best : null, date: Date.now() });  // ohne Pro-Vergleich kein richtig/falsch
       answered++;
-      const v = best ? (k === best ? el('div', 'v ok', 'Höchste Pro-Siegquote') : el('div', 'v no', 'Höchste Pro-Siegquote hat: ' + OPTS.find(o => o[0] === best)[1]))
+      const v = best ? (k === best ? el('div', 'v ok', 'Richtig: Mit dieser Option gewinnen Pros diese Lage am häufigsten.') : el('div', 'v no', 'Pros gewinnen diese Lage am häufigsten mit: ' + OPTS.find(o => o[0] === best)[1] + '.'))
                      : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage');
       if (map) { map.classList.add('done');
         if (sc.view.kplace) res.appendChild(el('div', 'kfrom', 'Der Killer kam aus ' + sc.view.kplace + ' (rote Linie).')); }
@@ -129,7 +129,7 @@ S.forEach((sc, i) => {
       c.appendChild(res);
       document.getElementById('score').textContent = n ? `${ok} von ${n} wie die Pros` : '';
       if (answered === S.length && QUIZ_OPEN) {  // Wochenaufgabe automatisch abhaken
-        fetch('/training/plan?p={{ sid or "" }}&week={{ week }}&task=quiz', { method: 'POST' }).catch(() => {});
+        fetch('/training/plan?p={{ sid or "" }}&week={{ week }}&task=quiz&done=1', { method: 'POST' }).catch(() => {});
         document.getElementById('score').textContent += ' · Wochenaufgabe erledigt';
       }
     };

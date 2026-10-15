@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Training – cstaktik{% endblock %}
+{% block title %}Training · cstaktik{% endblock %}
 {% block hero %}
 <h1>Training</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}

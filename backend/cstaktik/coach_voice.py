@@ -431,9 +431,10 @@ def memory(prev: dict | None, now_lessons: dict, now_rounds: int) -> dict | None
 
 def intro(won: int, lost: int, map_label: str, lessons: list[dict]) -> list[str]:
     """Ansprache in Ich-Form, nur aus Zahlen dieses Matches."""
-    out = [f"Ich hab mir euer {won}:{lost} auf {map_label} angesehen." if lost > won
-           else f"{won}:{lost} auf {map_label}. Gewonnen, trotzdem gibt es was zu holen." if won > lost
-           else f"{won}:{lost} auf {map_label}. Ich hab es mir angesehen."]
+    on = f" auf {map_label}" if map_label and map_label != "?" else ""  # ohne Mapnamen kein "auf ?"
+    out = [f"Ich hab mir euer {won}:{lost}{on} angesehen." if lost > won
+           else f"{won}:{lost}{on}. Gewonnen, trotzdem gibt es was zu holen." if won > lost
+           else f"{won}:{lost}{on}. Ich hab es mir angesehen."]
     if lessons:  # nur das Thema; Anzahl, Matches und Kosten stehen direkt darunter als Zahlen
         out.append(f"Heute geht es um: {lessons[0]['lesson']}.")
     return out

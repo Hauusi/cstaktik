@@ -110,9 +110,16 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
   border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; }
 .cbtn.play { width: 48px; height: 48px; border-radius: 50%; background: var(--text); color: var(--bg); }
 .cbtn.on { border-color: var(--accent); color: #ffc46b; }
+.cbtn:disabled { opacity: .35; }
 .cbtn svg { width: 18px; height: 18px; }
 .spacer { flex: 1; }
 .clock { font-weight: 700; font-size: 15px; min-width: 44px; text-align: right; }
+@media (max-width: 400px) {  /* schmale Handys: Uhr nicht abschneiden */
+  .controls { gap: 4px; padding: 10px 8px 4px; }
+  .cbtn { min-width: 36px; padding: 0 7px; }
+  .cbtn.play { width: 44px; height: 44px; }
+  .clock { min-width: 36px; font-size: 14px; }
+}
 .timeline { position: relative; margin: 6px 14px 4px; height: 34px; }
 .timeline .bar { position: absolute; left: 0; right: 0; top: 15px; height: 4px; border-radius: 2px; background: var(--surface-2); }
 .timeline .fill { position: absolute; left: 0; top: 15px; height: 4px; border-radius: 2px; background: var(--accent); }
@@ -157,6 +164,7 @@ dt { color: var(--faint); } dd { margin: 0; color: var(--text); word-break: brea
   border-radius: 14px; font-weight: 750; font-size: 16px; color: #fff;
   background: var(--orange); box-shadow: 0 8px 24px rgba(255,159,28,.35); }
 .tour small { font-weight: 600; opacity: .8; }
+@media (max-width: 400px) { .tour { flex-direction: column; gap: 0; height: auto; padding: 8px 10px; line-height: 1.25; } }
 .pill.good { color: var(--win); border-color: rgba(63,191,127,.35); }
 .players { display: grid; gap: 10px; }
 .pcard { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
@@ -564,7 +572,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       <div class="hscore num cond"><b>{{ score.won }}</b><span>:</span><b class="l">{{ score.lost }}</b></div></div>
     <span class="restag {{ 'win' if score.won > score.lost else 'loss' if score.lost > score.won else '' }}">{{ "Sieg" if score.won > score.lost else "Niederlage" if score.lost > score.won else "Unentschieden" }}</span>
   </div></header>
-<div class="dbf" id="dbf" hidden role="dialog" aria-label="Debrief">
+<div class="dbf" id="dbf" hidden role="dialog" aria-modal="true" aria-label="Debrief">
   <div class="dbf-top"><div class="segs" id="dbfSegs"></div><button class="dbf-x" id="dbfX" aria-label="Schließen">✕</button></div>
   <div class="dbf-body" id="dbfBody"></div>
   <div class="dbf-nav"><button class="dbf-back" id="dbfBack">‹ Zurück</button><button class="dbf-next" id="dbfNext">Weiter ›</button></div>
@@ -572,7 +580,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 <button class="dbf-return" id="dbfRet" hidden>‹ Zurück zum Debrief</button>
 <main>
 <nav class="rtabs" id="rtabs" aria-label="Bereiche">
-  <button data-tab="coach" class="on">Coach</button><button data-tab="replay">Replay</button><button data-tab="analyse">Analyse</button><button data-tab="runden">Runden</button>
+  <button data-tab="coach" class="on" role="tab" aria-selected="true">Coach</button><button data-tab="replay" role="tab" aria-selected="false">Replay</button><button data-tab="analyse" role="tab" aria-selected="false">Analyse</button><button data-tab="runden" role="tab" aria-selected="false">Runden</button>
 </nav>
 
 <div class="tab" data-tab="coach">
@@ -718,10 +726,10 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       <button class="cbtn" id="prevF" aria-label="Vorheriger Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
       <button class="cbtn play" id="play" aria-label="Abspielen"><svg viewBox="0 0 24 24" fill="currentColor" id="playIcon"><path d="M7 4v16l13-8z"/></svg></button>
       <button class="cbtn" id="nextF" aria-label="Nächster Fehler"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
-      <button class="cbtn num" id="speed" aria-label="Geschwindigkeit">1x</button>
+      <button class="cbtn num" id="speed" title="Geschwindigkeit">1x</button>
       <span class="spacer"></span>
-      <button class="cbtn" id="zoom" aria-label="Kamera folgt Fokus-Spielern">Folgen</button>
-      <button class="cbtn" id="trail" aria-label="Spuren">Spur</button>
+      <button class="cbtn" id="zoom" title="Kamera folgt Fokus-Spielern" aria-pressed="false">Folgen</button>
+      <button class="cbtn" id="trail" title="Spuren: kurz oder ganze Runde">Spur</button>
       <span class="clock num" id="clock">0:00</span>
     </div>
     <div class="roster" id="roster"></div>
@@ -729,7 +737,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     </div></div>
   </section>
 
-  <h2>Befunde dieser Runde</h2>
+  <h2>Fehler und Lob dieser Runde</h2>
   <div class="stack" id="rfind"></div>
 </div>
 
@@ -1521,6 +1529,7 @@ function ui() {
   $('clock').textContent = fmt(t);
   const pct = (t - r.t0) / Math.max(1, r.t1 - r.t0) * 100;
   $('tlfill').style.width = pct + '%'; $('scrub').value = t;
+  if (typeof findTargets === 'function') { const ft = findTargets(); $('prevF').disabled = !ft.prev; $('nextF').disabled = !ft.next; }
   const hud = $('hud'); hud.textContent = '';
   const planted = r.bomb.find(b => b.ev === 'plant' && b.t <= t);
   const dtk = deathTicks(r), alive = { ct: 0, t: 0 };
@@ -1599,7 +1608,7 @@ function ui() {
     }
     if (!active.length) coach.appendChild(el('div', 'hint', r.f.length
       ? 'Abspielen: das Replay hält bei jedem Fehler an und zeigt hier den Tipp.'
-      : R().pro ? 'Pro-Replay (blauer Rahmen): der hervorgehobene Pro ist dein Vergleich. Oben "Zurück zu deinem Tod".' : 'Keine Befunde in dieser Runde.'));
+      : R().pro ? 'Pro-Replay (blauer Rahmen): der hervorgehobene Pro ist dein Vergleich. Oben "Zurück zu deinem Tod".' : 'Nichts zu dieser Runde.'));
   }
 
   const dt = deathTicks(r), ro = $('roster'); ro.textContent = '';
@@ -1649,7 +1658,7 @@ function buildFindings() {
   // Kompakte Liste: die Erklärung steht nur an einer Stelle (Coach-Feld an der Karte). Antippen springt hin.
   const box = $('rfind'); box.textContent = '';
   const r = R();
-  if (!r.f.length) { box.appendChild(el('p', 'quiet', 'Kein Befund in dieser Runde.')); return; }
+  if (!r.f.length) { box.appendChild(el('p', 'quiet', 'Nichts zu dieser Runde.')); return; }
   r.f.forEach(id => {
     const f = F[id], ev = f.evidence || {}, cv = ev.coach;
     const name = cv ? cv.lesson : f.title.replace(/^Tod: /, '');
@@ -1671,7 +1680,7 @@ function buildFindings() {
 
 // ---- Reiter: Coach / Replay / Analyse / Runden
 function showTab(t) {
-  document.querySelectorAll('#rtabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('#rtabs button').forEach(b => { b.classList.toggle('on', b.dataset.tab === t); b.setAttribute('aria-selected', b.dataset.tab === t); });
   document.querySelectorAll('.tab').forEach(d => { d.hidden = d.dataset.tab !== t; });
   if (t === 'replay') resize(); else if (S.playing) setPlaying(false);
 }
@@ -1695,7 +1704,7 @@ function buildRoundList() {
       fs.slice(0, 3).forEach(f => ul.appendChild(el('div', 'ri ' + f.sev, f.title + (f.who ? ' · ' + f.who : ''))));
       if (fs.length > 3) ul.appendChild(el('div', 'ri more', '+' + (fs.length - 3) + ' weitere'));
       row.appendChild(ul);
-    } else row.appendChild(el('div', 'rf quiet', 'Kein Befund'));
+    } else row.appendChild(el('div', 'rf quiet', 'Nichts'));
     row.onclick = () => { selectRound(i); toStage(); };
     box.appendChild(row);
   });
@@ -1781,7 +1790,7 @@ function story() {
   const df = r.bomb.find(b => b.ev === 'defuse'); if (df) parts.push(['Bombe', 'entschärft ' + fmt(df.t)]);
   const mine = r.kills.filter(k => isFocus(k.a) && r.teams[k.a] !== r.teams[k.v]).length;
   const myDeaths = r.kills.filter(k => isFocus(k.v)).length;
-  parts.push(['Ihr', `${mine} Kills, ${myDeaths} Tode`]);
+  parts.push(['Ihr', `${mine} ${mine === 1 ? 'Kill' : 'Kills'}, ${myDeaths} ${myDeaths === 1 ? 'Tod' : 'Tode'}`]);
   parts.forEach(([k, v], i) => { if (i) box.append(' · '); box.append(el('b', null, k + ': '), v); });
 }
 function goTour(name, i) {
@@ -1816,7 +1825,7 @@ document.querySelectorAll('.costgo').forEach(b => b.onclick = () => {
   toStage({ behavior: 'smooth', block: 'start' });
 });
 if (TOURS.key.length) { $('tourBtn').hidden = false; $('tourN').textContent = '(' + TOURS.key.length + ')'; $('tourBtn').onclick = () => goTour('key', 0); }
-else if (TOURS.all.length) { $('tourBtn').hidden = false; $('tourN').textContent = TOURS.all.length + ' Fehler'; $('tourBtn').onclick = () => goTour('all', 0); }
+else if (TOURS.all.length) { $('tourBtn').hidden = false; $('tourBtn').firstChild.textContent = 'Alle ' + TOURS.all.length + ' Fehler im Replay '; $('tourN').textContent = ''; $('tourBtn').onclick = () => goTour('all', 0); }
 
 // ---- Training "Was machst du?": im Entscheidungsmoment anhalten, Option wählen, dann Auflösung
 const QOPTS = [['gehalten', 'Position halten'], ['zurückgezogen', 'Zurückziehen'], ['Richtung Gegner', 'Richtung Gegner gehen / peeken']];
@@ -1836,7 +1845,7 @@ function quizShow(i) {
   seek(f.ov.decision[2]); setPlaying(false);
   q.hidden = false; q.textContent = '';
   q.append(el('div', 'qk', `Training ${i + 1} von ${QUIZ.length} · Runde ${f.round} · ${f.who}`),
-           el('div', 'qt', 'Was machst du jetzt?'), el('div', 'ql', quizLage(f)));
+           el('div', 'qt', 'Was machst du?'), el('div', 'ql', quizLage(f)));
   const opts = el('div', 'qopts');
   QOPTS.forEach(([key, label]) => { const b = el('button', 'qopt', label); b.dataset.k = key; b.onclick = () => quizAnswer(f, key); opts.appendChild(b); });
   q.appendChild(opts);
@@ -1855,7 +1864,7 @@ function quizAnswer(f, pick) {
     if (k === mine) b.appendChild(el('small', null, 'Das hast du gemacht: Tod' + (ev.cost_pct > 0 ? `, -${ev.cost_pct} % Rundenchance` : '')));
   });
   let verdict;
-  if (best) verdict = pick === best ? 'Richtig: Mit dieser Option gewinnen Pros diese Lage am häufigsten (Siegquote).'
+  if (best) verdict = pick === best ? 'Richtig: Mit dieser Option gewinnen Pros diese Lage am häufigsten.'
                                      : 'Die Pros gewinnen in dieser Lage am häufigsten mit: ' + QOPTS.find(o => o[0] === best)[1] + '.';
   else verdict = 'Zu wenige Pro-Daten, um Optionen in dieser Lage zu vergleichen. Sieh dir an, was passiert ist.';
   const res = el('div', 'qres'); res.append(el('b', null, verdict));
@@ -1916,7 +1925,7 @@ function dbBuild() {
     const sc = L.scenes[0], f = sc ? F[sc.finding] : null, cv = f && f.evidence && f.evidence.coach;
     const ev = f && f.evidence;
     if (ev && ev.snap && ev.aktion) st.push(() => {
-      const d = el('div'), s = ev.snap; d.append(el('div', 'k', `Deine Szene · R${sc.round} · erst entscheiden`), el('h3', null, 'Was machst du hier?'));
+      const d = el('div'), s = ev.snap; d.append(el('div', 'k', `Deine Szene · R${sc.round} · erst entscheiden`), el('h3', null, 'Was machst du?'));
       const parts = [`${s.own} gegen ${s.enemy}`, s.hp != null ? (s.hp >= 100 ? 'volle HP' : s.hp + ' HP') : null,
                      s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt', s.mate && s.mate_d != null ? `${s.mate} ${s.mate_d} Units weg` : null].filter(Boolean);
       d.appendChild(el('p', null, parts.join(' · ') + (ev.info ? ' · ' + ev.info.replace(/^Info: /, '') : '')));
@@ -1933,7 +1942,7 @@ function dbBuild() {
             if (r) o.appendChild(el('small', null, `Pros: ${r[1]}x, ${Math.round(100 * r[0] / r[1])} % Siege`));
           });
           const res = el('div', 'box ' + (best && k === best ? 'good' : 'bad'));
-          res.appendChild(el('div', null, best ? (k === best ? 'Richtig gedacht: Mit dieser Option gewinnen Pros diese Lage am häufigsten.' : 'Pros gewinnen diese Lage am häufigsten mit: ' + ACT[best] + '.') : 'Für diese Lage fehlen Pro-Daten. Entscheidend ist, was der Coach dir sagt:'));
+          res.appendChild(el('div', null, best ? (k === best ? 'Richtig: Mit dieser Option gewinnen Pros diese Lage am häufigsten.' : 'Pros gewinnen diese Lage am häufigsten mit: ' + ACT[best] + '.') : 'Für diese Lage fehlen Pro-Daten. Entscheidend ist, was der Coach dir sagt:'));
           if (cv) { const nx = el('div'); nx.style.marginTop = '8px'; nx.append(el('b', null, 'Nächstes Mal: '), cv.next); res.appendChild(nx); }
           res.appendChild(el('div', 'quiet', 'Weiter: was in der Szene wirklich passiert ist.'));
           d.appendChild(res);
@@ -2004,7 +2013,8 @@ function dbShow(i) {
   $('dbfBack').style.visibility = DBS.i ? 'visible' : 'hidden';
   $('dbfNext').textContent = DBS.i === DBS.steps.length - 1 ? 'Fertig ✓' : 'Weiter ›';
 }
-function dbOpen(i) { setPlaying(false); $('dbfRet').hidden = true; $('dbf').hidden = false; document.body.style.overflow = 'hidden'; dbShow(i); }
+function dbOpen(i) { setPlaying(false); $('dbfRet').hidden = true; $('dbf').hidden = false; document.body.style.overflow = 'hidden'; dbShow(i); $('dbfX').focus(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('dbf').hidden) dbClose(); });
 function dbClose() { $('dbf').hidden = true; $('dbfRet').hidden = true; document.body.style.overflow = ''; }
 dbBuild();
 if (DBS.steps.length > 1) {
@@ -2015,18 +2025,22 @@ $('dbfX').onclick = dbClose;
 $('dbfBack').onclick = () => dbShow(DBS.i - 1);
 $('dbfNext').onclick = () => DBS.i === DBS.steps.length - 1 ? dbClose() : dbShow(DBS.i + 1);
 $('dbfRet').onclick = () => dbOpen(DBS.i);
-if (TOURS.all.length && $('allTour')) { $('allTour').hidden = false; $('allTour').textContent = 'Oder alle ' + TOURS.all.length + ' Fehler durchgehen ›'; $('allTour').onclick = () => goTour('all', 0); }
+if (TOURS.key.length && TOURS.all.length && $('allTour')) { $('allTour').hidden = false; $('allTour').textContent = 'Oder alle ' + TOURS.all.length + ' Fehler durchgehen ›'; $('allTour').onclick = () => goTour('all', 0); }
 function jumpFinding(dir) {
   const r = R(), list = r.f.map(id => F[id]).filter(f => f.tick != null && isErr(f)).sort((a, b) => a.tick - b.tick);
   const target = dir > 0 ? list.find(f => f.tick > S.tick + TR) : [...list].reverse().find(f => f.tick < S.tick - TR);
   if (target) { S.lastF = target.id; setPlaying(false); seek(target.tick); }
 }
 $('play').onclick = () => { const r = R(); if (S.tick >= r.t1) S.tick = r.t0; setPlaying(!S.playing); };
+function findTargets() {
+  const r = R(), list = r.f.map(id => F[id]).filter(f => f.tick != null && isErr(f));
+  return { prev: list.some(f => f.tick < S.tick - TR), next: list.some(f => f.tick > S.tick + TR) };
+}
 $('prevF').onclick = () => jumpFinding(-1);
 $('nextF').onclick = () => jumpFinding(1);
 $('speed').onclick = e => { S.speed = S.speed === 1 ? 2 : S.speed === 2 ? 4 : S.speed === 4 ? 0.5 : 1; e.currentTarget.textContent = S.speed + 'x'; };
 function setFollow(on) {
-  S.follow = on; $('zoom').classList.toggle('on', on);
+  S.follow = on; $('zoom').classList.toggle('on', on); $('zoom').setAttribute('aria-pressed', on);
   if (on && S.zoom < 2) S.zoom = 2;
   draw();
 }

@@ -40,6 +40,8 @@ async function poll() {
   try {
     const r = await fetch('/api/jobs/{{ job_id }}', { cache: 'no-store' });
     if (r.status === 404) { showError('Auftrag unbekannt (Server neu gestartet?). Fertige Reports stehen unter Matches.'); return; }
+    if (r.status === 401) { location.href = '/login?next=' + encodeURIComponent(location.pathname); return; }
+    if (!r.ok) { showError('Server-Fehler ' + r.status + '. Seite neu laden; fertige Reports stehen unter Matches.'); return; }
     job = await r.json(); fetchedAt = performance.now();
     if (job.status === 'fertig') {
       if (job.report) { location.replace('/reports/' + job.report); return; }

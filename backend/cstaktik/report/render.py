@@ -511,7 +511,7 @@ def build_context(
     data_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     return {
         "match": match,
-        "map_label": (match.map_name or "unbekannte Map").removeprefix("de_").capitalize(),
+        "map_label": match.map_name.removeprefix("de_").capitalize() if match.map_name else "Unbekannte Map",
         "score": {"won": won, "lost": lost},
         "top": _top_issues(result),
         "patterns": [f for f in result.findings if f.round is None and f.severity != "gut"],

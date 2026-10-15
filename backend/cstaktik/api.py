@@ -782,7 +782,8 @@ def _map_hub(hist: list[dict], sid: str | None) -> list[dict]:
 
 
 @app.post("/training/plan")
-def plan_toggle(p: str = "", task: str = "", week: str = "") -> RedirectResponse:
+def plan_toggle(p: str = "", task: str = "", week: str = "", done: int = 0) -> RedirectResponse:
+    """Aufgabe abhaken/Haken entfernen. ``done=1``: nur abhaken (automatisch, z. B. Quiz), nie den Haken entfernen."""
     from cstaktik import coaching, weekplan
 
     _own_only(p)
@@ -790,6 +791,8 @@ def plan_toggle(p: str = "", task: str = "", week: str = "") -> RedirectResponse
     with coaching.LOCK:
         state = coaching.load(pipeline.COACHING_FILE)
         slot = state.get("players", {}).get(p)
+        if slot and done and task in ((slot.get("weeks", {}).get(week) or {}).get("done") or {}):
+            slot = None  # schon erledigt (z. B. in einem anderen Tab): nichts umschalten
         if slot:
             now = weekplan.toggle(slot, week, task)
             if task.startswith("routine") and slot.get("focus") and now is not None:

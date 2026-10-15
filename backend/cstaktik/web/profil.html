@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "bars.html" import cmpbar %}
 {% from "duelchain.html" import duelchain %}
-{% block title %}{{ p.name if p else "Fortschritt" }} – cstaktik{% endblock %}
+{% block title %}Fortschritt{{ " · " ~ p.name if p }} · cstaktik{% endblock %}
 {% block head %}
 <style>
 .sec { margin-top: 8px; }
