@@ -170,6 +170,21 @@ def main_via(approach: dict, style: str) -> list[str]:
     return order[:1]
 
 
+def group_key(p: dict, k: dict) -> tuple:
+    """Gruppe einer T-Runde: Taktikart, Bombsite, Hauptzugänge (nur bei Split, Execute, Rush)."""
+    return k["style"], p.get("site"), tuple(k["via"]) if k["style"] in ("split", "execute", "rush") else ()
+
+
+def key_id(key: tuple) -> str:
+    style, site, via = key
+    return f"{style}-{site or 'x'}-{'-'.join(via)}".replace(" ", "")
+
+
+def tactic_id(p: dict, cfg: dict | None = None) -> str:
+    """Id der Taktik, zu der diese Runde gehört (gleich wie im Playbook)."""
+    return key_id(group_key(p, classify(p, {**DEFAULTS, **(cfg or {})})))
+
+
 KIND_DE = {"smoke": "Smoke", "flash": "Flash", "molotov": "Molotov", "he": "HE"}
 
 
@@ -212,7 +227,7 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
         for p in d["plays"]:
             total += 1
             k = classify(p, c)
-            key = (k["style"], p.get("site"), tuple(k["via"]) if k["style"] in ("split", "execute", "rush") else ())
+            key = group_key(p, k)
             mine = []
             nades = p["nades"] if "nades" in p else [n for n in demo_nades if n["r"] == p["r"]]
             if p.get("arrive") is not None:
@@ -240,7 +255,7 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
         plants = [r["plant_t"] for r in rows if r.get("plant_t") is not None]
         arr = [r["arrive"] for r in rows if r.get("arrive") is not None]
         tactics.append({
-            "id": f"{style}-{site or 'x'}-{'-'.join(via)}".replace(" ", ""), "style": style, "site": site,
+            "id": key_id((style, site, via)), "style": style, "site": site,
             "name": rows[0]["name"], "style_label": STYLE_TEXT[style][0], "explain": STYLE_TEXT[style][1],
             "via": list(via), "n": n, "won": sum(r["won"] for r in rows),
             "won_pct": round(100 * sum(r["won"] for r in rows) / n),

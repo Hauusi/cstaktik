@@ -406,6 +406,7 @@ def training_page(p: str = "") -> str:
     past = []
     if sid and focus:
         key, plan, changed = weekplan.ensure(slot, _plan_ctx(hist, _load_pro(), sid, focus))
+        changed |= weekplan.tactic_progress(key, plan, hist, load_rules_config().get("playbook"))
         if changed:
             coaching.save(state, pipeline.COACHING_FILE)
         chk = weekplan.check(key, plan, hist, sid, focus,

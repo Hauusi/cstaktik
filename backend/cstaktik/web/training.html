@@ -22,6 +22,8 @@
   <form action="/training/plan?p={{ sid }}&week={{ week }}&task={{ t.id|urlencode }}" method="post"><button class="chk" type="submit" aria-label="{{ 'Haken entfernen' if d else 'Erledigt' }}">✓</button></form>
   <div class="k">{{ t.kind }}{% if t.minutes %} · {{ t.minutes }} Min{% endif %}</div>
   <div class="tt">{{ t.title }}</div>
+  {% if t.played is defined and t.played.n %}<div class="small num" style="color:var(--win)">Gespielt: {{ t.played.n }} Runde{{ "n" if t.played.n != 1 }} diese Woche, {{ t.played.won }} gewonnen. Automatisch abgehakt.</div>
+  {% elif t.played is defined %}<div class="small muted">Noch nicht gespielt. Hakt sich selbst ab, sobald ihr sie in einem Match spielt.</div>{% endif %}
   <div>{% if t.steps %}<details><summary>So geht's</summary><ol>{% for s in t.steps %}<li>{{ s }}</li>{% endfor %}</ol></details>{% endif %}
     {% if t.link %}<a class="go" href="{{ t.link }}">Öffnen ›</a>{% endif %}</div>
 </div>

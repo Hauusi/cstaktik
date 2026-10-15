@@ -255,3 +255,18 @@ def test_upgrade_history_survives_broken_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "cache_file", lambda i: tmp_path / "c" / "abc.json")
     (tmp_path / "c" / "abc.json").write_text("{kaputt")
     assert pipeline.upgrade_history() == 0  # kein Absturz, Eintrag bleibt für später
+
+
+def test_tactic_task_ticks_itself_when_played():
+    from cstaktik import weekplan
+
+    p = playbook.plays(_match(5, _split_route(), plant_s=48))[0]
+    tid = playbook.tactic_id(p)
+    assert tid == "split-A-Palace-Ramp"
+    key = "2026-W42"
+    plan = {"lesson": "utility", "done": {}, "tasks": [{"id": f"tactic:de_mirage:{tid}", "kind": "Playbook"}]}
+    hist = [{"map": "de_mirage", "analyzed_at": "2026-10-14T20:00", "plays": [p, {**p, "won": False}]},
+            {"map": "de_mirage", "analyzed_at": "2026-10-01T20:00", "plays": [p]}]  # andere Woche zählt nicht
+    assert weekplan.tactic_progress(key, plan, hist) is True
+    assert plan["tasks"][0]["played"] == {"n": 2, "won": 1} and f"tactic:de_mirage:{tid}" in plan["done"]
+    assert weekplan.tactic_progress(key, plan, hist) is False  # nichts Neues

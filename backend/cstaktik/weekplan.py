@@ -95,6 +95,11 @@ def ensure(slot: dict, ctx: dict, today: date | None = None) -> tuple[str, dict,
     weeks = slot.setdefault("weeks", {})
     plan = weeks.get(key)
     if plan and plan.get("lesson") == ctx["lesson"]:
+        # Taktik-Aufgabe nachreichen, wenn es beim Anlegen des Plans noch keine Pro-Empfehlung gab
+        new = [t for t in tasks_for(ctx) if t["kind"] == "Playbook"]
+        if new and not any(t["id"].startswith("tactic:") for t in plan["tasks"]):
+            plan["tasks"].insert(len(plan["tasks"]) - 1, new[0])
+            return key, plan, True
         return key, plan, False
     done = (plan or {}).get("done", {})
     tasks = tasks_for(ctx)
@@ -143,3 +148,27 @@ def check(key: str, plan: dict, hist: list[dict], sid: str, focus: dict | None, 
         out["target"], out["baseline"] = focus["target"], focus["baseline"]
         out["met"] = None if rate is None or rounds < min_rounds else 10 * n / rounds <= focus["target"]
     return out
+
+
+def tactic_progress(key: str, plan: dict, hist: list[dict], cfg: dict | None = None) -> bool:
+    """Taktik-Aufgabe prüfen: In den Matches dieser Woche auf der Map die Runden zählen, die zur empfohlenen Taktik
+    gehören (gleiche Erkennung wie im Playbook). Ab einer gespielten Runde wird die Aufgabe automatisch abgehakt.
+    Schreibt ``played`` (Runden, Siege) in die Aufgabe. Rückgabe: Plan geändert."""
+    from cstaktik.playbook import tactic_id
+
+    start, end = week_range(key)
+    changed = False
+    for t in plan["tasks"]:
+        if not t["id"].startswith("tactic:"):
+            continue
+        _kind, m, tid = t["id"].split(":", 2)
+        rounds = [p for h in hist if h.get("map") == m and h.get("analyzed_at")
+                  and start <= datetime.fromisoformat(h["analyzed_at"]).date() <= end
+                  for p in h.get("plays") or [] if tactic_id(p, cfg) == tid]
+        played = {"n": len(rounds), "won": sum(p["won"] for p in rounds)}
+        if t.get("played") != played:
+            t["played"], changed = played, True
+        if played["n"] and t["id"] not in plan["done"]:
+            plan["done"][t["id"]] = now_local()
+            changed = True
+    return changed
