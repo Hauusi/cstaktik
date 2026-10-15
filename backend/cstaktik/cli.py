@@ -41,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
     us.add_argument("action", choices=["add", "passwd", "list"])
     us.add_argument("name", nargs="?")
     sub.add_parser("steam-sync", help="Neue Match-Sharecodes aller Nutzer über die Steam-Web-API suchen")
+    hu = sub.add_parser("https-adresse", help="Gemerkte HTTPS-Adresse anzeigen oder mit --aus löschen "
+                                              "(dann ist http://IP:8000 wieder direkt erreichbar)")
+    hu.add_argument("--aus", action="store_true")
     s = sub.add_parser("serve", help="Web-Upload starten")
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=8000)
@@ -217,6 +220,16 @@ def main(argv: list[str] | None = None) -> int:
             print(exc)
             return 1
         print(f"Nutzer {args.name} {'angelegt' if args.action == 'add' else 'aktualisiert'}. Ab jetzt ist der Login aktiv.")
+        return 0
+
+    if args.cmd == "https-adresse":
+        from cstaktik import accounts
+
+        if args.aus:
+            accounts.set_setting("public_url", None)
+            print("HTTPS-Adresse gelöscht. Direkte Zugriffe werden nicht mehr umgeleitet.")
+        else:
+            print(accounts.get_setting("public_url") or "Keine gemerkt (die App wurde noch nie über HTTPS aufgerufen).")
         return 0
 
     if args.cmd == "steam-sync":

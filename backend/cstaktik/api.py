@@ -84,6 +84,9 @@ async def _password(request: Request, call_next):
 
     Aktiv, wenn die Umgebungsvariable CSTAKTIK_PASSWORD gesetzt ist (Benutzer: CSTAKTIK_USER, Standard "coach").
     """
+    redirect = _https_only(request)
+    if redirect is not None:
+        return redirect
     if request.method == "POST":
         origin = request.headers.get("origin") or request.headers.get("referer") or ""
         # eigene Adresse: Host, hinter einem Proxy auch X-Forwarded-Host, zusätzlich CSTAKTIK_ALLOWED_HOSTS
@@ -255,6 +258,31 @@ def _session_redirect(request: Request, name: str, to: str) -> Response:
     r.set_cookie(accounts.COOKIE, accounts.make_session(name), max_age=accounts.SESSION_DAYS * 86400, httponly=True,
                  samesite="lax", secure=_base(request).startswith("https"))
     return r
+
+
+def _https_only(request: Request) -> Response | None:
+    """Läuft die App hinter einem HTTPS-Proxy (Caddy auf demselben Server), gilt nur noch der verschlüsselte Weg.
+
+    Kommt eine Anfrage verschlüsselt über den Proxy, merkt sich die App ihre HTTPS-Adresse. Danach
+    werden direkte Zugriffe von außen (z. B. http://IP:8000) dorthin umgeleitet, damit Passwörter nie unverschlüsselt
+    übertragen werden. Zurücksetzen auf dem Server: ``cstaktik https-adresse --aus``."""
+    from cstaktik import accounts
+
+    # Hinter Caddy setzt uvicorn das Schema aus X-Forwarded-Proto, aber nur für Anfragen vom Proxy auf demselben
+    # Server (forwarded_allow_ips=127.0.0.1). Ein direkter Aufruf von außen bleibt "http", egal welche Header er schickt.
+    if request.url.scheme == "https":
+        host = request.headers.get("host", "")
+        url = f"https://{host}"
+        if host and accounts.get_setting("public_url") != url:
+            accounts.set_setting("public_url", url)
+        return None
+    url = accounts.get_setting("public_url")
+    if not url:
+        return None
+    if request.method in ("GET", "HEAD"):
+        target = url + request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        return RedirectResponse(target, status_code=307)
+    return Response(f"Bitte über {url} aufrufen (verschlüsselt).", status_code=403)
 
 
 def _base(request: Request) -> str:

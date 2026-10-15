@@ -295,3 +295,18 @@ def test_each_account_sees_only_own_matches():
     accounts.link_steamid("Bruder", bro)
     mb = b.get("/matches").text
     assert "m2.html" in mb and "m1.html" not in mb and b.get("/reports/m1.html").text == blocked
+
+
+def test_https_proxy_locks_direct_access():
+    from cstaktik import api
+
+    c = TestClient(api.app)
+    assert c.get("/login", follow_redirects=False).status_code == 200  # ohne HTTPS-Proxy: wie bisher
+    c.get("/login", headers={"x-forwarded-proto": "https", "host": "evil.example"})  # direkt: Header zählt nicht
+    assert accounts.get_setting("public_url") is None
+    TestClient(api.app, base_url="https://cs2coach.duckdns.org").get("/login")  # über den Proxy (Schema https)
+    assert accounts.get_setting("public_url") == "https://cs2coach.duckdns.org"
+    r = c.get("/login?next=/x", follow_redirects=False)  # direkt von außen: umgeleitet
+    assert r.status_code == 307 and r.headers["location"] == "https://cs2coach.duckdns.org/login?next=/x"
+    assert c.post("/login", data={"name": "a", "password": "b"}, headers=O).status_code == 403
+    accounts.set_setting("public_url", None)
