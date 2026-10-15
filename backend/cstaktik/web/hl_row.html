@@ -1,0 +1,3 @@
+<a class="hl" {% if r.link %}href="{{ r.link }}"{% endif %}><span class="v {{ 'pos' if r.val > 0 else 'neg' }}">{{ r.val_s }}</span>
+  <div><b>{{ r.text }}</b><span class="small muted">{{ r.match }} · Runde {{ r.round }}{% if r.ctx %} · {{ r.ctx }}{% endif %}</span></div>
+  {% if r.link %}<span class="go">▶</span>{% endif %}</a>

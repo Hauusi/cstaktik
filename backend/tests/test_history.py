@@ -76,6 +76,12 @@ def test_run_writes_history_and_progress_route(tmp_path, monkeypatch):
     assert "Punkte Siegchance je Runde" in page
     assert "Tilt-Check" in page and h["seq"]  # seq kommt aus summarize
     assert "Platz 2 von 10" in TestClient(api.app).get("/").text
+    h["moments"] = [{"sid": ME, "round": 3, "tick": 4000, "kind": "kill", "val": 22.5, "ctx": "opening", "other": "Gegner1"},
+                    {"sid": ME, "round": 5, "tick": 6000, "kind": "death", "val": -30.0, "ctx": "up", "other": "Gegner2"}]
+    files[0].write_text(json.dumps(h))
+    hl = TestClient(api.app).get("/highlights").text
+    assert "Kill gegen Gegner1" in hl and "+22,5 %" in hl and "/reports/match.html#s3-4000" in hl
+    assert "Tod durch Gegner2" in hl and "In Überzahl" in hl
 
 
 def test_progress_lessons_per_map_and_trend():

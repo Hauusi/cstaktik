@@ -1322,6 +1322,22 @@ def pro_sync() -> RedirectResponse:
     return RedirectResponse(f"/jobs/{job_id}", status_code=303)
 
 
+@app.get("/highlights", response_class=HTMLResponse)
+def highlights_page(p: str = "") -> str:
+    """Beste Plays und teuerste Momente über alle Matches (nach Siegchance), je mit Sprung ins Replay."""
+    from cstaktik import impact
+
+    hist = _load_hist()
+    names = _names(hist)
+    sids = sorted({m["sid"] for h in hist for m in h.get("moments") or [] if m.get("sid")}, key=lambda s: names.get(s, s))
+    sid = _me() or (p if p in sids else None) or _default_sid({s: v for s, v in _players_state().items() if s in sids},
+                                                               names) or (sids[0] if sids else None)
+    hl = impact.highlights(hist, sid) if sid else None
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(sids)]
+    return _env.get_template("highlights.html").render(nav_active="mehr", hl=hl, name=names.get(sid, sid) if sid else None,
+                                                       tabs=tabs)
+
+
 @app.get("/mehr", response_class=HTMLResponse)
 def more_page() -> str:
     """Einstellungen, seltene Auswertungen und die Anleitung an einem Ort."""

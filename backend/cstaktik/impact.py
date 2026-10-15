@@ -230,5 +230,35 @@ def contexts(rows: list[tuple[dict, dict]]) -> tuple[list[dict], str | None]:
     return out, " ".join(parts) or None
 
 
+KIND_DE = {"kill": "Kill", "death": "Tod", "plant": "Bombe gelegt", "defuse": "Entschärft"}
+
+
+def highlights(hist: list[dict], sid: str, top: int = 8) -> dict:
+    """Beste Plays und teuerste Momente eines Spielers über alle Matches, mit Sprung ins Replay."""
+    from cstaktik.report.progress import _label
+
+    rows = []
+    for h in hist:
+        for m in h.get("moments") or []:
+            if m.get("sid") != sid:
+                continue
+            txt = KIND_DE.get(m["kind"], m["kind"])
+            if m.get("other"):
+                txt += f" gegen {m['other']}" if m["kind"] == "kill" else f" durch {m['other']}" if m["kind"] == "death" else ""
+            ctx = CTX_DE.get(m.get("ctx")) if m.get("ctx") not in (None, "bomb", "even") else None
+            rows.append({"val": m["val"], "val_s": de(m["val"]) + " %", "text": txt, "ctx": ctx,
+                         "match": _label(h), "round": m["round"],
+                         "link": f"/reports/{h['report_file']}#s{m['round']}-{m['tick']}" if h.get("report_file") else None})
+    best = sorted((r for r in rows if r["val"] > 0), key=lambda r: -r["val"])[:top]
+    worst = sorted((r for r in rows if r["val"] < 0), key=lambda r: r["val"])[:top]
+    ctx_worst = {}
+    for r in worst:
+        if r["ctx"]:
+            ctx_worst[r["ctx"]] = ctx_worst.get(r["ctx"], 0) + 1
+    common = max(ctx_worst.items(), key=lambda kv: kv[1]) if ctx_worst else None
+    note = (f"{common[1]} deiner {len(worst)} teuersten Momente: {common[0]}." if common and common[1] >= 3 else None)
+    return {"best": best, "worst": worst, "note": note, "n": len(rows)}
+
+
 def de(x: float) -> str:
     return (f"+{x:.1f}" if x > 0 else f"{x:.1f}").replace(".", ",")

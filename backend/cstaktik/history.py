@@ -65,6 +65,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "ct_plays": _ct_plays(match),  # eure CT-Aufstellungen
         "clutch": _clutch(match),
         "impact": _impact(result, focus),
+        "moments": _moments(match, result),  # größte Impact-Momente je Fokus-Spieler (Highlights)
         "seq": [[r.num, side, r.winner == side] for r in match.rounds  # Rundenfolge aus eurer Sicht (Tilt-Check)
                 if (side := match.focus_side(r.num)) and r.winner],  # Siegchance je Spieler (impact.py), Prozentpunkte  # Clutch-Situationen der Fokus-Spieler (clutch.py)
         "won": won,
@@ -142,6 +143,24 @@ def _ct_plays(match: MatchData) -> list[dict]:
     from cstaktik.playbook import ct_plays
 
     return ct_plays(match, team=match.focus_ids())
+
+
+MOMENTS_PER_PLAYER = 5  # je Richtung (beste und teuerste)
+
+
+def _moments(match: MatchData, result: AnalysisResult) -> list[dict]:
+    if not result.impact:
+        return []
+    names = {p.steamid: p.name for p in match.players}
+    out = []
+    for sid in match.focus_ids():
+        ms = [m for m in result.impact["moments"] if m["sid"] == sid and m["val"]]
+        best = sorted((m for m in ms if m["val"] > 0), key=lambda m: -m["val"])[:MOMENTS_PER_PLAYER]
+        worst = sorted((m for m in ms if m["val"] < 0), key=lambda m: m["val"])[:MOMENTS_PER_PLAYER]
+        out += [{"sid": sid, "round": m["round"], "tick": m["tick"], "kind": m["kind"], "val": m["val"],
+                 "ctx": m.get("ctx"), "other": names.get(m.get("other")) if m.get("other") else None}
+                for m in best + worst]
+    return out
 
 
 def _impact(result: AnalysisResult, focus: set[str]) -> dict:

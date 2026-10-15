@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Highlights · cstaktik{% endblock %}
+{% block head %}
+<style>
+.hl { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; align-items: center; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); color: inherit; text-decoration: none; }
+.hl + .hl { margin-top: 6px; }
+.hl .v { font-family: var(--cond); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
+.hl .v.pos { color: #46a758; } .hl .v.neg { color: #e5484d; }
+.hl b { display: block; } .hl .go { color: var(--orange); white-space: nowrap; font-weight: 700; }
+.dread { margin: 4px 0 10px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>Highlights{% if name %} · {{ name }}{% endif %}</h1>
+{% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/highlights?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<p>Die Aktionen, die die Siegchance einer Runde am stärksten verschoben haben. Antippen springt im Replay genau dorthin.</p>
+{% endblock %}
+{% block content %}
+{% if not hl or not hl.n %}
+<div class="card empty">Noch keine Momente. Sie entstehen mit dem nächsten ausgewerteten Match (oder einmal <code>cstaktik pro-update</code> für die bisherigen).</div>
+{% else %}
+<div class="cols">
+<div class="col">
+<h2>Deine besten Plays</h2>
+{% for r in hl.best %}{% include "hl_row.html" %}{% else %}<div class="card empty">Noch keine.</div>{% endfor %}
+</div>
+<div class="col">
+<h2>Deine teuersten Momente</h2>
+{% if hl.note %}<div class="dread">{{ hl.note }} Genau diese Szenen lohnen sich im Replay.</div>{% endif %}
+{% for r in hl.worst %}{% include "hl_row.html" %}{% else %}<div class="card empty">Noch keine.</div>{% endfor %}
+</div>
+</div>
+<p class="small muted" style="margin-top:14px">Prozent = Änderung der Siegchance eures Teams durch diese Aktion (gezählt aus euren Matches und den Pro-Demos). Gespeichert sind je Match die fünf größten in jede Richtung.</p>
+{% endif %}
+{% endblock %}
