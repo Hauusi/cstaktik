@@ -44,3 +44,7 @@ backend/cstaktik/config/players.yaml
 backend/data/maps/
 backend/data/icons/
 backend/data/fonts/
+
+# Login-Schlüssel und Account-Datenbank
+backend/data/secret.key
+backend/data/cstaktik.db

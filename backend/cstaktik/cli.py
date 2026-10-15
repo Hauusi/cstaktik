@@ -37,6 +37,10 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("progress", help="Fortschritts-Seite aus dem Match-Verlauf schreiben")
 
+    us = sub.add_parser("user", help="Accounts verwalten: user add NAME / user passwd NAME / user list")
+    us.add_argument("action", choices=["add", "passwd", "list"])
+    us.add_argument("name", nargs="?")
+    sub.add_parser("steam-sync", help="Neue Match-Sharecodes aller Nutzer über die Steam-Web-API suchen")
     s = sub.add_parser("serve", help="Web-Upload starten")
     s.add_argument("--host", default="0.0.0.0")
     s.add_argument("--port", type=int, default=8000)
@@ -185,6 +189,39 @@ def main(argv: list[str] | None = None) -> int:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(render_progress(history.load_all(pipeline.HISTORY_DIR)), encoding="utf-8")
         print(out)
+        return 0
+
+    if args.cmd == "user":
+        import getpass
+
+        from cstaktik import accounts
+
+        if args.action == "list":
+            from contextlib import closing
+
+            with closing(accounts.db()) as con:
+                for r in con.execute("SELECT name, created FROM users ORDER BY name"):
+                    print(f"{r['name']}  (seit {r['created'][:10]})")
+            return 0
+        if not args.name:
+            print("Name fehlt: cstaktik user add NAME")
+            return 1
+        pw = getpass.getpass("Passwort: ")
+        if pw != getpass.getpass("Passwort wiederholen: "):
+            print("Passwörter stimmen nicht überein.")
+            return 1
+        try:
+            (accounts.add_user if args.action == "add" else accounts.set_password)(args.name, pw)
+        except ValueError as exc:
+            print(exc)
+            return 1
+        print(f"Nutzer {args.name} {'angelegt' if args.action == 'add' else 'aktualisiert'}. Ab jetzt ist der Login aktiv.")
+        return 0
+
+    if args.cmd == "steam-sync":
+        from cstaktik import steam_sync
+
+        print(f"{steam_sync.sync_all()} neue Matches gefunden.")
         return 0
 
     if args.cmd == "serve":

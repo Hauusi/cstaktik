@@ -21,6 +21,17 @@ def _isolated_history(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_accounts(tmp_path, monkeypatch):
+    """Tests nutzen nie die echte Account-Datenbank oder den echten Sitzungs-Schlüssel."""
+    from cstaktik import accounts
+
+    monkeypatch.setattr(accounts, "DB_FILE", tmp_path / "accounts.db")
+    monkeypatch.setattr(accounts, "SECRET_FILE", tmp_path / "secret.key")
+    monkeypatch.setattr(accounts, "PBKDF2_ROUNDS", 1000)  # schnelle Tests; echte Hashes nutzen 600 000
+    monkeypatch.delenv("STEAM_WEB_API_KEY", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _no_network_maps(tmp_path, monkeypatch):
     """Kein Karten-Download in Tests; Kartenordner isoliert."""
     from cstaktik import maps

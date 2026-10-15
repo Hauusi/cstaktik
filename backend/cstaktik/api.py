@@ -25,6 +25,10 @@ from cstaktik.config import load_rules_config
 app = FastAPI(title="cstaktik")
 
 
+_PUBLIC = {"/login", "/fonts.css"}
+_FAILS: dict[str, list[float]] = {}  # Login-Fehlversuche je IP (Schutz gegen Durchprobieren)
+
+
 @app.middleware("http")
 async def _password(request: Request, call_next):
     """Optionaler Passwortschutz (HTTP Basic) für alle Seiten inkl. Reports.
@@ -38,7 +42,20 @@ async def _password(request: Request, call_next):
         hosts |= {h.strip() for h in os.environ.get("CSTAKTIK_ALLOWED_HOSTS", "").split(",") if h.strip()}
         if origin and urlparse(origin).netloc not in hosts - {""}:  # "null" (Sandbox) gilt als fremd
             return Response("Fremde Herkunft", status_code=403)
-    password = os.environ.get("CSTAKTIK_PASSWORD")
+    from cstaktik import accounts
+
+    if accounts.has_users():  # Accounts angelegt: Login über die Seite /login, Sitzung im Cookie
+        user = accounts.read_session(request.cookies.get(accounts.COOKIE))
+        if user or request.url.path in _PUBLIC:
+            request.state.user = user
+            return await call_next(request)
+        if request.method == "GET" and not request.url.path.startswith("/api/"):
+            from urllib.parse import quote
+
+            return RedirectResponse(f"/login?next={quote(request.url.path)}", status_code=303)
+        return Response("Login erforderlich", status_code=401)
+    request.state.user = None
+    password = os.environ.get("CSTAKTIK_PASSWORD")  # alter Schutz per Browser-Dialog, solange es keine Accounts gibt
     if not password:
         return await call_next(request)
     user = os.environ.get("CSTAKTIK_USER", "coach")
@@ -122,6 +139,110 @@ def _job_view(job_id: str, job: dict) -> dict:
         "links": job.get("links") or [],
         "error": job["error"],
     }
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(next: str = "/", error: str = "") -> str:
+    return _env.get_template("login.html").render(next=next if next.startswith("/") else "/", error=error)
+
+
+@app.post("/login")
+async def login_post(request: Request) -> Response:
+    from urllib.parse import quote
+
+    from cstaktik import accounts
+
+    form = await request.form()
+    name, pw = str(form.get("name", "")).strip(), str(form.get("password", ""))
+    nxt = str(form.get("next", "/"))
+    nxt = nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"
+    ip = request.client.host if request.client else "?"
+    now = time.time()
+    fails = [t for t in _FAILS.get(ip, []) if now - t < 900]
+    if len(fails) >= 10:
+        return RedirectResponse(f"/login?next={quote(nxt)}&error=" + quote("Zu viele Versuche. In 15 Minuten erneut."),
+                                status_code=303)
+    if not accounts.verify(name, pw):
+        _FAILS[ip] = fails + [now]
+        return RedirectResponse(f"/login?next={quote(nxt)}&error=" + quote("Name oder Passwort falsch."), status_code=303)
+    _FAILS.pop(ip, None)
+    r = RedirectResponse(nxt, status_code=303)
+    r.set_cookie(accounts.COOKIE, accounts.make_session(name), max_age=accounts.SESSION_DAYS * 86400, httponly=True,
+                 samesite="lax", secure=request.url.scheme == "https")
+    return r
+
+
+@app.post("/logout")
+def logout() -> Response:
+    from cstaktik import accounts
+
+    r = RedirectResponse("/login", status_code=303)
+    r.delete_cookie(accounts.COOKIE)
+    return r
+
+
+@app.get("/konto", response_class=HTMLResponse)
+def konto_page(request: Request, saved: str = "", error: str = "") -> str:
+    from cstaktik import accounts
+
+    user = getattr(request.state, "user", None)
+    return _env.get_template("konto.html").render(
+        nav_active="mehr", user=user, steam=accounts.get_steam(user) if user else None, saved=saved, error=error,
+        has_key=bool(os.environ.get("STEAM_WEB_API_KEY")))
+
+
+@app.post("/konto")
+async def konto_save(request: Request) -> Response:
+    from urllib.parse import quote
+
+    from cstaktik import accounts, steam_sync
+
+    user = getattr(request.state, "user", None)
+    if not user:
+        raise HTTPException(401, "Erst einloggen.")
+    form = await request.form()
+    try:
+        accounts.save_steam(user, str(form.get("steamid", "")), str(form.get("auth_code", "")),
+                            str(form.get("last_code", "")))
+    except ValueError as exc:
+        return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
+    row = next((r for r in accounts.steam_users() if r["user"] == user), None)
+    res = steam_sync.sync_user(row) if row else {"new": 0, "error": None}
+    msg = f"Gespeichert. {res['new']} neue Matches gefunden." + (f" {res['error']}" if res["error"] else "")
+    return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
+
+
+@app.post("/konto/sync")
+def konto_sync(request: Request) -> Response:
+    from urllib.parse import quote
+
+    from cstaktik import accounts, steam_sync
+
+    user = getattr(request.state, "user", None)
+    row = next((r for r in accounts.steam_users() if r["user"] == user), None)
+    if not row:
+        return RedirectResponse("/konto?error=" + quote("Erst Steam-Daten eintragen."), status_code=303)
+    res = steam_sync.sync_user(row)
+    msg = f"{res['new']} neue Matches gefunden." + (f" {res['error']}" if res["error"] else "")
+    return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
+
+
+@app.on_event("startup")
+def _start_steam_sync() -> None:
+    """Alle 30 Minuten neue Sharecodes für alle Nutzer mit Steam-Daten holen (nur mit STEAM_WEB_API_KEY)."""
+    if not os.environ.get("STEAM_WEB_API_KEY"):
+        return
+    from cstaktik import steam_sync
+
+    def loop():
+        while True:
+            try:
+                steam_sync.sync_all()
+            except Exception:  # noqa: BLE001 - der Abruf darf den Server nie stoppen
+                pass
+            time.sleep(steam_sync.INTERVAL_S)
+
+    threading.Thread(target=loop, daemon=True, name="steam-sync").start()
 
 
 @app.get("/fonts.css")

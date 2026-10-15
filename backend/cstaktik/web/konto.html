@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Konto · cstaktik{% endblock %}
+{% block head %}<style>
+.kf { display: grid; gap: 6px; } .kf label { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.kf .hint { font-size: 12.5px; color: var(--faint); }
+.ok { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(52,199,123,.1); border: 1px solid rgba(52,199,123,.4); }
+.codes { display: grid; gap: 4px; font-size: 13px; } .codes div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.codes code { font-size: 12px; }
+.logout { font: inherit; font-size: 14px; padding: 10px 16px; border-radius: 11px; border: 1px solid var(--line); background: none; color: var(--muted); cursor: pointer; }
+</style>{% endblock %}
+{% block hero %}<h1>Konto</h1><p>{% if user %}Eingeloggt als <b>{{ user }}</b>.{% else %}Kein Login aktiv: Es gibt noch keine Accounts auf diesem Server.{% endif %}</p>{% endblock %}
+{% block content %}
+{% if saved %}<div class="ok">{{ saved }}</div>{% endif %}
+{% if error %}<div class="err">{{ error }}</div>{% endif %}
+{% if user %}
+<h2>Steam: Matches automatisch finden</h2>
+<form class="card kf" method="post" action="/konto">
+  <label for="sid">SteamID64</label>
+  <input class="field" id="sid" name="steamid" value="{{ steam.steamid or '' }}" placeholder="7656119…" inputmode="numeric" required>
+  <label for="ac">Game Authentication Code</label>
+  <input class="field" id="ac" name="auth_code" value="{{ steam.auth_code or '' }}" placeholder="XXXX-XXXXX-XXXX" autocomplete="off" required>
+  <div class="hint">Erstellst du in der Steam-Hilfe bei Counter-Strike 2 (Authentifizierungscode für den Matchverlauf). Er erlaubt nur, deine Match-Liste zu lesen.</div>
+  <label for="lc">Match-Token (Sharecode eines deiner letzten Matches)</label>
+  <input class="field" id="lc" name="last_code" value="{{ steam.last_code or '' }}" placeholder="CSGO-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" required>
+  <div class="hint">Ab diesem Match sucht der Coach alle neueren. Danach merkt er sich selbst den neuesten.</div>
+  <button class="btn" type="submit">Speichern und Matches suchen</button>
+</form>
+{% if steam.steamid %}
+<div class="card" style="margin-top:12px">
+  <div class="small muted">Zuletzt geprüft: {{ steam.checked[8:10] ~ "." ~ steam.checked[5:7] ~ ". " ~ steam.checked[11:16] if steam.checked else "noch nie" }}{% if has_key %} · prüft alle 30 Minuten selbst{% endif %}</div>
+  {% if steam.error %}<div class="err">{{ steam.error }}</div>{% endif %}
+  {% if not has_key %}<div class="err">Auf dem Server fehlt der Steam-Web-API-Schlüssel (STEAM_WEB_API_KEY). Ohne ihn kann der Coach keine Matches suchen.</div>{% endif %}
+  <form method="post" action="/konto/sync"><button class="btn2" type="submit">Jetzt nach neuen Matches suchen</button></form>
+</div>
+<h2>Gefundene Matches</h2>
+<div class="card codes">
+  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ c.status }}</span></div>
+  {% else %}<div class="muted">Noch keine. Neue Matches erscheinen hier, sobald Steam sie meldet.</div>{% endfor %}
+  <div class="small muted" style="margin-top:6px">Die Demo-Dateien selbst lädt der Coach noch nicht automatisch: Dafür braucht es einen eigenen Steam-Account auf dem Server. Bis dahin die Demo wie bisher hochladen.</div>
+</div>
+{% endif %}
+<form method="post" action="/logout" style="margin-top:20px"><button class="logout" type="submit">Ausloggen</button></form>
+{% endif %}
+{% endblock %}
