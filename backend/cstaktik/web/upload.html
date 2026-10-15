@@ -1,10 +1,10 @@
 {# Upload-Formular, pro_mode=True speichert als Pro-Referenz #}
 <form class="{{ 'upform' if embedded else 'card' }}" id="form" action="/analyze" method="post" enctype="multipart/form-data">
   <label class="drop" id="drop">
-    <input type="file" name="demo" id="file" accept=".dem,.bz2,.zip,.rar" required>
+    <input type="file" name="demo" id="file" accept=".dem,.gz,.bz2,.zip,.rar" required>
     <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#ffc46b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg></div>
     <b id="fname" data-empty="{{ "Pro-Demo wählen" if pro_mode else "Demo wählen oder hierher ziehen" }}">{{ "Pro-Demo wählen" if pro_mode else "Demo wählen oder hierher ziehen" }}</b>
-    <span class="muted small" id="fsize">.dem, .dem.bz2, .zip oder .rar</span>
+    <span class="muted small" id="fsize">.dem, .dem.gz, .dem.bz2, .zip oder .rar</span>
   </label>
   {% if pro_mode %}<input type="hidden" name="pro" value="1">{% endif %}
   {% if not pro_mode %}<details><summary>Andere Spieler analysieren (SteamID64)</summary>
@@ -25,7 +25,7 @@ const fmtT = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? Math.floor(
 $('file').onchange = e => {
   const f = e.target.files[0];
   $('fname').textContent = f ? f.name : $('fname').dataset.empty;
-  $('fsize').textContent = f ? fmtMB(f.size) : '.dem, .dem.bz2, .zip oder .rar';
+  $('fsize').textContent = f ? fmtMB(f.size) : '.dem, .dem.gz, .dem.bz2, .zip oder .rar';
   $('drop').classList.toggle('has', !!f); $('go').disabled = !f;
   if (f) $('form').requestSubmit();  // Datei gewählt = los: kein zweiter Klick nötig
 };

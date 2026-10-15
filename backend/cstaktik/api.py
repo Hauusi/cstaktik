@@ -1234,11 +1234,13 @@ async def analyze_upload(
     filename = demo.filename or ""
     is_arc = is_archive_name(filename)
     if not pipeline.is_demo_name(filename) and not is_arc:
-        raise HTTPException(400, "Nur .dem, .dem.bz2, .zip oder .rar.")
+        raise HTTPException(400, "Nur .dem, .dem.gz, .dem.bz2, .zip oder .rar.")
     # Pro-Demos getrennt ablegen, damit sie nie als eigenes Match ausgewertet werden
     folder = pipeline.PRO_DEMOS_DIR if pro else pipeline.DEMOS_DIR
     folder.mkdir(parents=True, exist_ok=True)
-    suffix = ((".zip" if filename.lower().endswith(".zip") else ".rar") if is_arc else ".dem.bz2" if filename.lower().endswith(".bz2") else ".dem")
+    low = filename.lower()
+    suffix = ((".zip" if low.endswith(".zip") else ".rar") if is_arc else ".dem.bz2" if low.endswith(".bz2")
+              else ".dem.gz" if low.endswith(".gz") else ".dem")
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(filename).name[: -len(suffix)]).strip("._")[:80] if is_arc else None
     target = folder / f"{name or _safe_name(filename)}{suffix}"
     part = target.with_name(f"{target.name}.{uuid.uuid4().hex[:8]}.part")
@@ -1250,7 +1252,8 @@ async def analyze_upload(
                 if size > pipeline.MAX_DEMO_BYTES:
                     raise HTTPException(413, "Datei zu groß.")
                 fh.write(chunk)
-        unpacked = target.with_name(target.name[:-4]) if target.name.endswith(".dem.bz2") else None
+        unpacked = (target.with_name(target.name[:-4]) if target.name.endswith(".dem.bz2")
+                    else target.with_name(target.name[:-3]) if target.name.endswith(".dem.gz") else None)
         if not is_arc and (target.exists() or (unpacked is not None and unpacked.exists())):
             import filecmp
 

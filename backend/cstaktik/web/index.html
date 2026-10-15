@@ -39,6 +39,10 @@
 .mini { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-radius: 14px;
   background: var(--surface); border: 1px solid var(--line); }
 .mini b { display: block; } .mini span { color: var(--muted); font-size: 13px; } .mini i { font-style: normal; color: var(--orange); font-weight: 800; }
+.where { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+.where summary { cursor: pointer; color: var(--text); font-weight: 600; }
+.where ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; } .where code { font-size: 12px; word-break: break-all; }
+.where a { color: var(--orange); }
 .gets { display: grid; gap: 8px; margin-top: 12px; }
 .gets div { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; font-size: 14px; }
 .gets div::before { content: "✓"; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
@@ -82,6 +86,13 @@
     <h3>Demo hochladen</h3>
     <p>Die .dem-Datei aus CS2 oder FACEIT (auch .zip/.rar). Die Auswertung startet sofort und dauert ein paar Minuten.</p>
     {% set embedded = true %}{% include "upload.html" %}
+    <details class="where"><summary>Wo finde ich die Demo?</summary>
+      <ul>
+        <li><b>CS2 (Premier, Wettkampf):</b> im Spiel unter „Sehen“ → „Deine Matches“ das Match herunterladen. Die Datei liegt danach im Steam-Ordner unter <code>…\Counter-Strike Global Offensive\game\csgo\replays</code>.</li>
+        <li><b>FACEIT:</b> auf der Match-Seite „Demo ansehen/herunterladen“. Die .dem.gz oder .zip direkt hier hochladen.</li>
+        <li><b>Automatisch:</b> in den <a href="/konto">Optionen</a> mit Steam verbinden und den Match-Token eintragen, dann findet der Coach neue Valve-Matches selbst.</li>
+      </ul>
+    </details>
     {% if not n_history %}
     <div class="gets">
       <div>Ein Report mit 2D-Replay: jede Runde, jeder Tod, jede Granate.</div>

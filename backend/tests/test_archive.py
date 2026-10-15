@@ -83,3 +83,15 @@ def test_rar_bomb_stopped(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="zu groß"):
         archive.extract_demos(src, tmp_path / "out", 1000)
     assert not [p for p in (tmp_path / "out").rglob("*") if p.is_file()]
+
+
+def test_dem_gz_is_unpacked(tmp_path):
+    import gzip
+
+    from cstaktik import pipeline
+
+    src = tmp_path / "faceit.dem.gz"
+    src.write_bytes(gzip.compress(b"PBDEMS2\0demo"))
+    assert pipeline.is_demo_name(src.name) and pipeline.demo_stem(src.name) == "faceit"
+    out = pipeline.prepare_demo(src, remove_source=True)
+    assert out.name == "faceit.dem" and out.read_bytes().startswith(b"PBDEMS2") and not src.exists()

@@ -33,20 +33,24 @@ MAX_DEMO_BYTES = 2 * 1024**3
 def demo_stem(name: str) -> str:
     """'match.dem.bz2' -> 'match', 'match.dem' -> 'match'."""
     low = name.lower()
-    for suffix in (".dem.bz2", ".bz2", ".dem", ".json"):
+    for suffix in (".dem.bz2", ".dem.gz", ".bz2", ".gz", ".dem", ".json"):
         if low.endswith(suffix):
             return name[: -len(suffix)]
     return name
 
 
 def is_demo_name(name: str) -> bool:
-    return name.lower().endswith((".dem", ".dem.bz2"))
+    return name.lower().endswith((".dem", ".dem.bz2", ".dem.gz"))
 
 
 def decompress_bz2(src: Path, dst: Path, max_bytes: int = MAX_DEMO_BYTES) -> Path:
+    """Entpackt .bz2 oder .gz (FACEIT liefert .dem.gz) mit Größengrenze."""
+    import gzip
+
+    opener = gzip.open if src.name.lower().endswith(".gz") else bz2.open
     written = 0
     try:
-        with bz2.open(src, "rb") as fin, dst.open("wb") as fout:
+        with opener(src, "rb") as fin, dst.open("wb") as fout:
             while chunk := fin.read(1 << 20):
                 written += len(chunk)
                 if written > max_bytes:
@@ -56,13 +60,13 @@ def decompress_bz2(src: Path, dst: Path, max_bytes: int = MAX_DEMO_BYTES) -> Pat
         dst.unlink(missing_ok=True)
         if isinstance(exc, ValueError):
             raise
-        raise ValueError(f"Keine gültige .bz2-Datei: {exc}") from exc
+        raise ValueError(f"Keine gültige gepackte Demo ({src.suffix}): {exc}") from exc
     return dst
 
 
 def prepare_demo(path: Path, remove_source: bool = False) -> Path:
-    """.dem.bz2 wird neben die Quelle als .dem entpackt; alles andere bleibt unverändert."""
-    if not path.name.lower().endswith(".bz2"):
+    """.dem.bz2/.dem.gz wird neben die Quelle als .dem entpackt; alles andere bleibt unverändert."""
+    if not path.name.lower().endswith((".bz2", ".gz")):
         return path
     target = decompress_bz2(path, path.with_name(f"{demo_stem(path.name)}.dem"))
     if remove_source:
