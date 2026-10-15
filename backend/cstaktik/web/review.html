@@ -46,6 +46,7 @@
     {% endfor %}
   </div>
   {% endif %}
+  {% if not p.lessons and not p.duels.n and not p.checks %}<div class="small muted" style="margin-top:6px">Kein Fehler kam in diesen Matches oft genug vor, um ein Muster zu sein. Gut so.</div>{% endif %}
   {% if p.checks %}<div style="margin-top:10px" class="small muted">Auftrag-Checks: {% for c in p.checks %}<span class="ck {{ 'ok' if c.met else '' if c.met is none else 'no' }}" title="{{ c.title }}: {{ c.count }}x in {{ c.rounds }} Runden (Ziel {{ c.target }})">{{ '✓' if c.met else '–' if c.met is none else '✗' }}</span>{% endfor %}</div>{% endif %}
 </div>
 {% endfor %}
