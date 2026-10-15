@@ -1,7 +1,8 @@
 """Automatischer Demo-Download über den eigenen Steam-Account (ohne Zweitaccount, ohne Docker).
 
 Ablauf (wie der Steam-Login im Browser und wie cs-demo-downloader im "GCPD"-Modus, github.com/claabs/cs-demo-downloader):
-1. Einmal anmelden: Passwort (RSA-verschlüsselt an Steam) und Steam-Guard-Code bzw. Bestätigung in der Steam-App.
+1. Einmal anmelden: QR-Code mit der Steam-App bestätigen (oder Passwort, RSA-verschlüsselt an Steam, plus
+   Steam-Guard-Code).
    Steam liefert einen Anmelde-Schlüssel (refresh token). Nur der wird gespeichert, das Passwort nie.
 2. Regelmäßig: Mit dem Schlüssel ein Browser-Cookie holen und die Seite "Persönliche Spieldaten" von CS2 lesen
    (steamcommunity.com/my/gcpd/730). Dort steht zu jedem der letzten Matches der Download-Link der Demo
@@ -124,13 +125,45 @@ def finish_login(sess: dict, code: str = "", http=None, wait_s: float = 25) -> s
         time.sleep(2)
 
 
+def begin_qr(http=None) -> dict:
+    """QR-Login starten (wie auf steampowered.com). Der QR-Code enthält challenge_url; die Steam-App bestätigt."""
+    r = _api("BeginAuthSessionViaQR", {"device_friendly_name": "cstaktik Coach", "platform_type": "2",
+                                        "website_id": "Community"}, http)
+    if not r.get("client_id") or not r.get("challenge_url"):
+        raise SteamLoginError("Steam hat keinen QR-Code geliefert. Später noch einmal versuchen.")
+    return {"client_id": str(r["client_id"]), "request_id": r["request_id"], "url": r["challenge_url"]}
+
+
+def poll_qr(sess: dict, http=None) -> str | None:
+    """Einmal bei Steam nachfragen. Rückgabe: refresh token, sobald in der App bestätigt, sonst None.
+    Steam erneuert den QR-Code ab und zu: dann stehen neue client_id und url in sess."""
+    r = _api("PollAuthSessionStatus", {"client_id": sess["client_id"], "request_id": sess["request_id"]}, http)
+    if r.get("new_client_id"):
+        sess["client_id"] = str(r["new_client_id"])
+    if r.get("new_challenge_url"):
+        sess["url"] = r["new_challenge_url"]
+    return r.get("refresh_token") or None
+
+
+def _jwt(token: str) -> dict:
+    try:
+        part = token.split(".")[1]
+        return json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+    except (IndexError, ValueError, TypeError):
+        return {}
+
+
+def token_steamid(token: str) -> str | None:
+    """SteamID des Accounts, zu dem der Anmelde-Schlüssel gehört."""
+    sub = _jwt(token).get("sub")
+    return str(sub) if sub else None
+
+
 def token_expiry(token: str) -> int | None:
     """Ablauf des Anmelde-Schlüssels (Unix-Zeit) aus dem JWT, ohne Prüfung der Signatur."""
     try:
-        part = token.split(".")[1]
-        data = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
-        return int(data.get("exp"))
-    except (IndexError, ValueError, TypeError):
+        return int(_jwt(token).get("exp"))
+    except (ValueError, TypeError):
         return None
 
 

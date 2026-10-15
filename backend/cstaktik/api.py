@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import run_in_threadpool
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -396,7 +396,8 @@ def konto_page(request: Request, saved: str = "", error: str = "") -> str:
               "error": accounts.get_setting(f"gcpd_error:{user}") if user else None,
               "checked": accounts.get_setting(f"gcpd_checked:{user}") if user else None,
               "pending": bool(user and user in _STEAM_LOGINS),
-              "needs": (_STEAM_LOGINS.get(user) or {}).get("needs") if user else None})
+              "needs": (_STEAM_LOGINS.get(user) or {}).get("needs") if user else None,
+              "qr": (_STEAM_LOGINS.get(user) or {}).get("url") if user and (_STEAM_LOGINS.get(user) or {}).get("qr") else None})
 
 
 def _need_user(request: Request) -> str:
@@ -563,6 +564,56 @@ async def konto_steam_login(request: Request) -> Response:
     if sess["needs"] == "none":  # Steam will keine Bestätigung: direkt fertig machen
         return await _finish_steam_login(user, "")
     return RedirectResponse("/konto?steamcode=1#autodl", status_code=303)
+
+
+@app.post("/konto/steamqr")
+async def konto_steam_qr(request: Request) -> Response:
+    """QR-Login starten: Der Nutzer bestätigt in der Steam-App, ohne Passwort."""
+    from urllib.parse import quote
+
+    from cstaktik import gcpd
+
+    user = _need_user(request)
+    if request.url.scheme != "https":
+        return RedirectResponse("/konto?error=" + quote("Die Steam-Anmeldung geht nur über HTTPS. Erst HTTPS einrichten."),
+                                status_code=303)
+    if not _me():
+        return RedirectResponse("/konto?error=" + quote("Erst oben mit Steam verbinden."), status_code=303)
+    try:
+        sess = await run_in_threadpool(gcpd.begin_qr)
+    except gcpd.SteamLoginError as exc:
+        return RedirectResponse("/konto?error=" + quote(str(exc)) + "#autodl", status_code=303)
+    _STEAM_LOGINS[user] = {**sess, "qr": True, "until": time.time() + 300}
+    return RedirectResponse("/konto#autodl", status_code=303)
+
+
+@app.get("/konto/steamqr/status")
+async def konto_steam_qr_status(request: Request) -> JSONResponse:
+    """Vom QR-Bildschirm alle paar Sekunden abgefragt."""
+    from cstaktik import accounts, gcpd
+
+    user = _need_user(request)
+    sess = _STEAM_LOGINS.get(user)
+    if not sess or not sess.get("qr"):
+        return JSONResponse({"state": "none"})
+    if sess["until"] < time.time():
+        _STEAM_LOGINS.pop(user, None)
+        return JSONResponse({"state": "error", "msg": "QR-Code abgelaufen. Bitte neu starten."})
+    try:
+        token = await run_in_threadpool(gcpd.poll_qr, sess)
+    except gcpd.SteamLoginError as exc:
+        _STEAM_LOGINS.pop(user, None)
+        return JSONResponse({"state": "error", "msg": f"{exc} Bitte neu starten."})
+    if not token:
+        return JSONResponse({"state": "wait", "url": sess["url"]})
+    _STEAM_LOGINS.pop(user, None)
+    if gcpd.token_steamid(token) != _me():
+        return JSONResponse({"state": "error", "msg": "Bestätigt wurde ein anderer Steam-Account als der, mit dem du "
+                                                      "verbunden bist. Bitte mit dem richtigen Account neu starten."})
+    accounts.set_setting(f"gcpd_token:{user}", token)
+    accounts.set_setting(f"gcpd_error:{user}", None)
+    threading.Thread(target=_gcpd_run, args=([user],), daemon=True).start()
+    return JSONResponse({"state": "done"})
 
 
 @app.post("/konto/steamcode")

@@ -105,3 +105,46 @@ def test_steam_login_requires_https():
     r = c.post("/konto/steamlogin", data={"steam_user": "hausi", "steam_pass": "x"}, headers=O,
                follow_redirects=False)
     assert r.status_code == 303 and "HTTPS" in unquote(r.headers["location"])
+
+
+def _jwt(sub):
+    import base64 as b
+    body = b.urlsafe_b64encode(json.dumps({"sub": sub, "exp": 2000000000}).encode()).decode().rstrip("=")
+    return f"h.{body}.s"
+
+
+def test_qr_login(monkeypatch):
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.link_steamid("Hausi", "76561198000000001")
+    polls = iter([{"new_challenge_url": "https://s.team/q/1/neu", "new_client_id": 22},
+                  {"refresh_token": _jwt("76561198000000001")}])
+
+    def http(url, data=None, cookies=None, timeout=20):
+        if "BeginAuthSessionViaQR" in url:
+            return json.dumps({"response": {"client_id": 21, "request_id": "cQ", "challenge_url": "https://s.team/q/1/a"}}).encode()
+        if "PollAuthSessionStatus" in url:
+            return json.dumps({"response": next(polls)}).encode()
+        raise AssertionError(url)
+
+    monkeypatch.setattr(gcpd, "_http", http)
+    monkeypatch.setattr(api, "_gcpd_run", lambda users=None: None)
+    c = TestClient(api.app, base_url="https://testserver")
+    Os = {"Origin": "https://testserver"}
+    c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=Os)
+    r = c.post("/konto/steamqr", headers=Os, follow_redirects=False)
+    assert r.status_code == 303 and "error" not in r.headers["location"]
+    assert "s.team/q/1/a" in c.get("/konto").text
+    assert c.get("/konto/steamqr/status").json() == {"state": "wait", "url": "https://s.team/q/1/neu"}
+    assert c.get("/konto/steamqr/status").json() == {"state": "done"}
+    assert gcpd.token_steamid(accounts.get_setting("gcpd_token:Hausi")) == "76561198000000001"
+
+
+def test_qr_login_rejects_other_account(monkeypatch):
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.link_steamid("Hausi", "76561198000000001")
+    api._STEAM_LOGINS["Hausi"] = {"client_id": "1", "request_id": "r", "url": "u", "qr": True, "until": 9e12}
+    monkeypatch.setattr(gcpd, "poll_qr", lambda sess: _jwt("76561198000000999"))
+    c = TestClient(api.app, base_url="https://testserver")
+    c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers={"Origin": "https://testserver"})
+    assert c.get("/konto/steamqr/status").json()["state"] == "error"
+    assert accounts.get_setting("gcpd_token:Hausi") is None
