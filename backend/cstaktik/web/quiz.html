@@ -18,6 +18,9 @@
 .res .v.ok { color: var(--win); } .res .v.no { color: var(--orange); }
 .res .nx { margin-top: 8px; padding: 10px 12px; background: rgba(70,167,88,.1); border-left: 3px solid var(--win); }
 .res .nx b { display: block; font-family: var(--cond); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--win); }
+.nextq { display: block; width: 100%; margin-top: 12px; padding: 12px; border: 0; border-radius: 12px; background: var(--orange); color: #111;
+  font: inherit; font-weight: 800; cursor: pointer; }
+.tq { scroll-margin-top: 12px; }
 .res a { display: inline-block; margin-top: 10px; font-family: var(--cond); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--orange); }
 .ptabs { display: flex; gap: 6px; margin: 12px 0 8px; }
 .ptabs a { padding: 6px 12px; border: 1px solid var(--line); font-family: var(--cond); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
@@ -126,8 +129,14 @@ S.forEach((sc, i) => {
       res.append(v, el('div', 'meta', 'Lektion: ' + sc.lesson_title), el('div', null, sc.happened));
       const nx = el('div', 'nx'); nx.append(el('b', null, 'Nächstes Mal'), sc.next); res.appendChild(nx);
       if (sc.report) { const a = el('a', null, '▶ Szene im Replay'); a.href = `/reports/${sc.report}#s${sc.round}-${sc.from || sc.tick}`; res.appendChild(a); }
+      const nextCard = c.nextElementSibling;
+      if (nextCard) {  // weiter zur nächsten offenen Situation, ohne suchen zu müssen
+        const go = el('button', 'nextq', `Nächste Situation (${S.length - answered} offen) ›`);
+        go.onclick = () => nextCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        res.appendChild(go);
+      } else if (answered === S.length) res.appendChild(el('div', 'v ok', `Alle ${S.length} Situationen entschieden.`));
       c.appendChild(res);
-      document.getElementById('score').textContent = n ? `${ok} von ${n} wie die Pros` : '';
+      document.getElementById('score').textContent = (n ? `${ok} von ${n} wie die Pros · ` : '') + `${answered}/${S.length} entschieden`;
       if (answered === S.length && QUIZ_OPEN) {  // Wochenaufgabe automatisch abhaken
         fetch('/training/plan?p={{ sid or "" }}&week={{ week }}&task=quiz&done=1', { method: 'POST' }).catch(() => {});
         document.getElementById('score').textContent += ' · Wochenaufgabe erledigt';
