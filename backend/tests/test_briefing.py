@@ -40,7 +40,7 @@ def test_start_page_and_briefing_route():
     home = c.get("/").text
     assert "/briefing/de_mirage" in home and "Letztes Match" in home and 'class="gnav"' in home
     b = c.get("/briefing/de_mirage")
-    assert b.status_code == 200 and "Briefing Mirage" in b.text and "SynthMid" in b.text
+    assert b.status_code == 200 and "Kabine Mirage" in b.text and "SynthMid" in b.text
     assert c.get("/briefing/..%2Fetc").status_code in (400, 404)
 
 

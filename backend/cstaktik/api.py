@@ -419,7 +419,20 @@ def training_page(p: str = "") -> str:
     return _env.get_template("training.html").render(
         nav_active="training", tabs=tabs, sid=sid, who=names.get(sid), plan=plan, week=key, chk=chk, past=past[:4],
         title=LESSONS.get(focus["lesson"], ("?",))[0] if focus else None, maps=_player_maps(hist, sid) or ["de_mirage"],
-        pro_maps=sorted({d.get("map") for d in _load_pro() if d.get("map")}))
+        pro_maps=sorted({d.get("map") for d in _load_pro() if d.get("map")}), hub=_map_hub(hist, sid))
+
+
+def _map_hub(hist: list[dict], sid: str | None) -> list[dict]:
+    """Je Map alle Werkzeuge an einem Ort: eigene Matches, Pro-Demos, Links zu Kabine, Map-Buch, Playbook, Lineups.
+    Reihenfolge: eure meistgespielten Maps zuerst, dann Maps nur mit Pro-Demos."""
+    from collections import Counter
+
+    own = Counter(h.get("map") for h in hist if h.get("map") and (not sid or sid in h.get("players", {})))
+    pro = Counter(d.get("map") for d in _load_pro() if d.get("map"))
+    maps = sorted(set(own) | set(pro), key=lambda m: (-own[m], -pro[m], m))
+    return [{"map": m, "label": m.removeprefix("de_").capitalize(), "own": own[m], "pro": pro[m],
+             "won": sum(1 for h in hist if h.get("map") == m and (h.get("won") or 0) > (h.get("lost") or 0)
+                        and (not sid or sid in h.get("players", {})))} for m in maps]
 
 
 @app.post("/training/plan")
@@ -511,7 +524,7 @@ def playbook_page(map_name: str, who: str = "pro", side: str = "t") -> str:
     def draw(ex: dict) -> dict | None:
         """Eine Runde fürs Radar: Laufwege, Granaten, Plant, Schlüsselmomente, Ausschnitt."""
         px = lambda x, y: [round(v, 1) for v in radar.to_px(x, y)]  # noqa: E731
-        paths = [[px(*q) for q in pts] for pts in ex["paths"].values()]
+        paths = [[px(*q) for q in pts] for pts in (ex.get("paths") or {}).values()]
         nades = [{"kind": n["kind"], "t": n["t"], "to": n.get("to"),
                   "a": px(*(n["p"][:2] if n.get("p") else (n["fx"], n["fy"]))), "b": px(n["tx"], n["ty"])}
                  for n in ex["nades"]]
@@ -523,7 +536,7 @@ def playbook_page(map_name: str, who: str = "pro", side: str = "t") -> str:
         size = min(1024, max(max(xs) - min(xs), max(ys) - min(ys)) + 120)
         cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
         x0, y0 = min(max(cx - size / 2, 0), 1024 - size), min(max(cy - size / 2, 0), 1024 - size)
-        sids = list(ex["paths"])
+        sids = list(ex.get("paths") or {})
         evs = playbook.events(ex)
         for ev in evs:  # T-Tod: Punkt am Ende seines Laufwegs (Laufwege enden mit dem Tod)
             for it in ev["items"]:

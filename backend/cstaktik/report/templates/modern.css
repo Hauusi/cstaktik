@@ -91,9 +91,13 @@ h2::after { background: linear-gradient(90deg, var(--line), transparent) !import
 
 /* Titel in normaler Schreibweise statt Versalien: wirkt ruhiger und moderner */
 h1, .hero h1, .atitle, .step .st, .task .tt, .tool .tt, .lastm b, .guide .gs > b, .spot .pl, .bst .brow b, .goal b,
-.note b, .play .pn, .ptitle { text-transform: none !important; letter-spacing: -.005em !important; }
+.note b, .play .pn, .ptitle, .ktitle, .kmantra, .kwho { text-transform: none !important; letter-spacing: -.005em !important; }
 .hero h1 { font-size: clamp(34px, 7vw, 46px); font-weight: 800; }
 .atitle { font-size: 30px !important; }
 .mantra { text-transform: none !important; font-style: italic; letter-spacing: 0 !important; }
 .achart rect { rx: 6px; } .achart rect.na { fill: #5f6673 !important; }
 .kpis { overflow: hidden; }
+
+.kab { border-radius: var(--rad) !important; background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012)), var(--surface) !important; }
+.kmantra { font-style: italic; }
+.kmap { border-radius: var(--rad); overflow: hidden; }

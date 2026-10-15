@@ -28,7 +28,7 @@
 </style>
 {% endblock %}
 {% block hero %}
-<h1>Briefing {{ b.label }}</h1>
+<h1>Kabine {{ b.label }}</h1>
 <p>{% if b.matches %}{{ b.matches }} {{ "Match" if b.matches == 1 else "Matches" }} auf {{ b.label }} ausgewertet, {{ b.won_matches }} gewonnen.{% else %}Noch kein Match auf {{ b.label }} ausgewertet.{% endif %}</p>
 {% endblock %}
 {% block content %}
@@ -47,19 +47,6 @@
   <div class="kline muted">Vorher geübt? {{ a.routine.title }} ({{ a.routine.minutes }} Min){% if a.drills %}, bisher {{ a.drills }}x{% endif %}.</div>
 </div>
 {% endfor %}
-{% if kabine.has_points %}
-<div class="kmap">
-  {% if kabine.img %}<img src="{{ kabine.img }}" alt="Radar {{ b.label }}">{% endif %}
-  <svg viewBox="0 0 1024 1024" aria-label="Fehler-Orte">
-    {% for a in kabine.players %}{% for q in a.points %}
-    <a href="{% if q.report %}/reports/{{ q.report }}#s{{ q.round }}-{{ q.tick }}{% else %}#{% endif %}">
-      <circle cx="{{ q.px }}" cy="{{ q.py }}" r="26" fill="{{ a.color }}" fill-opacity=".85" stroke="#0c0d0f" stroke-width="6"><title>{{ a.name }} · R{{ q.round }}</title></circle>
-    </a>
-    {% endfor %}{% endfor %}
-  </svg>
-</div>
-<div class="small muted" style="margin-top:6px">Jeder Punkt ist eine Szene zu diesem Auftrag. Antippen öffnet sie im Replay.</div>
-{% endif %}
 {% endif %}
 
 {% if plan %}
@@ -79,6 +66,20 @@
   {% for h in plan.habits or [] %}<div class="mp"><span class="mk no">!</span><div><span>{{ h }}</span></div></div>{% endfor %}
   <div class="small muted">Nur Taktiken und Aufstellungen mit mindestens 3 Runden. Siegquoten aus wenigen Runden sind Tendenzen.</div>
 </div>
+{% endif %}
+{% if kabine and kabine.has_points %}
+<h2>Eure Szenen auf der Karte</h2>
+<div class="kmap">
+  {% if kabine.img %}<img src="{{ kabine.img }}" alt="Radar {{ b.label }}">{% endif %}
+  <svg viewBox="0 0 1024 1024" aria-label="Fehler-Orte">
+    {% for a in kabine.players %}{% for q in a.points %}
+    <a href="{% if q.report %}/reports/{{ q.report }}#s{{ q.round }}-{{ q.tick }}{% else %}#{% endif %}">
+      <circle cx="{{ q.px }}" cy="{{ q.py }}" r="26" fill="{{ a.color }}" fill-opacity=".85" stroke="#0c0d0f" stroke-width="6"><title>{{ a.name }} · R{{ q.round }}</title></circle>
+    </a>
+    {% endfor %}{% endfor %}
+  </svg>
+</div>
+<div class="small muted" style="margin-top:6px">Jeder Punkt ist eine Szene zu diesem Auftrag. Antippen öffnet sie im Replay.</div>
 {% endif %}
 <details class="more-map"{% if not kabine %} open{% endif %}><summary class="cond">Mehr zu {{ b.label }}</summary>
 {% if map_lessons %}

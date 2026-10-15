@@ -225,6 +225,8 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
         demo_nades = [n for n in d.get("nades", []) if n.get("side") == "t"]
         deaths = d.get("deaths", [])
         for p in d["plays"]:
+            if "r" not in p or "won" not in p:
+                continue
             total += 1
             k = classify(p, c)
             key = group_key(p, k)
@@ -249,7 +251,7 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
         common = [{"kind": k, "to": to, "n": m} for (k, to), m in cnt.most_common() if m / n >= c["common_share"]]
         # Beispielrunde: gewonnen, mit den meisten typischen Granaten und Wegen
         keys = {(x["kind"], x["to"]) for x in common}
-        score = lambda r: (r["won"], sum((y["kind"], y["to"]) in keys for y in r["nades"]), len(r["paths"]))  # noqa: E731
+        score = lambda r: (r["won"], sum((y["kind"], y["to"]) in keys for y in r["nades"]), len(r.get("paths") or {}))  # noqa: E731
         ex = max(rows, key=score)
         ordered = [ex] + sorted((r for r in rows if r is not ex), key=score, reverse=True)
         plants = [r["plant_t"] for r in rows if r.get("plant_t") is not None]

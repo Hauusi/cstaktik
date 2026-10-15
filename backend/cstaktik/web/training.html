@@ -5,6 +5,16 @@
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
 <p>{% if plan %}Woche {{ chk.from }}–{{ chk.to }} · Thema{% if who and who != "Ich" %} {{ who }}{% endif %}: <b>{{ title }}</b>{% else %}Erst ein Match hochladen, dann gibt es einen Wochenplan.{% endif %}</p>
 {% endblock %}
+{% block head %}<style>
+.hub { display: grid; gap: 10px; }
+.hubm { padding: 14px; }
+.hubm .hh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.hubm .hh b { font-family: var(--cond); font-weight: 800; font-size: 22px; }
+.hubm .hb { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-top: 10px; }
+.hubm .hb a { display: grid; gap: 1px; padding: 9px 11px; border-radius: 11px; background: var(--surface-2); border: 1px solid var(--line); }
+.hubm .hb a b { font-size: 14px; } .hubm .hb a span { font-size: 11.5px; color: var(--muted); }
+.tool.sit { display: block; }
+</style>{% endblock %}
 {% block content %}
 <div class="cols">
 <div class="col">
@@ -47,18 +57,22 @@
 {% endif %}
 </div>
 <div class="col">
-<h2 id="tools">Werkzeuge</h2>
-<div class="tools">
-  <div class="card tool"><div class="tt">Map-Buch</div><p>Deine Spots je Map: halten, anpassen oder meiden. Mit Pro-Vergleich.</p>
-    <div class="maps">{% for m in maps %}<a class="mapbtn" href="/mapbook/{{ m }}{% if sid %}?p={{ sid }}{% endif %}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div></div>
-  <div class="card tool"><div class="tt">Playbook</div><p>T-Taktiken der Pros: Split, Execute, Rush, Eco. Mit Laufwegen und Granaten zum Abspielen.</p>
-    {% if pro_maps %}<div class="maps">{% for m in pro_maps %}<a class="mapbtn" href="/playbook/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
-    {% else %}<a class="go" href="/pro" style="color:var(--orange)">Erst Pro-Demos hochladen ›</a>{% endif %}</div>
-  <div class="card tool"><div class="tt">Lineups</div><p>Würfe, die Pros wiederholt gleich machen. Mit Befehl zum Üben.</p>
-    {% if pro_maps %}<div class="maps">{% for m in pro_maps %}<a class="mapbtn" href="/lineups/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
-    {% else %}<a class="go" href="/pro" style="color:var(--orange)">Erst Pro-Demos hochladen ›</a>{% endif %}</div>
-  <div class="card tool"><div class="tt">Situationen</div><p>Echte Szenen aus euren Matches: Was machst du?</p>
-    <a class="mapbtn" href="/training/situationen{% if sid %}?p={{ sid }}{% endif %}">Starten</a></div>
+<h2 id="tools">Eure Maps</h2>
+<div class="hub">
+{% for m in hub %}
+<div class="card hubm">
+  <div class="hh"><b>{{ m.label }}</b><span class="small muted num">{% if m.own %}{{ m.own }} Match{{ "es" if m.own != 1 }}, {{ m.won }} gewonnen{% else %}noch kein eigenes Match{% endif %}{% if m.pro %} · {{ m.pro }} Pro-Demo{{ "s" if m.pro != 1 }}{% endif %}</span></div>
+  <div class="hb">
+    <a href="/briefing/{{ m.map }}"><b>Kabine</b><span>vor dem Match</span></a>
+    {% if m.own %}<a href="/mapbook/{{ m.map }}{% if sid %}?p={{ sid }}{% endif %}"><b>Map-Buch</b><span>eure Spots</span></a>{% endif %}
+    <a href="/playbook/{{ m.map }}"><b>Playbook</b><span>Taktiken</span></a>
+    {% if m.pro %}<a href="/lineups/{{ m.map }}"><b>Lineups</b><span>Granaten üben</span></a>{% endif %}
+  </div>
+</div>
+{% else %}<div class="card empty">Noch keine Maps: erst ein Match oder eine Pro-Demo hochladen.</div>{% endfor %}
+</div>
+<h2>Jederzeit</h2>
+<a class="card tool sit" href="/training/situationen{% if sid %}?p={{ sid }}{% endif %}"><div class="tt">Situations-Training</div><p>Eure echten Szenen kurz vor dem Tod: erst entscheiden, dann auflösen. Danach zeigt die Karte, woher der Killer kam.</p></a>
 </div>
 </div>
 </div>
