@@ -110,7 +110,8 @@ def plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
                     if prev and (arrive is None or i * PATH_STEP_S <= arrive + 12):
                         approach[sid] = prev
                     break
-        eq = {sd: sum(e.equip_value or 0 for e in r.economy if e.side == sd) for sd in ("t", "ct")} if r.economy else {}
+        eq = {sd: (sum(vals) if (vals := [e.equip_value for e in r.economy if e.side == sd
+                                           and e.equip_value is not None]) else None) for sd in ("t", "ct")}
         out.append({"r": r.num, "won": r.winner == "t", "site": site, "arrive": arrive, "plant_t": plant_t,
                     "plant": [round(plant.pos.x), round(plant.pos.y)] if plant and plant.pos else None,
                     "approach": approach, "paths": paths, "t_eq": eq.get("t"), "ct_eq": eq.get("ct"),
@@ -276,7 +277,9 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
 def style_mix(sources: list[dict], map_name: str, cfg: dict | None = None) -> dict:
     """Alle T-Runden einer Map nach Taktikart: Runden, Anteil, Siege (auch Arten, die nur einmal vorkamen)."""
     c = {**DEFAULTS, **(cfg or {})}
-    rows = [classify(p, c) | {"won": p["won"]} for d in sources if d.get("map") == map_name for p in d.get("plays") or []]
+    # Runden ohne Bombsite (alle T tot, bevor einer ankam) sind ein Ergebnis, keine Taktik: nicht mitzählen
+    rows = [classify(p, c) | {"won": p["won"]} for d in sources if d.get("map") == map_name
+            for p in d.get("plays") or [] if p.get("site") and "won" in p]
     out = {}
     for st in STYLE_TEXT:
         sel = [r for r in rows if r["style"] == st]
@@ -415,7 +418,8 @@ def gameplan(pro: list[dict], own: list[dict], map_name: str, cfg: dict | None =
         rows = [r for r in rows if r["n"] >= min_n]
         return max(rows, key=lambda r: (r[key], r["n"])) if rows else None
 
-    t_pro, t_own = build(pro, map_name, cfg)["tactics"], build(own, map_name, cfg)["tactics"]
+    t_pro = [t for t in build(pro, map_name, cfg)["tactics"] if t["site"]]  # ohne Bombsite: Ergebnis, keine Taktik
+    t_own = [t for t in build(own, map_name, cfg)["tactics"] if t["site"]]
     centers = site_centers(pro + own, map_name)
     ct_pro, ct_own = ct_build(pro, map_name, centers, cfg)["setups"], ct_build(own, map_name, centers, cfg)["setups"]
     mix_own, mix_pro = style_mix(own, map_name, cfg), style_mix(pro, map_name, cfg)

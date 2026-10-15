@@ -290,3 +290,32 @@ def test_postplant_by_numbers():
     assert own["rows"]["even"]["n"] == 1  # Kill nach dem Plant zählt nicht
     pro = playbook.postplant_mix([{"plays": [p(True, 0, 2)] * 7 + [p(False, 0, 2)]}])
     assert playbook.postplant_reading(own, pro).startswith("Nach dem Plant in Überzahl gewinnt ihr 25 % (2 von 8), Pros 88 %.")
+
+
+def test_tactic_task_respects_manual_untick_and_player():
+    from cstaktik import weekplan
+
+    p = playbook.plays(_match(5, _split_route(), plant_s=48))[0]
+    tid = playbook.tactic_id(p)
+    task_id = f"tactic:de_mirage:{tid}"
+    plan = {"lesson": "utility", "done": {}, "tasks": [{"id": task_id, "kind": "Playbook"}]}
+    hist = [{"map": "de_mirage", "analyzed_at": "2026-10-14T20:00", "plays": [p], "players": {"b": {}}}]
+    assert weekplan.tactic_progress("2026-W42", plan, hist, sid="a") is True  # Match ohne Spieler a: nur played=0
+    assert plan["tasks"][0]["played"]["n"] == 0 and task_id not in plan["done"]
+    hist[0]["players"]["a"] = {}
+    weekplan.tactic_progress("2026-W42", plan, hist, sid="a")
+    assert task_id in plan["done"]
+    weekplan.toggle({"weeks": {"2026-W42": plan}}, "2026-W42", task_id)  # Haken von Hand raus
+    weekplan.tactic_progress("2026-W42", plan, hist, sid="a")
+    assert task_id not in plan["done"]  # bleibt draußen
+
+
+def test_no_site_rounds_are_not_a_tactic_and_missing_equip_is_not_eco():
+    lost = {"r": 3, "won": False, "site": None, "arrive": None, "approach": {}, "t_eq": 25000}
+    mix = playbook.style_mix([{"map": "de_mirage", "plays": [lost] * 5}], "de_mirage")
+    assert mix["total"] == 0
+    m = _match(5, _split_route(), plant_s=48)
+    for e in m.rounds[0].economy:
+        e.equip_value = None
+    p = playbook.plays(m)[0]
+    assert p["t_eq"] is None and playbook.classify(p, {})["buy"] is None

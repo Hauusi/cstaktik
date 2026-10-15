@@ -76,7 +76,8 @@ def build(histories: list[dict], n: int = 5) -> dict:
         checks = [((h.get("focus_check") or {}).get(sid) or {}).get("check") for h in window]
         checks = [c for c in checks if c]
         players.append({"sid": sid, "name": name, "lessons": lessons, "duels": dn, "duels_before": do,
-                        "checks": [{"title": c["title"], "met": c["met"], "rate": c["rate"], "target": c["target"]}
+                        "checks": [{"title": c["title"], "met": c["met"], "rate": c["rate"], "target": c["target"],
+                                    "count": c.get("count"), "rounds": c.get("rounds")}
                                    for c in checks]})
     won = sum(1 for h in window if (h.get("won") or 0) > (h.get("lost") or 0))
     return {"n": len(window), "won": won, "lost": len(window) - won, "players": players,

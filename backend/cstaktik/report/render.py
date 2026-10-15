@@ -341,7 +341,7 @@ def _tactics(match: MatchData) -> dict | None:
             key = f"{z.count('A')}-{z.count('M')}-{z.count('B')}"
             a, b = z.count("A"), z.count("B")
             name = f"Stack auf {'A' if a >= 4 else 'B'}" if max(a, b) >= 4 else key
-            tags[p["r"]] = f"CT {name}"
+            tags[p["r"]] = f"{tags[p['r']]} / CT {name}" if p["r"] in tags else f"CT {name}"  # Fokus-Spieler in beiden Teams
             row = ct_rows.setdefault(key, {"name": name, "key": key, "n": 0, "won": 0, "rounds": []})
             row["n"] += 1
             row["won"] += p["won"]

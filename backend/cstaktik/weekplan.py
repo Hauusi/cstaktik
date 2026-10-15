@@ -150,7 +150,7 @@ def check(key: str, plan: dict, hist: list[dict], sid: str, focus: dict | None, 
     return out
 
 
-def tactic_progress(key: str, plan: dict, hist: list[dict], cfg: dict | None = None) -> bool:
+def tactic_progress(key: str, plan: dict, hist: list[dict], cfg: dict | None = None, sid: str | None = None) -> bool:
     """Taktik-Aufgabe prüfen: In den Matches dieser Woche auf der Map die Runden zählen, die zur empfohlenen Taktik
     gehören (gleiche Erkennung wie im Playbook). Ab einer gespielten Runde wird die Aufgabe automatisch abgehakt.
     Schreibt ``played`` (Runden, Siege) in die Aufgabe. Rückgabe: Plan geändert."""
@@ -163,12 +163,15 @@ def tactic_progress(key: str, plan: dict, hist: list[dict], cfg: dict | None = N
             continue
         _kind, m, tid = t["id"].split(":", 2)
         rounds = [p for h in hist if h.get("map") == m and h.get("analyzed_at")
+                  and (sid is None or sid in h.get("players", {}))
                   and start <= datetime.fromisoformat(h["analyzed_at"]).date() <= end
                   for p in h.get("plays") or [] if tactic_id(p, cfg) == tid]
         played = {"n": len(rounds), "won": sum(p["won"] for p in rounds)}
+        before = (t.get("played") or {}).get("n", 0)
         if t.get("played") != played:
             t["played"], changed = played, True
-        if played["n"] and t["id"] not in plan["done"]:
+        # nur beim ersten Mal automatisch abhaken: nimmt der Spieler den Haken raus, bleibt er draußen
+        if played["n"] and not before and t["id"] not in plan["done"]:
             plan["done"][t["id"]] = now_local()
             changed = True
     return changed
