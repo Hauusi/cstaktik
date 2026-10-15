@@ -36,4 +36,4 @@ def test_death_sentence_mentions_height():
     from cstaktik.coach_voice import _duel_sentence
 
     s = _duel_sentence({"attacker": "x", "duel": {"err": 6.0, "height": 5.0}})
-    assert "6° neben x (5° unter dem Kopf)" in s
+    assert "6° neben x, 5° unter dem Kopf" in s

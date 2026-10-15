@@ -69,7 +69,7 @@ def test_report_shows_impact_and_line():
     m = _match()
     res = AnalysisResult(findings=[], rule_status=[], impact=impact.build(m, _model()))
     html = render.render_report(m, res)
-    assert "Impact: wer hat die Runden entschieden" in html and "Entschärft" in html
+    assert "Wer die Runden entschied" in html and "Entschärft" in html
     assert '"wp":[[100,50.0]' in html
 
 
@@ -100,7 +100,7 @@ def test_contexts_opening_trade_clutch():
     rows = [({"rounds": 1}, {"ctx": {"opening": [-300.0, 12], "trade": [200.0, 12]},
                              "ctx_avg": {"opening": [0.0, 1.2], "trade": [0.0, 1.0], "down": [-50.0, 2]}})]
     ctx, txt = impact.contexts(rows)
-    assert ctx[0]["ctx"] == "opening" and "in Opening-Duellen: -3,0" in txt and "bei Trades" in txt
+    assert ctx[0]["ctx"] == "opening" and "in Opening-Duellen. Das sind -3,0" in txt and "bei Trades" in txt
 
 
 def test_kabine_mind_uses_impact_context():

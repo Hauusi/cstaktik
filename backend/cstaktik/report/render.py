@@ -417,8 +417,8 @@ def _impact(match: MatchData, result: AnalysisResult) -> dict | None:
         worst = [line(m) for m in sorted(ms, key=lambda m: m["val"]) if m["val"] < 0][:3]
         rank = next(r["rank"] for r in rows if r["sid"] == sid)
         mine.append({"sid": sid, "name": names.get(sid, sid), "best": best, "worst": worst, "rank": rank,
-                     "text": f"{de(p['total'] / 100)} Runden Siegchance im Match (Platz {rank} von {len(rows)}). "
-                             f"Kills {de(p['kill'] / 100)}, Tode {de(p['death'] / 100)}"
+                     "text": f"Platz {rank} von {len(rows)} mit {de(p['total'] / 100)} Runden Siegchance. "
+                             f"Davon Kills {de(p['kill'] / 100)}, Tode {de(p['death'] / 100)}"
                              + (f", Bombe {de((p['plant'] + p['defuse']) / 100)}" if p["plant"] or p["defuse"] else "")
                              + "."})
     return {"rows": rows, "mine": mine}

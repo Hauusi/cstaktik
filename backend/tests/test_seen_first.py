@@ -51,7 +51,7 @@ def test_death_sentence_says_who_saw_first():
     s = _duel_sentence({"attacker": "der Gegner", "duel": {"seen": "gegner", "seen_ms": -800, "won": False}})
     assert s.startswith("Der Gegner hat dich zuerst gesehen, 0,8 s vor dir.")
     s = _duel_sentence({"attacker": "x", "duel": {"seen": "ich", "seen_ms": 400, "won": False}})
-    assert "Du hast ihn zuerst gesehen (0,4 s Vorsprung) und trotzdem verloren." in s
+    assert "Du hast ihn zuerst gesehen, 0,4 s vor ihm. Trotzdem hast du verloren." in s
 
 
 def test_lesson_seen_first_beats_crosshair_but_not_angle():
@@ -72,7 +72,7 @@ def test_seen_first_why_and_next_name_the_lead():
 
     fx = {"attacker": "Gegner1", "aplace": "Palace", "duel": {"seen": "gegner", "seen_ms": -700}}
     snap = {"kind": "gehalten", "place": "Ramp"}
-    assert "Gegner1 aus Palace hat dich gesehen, 0,7 s bevor du ihn gesehen hast" in _why("seen_first", fx, snap, "gehalten")
+    assert "Gegner1 aus Palace dich 0,7 s früher gesehen als du ihn" in _why("seen_first", fx, snap, "gehalten")
     assert _next("seen_first", fx, snap).startswith("In Ramp nicht an der offenen Kante warten")
 
 

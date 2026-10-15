@@ -107,8 +107,8 @@ def test_crosshair_lesson_and_duel_sentence():
     fx = {"label": "Duell verloren", "attacker": "Blackwell", "duel": {"err": 31.0, "opp_err": 4.0, "react": 250,
                                                                       "hit": False, "speed": 160}}
     assert lesson_id(fx) == "crosshair"
-    assert _duel_sentence(fx) == ("Im Moment des ersten Schusses zeigte dein Fadenkreuz 31° neben Blackwell, seins 4° "
-                                  "neben dich. Dein erster Schuss kam 250 ms nach seinem, bei 160 Units/s.")
+    assert _duel_sentence(fx) == ("Beim ersten Schuss lag dein Fadenkreuz 31° neben Blackwell. Seins lag 4° neben dir. "
+                                  "Dein erster Schuss kam 250 ms nach seinem. Du warst dabei mit 160 Units/s unterwegs.")
     fx["duel"]["err"] = 8.0
     assert lesson_id(fx) == "duel"
 
@@ -200,13 +200,13 @@ def test_why_follows_the_data_not_assumed_intent():
 
     fx = {"attacker": "G1", "aplace": "Palace", "mate": "Bruder", "mate_dist": 1400}
     held = {"kind": "gehalten"}
-    assert _why("alone", fx, held, "gehalten").startswith("Du hast allein gehalten, Bruder war 1400 Units weg")
+    assert _why("alone", fx, held, "gehalten").startswith("Du hast allein gehalten. Bruder war 1400 Units weg.")
     # steht der Abstand schon im Lage-Satz, wird er nicht wiederholt
     assert _why("alone", fx, {**held, "mate_d": 1400}, "gehalten").startswith("Du hast allein gehalten. Nach")
     assert "peeken" not in _next("alone", fx, held, "gehalten")
     assert _why("alone", fx, {"kind": "bewegt"}, "Richtung Gegner").startswith("Du bist ins Duell gegangen")
     w = _why("no_shot_close", {**fx, "duel": {"err": 4.0}}, held, "gehalten")
-    assert w.startswith("Dein Fadenkreuz lag richtig (4,0° neben ihm)")
+    assert w.startswith("Dein Fadenkreuz lag richtig, nur 4,0° neben ihm.")
     assert _why("no_shot_close", fx, {"kind": "bewegt"}, "Richtung Gegner") is None  # allgemeiner Satz passt
 
 
@@ -215,7 +215,7 @@ def test_strengths_against_own_baseline_with_n():
 
     past = [{"duel_stats": {"a": {"n": 20, "first_hit": 40, "won": 50, "err": 8.0}}} for _ in range(3)]
     s = strengths({"a": {"n": 22, "first_hit": 55, "won": 52, "err": 7.5}}, {"a": "Ich"}, past)
-    assert s == ["Ich: Erste Kugel trifft 55 % (22 Duelle), dein Schnitt der letzten 3 Matches 40 %."]
+    assert s == ["Ich: Erste Kugel trifft 55 % in 22 Duellen. Dein Schnitt der letzten 3 Matches: 40 %."]
     assert strengths({"a": {"n": 9, "first_hit": 90}}, {"a": "Ich"}, past) == []  # zu wenige Duelle
     assert strengths({"a": {"n": 22, "first_hit": 55}}, {"a": "Ich"}, past[:1]) == []  # zu wenig Vergleich
 
@@ -254,7 +254,7 @@ def test_duel_reading_connects_the_numbers():
 
     pro = {"err": 4.9, "shot_first": 59, "first_hit": 30, "react": 250}
     me = {"n": 36, "err": 5.1, "shot_first": 50, "first_hit": 29}  # Werte aus einem echten Match
-    assert duel_reading(me, pro).startswith("Dein Zielen ist auf Pro-Niveau, aber du schießt seltener zuerst (50 % gegen 59 %)")
+    assert duel_reading(me, pro).startswith("Dein Zielen ist auf Pro-Niveau. Aber du schießt seltener zuerst: 50 %, Pros 59 %.")
     assert duel_reading({**me, "err": 8.0}, pro).startswith("Dein Fadenkreuz liegt im Duell weiter neben dem Kopf")
     moving = {**me, "shot_first": 58, "first_hit": 18, "moving_pct": 40, "moving_n": 20}
     assert "40 % deiner ersten Schüsse kamen aus der Bewegung" in duel_reading(moving, pro)

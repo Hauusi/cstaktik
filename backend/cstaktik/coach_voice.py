@@ -20,52 +20,53 @@ from cstaktik.model import Finding
 # id -> (Lektion, warum das kostet, Übung fürs nächste Match)
 LESSONS = {
     "no_shot_close": ("Ecke vorzielen statt reinlaufen",
-                      "Du stirbst, bevor du schießt: Der Gegner hatte den Winkel schon, dein Fadenkreuz nicht.",
-                      "Bekannte Gegner-Spots einzeln clearen, Fadenkreuz vorher auf Kopfhöhe."),
+                      "Du stirbst, bevor du schießt. Der Gegner hatte den Winkel schon, dein Fadenkreuz nicht.",
+                      "Bekannte Gegner-Spots einzeln clearen. Fadenkreuz vorher auf Kopfhöhe."),
     "no_shot_far": ("Lange Linien nicht offen kreuzen",
-                    "Über eine lange, offene Linie gehst du ohne Deckung, der Gegner wartet nur darauf.",
+                    "Du kreuzt eine lange, offene Linie ohne Deckung. Genau darauf wartet der Gegner.",
                     "Lange Linien mit Smoke zumachen oder einen anderen Weg nehmen."),
     "blind": ("Bei Flash sofort wegdrehen",
               "Geblendet im Winkel stehen ist ein geschenkter Kill.",
-              "Beim Flash-Geräusch wegdrehen und einen Schritt hinter Deckung, erst dann wieder peeken."),
+              "Beim Flash-Geräusch wegdrehen und einen Schritt hinter Deckung. Erst dann wieder peeken."),
     "alone": ("Nicht ohne Trade-Partner peeken",
-              "Stirbst du allein, kann dich niemand traden: Die Runde ist ein Spieler weniger, ohne Gegenleistung.",
-              "Vor dem Peek callen und warten, bis dein Mitspieler in Trade-Reichweite ist."),
+              "Stirbst du allein, kann dich niemand traden. Ihr seid einer weniger, ohne Gegenleistung.",
+              "Vor dem Peek callen. Warten, bis ein Mitspieler in Trade-Reichweite ist."),
     "utility": ("Erst Utility, dann Duell",
-                "Mit Granaten in der Tasche zu sterben heißt: Das Duell war fairer als nötig.",
+                "Du stirbst mit Granaten in der Tasche. Das Duell war fairer als nötig.",
                 "Vor jedem geplanten Duell eine Flash oder Molotov werfen."),
     "low_hp": ("Mit wenig HP kein neues Duell",
-               "Mit wenig HP verlierst du fast jedes Duell, auch gegen schwächere Waffen.",
-               "Unter 50 HP: zurückfallen, Info callen, auf den Trade deiner Mitspieler spielen."),
+               "Mit wenig HP verlierst du fast jedes Duell. Auch gegen schwächere Waffen.",
+               "Unter 50 HP: zurückfallen, Info callen, auf den Trade spielen."),
     "moving_shot": ("Erst stoppen, dann schießen",
-                    "Schüsse aus der Bewegung streuen, der Gegner steht und trifft.",
+                    "Schüsse aus der Bewegung streuen. Der Gegner steht und trifft.",
                     "Deathmatch: nur schießen, wenn du stehst (Counter-Strafe)."),
     "moving": ("Nicht laufend in den Winkel",
                "Wer in den Winkel läuft, ist für den Haltenden ein leichtes Ziel.",
                "Vor dem Winkel stoppen, kurz peeken, erst dann rein."),
     "outnumbered": ("In Unterzahl zusammenbleiben",
-                    "In Unterzahl gewinnt man selten Einzelduelle, nur gemeinsame.",
-                    "In Unterzahl mit dem nächsten Mitspieler zusammen spielen oder auf Zeit spielen."),
+                    "In Unterzahl gewinnst du selten ein Einzelduell. Nur gemeinsam habt ihr eine Chance.",
+                    "In Unterzahl zum nächsten Mitspieler gehen oder auf Zeit spielen."),
     "crosshair": ("Fadenkreuz vorher auf den Spot",
-                  "Als das Duell begann, zeigte dein Fadenkreuz deutlich neben den Gegner. Bis du nachziehst, hat er geschossen.",
+                  "Beim Duellstart zeigte dein Fadenkreuz deutlich neben den Gegner. Bis du nachziehst, hat er geschossen.",
                   "Prefire-Map: Fadenkreuz an jede Kante auf Kopfhöhe, bevor du dich bewegst."),
     "angle": ("Nicht offen in mehrere Winkel stehen",
-              "Der Gegner kam aus einer Richtung, in die du gar nicht geschaut hast. Das ist kein Aim-Problem, "
-              "sondern eine Position, die zu viele Winkel gleichzeitig offen lässt.",
-              "Positionen wählen, an denen nur ein Winkel auf dich zeigt; den Rest deckt ein Mitspieler oder Utility."),
+              "Der Gegner kam aus einer Richtung, in die du nicht geschaut hast. Das ist kein Aim-Problem. "
+              "Deine Position ließ zu viele Winkel gleichzeitig offen.",
+              "Stell dich so, dass nur ein Winkel auf dich zeigt. Den Rest deckt ein Mitspieler oder Utility."),
     "seen_first": ("Sehen, bevor du gesehen wirst",
-                   "Er hatte dich im Blick, bevor du ihn sehen konntest. Wer zuerst sieht, gewinnt fast jedes Duell, "
-                   "egal wie gut der andere zielt.",
-                   "Nicht an der offenen Kante warten: einen Schritt tiefer in Deckung oder auf einen Off-Angle, "
-                   "damit du ihn siehst, bevor er dich sieht."),
+                   "Er hatte dich im Blick, bevor du ihn sehen konntest. Wer zuerst sieht, gewinnt fast jedes Duell. "
+                   "Egal, wie gut der andere zielt.",
+                   "Nicht an der offenen Kante warten. Einen Schritt tiefer in Deckung oder auf einen Off-Angle. "
+                   "Dann siehst du ihn zuerst."),
     "duel": ("Duell verloren, Lage war okay",
-             "Hier war die Lage nicht das Problem, das Duell selbst ging verloren.",
+             "Die Lage war nicht das Problem. Das Duell selbst ging verloren.",
              "Aim und Peek-Timing im Deathmatch trainieren."),
 }
 LABEL_TO_LESSON = {"Geblendet": "blind", "Allein, kein Trade": "alone", "Utility nicht genutzt": "utility",
                    "Wenig HP": "low_hp", "Im Laufen geschossen": "moving_shot", "Im Laufen": "moving",
                    "Unterzahl": "outnumbered", "Duell verloren": "duel"}
 ACTION_SHORT = {"gehalten": "halten", "zurückgezogen": "zurückziehen", "Richtung Gegner": "Richtung Gegner gehen"}
+ACTION_NOUN = {"gehalten": "Halten", "zurückgezogen": "Rückzug", "Richtung Gegner": "Peek Richtung Gegner"}
 
 
 def _clock(s: float | None) -> str | None:
@@ -140,11 +141,11 @@ def _death_sentence(fx: dict) -> str:
     dist = f", {fx['a_dist']} Units entfernt" if fx.get("a_dist") is not None else ""
     pre = f"Bei {when} " if when else ""
     if fx.get("blind_by"):
-        return (f"{fx['blind_by']} flasht dich, {str(fx.get('blind_ago')).replace('.', ',')} s später erwischt dich {att}{src}.")
+        return (f"{fx['blind_by']} flasht dich. {str(fx.get('blind_ago')).replace('.', ',')} s später erwischt dich {att}{src}.")
     if fx.get("no_shot"):
-        return f"{pre}taucht {att}{src} auf{dist}, und du kommst nicht zum Schuss."
+        return f"{pre}taucht {att}{src} auf{dist}. Du kommst nicht zum Schuss."
     dealt = fx.get("dealt")
-    tail = ("" if dealt is None else f" Du machst {dealt} Schaden, das reicht nicht." if dealt
+    tail = ("" if dealt is None else f" Du machst {dealt} Schaden. Das reicht nicht." if dealt
             else " Du triffst nicht.")
     return f"{pre}gewinnt {att}{src} das Duell{dist}." + tail
 
@@ -160,26 +161,27 @@ def _duel_sentence(fx: dict) -> str | None:
         parts.append(f"{att[:1].upper() + att[1:]} hat dich zuerst gesehen"
                      + (f", {_de2(-ms / 1000)} s vor dir." if ms is not None else ", du ihn gar nicht."))
     elif seen == "ich":
-        parts.append("Du hast ihn zuerst gesehen" + (f" ({_de2(ms / 1000)} s Vorsprung)" if ms is not None else "")
-                     + (" und trotzdem verloren." if d.get("won") is False else "."))
+        parts.append("Du hast ihn zuerst gesehen" + (f", {_de2(ms / 1000)} s vor ihm." if ms is not None else ".")
+                     + (" Trotzdem hast du verloren." if d.get("won") is False else ""))
     elif seen == "gleich":
         parts.append("Ihr habt euch gleichzeitig gesehen.")
     if d.get("tts") is not None and seen in ("ich", "gleich"):
-        parts.append(f"Vom Sehen bis zu deinem ersten Schuss: {d['tts']} ms.")
+        parts.append(f"Bis zu deinem ersten Schuss vergingen {d['tts']} ms.")
     if d.get("err") is not None:
-        s = f"Im Moment des ersten Schusses zeigte dein Fadenkreuz {_de1(d['err'])}° neben {att}"
+        s = f"Beim ersten Schuss lag dein Fadenkreuz {_de1(d['err'])}° neben {att}"
         h = d.get("height")
         if h is not None and d["err"] <= 20 and abs(h) > 2:
-            s += f" ({_de1(abs(h))}° {'unter' if h > 0 else 'über'} dem Kopf)"
+            s += f", {_de1(abs(h))}° {'unter' if h > 0 else 'über'} dem Kopf"
+        s += "."
         if d.get("opp_err") is not None:
-            s += f", seins {_de1(d['opp_err'])}° neben dich"
-        parts.append(s + ".")
+            s += f" Seins lag {_de1(d['opp_err'])}° neben dir."
+        parts.append(s)
     if d.get("react") == 0:
-        parts.append("Du hast zuerst geschossen" + (" und mit der ersten Kugel getroffen." if d.get("hit")
-                                                    else ", die erste Kugel ging daneben." if d.get("hit") is False else "."))
+        parts.append("Du hast zuerst geschossen." + (" Die erste Kugel traf." if d.get("hit")
+                                                     else " Die erste Kugel ging daneben." if d.get("hit") is False else ""))
     elif d.get("react") is not None:
-        parts.append(f"Dein erster Schuss kam {d['react']} ms nach seinem"
-                     + (f", bei {d['speed']} Units/s" if d.get("speed") and d["speed"] > 80 else "") + ".")
+        parts.append(f"Dein erster Schuss kam {d['react']} ms nach seinem."
+                     + (f" Du warst dabei mit {d['speed']} Units/s unterwegs." if d.get("speed") and d["speed"] > 80 else ""))
     return " ".join(parts) or None
 
 
@@ -205,40 +207,41 @@ def _next(lid: str, fx: dict, snap: dict | None, aktion: str | None = None) -> s
     aplace = fx.get("aplace")
     held = _held(snap, aktion)
     if lid == "no_shot_close" and held:
-        return (f"Beim Halten: Fadenkreuz auf die Kante, an der {aplace or 'er'} auftaucht, und nach einem Kontakt "
-                "die Position wechseln, statt am selben Spot zu warten.")
+        return ("Beim Halten das Fadenkreuz auf die Kante legen" + (f" Richtung {aplace}" if aplace else "")
+                + ". Nach einem Kontakt die Position wechseln.")
     if lid == "no_shot_close":
         util = [n for n in ("Flash", "Molotov") if n in nades]
-        return (f"{aplace or 'Den Spot'} vorher anvisieren, Fadenkreuz auf Kopfhöhe"
-                + (f", oder mit deiner {util[0]} prüfen" if util else "") + ".")
+        return (f"{aplace or 'Den Spot'} vorher anvisieren, Fadenkreuz auf Kopfhöhe."
+                + (f" Oder mit deiner {util[0]} prüfen." if util else ""))
     if lid == "no_shot_far":
-        return (f"Die Linie aus {aplace or 'dieser Richtung'} mit Smoke zumachen"
-                + (" (du hattest eine dabei)" if "Smoke" in nades else "") + " oder einen anderen Weg nehmen.")
+        return (f"Die Linie aus {aplace or 'dieser Richtung'} mit Smoke zumachen oder einen anderen Weg nehmen."
+                + (" Du hattest eine Smoke dabei." if "Smoke" in nades else ""))
     if lid == "blind":
         return "Flash hören, sofort wegdrehen, einen Schritt zurück. Erst danach wieder peeken."
     if lid == "alone" and held:
         mate = fx.get("mate")
-        return (f"So stellen, dass {mate} nachziehen kann, oder nach dem ersten Kontakt zurückfallen und callen."
-                if mate else "Nach dem ersten Kontakt zurückfallen und callen, statt allein weiter zu halten.")
+        return (f"Stell dich so, dass {mate} nachziehen kann. Oder fall nach dem ersten Kontakt zurück und calle."
+                if mate else "Nach dem ersten Kontakt zurückfallen und callen. Nicht allein weiter halten.")
     if lid == "alone":
         mate = fx.get("mate")
-        return (f"Erst callen und warten, bis {mate} bei dir ist, dann zusammen peeken." if mate
-                else "Erst callen und auf einen Mitspieler warten, dann zusammen peeken.")
+        return (f"Erst callen und warten, bis {mate} bei dir ist. Dann zusammen peeken." if mate
+                else "Erst callen und auf einen Mitspieler warten. Dann zusammen peeken.")
     if lid == "utility":
         pick = next((n for n in ("Flash", "Molotov", "Smoke", "HE") if n in nades), None)
         return (f"Vor dem Duell deine {pick} werfen" + (f" auf {aplace}" if aplace and pick != "Smoke" else "")
                 + "." if pick else "Vor dem Duell Utility werfen.")
     if lid == "low_hp":
-        return f"Mit {fx.get('hp')} HP nicht nachpeeken: zurückfallen, Info callen, auf den Trade spielen."
+        return f"Mit {fx.get('hp')} HP nicht nachpeeken. Zurückfallen, Info callen, auf den Trade spielen."
     if lid == "moving_shot":
-        return "Vor dem Schuss stoppen (Counter-Strafe), dann schießen."
+        return "Vor dem Schuss stoppen (Counter-Strafe). Dann schießen."
     if lid == "angle":
         return (f"Stell dich so, dass nur ein Winkel auf dich zeigt. {fx.get('aplace') or 'Diese Richtung'} "
                 "muss ein Mitspieler oder eine Smoke abdecken, nicht du nebenbei.")
     if lid == "seen_first":
         place = (snap or {}).get("place")
-        return (f"{'In ' + place if place else 'Hier'} nicht an der offenen Kante warten: einen Schritt tiefer oder auf "
-                f"einen Off-Angle, so dass {aplace or 'er'} dich erst sieht, wenn du ihn schon im Fadenkreuz hast.")
+        return (f"{'In ' + place if place else 'Hier'} nicht an der offenen Kante warten. Geh einen Schritt tiefer "
+                f"oder auf einen Off-Angle. Dann sieht {'der Gegner aus ' + aplace if aplace else 'er'} dich erst, "
+                "wenn du ihn schon im Fadenkreuz hast.")
     if lid == "crosshair":
         return (f"Fadenkreuz schon vorher auf {aplace or 'den Spot'} legen, auf Kopfhöhe. "
                 "Dann musst du nur noch klicken, nicht erst suchen.")
@@ -246,7 +249,7 @@ def _next(lid: str, fx: dict, snap: dict | None, aktion: str | None = None) -> s
         return "Vor dem Winkel stoppen, kurz peeken, erst dann rein."
     if lid == "outnumbered":
         own, enemy = fx.get("own"), fx.get("enemy")
-        return f"{own} gegen {enemy}: mit dem nächsten Mitspieler zusammen gehen oder auf Zeit spielen."
+        return f"Bei {own} gegen {enemy} mit dem nächsten Mitspieler zusammen gehen. Oder auf Zeit spielen."
     return LESSONS["duel"][2]
 
 
@@ -256,11 +259,12 @@ def _pro_line(ev: dict) -> str | None:
         return None
     won, n = rates[best]
     lage = "in ähnlicher Lage" if ev.get("pro_coarse") else "in dieser Lage"
-    src = f", aus {ev['pro_rounds']} Pro-Runden" if ev.get("pro_rounds") else ""
-    line = f"Pros {lage}: höchste Siegquote mit {ACTION_SHORT[best]} ({won} von {n} gewonnen{src})."
+    line = f"Pros {lage} gewinnen am häufigsten mit {ACTION_NOUN[best]}: {won} von {n} Runden."
     if mine and mine != best and mine in rates:
         w2, n2 = rates[mine]
-        line += f" {ACTION_SHORT[mine].capitalize()} wie du: {w2} von {n2}."
+        line += f" Mit {ACTION_NOUN[mine]} wie du: {w2} von {n2}."
+    if ev.get("pro_rounds"):
+        line += f" Basis: {ev['pro_rounds']} Pro-Runden."
     return line
 
 
@@ -279,29 +283,29 @@ def _why(lid: str, fx: dict, snap: dict | None, aktion: str | None) -> str | Non
     held = _held(snap, aktion)
     if lid in ("no_shot_close", "no_shot_far"):
         if err is not None and err < CROSSHAIR_BAD_DEG:
-            return (f"Dein Fadenkreuz lag richtig ({_de(err)}° neben ihm), {att}{src} hat trotzdem zuerst getroffen. "
+            return (f"Dein Fadenkreuz lag richtig, nur {_de(err)}° neben ihm. Trotzdem hat {att}{src} zuerst getroffen. "
                     "Hier entscheidet nicht das Zielen, sondern wer die Position zuerst hat.")
         if held:
-            return (f"Du hast gehalten, {att} kam{src}, und du kamst nicht zum Schuss. "
-                    "Er wusste, wo du stehst, du nicht, wann er kommt.")
+            return (f"Du hast gehalten. {att[:1].upper() + att[1:]} kam{src}, und du kamst nicht zum Schuss. "
+                    "Er wusste, wo du stehst. Du wusstest nicht, wann er kommt.")
         return None
     if lid == "alone":
         mate, md = fx.get("mate"), fx.get("mate_dist")
         # Abstand nur nennen, wenn der Lage-Satz davor ihn nicht schon nennt
         said = bool(snap) and snap.get("mate_d") is not None
-        far = "" if said else (f", {mate} war {md} Units weg" if mate and md is not None
-                               else ", kein Mitspieler war in Reichweite")
+        far = "" if said else (f" {mate} war {md} Units weg." if mate and md is not None
+                               else " Kein Mitspieler war in Reichweite.")
         if held:
-            return f"Du hast allein gehalten{far}. Nach dem ersten Kontakt konnte dich niemand traden."
-        return f"Du bist ins Duell gegangen{far}. Dein Tod blieb ohne Antwort."
+            return f"Du hast allein gehalten.{far} Nach dem ersten Kontakt konnte dich niemand traden."
+        return f"Du bist ins Duell gegangen.{far} Dein Tod blieb ohne Antwort."
     if lid == "seen_first":
         ms = d.get("seen_ms")
-        lead = f"{_de2(-ms / 1000)} s bevor du ihn gesehen hast" if ms is not None else "und du ihn gar nicht"
+        lead = f"{_de2(-ms / 1000)} s früher gesehen als du ihn" if ms is not None else "gesehen, du ihn gar nicht"
         if held:
-            return f"Du hast gehalten, aber {att}{src} hat dich gesehen, {lead}. Deine Stelle war für ihn zuerst einsehbar."
-        return f"Du bist in seine Sicht gelaufen: {att}{src} hat dich gesehen, {lead}."
+            return f"Du hast gehalten. Trotzdem hat {att}{src} dich {lead}. Deine Stelle war für ihn zuerst einsehbar."
+        return f"Du bist in seine Sicht gelaufen. {att[:1].upper() + att[1:]}{src} hat dich {lead}."
     if lid == "moving" and aktion == "zurückgezogen":
-        return "Du warst auf dem Rückzug, als er dich erwischt hat: rückwärts laufen ist auch ein bewegtes Ziel."
+        return "Du warst auf dem Rückzug, als er dich erwischt hat. Auch wer rückwärts läuft, ist ein bewegtes Ziel."
     return None
 
 
@@ -421,11 +425,11 @@ def memory(prev: dict | None, now_lessons: dict, now_rounds: int) -> dict | None
     elif c["state"] == "besser":
         verdict, state = "Deutlich weniger, das greift.", "besser"
     elif c["state"] == "schlechter":
-        verdict, state = "Deutlich mehr als letztes Mal, dranbleiben.", "schlechter"
+        verdict, state = "Deutlich mehr als letztes Mal. Bleib dran.", "schlechter"
     else:
-        verdict, state = "Ein Match allein ist noch kein Trend, bleib dran.", "gleich"
+        verdict, state = "Ein Match allein ist noch kein Trend. Bleib dran.", "gleich"
     return {"lesson": LESSONS[lid][0], "before": before, "after": after, "state": state,
-            "text": f"Letztes Match war euer Hauptpunkt „{LESSONS[lid][0]}“: {before}x in {prev['rounds']} Runden. "
+            "text": f"Euer Hauptpunkt im letzten Match: „{LESSONS[lid][0]}“, {before}x in {prev['rounds']} Runden. "
                     f"Heute {after}x in {now_rounds} Runden. {verdict}"}
 
 
@@ -465,8 +469,8 @@ def strengths(now: dict[str, dict], names: dict[str, str], past: list[dict], min
             diff = (d[key] - med) * better
             if diff >= gap:
                 fmt = (lambda x: f"{x:.0f}") if unit == " %" else _de  # Prozent ganz, Grad mit Komma
-                cand.append((diff / gap, f"{names.get(sid, sid)}: {label} {fmt(d[key])}{unit} ({d['n']} Duelle), "
-                                         f"dein Schnitt der letzten {len(vals)} Matches {fmt(med)}{unit}."))
+                cand.append((diff / gap, f"{names.get(sid, sid)}: {label} {fmt(d[key])}{unit} in {d['n']} Duellen. "
+                                         f"Dein Schnitt der letzten {len(vals)} Matches: {fmt(med)}{unit}."))
         if cand:
             out.append(max(cand)[1])
     return out
@@ -485,7 +489,7 @@ def duel_reading(d: dict, pro: dict | None, min_duels: int = 15) -> str | None:
 
     err, first, hit = gap("err", True), gap("shot_first"), gap("first_hit")
     if err is not None and err <= -1.5:
-        head = f"Dein Fadenkreuz liegt im Duell weiter neben dem Kopf als bei Pros ({_de(d['err'])}° gegen {_de(pro['err'])}°)."
+        head = f"Dein Fadenkreuz liegt im Duell weiter neben dem Kopf als bei Pros: {_de(d['err'])}° statt {_de(pro['err'])}°."
         part = _aim_part(d, pro)
         return f"{head} {part}" if part else f"{head} Vorzielen auf Kopfhöhe ist hier der größte Hebel."
     aim_ok = err is not None and err > -1.5
@@ -495,20 +499,21 @@ def duel_reading(d: dict, pro: dict | None, min_duels: int = 15) -> str | None:
     tts, ptts = d.get("tts"), pro.get("tts")
     if (tts is not None and ptts is not None and (d.get("tts_n") or 0) >= 10 and (pro.get("tts_n") or 0) >= 10
             and tts - ptts >= 80):
-        return (f"Wenn du ihn siehst, brauchst du {tts} ms bis zum ersten Schuss, Pros {ptts} ms. In der Zeit schießt "
-                "er. Das ist Fadenkreuz-Platzierung: Liegt es schon auf Kopfhöhe an der Kante, musst du nur klicken.")
+        return (f"Vom Sehen bis zum ersten Schuss brauchst du {tts} ms, Pros {ptts} ms. In der Zeit schießt er. "
+                "Liegt dein Fadenkreuz schon auf Kopfhöhe an der Kante, musst du nur klicken.")
     if aim_ok and first is not None and first <= -8:
-        return (f"Dein Zielen ist auf Pro-Niveau, aber du schießt seltener zuerst ({d['shot_first']} % gegen "
-                f"{pro['shot_first']} %): Du siehst den Gegner später. Der Hebel ist Position und Timing, nicht Aim.")
+        return (f"Dein Zielen ist auf Pro-Niveau. Aber du schießt seltener zuerst: {d['shot_first']} %, "
+                f"Pros {pro['shot_first']} %. Du siehst den Gegner später. Der Hebel ist Position und Timing, nicht Aim.")
     if aim_ok and hit is not None and hit <= -8:
         if (d.get("moving_n") or 0) >= 10 and (d.get("moving_pct") or 0) >= 30:
-            return (f"Fadenkreuz passt, aber die erste Kugel trifft seltener ({d['first_hit']} % gegen "
-                    f"{pro['first_hit']} %). {d['moving_pct']} % deiner ersten Schüsse kamen aus der Bewegung: "
-                    "erst stoppen, dann schießen.")
-        return (f"Fadenkreuz passt, aber die erste Kugel trifft seltener ({d['first_hit']} % gegen "
-                f"{pro['first_hit']} %).")
+            return (f"Dein Fadenkreuz passt. Aber die erste Kugel trifft seltener: {d['first_hit']} %, "
+                    f"Pros {pro['first_hit']} %. {d['moving_pct']} % deiner ersten Schüsse kamen aus der Bewegung. "
+                    "Erst stoppen, dann schießen.")
+        return (f"Dein Fadenkreuz passt. Aber die erste Kugel trifft seltener: {d['first_hit']} %, "
+                f"Pros {pro['first_hit']} %.")
     if aim_ok and all(g is not None and g > -8 for g in (first, hit)):
-        return "Im Duell selbst bist du auf Pro-Niveau. Was dich Runden kostet, passiert eher vor dem Duell (Coach-Reiter)."
+        return ("Im Duell selbst bist du auf Pro-Niveau. Was dich Runden kostet, passiert eher vor dem Duell. "
+                "Mehr dazu im Coach-Reiter.")
     return None
 
 
@@ -518,12 +523,12 @@ def _aim_part(d: dict, pro: dict, min_n: int = 10) -> str | None:
         return None
     low, plow = d.get("low_pct"), pro.get("low_pct")
     if low is not None and plow is not None and low - plow >= 10:
-        return (f"Vor allem zu tief: In {low} % der Duelle lag es mehr als 2° unter dem Kopf (Pros {plow} %). "
-                "Fadenkreuz beim Laufen auf Kopfhöhe halten, nicht auf den Boden.")
+        return (f"Vor allem zu tief. In {low} % der Duelle lag es mehr als 2° unter dem Kopf, Pros {plow} %. "
+                "Halte das Fadenkreuz beim Laufen auf Kopfhöhe, nicht am Boden.")
     side, pside = d.get("err_side"), pro.get("err_side")
     if side is not None and pside is not None and side - pside >= 1.5:
-        return (f"Die Höhe passt, aber seitlich liegst du {_de(side)}° daneben (Pros {_de(pside)}°): Du hältst neben die "
-                "Stelle, an der er rauskommt. Fadenkreuz direkt an die Kante legen.")
+        return (f"Die Höhe passt. Aber seitlich liegst du {_de(side)}° daneben, Pros {_de(pside)}°. Du hältst neben "
+                "die Stelle, an der er rauskommt. Leg das Fadenkreuz direkt an die Kante.")
     return None
 
 
@@ -535,13 +540,13 @@ def _seen_reading(d: dict, pro: dict, min_seen: int = 15) -> str | None:
     if opp is not None and pro.get("seen_opp") is not None and opp - pro["seen_opp"] >= 8:
         tail = (f" Dann gewinnst du nur {d['won_seen_opp']} %." if d.get("won_seen_opp") is not None
                 and (d.get("seen_opp_n") or 0) >= 5 else "")
-        return (f"Der Gegner sieht dich in {opp} % der Duelle zuerst (Pros {pro['seen_opp']} %).{tail} Das ist "
-                "Position, nicht Aim: weniger offen stehen, nach einem Kill den Platz wechseln, Winkel einzeln "
-                "nehmen statt in mehrere gleichzeitig zu laufen.")
+        return (f"Der Gegner sieht dich in {opp} % der Duelle zuerst, Pros {pro['seen_opp']} %.{tail} Das ist "
+                "Position, nicht Aim. Steh weniger offen und wechsle nach einem Kill den Platz. Nimm Winkel einzeln, "
+                "statt in mehrere gleichzeitig zu laufen.")
     if (won_me is not None and pro.get("won_seen_me") is not None and (d.get("seen_me_n") or 0) >= 8
             and pro["won_seen_me"] - won_me >= 10):
-        return (f"Du siehst den Gegner oft zuerst ({d['seen_me']} %), gewinnst diese Duelle aber nur zu {won_me} % "
-                f"(Pros {pro['won_seen_me']} %). Der Vorteil verpufft: Fadenkreuz schon vorher auf Kopfhöhe, "
+        return (f"Du siehst den Gegner oft zuerst, in {d['seen_me']} % der Duelle. Diese Duelle gewinnst du aber nur "
+                f"zu {won_me} %, Pros {pro['won_seen_me']} %. Der Vorteil verpufft. Fadenkreuz vorher auf Kopfhöhe, "
                 "stehen bleiben, sofort schießen.")
     return None
 

@@ -547,6 +547,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 .timeline svg.wp { position: absolute; left: 0; right: 0; top: 0; width: 100%; height: 34px; pointer-events: none; overflow: visible; }
 .timeline svg.wp polyline { fill: none; stroke: var(--orange); stroke-width: 1.6; vector-effect: non-scaling-stroke; opacity: .9; }
 .timeline svg.wp line { stroke: var(--line); stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+details.how { margin-top: 4px; } details.how summary { text-decoration: underline; } details.how p { margin: 4px 0 0; }
 .dread { margin: 8px 0 4px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; line-height: 1.45; }
 
 .cpair { display: grid; gap: 4px; margin-top: 8px; }
@@ -629,19 +630,19 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       <div class="rlegend num"><b>{{ c.rate|string|replace(".", ",") }}</b> pro 10 Runden · {{ c.count }}x in {{ c.rounds }} Runden{% if c.drills is defined and c.drills is not none %} · vorher {{ c.drills }}x geübt{% endif %}
         <span class="sdots">{% for i in range(c.need) %}<i class="{{ 'on' if i < c.streak }}"></i>{% endfor %}</span></div>
       {% endif %}
-      {% if a.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel, zusammen {{ c.streak_rounds }} Runden. Das sitzt.</div>
-      {% elif c.met is none %}<div class="anote">Zu wenig Runden gespielt, zählt nicht.</div>
-      {% elif c.met and c.streak >= c.need %}<div class="anote">Erst {{ c.streak_rounds }} von {{ c.need_rounds }} Runden: noch ein Match zur Bestätigung.</div>{% endif %}
+      {% if a.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel, insgesamt {{ c.streak_rounds }} Runden. Das sitzt.</div>
+      {% elif c.met is none %}<div class="anote">Zu wenige Runden. Dieses Match zählt nicht.</div>
+      {% elif c.met and c.streak >= c.need %}<div class="anote">Erst {{ c.streak_rounds }} von {{ c.need_rounds }} Runden. Noch ein Match zur Bestätigung.</div>{% endif %}
     </div>
     {% endfor %}
   </section>
   {% endif %}
 
   <div class="ctas">
-    <div class="guide" id="guide">So nutzt du den Report: <b>1</b> den Debrief durchklicken (5 Min) · <b>2</b> im Replay die Szenen ansehen · <b>3</b> „Zum Mitnehmen“ unten merken.</div>
+    <div class="guide" id="guide">So geht's: <b>1</b> Debrief durchklicken, etwa 5 Min. <b>2</b> Szenen im Replay ansehen. <b>3</b> „Zum Mitnehmen“ merken.</div>
     <button class="tour" id="dbfBtn" hidden>▶ Debrief mit dem Coach <small id="dbfN"></small></button>
     <div class="subctas"><button class="chipbtn" id="tourBtn" hidden>Schlüsselmomente im Replay <span id="tourN"></span></button>
-      <button class="chipbtn" id="quizBtn" hidden>Selbst entscheiden: Was machst du? <span id="quizN"></span></button></div>
+      <button class="chipbtn" id="quizBtn" hidden>Was machst du? Selbst entscheiden <span id="quizN"></span></button></div>
     <button class="linkbtn" id="allTour" hidden></button>
   </div>
 
@@ -651,7 +652,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     <div class="sh"><span class="n cond">01</span><span class="t cond">Der eine Punkt</span></div>
     <div class="big cond">{{ l.lesson }}</div>
     <div class="stats">
-      <div><b class="cond">{{ l.count }}x</b><span>{% if l.main is defined and l.main != l.count %}beteiligt, {{ l.main }}x Hauptfehler{% else %}passiert{% endif %}</span></div>
+      <div><b class="cond">{{ l.count }}x</b><span>{% if l.main is defined and l.main != l.count %}dabei, {{ l.main }}x als Hauptfehler{% else %}passiert{% endif %}</span></div>
       {% if l.of_matches is defined and l.of_matches > 1 %}<div><b class="cond {{ 'red' if l.seen_in >= 2 }}">{{ l.seen_in }}/{{ l.of_matches }}</b><span>Matches mit diesem Fehler</span></div>{% endif %}
       {% if l.cost and l.cost >= 30 %}<div><b class="cond red">≈{{ "%.1f"|format(l.cost / 100)|replace(".", ",") }}</b><span>Runden gekostet{% if l.rough %} (grob){% endif %}</span></div>{% endif %}
       <div><b class="cond">{{ (l.players[0] if l.players|length == 1 else l.players|length ~ " Spieler") if l.players else "–" }}</b><span>{{ "wer" if l.players|length == 1 else "betroffen" }}</span></div>
@@ -669,13 +670,13 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       {% set good = bright[l.id] %}
       <div class="cmpcol good"><div class="lk cond">So geht's · bei euch</div>
         {% if good %}{% for g in good %}<button class="brightgo" data-round="{{ g.round }}" data-tick="{{ g.from }}"><b class="cond">▶ R{{ g.round }} {{ g.when }}</b>{{ g.text }}</button>{% endfor %}
-        {% elif good is none %}<div class="quiet">Für diese Lektion sucht der Coach keine Gegenbeispiele in den Daten.</div>
-        {% else %}<div class="quiet">Diesmal keine Szene gefunden, in der ihr es sauber umgesetzt habt.</div>{% endif %}</div>
+        {% elif good is none %}<div class="quiet">Für diese Lektion sucht der Coach keine Gegenbeispiele.</div>
+        {% else %}<div class="quiet">Diesmal keine saubere Szene gefunden.</div>{% endif %}</div>
     </div>
     <div id="proslot" data-lesson="{{ l.id }}"></div>
 
     {% if memory and not checks %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
-    <a class="trainlink" href="/training">Übung dazu: <b>{{ t.routine.title }}</b> ({{ t.routine.minutes }} Min) · im Training ›</a>
+    <a class="trainlink" href="/training">Übung dazu: <b>{{ t.routine.title }}</b>, {{ t.routine.minutes }} Min. Zum Training ›</a>
   </section>
   {% if lessons|length > 1 %}
   <section class="also">
@@ -693,19 +694,19 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   {% set nexts = auftraege|selectattr("focus")|rejectattr("check")|list + auftraege|selectattr("focus")|selectattr("new")|selectattr("check")|list %}
   {% if nexts %}
   <section class="nextfocus">
-    <div class="sh"><span class="t cond">Eure Aufträge ab jetzt</span></div>
+    <div class="sh"><span class="t cond">Eure Aufträge</span></div>
     {% for a in nexts %}{% set nf = a.focus %}
     <div class="nf"{% if a.sid %} data-sid="{{ a.sid }}"{% endif %}>
       <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
       <div class="atitle cond">{{ nf.title }}</div>
       <div class="mantra cond">„{{ teach[nf.lesson].mantra }}“</div>
-      <div class="anote num">Ziel ≤ {{ nf.target|string|replace(".", ",") }} pro 10 Runden · Start {{ nf.baseline|string|replace(".", ",") }}{% if nf.baseline_n %} ({{ nf.baseline_n }}x in {{ nf.baseline_rounds }} Runden){% endif %}</div>
+      <div class="anote num">Ziel: höchstens {{ nf.target|string|replace(".", ",") }} pro 10 Runden. Start: {{ nf.baseline|string|replace(".", ",") }}{% if nf.baseline_n %}, also {{ nf.baseline_n }}x in {{ nf.baseline_rounds }} Runden{% endif %}.</div>
     </div>
     {% endfor %}
   </section>
   {% elif not checks %}
   <section class="nextfocus"><div class="sh"><span class="t cond">Auftrag</span></div>
-    <div class="anote">Noch kein Auftrag: Ein Auftrag entsteht erst, wenn ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div></section>
+    <div class="anote">Noch kein Auftrag. Er entsteht, wenn ein Fehler in euren letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div></section>
   {% endif %}
 
   {# Fazit wie am Ende einer Besprechung: höchstens ein Punkt je Thema, nur aus Werten, die oben schon stehen #}
@@ -716,8 +717,8 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     {% set real_t = tactics.t|rejectattr("name", "equalto", "Default ohne Bombsite")|list %}
     {% set good_t = real_t|selectattr("n", "ge", 2)|selectattr("won_pct", "ge", 60)|list %}
     {% set bad_t = real_t|selectattr("n", "ge", 2)|selectattr("won_pct", "le", 34)|list %}
-    {% if good_t %}{% set g = good_t[0] %}{% set _ = take.append(("Taktik", "Weiter so: " ~ g.name ~ " (" ~ g.won ~ " von " ~ g.n ~ " gewonnen).", none)) %}{% endif %}
-    {% if bad_t %}{% set b = bad_t[0] %}{% set _ = take.append(("Taktik", "Nicht wiederholen: " ~ b.name ~ " (" ~ b.won ~ " von " ~ b.n ~ " gewonnen)" ~ (", Pros gewinnen damit " ~ b.pro.won_pct ~ " %. Ablauf im Playbook vergleichen." if b.pro else ". Im Playbook eine Pro-Taktik für diesen Bombsite ansehen."), none)) %}{% endif %}
+    {% if good_t %}{% set g = good_t[0] %}{% set _ = take.append(("Taktik", "Weiter so: " ~ g.name ~ ". " ~ g.won ~ " von " ~ g.n ~ " gewonnen.", none)) %}{% endif %}
+    {% if bad_t %}{% set b = bad_t[0] %}{% set _ = take.append(("Taktik", "Nicht wiederholen: " ~ b.name ~ ". Nur " ~ b.won ~ " von " ~ b.n ~ " gewonnen" ~ (", Pros gewinnen damit " ~ b.pro.won_pct ~ " %. Ablauf im Playbook vergleichen." if b.pro else ". Im Playbook eine Pro-Taktik für diesen Bombsite ansehen."), none)) %}{% endif %}
   {% endif %}
   {% if take %}
   <section class="takeaway">
@@ -759,14 +760,14 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     </div></div>
   </section>
 
-  <h2>Fehler und Lob dieser Runde</h2>
+  <h2>Diese Runde</h2>
   <div class="stack" id="rfind"></div>
 </div>
 
 <div class="tab" data-tab="analyse" hidden>
   {% if impact %}{% set im = impact %}
   <section class="duelcmp imp">
-    <div class="sh"><span class="t cond">Impact: wer hat die Runden entschieden</span></div>
+    <div class="sh"><span class="t cond">Wer die Runden entschied</span></div>
     {% for m in im.mine %}
     <div data-sid="{{ m.sid }}" style="margin-top:8px">
       <div class="who cond">{{ m.name }}</div>
@@ -779,7 +780,10 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     <table><tr><th>Spieler</th><th>Gesamt</th><th>Kills</th><th>Tode</th><th>Bombe</th></tr>
     {% for r in im.rows %}<tr class="{{ 'me' if r.focus }}"><td>{{ r.rank }}. {{ r.name }}</td><td class="{{ 'pos' if r.total > 0 else 'neg' if r.total < 0 }}">{{ r.total_s }}</td><td>{{ r.kill_s }}</td><td>{{ r.death_s }}</td><td>{{ r.obj_s if r.obj else "–" }}</td></tr>{% endfor %}
     </table></details>
-    <div class="quiet" style="margin-top:6px">Jede Aktion verschiebt die Siegchance der Runde. Die Chance je Lage (lebende Spieler, Bombe, Ausrüstung) ist gezählt aus euren anderen Matches und den Pro-Demos. Wer den Kill macht, bekommt die Änderung, wer stirbt, verliert sie. 1,0 = eine ganze Runde. Schaden ohne Kill, Granaten und Infos misst das nicht. Im Replay zeigt die orange Linie an der Zeitleiste eure Siegchance.</div>
+    <div class="quiet" style="margin-top:6px">Jede Aktion verschiebt die Siegchance der Runde. 1,0 heißt: eine ganze Runde. Im Replay zeigt die orange Linie eure Siegchance.</div>
+    <details class="how quiet"><summary>Wie wird das gemessen?</summary>
+      <p>Die Siegchance je Lage stammt aus euren anderen Matches und den Pro-Demos. Lage heißt: lebende Spieler, Bombe, Ausrüstung.</p>
+      <p>Wer den Kill macht, bekommt die Änderung. Wer stirbt, verliert sie. Schaden ohne Kill, Granaten und Infos misst das nicht.</p></details>
   </section>
   {% endif %}
 
@@ -788,12 +792,17 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     <div class="sh"><span class="t cond">Eure Duelle{% if pr %} gegen Pros{% endif %}</span></div>
     {% for d in duel_cmp.players %}
     <div class="dp" data-sid="{{ d.sid }}">
-      <div class="who cond">{{ d.name }} · {{ d.n }} Duelle · {{ d.won }} % gewonnen{% if d.n < 10 %} · wenige Duelle, Werte schwanken{% endif %}</div>
+      <div class="who cond">{{ d.name }} · {{ d.n }} Duelle · {{ d.won }} % gewonnen{% if d.n < 10 %} · wenige Duelle, Werte unsicher{% endif %}</div>
       {% if d.reading %}<div class="dread">{{ d.reading }}</div>{% endif %}
       {{ duelchain(d, pr, cmpbar) }}
     </div>
     {% endfor %}
-    <div class="quiet" style="margin-top:6px">Gemessen im Moment des ersten Schusses eines Duells (Median). Fadenkreuz = Winkel zum Kopf des Gegners (Augenhöhe stehend genähert; duckt er, wirkt dein Fadenkreuz zu tief). Seitlich/Höhe nur aus Duellen mit Fadenkreuz unter 20° am Gegner. Vom Sehen zum Schuss: ab dem Moment, in dem das Spiel ihn für dich sichtbar macht, bis zu deinem ersten Schuss. Wer sah zuerst: Sichtbarkeit laut Spiel (Radar-Sichtung) bis 3 s vor dem ersten Schuss, unter 0,15 s Abstand gilt als gleich.{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten vorliegen.{% endif %}</div>
+    <div class="quiet" style="margin-top:6px">Alle Werte gelten für den ersten Schuss eines Duells. Gezeigt wird der Median.{% if not pr %} Pro-Werte erscheinen, sobald Pro-Demos mit Duell-Daten da sind.{% endif %}</div>
+    <details class="how quiet"><summary>Wie wird das gemessen?</summary>
+      <p>Fadenkreuz: Winkel zum Kopf des Gegners. Die Kopfhöhe ist für einen stehenden Gegner geschätzt. Duckt er, wirkt dein Fadenkreuz zu tief.</p>
+      <p>Seitlich und Höhe: nur Duelle, in denen dein Fadenkreuz unter 20° am Gegner lag.</p>
+      <p>Vom Sehen zum Schuss: ab dem Moment, in dem das Spiel ihn für dich sichtbar macht.</p>
+      <p>Wer sah zuerst: Sichtbarkeit laut Spiel (Radar), bis 3 s vor dem ersten Schuss. Unter 0,15 s Abstand gilt als gleichzeitig.</p></details>
   </section>
   {% endif %}
 
@@ -803,11 +812,11 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
     {% if u.flash and u.has_blinds %}
     {{ cmpbar("Flashes, die wirken", u.flash.good_pct, u.flash_pro.good_pct if u.flash_pro else none, " %", false, 100, 10, u.flash.n) }}
     {{ cmpbar("Gegner blind je Flash", u.flash.avg_enemy_s, u.flash_pro.avg_enemy_s if u.flash_pro else none, " s", false, 3, 0.4) }}
-    {% if u.flash.team %}<div class="small" style="margin-top:8px;color:var(--loss)">{{ u.flash.team }}x eigene Leute mindestens 1 s geblendet.</div>{% endif %}
+    {% if u.flash.team %}<div class="small" style="margin-top:8px;color:var(--loss)">{{ u.flash.team }}x eigene Leute geblendet, je mindestens 1 s.</div>{% endif %}
     {% endif %}
-    {% if u.pre is not none %}{{ cmpbar("Utility vor dem ersten Duell (je Spieler und Runde)", u.pre, u.pre_pro, "", false, 2, 0.2) }}{% endif %}
+    {% if u.pre is not none %}{{ cmpbar("Utility vor dem ersten Duell, je Spieler und Runde", u.pre, u.pre_pro, "", false, 2, 0.2) }}{% endif %}
     {% if u.lineups %}
-    <div class="lk cond" style="margin-top:12px">Eure Smokes und Mollys gegen die Pro-Stelle</div>
+    <div class="lk cond" style="margin-top:12px">Smokes und Mollys gegen Pros</div>
     {% for n in u.lineups[:8] %}
     <div class="lrow {{ 'ok' if n.ok else 'no' }}">
       <div><b>{{ "Smoke" if n.kind == "smoke" else "Molotov" }} → {{ n.to }}</b><span>{{ n.who }} · R{{ n.r }}{% if n.pro_from %} · Pros werfen meist aus {{ n.pro_from }}{% endif %}</span></div>
@@ -815,7 +824,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       <button class="costgo cond" data-round="{{ n.r }}" data-tick="{{ n.tick }}">▶</button>
     </div>
     {% endfor %}
-    <div class="quiet" style="margin-top:6px">Pro-Stelle = Mittel der Landepunkte aus den Pro-Demos dieser Map (gleiche Granate, Seite und Zielort).</div>
+    <div class="quiet" style="margin-top:6px">Pro-Stelle: mittlerer Landepunkt in den Pro-Demos dieser Map. Gleiche Granate, Seite und Zielort.</div>
     {% endif %}
   </section>
   {% endif %}
@@ -823,7 +832,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   {% if tactics %}{% set tc = tactics %}
   <section class="duelcmp tacs">
     <div class="sh"><span class="t cond">Eure Taktiken heute</span></div>
-    {% for side, rows, lbl in [("t", tc.t, "T-Seite"), ("ct", tc.ct, "CT-Seite: Aufstellung nach 20 s (A-Mitte-B)")] if rows %}
+    {% for side, rows, lbl in [("t", tc.t, "T-Seite"), ("ct", tc.ct, "CT-Seite: Aufstellung nach 20 s, A-Mitte-B")] if rows %}
     <div class="lk cond" style="margin-top:{{ '0' if loop.first else '14px' }}">{{ lbl }}</div>
     {% for r in rows %}
     <div class="trow2">
@@ -833,13 +842,13 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       <div class="tw cond {{ 'ok' if r.won_pct >= 50 else 'no' }}">{{ r.won_pct }} %</div>
     </div>
     {% endfor %}{% endfor %}
-    {% if not tc.zones and not tc.ct %}<div class="quiet" style="margin-top:6px">CT-Aufstellungen brauchen Plants auf beiden Bombsites (aus euren und den Pro-Demos dieser Map).</div>{% endif %}
-    <div class="quiet" style="margin-top:8px">Gleiche Erkennung wie im Playbook. Alle Runden dort ansehen: <a href="/playbook/{{ tc.map }}?who=ihr" style="text-decoration:underline">eure Taktiken</a> · <a href="/playbook/{{ tc.map }}" style="text-decoration:underline">Pro-Taktiken</a>.</div>
+    {% if not tc.zones and not tc.ct %}<div class="quiet" style="margin-top:6px">CT-Aufstellungen brauchen Plants auf beiden Bombsites. Die Daten kommen aus euren und den Pro-Demos dieser Map.</div>{% endif %}
+    <div class="quiet" style="margin-top:8px">Erkannt wie im Playbook. Dort siehst du alle Runden: <a href="/playbook/{{ tc.map }}?who=ihr" style="text-decoration:underline">eure Taktiken</a> · <a href="/playbook/{{ tc.map }}" style="text-decoration:underline">Pro-Taktiken</a>.</div>
   </section>
   {% endif %}
 
   {% if debrief.causes %}
-  <h2>Warum verloren (Runden-Muster)</h2>
+  <h2>Warum verloren</h2>
   <div class="stack">
     {% for c in debrief.causes %}
     <div class="cause">
@@ -870,7 +879,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
       {% set fd = d.died_first.items()|list %}
       <div class="kpi"><b>{{ fd[0][1] }}–{{ fd[1][1] }}</b><span>zuerst tot</span></div>
     </div>
-    <div class="quiet" style="margin-top:8px">„zuerst tot“: wer von euch beiden in einer Runde zuerst gestorben ist ({{ fd[0][0] }}–{{ fd[1][0] }}).</div>
+    <div class="quiet" style="margin-top:8px">„Zuerst tot“ zählt, wer von euch beiden in der Runde zuerst starb. Reihenfolge: {{ fd[0][0] }}–{{ fd[1][0] }}.</div>
   </div>
   {% endif %}
 
@@ -888,13 +897,13 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
         <div class="kpi {% if m.deaths_no_shot_pct is not none and m.deaths_no_shot_pct >= mech_cfg.goal_no_shot_pct %}bad{% endif %}"><b>{{ m.deaths_no_shot }}/{{ m.deaths }}</b><span>Tode ohne Schuss</span></div>
       </div>
       {% if m.spray_early_pct is not none and m.spray_late_shots %}
-      <div class="quiet" style="margin-top:8px">Spray: Schuss 1–3 einer Salve {{ m.spray_early_pct|round|int }} % Treffer, ab Schuss 4 {{ (m.spray_late_pct or 0)|round|int }} %
-        {%- if m.spray_late_pct is not none and m.spray_early_pct and m.spray_late_pct < m.spray_early_pct / 2 %}. Kürzere Salven oder Spray-Kontrolle üben.{% endif %}</div>
+      <div class="quiet" style="margin-top:8px">Spray: Schuss 1–3 einer Salve trifft zu {{ m.spray_early_pct|round|int }} %, ab Schuss 4 zu {{ (m.spray_late_pct or 0)|round|int }} %.
+        {%- if m.spray_late_pct is not none and m.spray_early_pct and m.spray_late_pct < m.spray_early_pct / 2 %} Tipp: kürzere Salven oder Spray-Kontrolle üben.{% endif %}</div>
       {% endif %}
       {% if m.no_shot_rounds %}<div class="rlinks">{% for r in m.no_shot_rounds[:8] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>{% endif %}
     </div>
     {% endfor %}
-    <p class="quiet" style="margin:0 2px">„im Laufen“: schneller als {{ mech_cfg.moving_shot_speed_units_s }} Units/s im Schuss-Moment (Schwelle einstellbar). Treffer: Schaden direkt nach dem Schuss.</p>
+    <p class="quiet" style="margin:0 2px">„Im Laufen“ heißt: beim Schuss schneller als {{ mech_cfg.moving_shot_speed_units_s }} Units/s. Treffer heißt: Schaden direkt nach dem Schuss.</p>
   </div>
   {% endif %}
 
@@ -911,7 +920,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
         <div class="kpi {% if u.team_blinded %}bad{% endif %}"><b>{% if u.has_blind_data %}{{ u.team_blinded }}{% else %}–{% endif %}</b><span>Team geblendet</span></div>
         <div class="kpi"><b>{% if u.has_damage_data %}{{ u.he_damage + u.fire_damage }}{% else %}–{% endif %}</b><span>Granaten-Schaden</span></div>
       </div>
-      <div class="quiet" style="margin-top:6px">Geworfen: {{ u.thrown.smoke }} Smoke · {{ u.thrown.molotov }} Molotov · {{ u.thrown.he }} HE{% if u.has_blind_data %} · Gegner {{ u.enemy_blind_s }}s geblendet{% endif %}</div>
+      <div class="quiet" style="margin-top:6px">Geworfen: {{ u.thrown.smoke }} Smoke · {{ u.thrown.molotov }} Molotov · {{ u.thrown.he }} HE{% if u.has_blind_data %} · Gegner {{ u.enemy_blind_s|string|replace(".", ",") }} s geblendet{% endif %}</div>
     </div>
     {% endfor %}
   </div>
@@ -943,7 +952,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   {% endif %}
 
   {% if patterns %}
-  <h2>Muster über das Match</h2>
+  <h2>Muster im Match</h2>
   <div class="stack">
     {% for f in patterns %}
     <div class="f {{ f.severity }}">
@@ -972,9 +981,9 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   <div class="rlist" id="rlist"></div>
 </div>
 
-  <footer>Werte aus der Demo geparst (awpy); Pro-Vergleiche aus euren Pro-Demos. Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
+  <footer>Werte aus der Demo, geparst mit awpy. Pro-Vergleiche aus euren Pro-Demos. Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
   {% if match.source_sha256 %}SHA-256 {{ match.source_sha256[:12] }}…{% endif %}
-  Regel-Schwellen: config/rules.yaml (Heuristiken).</footer>
+  Schwellen der Regeln: config/rules.yaml.</footer>
 </main>
 
 <script>
@@ -1629,8 +1638,8 @@ function ui() {
       coach.appendChild(bar);
     }
     if (!active.length) coach.appendChild(el('div', 'hint', r.f.length
-      ? 'Abspielen: das Replay hält bei jedem Fehler an und zeigt hier den Tipp.'
-      : R().pro ? 'Pro-Replay (blauer Rahmen): der hervorgehobene Pro ist dein Vergleich. Oben "Zurück zu deinem Tod".' : 'In dieser Runde ist nichts aufgefallen.'));
+      ? 'Drück auf Abspielen. Das Replay hält bei jedem Fehler an und zeigt hier den Tipp.'
+      : R().pro ? 'Pro-Replay im blauen Rahmen. Der hervorgehobene Pro ist dein Vergleich. Zurück geht es oben.' : 'In dieser Runde ist nichts aufgefallen.'));
   }
 
   const dt = deathTicks(r), ro = $('roster'); ro.textContent = '';
@@ -1886,13 +1895,13 @@ function quizAnswer(f, pick) {
     if (k === mine) b.appendChild(el('small', null, 'Das hast du gemacht: Tod' + (ev.cost_pct > 0 ? `, -${ev.cost_pct} % Rundenchance` : '')));
   });
   let verdict;
-  if (best) verdict = pick === best ? 'Richtig: Mit dieser Option gewinnen Pros diese Lage am häufigsten.'
-                                     : 'Die Pros gewinnen in dieser Lage am häufigsten mit: ' + QOPTS.find(o => o[0] === best)[1] + '.';
-  else verdict = 'Zu wenige Pro-Daten, um Optionen in dieser Lage zu vergleichen. Sieh dir an, was passiert ist.';
+  if (best) verdict = pick === best ? 'Richtig. Damit gewinnen Pros diese Lage am häufigsten.'
+                                     : 'Pros gewinnen diese Lage am häufigsten mit: ' + QOPTS.find(o => o[0] === best)[1] + '.';
+  else verdict = 'Für diese Lage gibt es zu wenige Pro-Daten. Sieh dir an, was passiert ist.';
   const res = el('div', 'qres'); res.append(el('b', null, verdict));
   if (ev.pro_lage) res.append(el('div', 'quiet', ev.pro_lage));
   q.appendChild(res);
-  if (best) { const sc = quizScore(); sc.n++; if (pick === best) sc.ok++; quizSave(sc); res.appendChild(el('div', 'quiet', `Bisher ${sc.ok} von ${sc.n} wie die Pros.`)); }
+  if (best) { const sc = quizScore(); sc.n++; if (pick === best) sc.ok++; quizSave(sc); res.appendChild(el('div', 'quiet', `Bisher ${sc.ok} von ${sc.n} Mal wie die Pros entschieden.`)); }
   const bar = el('div', 'qbar');
   const play = el('button', 'sbtn win', '▶ Szene abspielen'); play.onclick = () => { seek(f.ov.decision[2] - TR); setPlaying(true); };
   const next = el('button', 'sbtn pro', S.quiz.i + 1 < QUIZ.length ? 'Nächste Situation ›' : 'Fertig ✓'); next.onclick = () => quizShow(S.quiz.i + 1);
@@ -1925,7 +1934,7 @@ function dbBuild() {
       b.append(el('div', 'k', c.name), el('div', null, c.title));
       b.firstChild.style.color = 'var(--muted)'; b.lastChild.style.cssText = 'font:800 22px var(--cond);text-transform:uppercase';
       b.append(el('div', null, (c.drills != null ? (c.drills ? `Vorher ${c.drills}x geübt. ` : 'Vorher nicht geübt. ') : '')
-                               + `Heute ${c.count}x in ${c.rounds} Runden (${String(c.rate).replace('.', ',')} pro 10 Runden), Ziel ≤ ${String(c.target).replace('.', ',')}.`));
+                               + `Heute ${c.count}x in ${c.rounds} Runden. Das sind ${String(c.rate).replace('.', ',')} pro 10 Runden, Ziel höchstens ${String(c.target).replace('.', ',')}.`));
       b.append(el('div', 'stamp ' + (c.met ? 'ok' : c.met == null ? '' : 'no'), c.mastered ? 'Gemeistert' : c.met == null ? 'Zu wenig Runden' : c.met ? `Geschafft · ${c.streak}/${c.need}` : 'Nicht geschafft'));
       d.appendChild(b);
     });
@@ -1964,9 +1973,9 @@ function dbBuild() {
             if (r) o.appendChild(el('small', null, `Pros: ${r[1]}x, ${Math.round(100 * r[0] / r[1])} % Siege`));
           });
           const res = el('div', 'box ' + (best && k === best ? 'good' : 'bad'));
-          res.appendChild(el('div', null, best ? (k === best ? 'Richtig: Mit dieser Option gewinnen Pros diese Lage am häufigsten.' : 'Pros gewinnen diese Lage am häufigsten mit: ' + ACT[best] + '.') : 'Für diese Lage fehlen Pro-Daten. Entscheidend ist, was der Coach dir sagt:'));
+          res.appendChild(el('div', null, best ? (k === best ? 'Richtig. Damit gewinnen Pros diese Lage am häufigsten.' : 'Pros gewinnen diese Lage am häufigsten mit: ' + ACT[best] + '.') : 'Für diese Lage fehlen Pro-Daten.'));
           if (cv) { const nx = el('div'); nx.style.marginTop = '8px'; nx.append(el('b', null, 'Nächstes Mal: '), cv.next); res.appendChild(nx); }
-          res.appendChild(el('div', 'quiet', 'Weiter: was in der Szene wirklich passiert ist.'));
+          res.appendChild(el('div', 'quiet', 'Gleich siehst du, was wirklich passiert ist.'));
           d.appendChild(res);
         };
         b.dataset.k = k; opts.appendChild(b);
@@ -1975,13 +1984,13 @@ function dbBuild() {
       return d;
     });
     if (sc) st.push(() => {
-      const d = el('div'); d.append(el('div', 'k', `Deine Szene · R${sc.round} · ${sc.who || ''}`), el('h3', null, 'Auflösung: so ist es passiert'));
+      const d = el('div'); d.append(el('div', 'k', `Deine Szene · R${sc.round} · ${sc.who || ''}`), el('h3', null, 'So ist es passiert'));
       if (cv) d.appendChild(el('p', null, cv.happened));
       if (cv && cv.why) d.appendChild(el('p', null, cv.why));
       d.appendChild(dbPlayBtn('▶ Szene im Replay ansehen', sc.round, sc.from || sc.tick, true));
       if (L.scenes.length > 1) {
         const more = (L.count || L.scenes.length) - 1;
-        d.appendChild(el('p', null, `Das gleiche Muster gab es noch ${more}x` + (more > L.scenes.length - 1 ? ` (${L.scenes.length - 1} davon hier):` : ':'))).style.marginTop = '14px';
+        d.appendChild(el('p', null, `Dasselbe Muster gab es noch ${more}x.` + (more > L.scenes.length - 1 ? ` Hier ${L.scenes.length - 1} davon:` : ''))).style.marginTop = '14px';
         L.scenes.slice(1).forEach(x => d.appendChild(dbPlayBtn(`▶ R${x.round}${x.cost ? ' · -' + x.cost + ' %' : ''}`, x.round, x.from || x.tick)));
       }
       return d;
@@ -1991,8 +2000,8 @@ function dbBuild() {
       if (L.bright && L.bright.length) {
         d.appendChild(el('p', null, 'Ihr könnt es schon. Hier habt ihr es richtig gemacht:'));
         L.bright.forEach(g => { const b = el('div', 'box good'); b.append(el('div', null, g.text), dbPlayBtn(`▶ R${g.round} ${g.when} ansehen`, g.round, g.from)); d.appendChild(b); });
-      } else d.appendChild(el('p', null, L.bright === null ? 'Für diese Lektion sucht der Coach keine Gegenbeispiele in den Daten.'
-                                                            : 'In diesem Match keine Szene gefunden, in der ihr es sauber umgesetzt habt.'));
+      } else d.appendChild(el('p', null, L.bright === null ? 'Für diese Lektion sucht der Coach keine Gegenbeispiele.'
+                                                            : 'In diesem Match keine saubere Szene gefunden.'));
       const pf = L.scenes.map(x => F[x.finding]).find(x => x && x.ov && x.ov.pro_clip != null && D.rounds[x.ov.pro_clip]);
       if (pf) {
         const b = el('div', 'box pro'); b.append(el('div', 'k', 'So spielt es ein Pro'), el('div', null, pf.evidence.pro_clip || ''));
@@ -2014,7 +2023,7 @@ function dbBuild() {
       // Auftrag weicht vom heutigen Hauptpunkt ab: sagen, warum (der Auftrag läuft über mehrere Matches)
       if (DB.lesson && n.lesson !== DB.lesson.id && !n.new)
         b.appendChild(el('p', 'quiet', `Heute war „${DB.lesson.title}“ der wichtigste Punkt. Dein Auftrag bleibt trotzdem „${n.title}“, bis er über mehrere Matches sitzt.`));
-      const r = el('div'); r.append(el('b', null, `Übung (${n.routine.minutes} Min): ${n.routine.title}`));
+      const r = el('div'); r.append(el('b', null, `Übung: ${n.routine.title}, ${n.routine.minutes} Min`));
       const ol = el('ol'); n.routine.steps.forEach(x => ol.appendChild(el('li', null, x))); r.appendChild(ol);
       r.appendChild(el('div', null, 'Im Match: ' + n.in_game)); b.appendChild(r);
       const key = 'cstaktik-deal-' + location.pathname + '-' + (n.sid || n.name);
