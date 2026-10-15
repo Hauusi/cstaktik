@@ -113,3 +113,14 @@ def test_kabine_mind_uses_impact_context():
     assert lines and lines[0].startswith("Opening-Duell kostet dich 0,6 Runden pro Match")
     assert not any("Überzahl" in x for x in lines)
     assert api._mind([{"rounds": 20, "players": {"a": {}}}], "a") == []
+
+
+def test_noisy_table_never_rewards_a_death():
+    # Tabelle aus wenigen Runden: CT gewinnt 2v2 selten, 1v2 oft (Rauschen) -> Tod darf kein Plus bekommen
+    rows = ([{"w": "t", "s": [[2, 2, 0]]}] * 8 + [{"w": "ct", "s": [[2, 2, 0]]}] * 2
+            + [{"w": "ct", "s": [[1, 2, 0]]}] * 8 + [{"w": "t", "s": [[1, 2, 0]]}] * 2)
+    m = _match()
+    m.kills = m.kills[:1]
+    m.bomb = []
+    pl = impact.build(m, WinModel(rows, 8))["players"]
+    assert pl.get("a", {}).get("death", 0) <= 0 and pl.get("x", {}).get("kill", 0) >= 0

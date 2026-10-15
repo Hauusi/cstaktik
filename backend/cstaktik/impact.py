@@ -105,6 +105,13 @@ def rounds(match: MatchData, model: WinModel, trade_s: float = 3.0) -> dict[int,
                 continue
             before, after = pair[0] * 100, pair[1] * 100
             d_ct = after - before
+            # Ein Tod kann die Chance des eigenen Teams nicht erhöhen, ein Plant die der T nicht senken: passiert das
+            # laut Tabelle doch, ist es Rauschen aus wenigen Runden. Dann kein Wert statt eines falschen Vorzeichens.
+            vside = (e.victim_side or r.sides.get(e.victim_steamid)) if kind == "kill" else None
+            if (vside == "ct" and d_ct > 0) or (vside == "t" and d_ct < 0) or (kind == "plant" and d_ct > 0):
+                if kind == "kill":
+                    done.append((tick, e.attacker_steamid, e.victim_steamid))
+                continue
             if kind == "kill":
                 vs = e.victim_side or r.sides.get(e.victim_steamid)
                 credit = []

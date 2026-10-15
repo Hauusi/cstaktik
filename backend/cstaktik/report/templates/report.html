@@ -1615,7 +1615,7 @@ function ui() {
     }
     if (!active.length) coach.appendChild(el('div', 'hint', r.f.length
       ? 'Abspielen: das Replay hält bei jedem Fehler an und zeigt hier den Tipp.'
-      : R().pro ? 'Pro-Replay (blauer Rahmen): der hervorgehobene Pro ist dein Vergleich. Oben "Zurück zu deinem Tod".' : 'Nichts zu dieser Runde.'));
+      : R().pro ? 'Pro-Replay (blauer Rahmen): der hervorgehobene Pro ist dein Vergleich. Oben "Zurück zu deinem Tod".' : 'In dieser Runde ist nichts aufgefallen.'));
   }
 
   const dt = deathTicks(r), ro = $('roster'); ro.textContent = '';
@@ -1665,7 +1665,7 @@ function buildFindings() {
   // Kompakte Liste: die Erklärung steht nur an einer Stelle (Coach-Feld an der Karte). Antippen springt hin.
   const box = $('rfind'); box.textContent = '';
   const r = R();
-  if (!r.f.length) { box.appendChild(el('p', 'quiet', 'Nichts zu dieser Runde.')); return; }
+  if (!r.f.length) { box.appendChild(el('p', 'quiet', 'In dieser Runde ist nichts aufgefallen.')); return; }
   r.f.forEach(id => {
     const f = F[id], ev = f.evidence || {}, cv = ev.coach;
     const name = cv ? cv.lesson : f.title.replace(/^Tod: /, '');
@@ -1711,7 +1711,7 @@ function buildRoundList() {
       fs.slice(0, 3).forEach(f => ul.appendChild(el('div', 'ri ' + f.sev, f.title + (f.who ? ' · ' + f.who : ''))));
       if (fs.length > 3) ul.appendChild(el('div', 'ri more', '+' + (fs.length - 3) + ' weitere'));
       row.appendChild(ul);
-    } else row.appendChild(el('div', 'rf quiet', 'Nichts'));
+    } else row.appendChild(el('div', 'rf quiet', 'Nichts aufgefallen'));
     row.onclick = () => { selectRound(i); toStage(); };
     box.appendChild(row);
   });
