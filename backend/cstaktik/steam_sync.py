@@ -2,7 +2,8 @@
 
 ``ICSGOPlayers_730/GetNextMatchSharingCode/v1`` liefert zu SteamID, Game Authentication Code und einem bekannten
 Sharecode den nächsten Sharecode; ist keiner neuer, kommt "n/a". Braucht einen Steam-Web-API-Schlüssel auf dem Server
-(Umgebungsvariable STEAM_WEB_API_KEY, https://steamcommunity.com/dev/apikey).
+(in der App unter Optionen eingetragen, sonst Umgebungsvariable STEAM_WEB_API_KEY;
+https://steamcommunity.com/dev/apikey).
 
 Die Demo-Datei selbst liefert diese API nicht: Dafür muss ein eingeloggter Steam-Account beim CS2-Game-Coordinator
 die Match-Infos anfragen. Das ist hier noch nicht eingebaut; die gefundenen Sharecodes werden gespeichert.
@@ -11,7 +12,6 @@ die Match-Infos anfragen. Das ist hier noch nicht eingebaut; die gefundenen Shar
 from __future__ import annotations
 
 import json
-import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -52,10 +52,11 @@ def next_codes(steamid: str, auth_code: str, known: str, key: str, get=_get) -> 
 
 
 def sync_user(row: dict, key: str | None = None, get=_get, path=None) -> dict:
-    key = key or os.environ.get("STEAM_WEB_API_KEY")
+    key = key or accounts.steam_key(path)
     if not key:
-        accounts.record_codes(row["user"], [], None, "Auf dem Server fehlt STEAM_WEB_API_KEY.", path)
-        return {"new": 0, "error": "Auf dem Server fehlt STEAM_WEB_API_KEY."}
+        msg = "Es fehlt der Steam-Web-API-Schlüssel (Optionen → Server)."
+        accounts.record_codes(row["user"], [], None, msg, path)
+        return {"new": 0, "error": msg}
     codes, err = next_codes(row["steamid"], row["auth_code"], row["last_code"], key, get)
     accounts.record_codes(row["user"], codes, codes[-1] if codes else None, err, path)
     return {"new": len(codes), "error": err}

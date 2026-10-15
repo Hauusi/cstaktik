@@ -1,15 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Login · cstaktik{% endblock %}
+{% block title %}{{ "Einrichten" if setup else "Login" }} · cstaktik{% endblock %}
 {% block head %}<style>.gnav { display: none !important; } body { padding-bottom: 0 !important; }
-.login { max-width: 380px; margin: 24px auto 0; display: grid; gap: 10px; }
-.login label { font-size: 13px; color: var(--muted); }</style>{% endblock %}
-{% block hero %}<h1>Login</h1><p>Dein Coach wartet.</p>{% endblock %}
+.login { max-width: 400px; margin: 24px auto 0; display: grid; gap: 10px; }
+.login label { font-size: 13px; color: var(--muted); }
+.steambtn { display: flex; align-items: center; justify-content: center; gap: 10px; height: 50px; border-radius: 14px;
+  background: #171a21; border: 1px solid #2a475e; color: #c7d5e0; font-weight: 700; }
+.or { text-align: center; font-size: 12.5px; color: var(--faint); }</style>{% endblock %}
+{% block hero %}{% if setup %}<h1>Einrichten</h1><p>Lege deinen Account an. Danach verbindest du ihn in den Optionen mit Steam.</p>
+{% else %}<h1>Login</h1><p>Dein Coach wartet.</p>{% endif %}{% endblock %}
 {% block content %}
-<form class="card login" method="post" action="/login">
-  <input type="hidden" name="next" value="{{ next }}">
+{% if setup %}
+<form class="card login" method="post" action="/setup">
   <label for="n">Name</label><input class="field" id="n" name="name" autocomplete="username" required autofocus>
+  <label for="p">Passwort (mindestens 10 Zeichen)</label><input class="field" id="p" name="password" type="password" autocomplete="new-password" required minlength="10">
+  <label for="p2">Passwort wiederholen</label><input class="field" id="p2" name="password2" type="password" autocomplete="new-password" required minlength="10">
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <button class="btn" type="submit">Account anlegen</button>
+</form>
+{% else %}
+<div class="login">
+  <a class="steambtn" href="/auth/steam">Mit Steam einloggen</a>
+  <div class="or">oder</div>
+</div>
+<form class="card login" method="post" action="/login" style="margin-top:10px">
+  <input type="hidden" name="next" value="{{ next }}">
+  <label for="n">Name</label><input class="field" id="n" name="name" autocomplete="username" required>
   <label for="p">Passwort</label><input class="field" id="p" name="password" type="password" autocomplete="current-password" required>
   {% if error %}<div class="err">{{ error }}</div>{% endif %}
   <button class="btn" type="submit">Einloggen</button>
 </form>
+{% endif %}
 {% endblock %}

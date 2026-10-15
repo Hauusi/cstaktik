@@ -25,7 +25,7 @@ from cstaktik.config import load_rules_config
 app = FastAPI(title="cstaktik")
 
 
-_PUBLIC = {"/login", "/fonts.css"}
+_PUBLIC = {"/login", "/fonts.css", "/setup", "/auth/steam", "/auth/steam/callback"}
 _FAILS: dict[str, list[float]] = {}  # Login-Fehlversuche je IP (Schutz gegen Durchprobieren)
 
 
@@ -143,7 +143,92 @@ def _job_view(job_id: str, job: dict) -> dict:
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(next: str = "/", error: str = "") -> str:
-    return _env.get_template("login.html").render(next=next if next.startswith("/") else "/", error=error)
+    from cstaktik import accounts
+
+    return _env.get_template("login.html").render(next=next if next.startswith("/") else "/", error=error,
+                                                  setup=not accounts.has_users())
+
+
+@app.post("/setup")
+async def setup_post(request: Request) -> Response:
+    """Ersten Account anlegen, nur solange es noch keinen gibt (danach legen eingeloggte Nutzer weitere an)."""
+    from urllib.parse import quote
+
+    from cstaktik import accounts
+
+    if accounts.has_users():
+        raise HTTPException(403, "Es gibt schon Accounts.")
+    form = await request.form()
+    name, pw, pw2 = str(form.get("name", "")).strip(), str(form.get("password", "")), str(form.get("password2", ""))
+    if pw != pw2:
+        return RedirectResponse("/login?error=" + quote("Passwörter stimmen nicht überein."), status_code=303)
+    try:
+        accounts.add_user(name, pw)
+    except ValueError as exc:
+        return RedirectResponse("/login?error=" + quote(str(exc)), status_code=303)
+    return _session_redirect(request, name, "/konto?saved=" + quote("Account angelegt. Jetzt mit Steam verbinden."))
+
+
+def _session_redirect(request: Request, name: str, to: str) -> Response:
+    from cstaktik import accounts
+
+    r = RedirectResponse(to, status_code=303)
+    r.set_cookie(accounts.COOKIE, accounts.make_session(name), max_age=accounts.SESSION_DAYS * 86400, httponly=True,
+                 samesite="lax", secure=request.url.scheme == "https")
+    return r
+
+
+def _base(request: Request) -> str:
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return f"{proto}://{host}"
+
+
+@app.get("/auth/steam")
+def steam_start(request: Request) -> Response:
+    """Zu Steam weiterleiten. Eingeloggt: Steam mit dem Account verbinden; sonst: mit Steam einloggen."""
+    from cstaktik import steam_openid
+
+    state = secrets.token_urlsafe(16)
+    base = _base(request)
+    r = RedirectResponse(steam_openid.login_url(f"{base}/auth/steam/callback?state={state}", base), status_code=303)
+    r.set_cookie("cstaktik_steam_state", state, max_age=600, httponly=True, samesite="lax",
+                 secure=request.url.scheme == "https")
+    return r
+
+
+@app.get("/auth/steam/callback")
+def steam_callback(request: Request) -> Response:
+    from urllib.parse import quote
+
+    from cstaktik import accounts, steam_openid
+
+    state = request.query_params.get("state", "")
+    want = request.cookies.get("cstaktik_steam_state", "")
+    params = dict(request.query_params)
+    sid = None
+    if state and want and secrets.compare_digest(state, want):
+        sid = steam_openid.verify(params, f"{_base(request)}/auth/steam/callback?state={state}")
+    user = accounts.read_session(request.cookies.get(accounts.COOKIE))
+    if not sid:
+        to = "/konto" if user else "/login"
+        return RedirectResponse(f"{to}?error=" + quote("Steam-Anmeldung nicht bestätigt. Bitte erneut versuchen."),
+                                status_code=303)
+    if user:  # verbinden
+        try:
+            accounts.link_steamid(user, sid)
+        except ValueError as exc:
+            return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
+        r = RedirectResponse("/konto?saved=" + quote("Mit Steam verbunden."), status_code=303)
+    else:  # einloggen: nur, wenn dieser Steam-Account mit einem Nutzer verbunden ist
+        name = accounts.user_by_steamid(sid)
+        if not name:
+            return RedirectResponse("/login?error=" + quote("Dieser Steam-Account ist mit keinem Nutzer verbunden. "
+                                                            "Erst mit Name und Passwort einloggen und in den "
+                                                            "Optionen mit Steam verbinden."), status_code=303)
+        r = _session_redirect(request, name, "/")
+    r.delete_cookie("cstaktik_steam_state")
+    return r
 
 
 @app.post("/login")
@@ -166,10 +251,7 @@ async def login_post(request: Request) -> Response:
         _FAILS[ip] = fails + [now]
         return RedirectResponse(f"/login?next={quote(nxt)}&error=" + quote("Name oder Passwort falsch."), status_code=303)
     _FAILS.pop(ip, None)
-    r = RedirectResponse(nxt, status_code=303)
-    r.set_cookie(accounts.COOKIE, accounts.make_session(name), max_age=accounts.SESSION_DAYS * 86400, httponly=True,
-                 samesite="lax", secure=request.url.scheme == "https")
-    return r
+    return _session_redirect(request, name, nxt)
 
 
 @app.post("/logout")
@@ -186,9 +268,17 @@ def konto_page(request: Request, saved: str = "", error: str = "") -> str:
     from cstaktik import accounts
 
     user = getattr(request.state, "user", None)
+    key = accounts.steam_key()
     return _env.get_template("konto.html").render(
         nav_active="mehr", user=user, steam=accounts.get_steam(user) if user else None, saved=saved, error=error,
-        has_key=bool(os.environ.get("STEAM_WEB_API_KEY")))
+        has_key=bool(key), key_hint=f"…{key[-4:]}" if key else None)
+
+
+def _need_user(request: Request) -> str:
+    user = getattr(request.state, "user", None)
+    if not user:
+        raise HTTPException(401, "Erst einloggen.")
+    return user
 
 
 @app.post("/konto")
@@ -197,19 +287,65 @@ async def konto_save(request: Request) -> Response:
 
     from cstaktik import accounts, steam_sync
 
-    user = getattr(request.state, "user", None)
-    if not user:
-        raise HTTPException(401, "Erst einloggen.")
+    user = _need_user(request)
     form = await request.form()
     try:
-        accounts.save_steam(user, str(form.get("steamid", "")), str(form.get("auth_code", "")),
-                            str(form.get("last_code", "")))
+        accounts.save_codes(user, str(form.get("auth_code", "")), str(form.get("last_code", "")))
     except ValueError as exc:
         return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
     row = next((r for r in accounts.steam_users() if r["user"] == user), None)
     res = steam_sync.sync_user(row) if row else {"new": 0, "error": None}
     msg = f"Gespeichert. {res['new']} neue Matches gefunden." + (f" {res['error']}" if res["error"] else "")
     return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
+
+
+@app.post("/konto/key")
+async def konto_key(request: Request) -> Response:
+    """Steam-Web-API-Schlüssel des Servers in der App setzen (leer = entfernen)."""
+    from urllib.parse import quote
+
+    from cstaktik import accounts
+
+    _need_user(request)
+    key = str((await request.form()).get("key", "")).strip()
+    if key and not re.fullmatch(r"[0-9A-Fa-f]{32}", key):
+        return RedirectResponse("/konto?error=" + quote("Der Schlüssel hat 32 Zeichen (0-9, A-F)."), status_code=303)
+    accounts.set_setting("steam_web_api_key", key.upper() or None)
+    return RedirectResponse("/konto?saved=" + quote("Schlüssel gespeichert." if key else "Schlüssel entfernt."),
+                            status_code=303)
+
+
+@app.post("/konto/user")
+async def konto_add_user(request: Request) -> Response:
+    """Weiteren Nutzer anlegen (z. B. für den Duo-Partner)."""
+    from urllib.parse import quote
+
+    from cstaktik import accounts
+
+    _need_user(request)
+    form = await request.form()
+    try:
+        accounts.add_user(str(form.get("name", "")).strip(), str(form.get("password", "")))
+    except ValueError as exc:
+        return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
+    return RedirectResponse("/konto?saved=" + quote(f"Nutzer {form.get('name')} angelegt."), status_code=303)
+
+
+@app.post("/konto/passwort")
+async def konto_password(request: Request) -> Response:
+    from urllib.parse import quote
+
+    from cstaktik import accounts
+
+    user = _need_user(request)
+    form = await request.form()
+    if not accounts.verify(user, str(form.get("old", ""))):
+        return RedirectResponse("/konto?error=" + quote("Altes Passwort stimmt nicht."), status_code=303)
+    try:
+        accounts.set_password(user, str(form.get("new", "")))
+    except ValueError as exc:
+        return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
+    return RedirectResponse("/konto?saved=" + quote("Passwort geändert."), status_code=303)
 
 
 @app.post("/konto/sync")
@@ -229,15 +365,14 @@ def konto_sync(request: Request) -> Response:
 
 @app.on_event("startup")
 def _start_steam_sync() -> None:
-    """Alle 30 Minuten neue Sharecodes für alle Nutzer mit Steam-Daten holen (nur mit STEAM_WEB_API_KEY)."""
-    if not os.environ.get("STEAM_WEB_API_KEY"):
-        return
-    from cstaktik import steam_sync
+    """Alle 30 Minuten neue Sharecodes für alle Nutzer mit Steam-Daten holen (sobald ein Schlüssel eingetragen ist)."""
+    from cstaktik import accounts, steam_sync
 
     def loop():
         while True:
             try:
-                steam_sync.sync_all()
+                if accounts.steam_key():
+                    steam_sync.sync_all()
             except Exception:  # noqa: BLE001 - der Abruf darf den Server nie stoppen
                 pass
             time.sleep(steam_sync.INTERVAL_S)

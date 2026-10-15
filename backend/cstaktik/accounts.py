@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS steam (
     user TEXT PRIMARY KEY REFERENCES users(name) ON DELETE CASCADE,
     steamid TEXT, auth_code TEXT, last_code TEXT, checked TEXT, error TEXT
 );
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY, value TEXT
+);
 CREATE TABLE IF NOT EXISTS sharecodes (
     code TEXT NOT NULL, user TEXT NOT NULL REFERENCES users(name) ON DELETE CASCADE,
     found TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'neu', PRIMARY KEY (code, user)
@@ -172,7 +175,8 @@ def save_steam(name: str, steamid: str, auth_code: str, last_code: str, path: Pa
 
 def steam_users(path: Path | None = None) -> list[dict]:
     with closing(db(path)) as con:
-        return [dict(r) for r in con.execute("SELECT * FROM steam WHERE auth_code IS NOT NULL AND last_code IS NOT NULL")]
+        return [dict(r) for r in con.execute("SELECT * FROM steam WHERE steamid IS NOT NULL AND auth_code IS NOT NULL "
+                                             "AND last_code IS NOT NULL")]
 
 
 def record_codes(name: str, codes: list[str], last: str | None, error: str | None, path: Path | None = None) -> None:
@@ -181,3 +185,62 @@ def record_codes(name: str, codes: list[str], last: str | None, error: str | Non
             con.execute("INSERT OR IGNORE INTO sharecodes (code, user, found) VALUES (?, ?, ?)", (c, name, _now()))
         con.execute("UPDATE steam SET checked = ?, error = ?, last_code = COALESCE(?, last_code) WHERE user = ?",
                     (_now(), error, last, name))
+
+
+# ---------------------------------------------------------------- Server-Einstellungen (in der App gepflegt)
+
+def get_setting(key: str, path: Path | None = None) -> str | None:
+    p = path or DB_FILE
+    if not p.exists():
+        return None
+    with closing(db(p)) as con:
+        row = con.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(key: str, value: str | None, path: Path | None = None) -> None:
+    with closing(db(path)) as con, con:
+        if value:
+            con.execute("INSERT INTO settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        (key, value))
+        else:
+            con.execute("DELETE FROM settings WHERE key = ?", (key,))
+
+
+def steam_key(path: Path | None = None) -> str | None:
+    """Steam-Web-API-Schlüssel: aus den Optionen der App, sonst aus der Umgebungsvariable STEAM_WEB_API_KEY."""
+    import os
+
+    return get_setting("steam_web_api_key", path) or os.environ.get("STEAM_WEB_API_KEY") or None
+
+
+# ---------------------------------------------------------------- Steam-Verknüpfung
+
+def link_steamid(name: str, steamid: str, path: Path | None = None) -> None:
+    """SteamID aus 'Mit Steam verbinden' am Account speichern. Eine SteamID gehört höchstens zu einem Account."""
+    with closing(db(path)) as con, con:
+        other = con.execute("SELECT user FROM steam WHERE steamid = ? AND user != ?", (steamid, name)).fetchone()
+        if other:
+            raise ValueError("Dieser Steam-Account ist schon mit einem anderen Nutzer verbunden.")
+        con.execute("INSERT INTO steam (user, steamid) VALUES (?, ?) "
+                    "ON CONFLICT(user) DO UPDATE SET steamid = excluded.steamid", (name, steamid))
+
+
+def user_by_steamid(steamid: str, path: Path | None = None) -> str | None:
+    with closing(db(path)) as con:
+        row = con.execute("SELECT user FROM steam WHERE steamid = ?", (steamid,)).fetchone()
+    return row["user"] if row else None
+
+
+def save_codes(name: str, auth_code: str, last_code: str, path: Path | None = None) -> None:
+    """Game Authentication Code und Match-Token speichern (SteamID kommt aus 'Mit Steam verbinden')."""
+    auth_code, last_code = auth_code.strip(), last_code.strip()
+    if not AUTHCODE_RE.match(auth_code):
+        raise ValueError("Game Authentication Code: Form XXXX-XXXXX-XXXX.")
+    if not SHARECODE_RE.match(last_code):
+        raise ValueError("Match-Token: Form CSGO-XXXXX-XXXXX-XXXXX-XXXXX-XXXXX.")
+    with closing(db(path)) as con, con:
+        if not con.execute("SELECT steamid FROM steam WHERE user = ? AND steamid IS NOT NULL", (name,)).fetchone():
+            raise ValueError("Erst mit Steam verbinden.")
+        con.execute("UPDATE steam SET auth_code = ?, last_code = ?, error = NULL WHERE user = ?",
+                    (auth_code, last_code, name))
