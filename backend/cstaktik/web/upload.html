@@ -22,19 +22,28 @@
 const $ = id => document.getElementById(id);
 const fmtMB = b => (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + ' MB';
 const fmtT = s => { s = Math.max(0, Math.round(s)); return s >= 60 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + ' min' : s + ' s'; };
+let busy = false;  // läuft schon ein Upload: keine zweite Datei parallel starten
+const manual = () => { const d = $('form').querySelector('details'); return d && (d.open || (d.querySelector('input').value || '').trim()); };
 $('file').onchange = e => {
+  if (busy) return;
   const f = e.target.files[0];
   $('fname').textContent = f ? f.name : $('fname').dataset.empty;
   $('fsize').textContent = f ? fmtMB(f.size) : '.dem, .dem.gz, .dem.bz2, .zip oder .rar';
   $('drop').classList.toggle('has', !!f); $('go').disabled = !f;
-  if (f) $('form').requestSubmit();  // Datei gewählt = los: kein zweiter Klick nötig
+  if (!f) return;
+  if (manual()) { $('go').hidden = false; return; }  // andere Spieler eintragen: erst auf "Analysieren" warten
+  const fm = $('form');  // Datei gewählt = los; ältere Safari kennen requestSubmit nicht
+  fm.requestSubmit ? fm.requestSubmit() : fm.dispatchEvent(new Event('submit', { cancelable: true }));
 };
 // Am PC: Datei einfach auf das Feld ziehen
 ['dragenter', 'dragover'].forEach(t => $('drop').addEventListener(t, e => { e.preventDefault(); $('drop').classList.add('over'); }));
 ['dragleave', 'drop'].forEach(t => $('drop').addEventListener(t, e => { e.preventDefault(); $('drop').classList.remove('over'); }));
-$('drop').addEventListener('drop', e => { if (e.dataTransfer.files.length) { $('file').files = e.dataTransfer.files; $('file').dispatchEvent(new Event('change')); } });
+$('drop').addEventListener('drop', e => { if (!busy && e.dataTransfer.files.length) { $('file').files = e.dataTransfer.files; $('file').dispatchEvent(new Event('change')); } });
 $('form').onsubmit = e => {
   e.preventDefault();
+  if (busy || !$('file').files.length) return;
+  const fd = new FormData($('form'));  // vor dem Sperren: gesperrte Felder fehlen sonst im Formular
+  busy = true; $('file').disabled = true;
   const xhr = new XMLHttpRequest(), t0 = performance.now();
   $('go').disabled = true; $('go').textContent = 'Lädt hoch …'; $('fsize').textContent = 'Wird hochgeladen …'; $('up').classList.add('show'); $('uperr').hidden = true;
   xhr.upload.onprogress = ev => {
@@ -51,8 +60,8 @@ $('form').onsubmit = e => {
     fail(msg);
   };
   xhr.onerror = () => fail('Verbindung abgebrochen. Handy während des Uploads wach lassen und erneut versuchen.');
-  function fail(msg) { $('uperr').textContent = msg; $('uperr').hidden = false; $('go').hidden = false; $('go').disabled = false; $('go').textContent = 'Erneut versuchen'; }
-  xhr.open('POST', '/analyze'); xhr.send(new FormData($('form')));
+  function fail(msg) { busy = false; $('file').disabled = false; $('uperr').textContent = msg; $('uperr').hidden = false; $('go').hidden = false; $('go').disabled = false; $('go').textContent = 'Erneut versuchen'; }
+  xhr.open('POST', '/analyze'); xhr.send(fd);
 };
 })();
 </script>

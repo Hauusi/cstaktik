@@ -592,7 +592,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 </div>
 <button class="dbf-return" id="dbfRet" hidden>‹ Zurück zum Debrief</button>
 <main>
-<nav class="rtabs" id="rtabs" aria-label="Bereiche">
+<nav class="rtabs" id="rtabs" aria-label="Bereiche" role="tablist">
   <button data-tab="coach" class="on" role="tab" aria-selected="true">Coach</button><button data-tab="replay" role="tab" aria-selected="false">Replay</button><button data-tab="analyse" role="tab" aria-selected="false">Analyse</button><button data-tab="runden" role="tab" aria-selected="false">Runden</button>
 </nav>
 
@@ -2037,7 +2037,7 @@ function dbShow(i) {
 }
 function dbOpen(i) { setPlaying(false); $('dbfRet').hidden = true; $('dbf').hidden = false; document.body.style.overflow = 'hidden'; dbShow(i); $('dbfX').focus(); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('dbf').hidden) dbClose(); });
-function dbClose() { $('dbf').hidden = true; $('dbfRet').hidden = true; document.body.style.overflow = ''; }
+function dbClose() { $('dbf').hidden = true; $('dbfRet').hidden = true; document.body.style.overflow = ''; if (!$('dbfBtn').hidden) $('dbfBtn').focus(); }
 dbBuild();
 if (DBS.steps.length > 1) {
   $('dbfBtn').hidden = false; $('dbfN').textContent = DBS.steps.length + ' Schritte';

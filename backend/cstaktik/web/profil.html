@@ -78,7 +78,7 @@ h2[id] { scroll-margin-top: 70px; }
 {% endif %}
 
 {% if p.levers %}
-<h2>Eure größten Hebel</h2>
+<h2 id="hebel">Eure größten Hebel</h2>
 <div class="card lev">
   {% for l in p.levers %}<a class="lv" href="{{ l.link }}"><span class="lg num">+{{ l.gain_s }}</span>
     <div><b>{{ l.title }}</b><span class="lk2">{{ l.kind }}</span><div class="small muted">{{ l.text }}</div></div></a>{% endfor %}

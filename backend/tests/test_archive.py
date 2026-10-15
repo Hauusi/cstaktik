@@ -95,3 +95,22 @@ def test_dem_gz_is_unpacked(tmp_path):
     assert pipeline.is_demo_name(src.name) and pipeline.demo_stem(src.name) == "faceit"
     out = pipeline.prepare_demo(src, remove_source=True)
     assert out.name == "faceit.dem" and out.read_bytes().startswith(b"PBDEMS2") and not src.exists()
+
+
+def test_reupload_same_gz_reuses_unpacked_demo(tmp_path, monkeypatch):
+    import gzip
+
+    from fastapi.testclient import TestClient
+
+    from cstaktik import api, pipeline
+
+    monkeypatch.setattr(api._executor, "submit", lambda *a, **k: None)  # keine Auswertung im Test
+    monkeypatch.setattr(api, "_jobs", {})  # Aufträge dieses Tests nicht in andere Tests tragen
+    (pipeline.DEMOS_DIR).mkdir(parents=True, exist_ok=True)
+    (pipeline.DEMOS_DIR / "x.dem").write_bytes(b"PBDEMS2 demo")  # erster Upload, schon entpackt
+    c = TestClient(api.app)
+    hdr = {"origin": "http://testserver"}
+    c.post("/analyze", files={"demo": ("x.dem.gz", gzip.compress(b"PBDEMS2 demo"))}, headers=hdr)
+    assert sorted(p.name for p in pipeline.DEMOS_DIR.iterdir()) == ["x.dem"]  # kein x_2
+    c.post("/analyze", files={"demo": ("x.dem.gz", gzip.compress(b"PBDEMS2 andere"))}, headers=hdr)
+    assert "x_2.dem.gz" in {p.name for p in pipeline.DEMOS_DIR.iterdir()}

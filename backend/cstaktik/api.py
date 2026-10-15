@@ -137,6 +137,24 @@ _TITLE = re.compile(r"<title>(.*?)</title>", re.S)
 _SCORE = re.compile(r"^(.*?)\s+(\d+):(\d+)\s+–")
 
 
+def _same_unpacked(packed: Path, dem: Path, suffix: str) -> bool:
+    """Ist die gepackte Datei entpackt identisch mit ``dem``? Blockweise, ohne Zwischendatei."""
+    import bz2
+    import gzip
+
+    opener = gzip.open if suffix.endswith(".gz") else bz2.open
+    try:
+        with opener(packed, "rb") as a, dem.open("rb") as b:
+            while True:
+                x, y = a.read(1 << 20), b.read(1 << 20)
+                if x != y:
+                    return False
+                if not x:
+                    return True
+    except (OSError, EOFError, ValueError):
+        return False
+
+
 def _safe_name(name: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9._-]+", "_", pipeline.demo_stem(Path(name).name)).strip("._") or "demo"
     return stem[:80]
@@ -1269,9 +1287,16 @@ async def analyze_upload(
             # gleicher Name, anderer Inhalt: eigener Name, sonst zeigt der alte Report plötzlich das neue Match.
             # .dem.bz2 wird nach dem Entpacken gelöscht: dann zählt die entpackte .dem daneben.
             same = target.exists() and target.stat().st_size == size and filecmp.cmp(part, target, shallow=False)
+            if not same and not target.exists() and unpacked is not None and unpacked.exists():
+                # nur die entpackte .dem liegt noch da: gepackten Upload damit vergleichen (Zeit im Thread)
+                if await run_in_threadpool(_same_unpacked, part, unpacked, suffix):
+                    part.unlink(missing_ok=True)
+                    target = unpacked  # dieselbe Demo: vorhandene Datei und denselben Report nutzen
+                    same = True
             if not same:
                 target = _unique(folder, target.name)
-        part.replace(target)  # erst die fertige Datei sichtbar machen
+        if part.exists():
+            part.replace(target)  # erst die fertige Datei sichtbar machen
     finally:
         part.unlink(missing_ok=True)
     focus = {s.strip() for s in steamids.split(",") if s.strip()} or None
@@ -1370,16 +1395,17 @@ def _profile_summary(p: dict, a: dict | None) -> list[dict]:
         ms = a.get("matches") or []
         last = ms[-1] if ms else None
         if last and last.get("rate") is not None:
-            ok = last["rate"] <= a["target"]
-            out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "good" if ok else "bad",
+            ok = last.get("met")  # wie der Auftrag-Check: None = zu wenige Runden, zählt nicht
+            out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "" if ok is None else "good" if ok else "bad",
                         "text": f"{a['title']}: im letzten Match {str(last['rate']).replace('.', ',')} pro 10 Runden, "
-                                f"Ziel unter {str(a['target']).replace('.', ',')}." + (" Weiter so." if ok else "")})
+                                f"Ziel höchstens {str(a['target']).replace('.', ',')}."
+                                + (" Zu wenige Runden, zählt nicht." if ok is None else " Weiter so." if ok else "")})
         else:
             out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "",
                         "text": f"{a['title']}: „{a['mantra']}“ Noch kein Match seit dem Auftrag."})
     if p.get("levers"):
         lv = p["levers"][0]
-        out.append({"label": "Hebel", "anchor": "auftrag", "tone": "bad",
+        out.append({"label": "Hebel", "anchor": "hebel", "tone": "bad",
                     "text": f"{lv['title']}: etwa +{lv['gain_s']} Runden pro Match möglich. {lv['text']}"})
     im = p.get("impact") or {}
     if im.get("ctx_reading"):

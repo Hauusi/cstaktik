@@ -129,7 +129,8 @@ S.forEach((sc, i) => {
       res.append(v, el('div', 'meta', 'Lektion: ' + sc.lesson_title), el('div', null, sc.happened));
       const nx = el('div', 'nx'); nx.append(el('b', null, 'Nächstes Mal'), sc.next); res.appendChild(nx);
       if (sc.report) { const a = el('a', null, '▶ Szene im Replay'); a.href = `/reports/${sc.report}#s${sc.round}-${sc.from || sc.tick}`; res.appendChild(a); }
-      const nextCard = c.nextElementSibling;
+      const cards = [...document.querySelectorAll('#list .tq')];  // nächste noch offene Situation, auch weiter oben
+      const nextCard = cards.slice(cards.indexOf(c) + 1).concat(cards.slice(0, cards.indexOf(c))).find(x => !x.dataset.done);
       if (nextCard) {  // weiter zur nächsten offenen Situation, ohne suchen zu müssen
         const go = el('button', 'nextq', `Nächste Situation (${S.length - answered} offen) ›`);
         go.onclick = () => nextCard.scrollIntoView({ behavior: 'smooth', block: 'start' });

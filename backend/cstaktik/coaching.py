@@ -34,7 +34,7 @@ def now_local() -> str:
     """Jetzt in deutscher Zeit (Wochengrenzen und Datumsangaben wie bei euch, nicht wie auf dem Server)."""
     from zoneinfo import ZoneInfo
 
-    return datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None).isoformat(timespec="minutes")
+    return datetime.now(ZoneInfo("Europe/Berlin")).replace(tzinfo=None).isoformat(timespec="seconds")
 
 
 def _de(x: float) -> str:

@@ -184,8 +184,17 @@ def sync(cfg: dict, pro_dir: Path, work_dir: Path, run_pro, log=print, sleep_s: 
                         raise  # betrifft alle Matches: sofort melden
                     index["failed"][mid] = str(exc)
                     log(f"FEHLER  {mid}: {exc}")
-                except OSError as exc:  # Netz/Zeitüberschreitung: beim nächsten Sync erneut versuchen
-                    log(f"FEHLER  {mid}: {type(exc).__name__}: {exc} (wird beim nächsten Sync erneut versucht)")
+                except OSError as exc:
+                    import urllib.error
+
+                    # nur echte Netzprobleme erneut versuchen; HTTP-Fehler (Demo weg/abgelaufen) und kaputte .gz nicht
+                    transient = (isinstance(exc, (TimeoutError, ConnectionError))
+                                 or (isinstance(exc, urllib.error.URLError) and not isinstance(exc, urllib.error.HTTPError)))
+                    if transient:
+                        log(f"FEHLER  {mid}: {type(exc).__name__}: {exc} (wird beim nächsten Sync erneut versucht)")
+                    else:
+                        index["failed"][mid] = f"{type(exc).__name__}: {exc}"
+                        log(f"FEHLER  {mid}: {type(exc).__name__}: {exc}")
                 except Exception as exc:  # noqa: BLE001 - einzelnes Match überspringen
                     index["failed"][mid] = f"{type(exc).__name__}: {exc}"
                     log(f"FEHLER  {mid}: {type(exc).__name__}: {exc}")

@@ -581,10 +581,21 @@ def faceit_sync(log=print) -> dict:
     from cstaktik import faceit
 
     cfg = load_rules_config()["faceit"]
-    # je Demo nur speichern; die eigenen Reports danach EINMAL je betroffener Map neu bauen (nicht je Demo)
-    res = faceit.sync(cfg, PRO_DIR, DATA_DIR / "faceit_tmp", lambda p: run_pro(p, rerender=False), log=log)
-    maps = {m for m, n in res.get("added", {}).items() if n}
-    if maps:
-        upgrade_pro()
-        res["reports"] = rerender_reports(maps)
+    # je Demo nur speichern; die eigenen Reports danach EINMAL je betroffener Map neu bauen (nicht je Demo).
+    # Auch wenn der Sync mittendrin abbricht: was schon gespeichert ist, kommt in die Reports.
+    maps: set[str] = set()
+
+    def store(p):
+        info = run_pro(p, rerender=False)
+        if info.get("map"):
+            maps.add(info["map"])
+        return info
+
+    res: dict = {}
+    try:
+        res = faceit.sync(cfg, PRO_DIR, DATA_DIR / "faceit_tmp", store, log=log)
+    finally:
+        if maps:
+            upgrade_pro()
+            res["reports"] = rerender_reports(maps)
     return res

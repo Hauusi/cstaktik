@@ -49,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     f = getattr(args, "file", None)
     if isinstance(f, Path) and not f.exists():
         # Upload über die Webseite entpackt .bz2 und löscht das Archiv: dann gibt es die .dem
-        alt = f.with_name(f.name[:-4]) if f.name.lower().endswith(".bz2") else None
+        low = f.name.lower()
+        alt = f.with_name(f.name[:-4]) if low.endswith(".bz2") else f.with_name(f.name[:-3]) if low.endswith(".gz") else None
         if alt is not None and alt.exists():
             args.file = alt
         else:
