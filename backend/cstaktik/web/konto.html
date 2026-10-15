@@ -52,7 +52,7 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
 </div>
 <h2>Gefundene Matches</h2>
 <div class="card codes">
-  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ c.status }}</span></div>
+  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ "gefunden, Demo noch hochladen" if c.status == "neu" else c.status }}</span></div>
   {% else %}<div class="muted">Noch keine. Neue Matches erscheinen hier, sobald Steam sie meldet.</div>{% endfor %}
   <div class="small muted" style="margin-top:6px">Die Demo-Dateien lädt der Coach noch nicht selbst. Bis dahin die Demo wie bisher hochladen.</div>
 </div>

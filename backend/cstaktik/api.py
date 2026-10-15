@@ -393,7 +393,9 @@ def _sync_msg(res: dict) -> str:
     if not res["new"]:
         return ("Die Verbindung zu Steam klappt. Nach deinem Match-Token gibt es noch kein neues Match. "
                 "Steam meldet nur neuere Matches. Dein nächstes erscheint hier. Der Coach prüft alle 30 Minuten.")
-    return f"{res['new']} neue Match{'es' if res['new'] != 1 else ''} gefunden."
+    return (f"{res['new']} neue{'s' if res['new'] == 1 else ''} Match{'es' if res['new'] != 1 else ''} gefunden. "
+            "Die Demo lädt der Coach noch nicht selbst herunter. Lade sie in CS2 unter „Sehen“ → „Deine Matches“ "
+            "herunter und lade die Datei auf der Startseite hoch.")
 
 
 @app.post("/konto/key")
