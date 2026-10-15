@@ -49,7 +49,9 @@ def clutches(match: MatchData, team: set[str] | None = None) -> list[dict]:
         for sd, c in started.items():
             if team is not None and c["sid"] not in team:
                 continue
-            death = next((k.tick for k in kills if k.victim_steamid == c["sid"] and k.tick >= c["tick"]), None)
+            # Tod auch nach Rundenende zählen: wer dann noch gejagt wird, hat die Waffe nicht gerettet
+            death = next((k.tick for k in match.kills if k.round == r.num and k.victim_steamid == c["sid"]
+                          and k.tick >= c["tick"]), None)
             row = {"sid": c["sid"], "round": r.num, "side": sd, "vs": c["vs"], "planted": c["planted"],
                    "won": r.winner == sd,
                    "kills": sum(1 for k in kills if k.attacker_steamid == c["sid"] and k.tick > c["tick"]

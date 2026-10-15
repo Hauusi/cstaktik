@@ -67,14 +67,15 @@ def test_run_writes_history_and_progress_route(tmp_path, monkeypatch):
     assert "Noch keine Matches" in render_progress([])
     h = json.loads(files[0].read_text())
     assert h["clutch"] == []  # Synth-Match hat keinen Clutch, Feld ist trotzdem da (kein Nachrüsten nötig)
-    h["impact"] = {ME: {"total": 120, "kill": 300, "death": -180, "plant": 0, "defuse": 0, "rank": 2, "of": 10}}
+    h["impact"] = {ME: {"total": 120, "kill": 300, "death": -180, "plant": 0, "defuse": 0, "rank": 2, "of": 10,
+                        "rounds": {"2": 12.0}}}
     h["clutch"] = [{"sid": ME, "side": "t", "vs": 2, "planted": False, "won": True, "kills": 2, "alive": True,
                     "plant": True}]
     files[0].write_text(json.dumps(h))
     page = TestClient(api.app).get(f"/progress?p={ME}").text
     assert "Clutch · als Letzter übrig" in page and "1 gegen 2" in page and "Du 1 von 1" in page
     assert "Punkte Siegchance je Runde" in page
-    assert "Tilt-Check" in page and h["seq"]  # seq kommt aus summarize
+    assert "Tilt-Check" in page and h["seq"][ME]  # seq je Spieler aus summarize
     assert "Platz 2 von 10" in TestClient(api.app).get("/").text
     h["moments"] = [{"sid": ME, "round": 3, "tick": 4000, "kind": "kill", "val": 22.5, "ctx": "opening", "other": "Gegner1"},
                     {"sid": ME, "round": 5, "tick": 6000, "kind": "death", "val": -30.0, "ctx": "up", "other": "Gegner2"}]

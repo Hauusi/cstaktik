@@ -1528,7 +1528,7 @@ function ui() {
   const ap = el('span', 'pill num'); ap.innerHTML = `<span style="color:${COL.ct}">CT ${alive.ct}</span> : <span style="color:${COL.t}">${alive.t} T</span>`;
   hud.appendChild(ap);
   if (planted) hud.appendChild(el('span', 'pill', 'Bombe gelegt'));
-  if (r.wp && r.wp.length) { let wp = null; r.wp.forEach(([wt, p]) => { if (wt <= t) wp = p; });
+  { let wp = null; wpOf(r).forEach(([wt, p]) => { if (wt <= t) wp = p; });
     if (wp !== null) hud.appendChild(el('span', 'pill num', 'Siegchance ' + Math.round(wp) + ' %')); }
   if (S.zoom > 1.05) hud.appendChild(el('span', 'pill num', S.zoom.toFixed(1) + 'x · Doppeltipp = zurück'));
 
@@ -1614,18 +1614,30 @@ function ui() {
   });
 }
 
+// Siegchance aus Sicht des eingeloggten Spielers (Report hat sie aus Sicht der Fokus-Seite)
+function wpOf(r) {
+  if (!r.wp) return [];
+  const me = window.__ME, flip = me && r.teams[me] && r.side && r.teams[me] !== r.side;
+  return flip ? r.wp.map(([t, p]) => [t, p === null ? null : Math.round((100 - p) * 10) / 10]) : r.wp;
+}
+
 // ---- Timeline-Marker
 function buildTimeline() {
   const r = R(), tl = $('tl'), span = Math.max(1, r.t1 - r.t0);
   tl.querySelectorAll('.mk,.fm,.um,svg.wp').forEach(e => e.remove());
-  if (r.wp && r.wp.length > 1) {  // Siegchance der Fokus-Seite: 100 % oben, 0 % unten
+  const wp = wpOf(r);
+  if (wp.length > 1) {  // Siegchance deiner Seite: 100 % oben, 0 % unten; unbekannte Lage = Lücke
     const NS = 'http://www.w3.org/2000/svg', sv = document.createElementNS(NS, 'svg');
     sv.setAttribute('class', 'wp'); sv.setAttribute('viewBox', '0 0 100 34'); sv.setAttribute('preserveAspectRatio', 'none');
     const mid = document.createElementNS(NS, 'line'); mid.setAttribute('x1', 0); mid.setAttribute('x2', 100); mid.setAttribute('y1', 17); mid.setAttribute('y2', 17);
-    const pl = document.createElementNS(NS, 'polyline'); let pts = [], last = null;
-    r.wp.forEach(([t, p]) => { const x = Math.max(0, Math.min(100, (t - r.t0) / span * 100)), y = 32 - p * 0.3;
+    sv.append(mid);
+    let pts = [], last = null;
+    const flush = () => { if (pts.length > 1) { const pl = document.createElementNS(NS, 'polyline'); pl.setAttribute('points', pts.join(' ')); sv.append(pl); } pts = []; };
+    wp.forEach(([t, p]) => { const x = Math.max(0, Math.min(100, (t - r.t0) / span * 100));
+      if (p === null) { if (last !== null) pts.push(x.toFixed(2) + ',' + last.toFixed(2)); flush(); last = null; return; }
+      const y = 32 - p * 0.3;
       if (last !== null) pts.push(x.toFixed(2) + ',' + last.toFixed(2)); pts.push(x.toFixed(2) + ',' + y.toFixed(2)); last = y; });
-    pl.setAttribute('points', pts.join(' ')); sv.append(mid, pl); tl.insertBefore(sv, tl.firstChild);
+    flush(); tl.insertBefore(sv, tl.firstChild);
   }
   const scrub = $('scrub'); scrub.min = r.t0; scrub.max = r.t1;
   r.kills.forEach(k => { const m = el('span', 'mk'); m.style.left = ((k.t - r.t0) / span * 100) + '%'; m.style.background = isFocus(k.v) ? '#f0566a' : (COL[r.teams[k.v]] || '#888'); m.style.opacity = isFocus(k.v) ? 1 : .55; tl.insertBefore(m, scrub); });

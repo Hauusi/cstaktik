@@ -63,11 +63,12 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "scenes": scenes(result, report_file, match.map_name),
         "plays": _plays(match),  # eure T-Runden für das Playbook (Laufwege, Granaten, Plant)
         "ct_plays": _ct_plays(match),  # eure CT-Aufstellungen
-        "clutch": _clutch(match),
-        "impact": _impact(result, focus),
+        "clutch": _clutch(match),  # Clutch-Situationen der Fokus-Spieler (clutch.py)
+        "impact": _impact(result, focus),  # Siegchance je Spieler (impact.py), Prozentpunkte
         "moments": _moments(match, result),  # größte Impact-Momente je Fokus-Spieler (Highlights)
-        "seq": [[r.num, side, r.winner == side] for r in match.rounds  # Rundenfolge aus eurer Sicht (Tilt-Check)
-                if (side := match.focus_side(r.num)) and r.winner],  # Siegchance je Spieler (impact.py), Prozentpunkte  # Clutch-Situationen der Fokus-Spieler (clutch.py)
+        # Rundenfolge je Fokus-Spieler aus seiner Sicht (Tilt-Check); je Spieler, falls ihr gegeneinander spielt
+        "seq": {sid: [[r.num, r.sides[sid], r.winner == r.sides[sid]] for r in match.rounds
+                      if r.winner and sid in r.sides] for sid in focus},
         "won": won,
         "lost": lost,
         "players": {

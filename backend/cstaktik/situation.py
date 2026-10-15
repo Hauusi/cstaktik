@@ -126,6 +126,32 @@ class WinModel:
         return (p_ct if side == "ct" else 1 - p_ct), c[1], coarse
 
 
+    def _at(self, level: str, ct: int, t: int, planted: bool, eq: int | None) -> float | None:
+        """CT-Siegchance aus genau einer Tabelle; entschiedene Lagen sind fest."""
+        if ct == 0:
+            return 0.0
+        if t == 0 and not planted:
+            return 1.0
+        if level == "eq":
+            c = self.with_eq.get((ct, t, int(planted), eq)) if eq is not None and t else None
+        elif level == "exact":
+            c = self.exact.get((ct, t, int(planted)))
+        else:
+            c = self.coarse.get((max(-3, min(3, ct - t)), int(planted), min(ct, t) > 0))
+        return c[0] / c[1] if c and c[1] >= self.min_n else None
+
+    def prob_pair(self, before: tuple, after: tuple, eq: int | None = None) -> tuple[float, float] | None:
+        """CT-Siegchance vor und nach einem Ereignis aus DERSELBEN Tabelle (mit Ausrüstung, exakt, grob).
+        Gemischte Tabellen können das Vorzeichen umdrehen (z. B. Eco-Runde: 5v5 mit, 4v5 ohne Ausrüstung)."""
+        for level in ("eq", "exact", "coarse"):
+            if level == "eq" and eq is None:
+                continue
+            b, a = self._at(level, *before, eq), self._at(level, *after, eq)
+            if b is not None and a is not None:
+                return b, a
+        return None
+
+
 # ---------------------------------------------------------------- Lage zu einem Zeitpunkt
 
 def alive_at(match: MatchData, rnd, tick: int) -> dict[str, set[str]]:

@@ -1072,7 +1072,8 @@ def _mind(hist: list[dict], sid: str) -> list[str]:
         sure = [c for c in im["ctx"] if c["enough"] and c["ctx"] != "bomb"]
         if sure and sure[0]["per_match"] <= -0.15:
             w = sure[0]
-            out.append(f"{w['label']} kostet dich {w['per_match_s'].lstrip('-')} Runden pro Match: {impact.CTX_TIP[w['ctx']]}")
+            out.append(f"{w['label']} kostet dich {w['per_match_s'].lstrip('-')} Runden pro Match mehr als den "
+                       f"Schnitt: {impact.CTX_TIP[w['ctx']]}")
     t = tilt.summary(hist, sid)
     if t and t["reading"] and "messbar schlechter" in t["reading"]:
         out.append("Nach zwei verlorenen Runden in Folge spielst du messbar schlechter. Dann bewusst eine ruhige "

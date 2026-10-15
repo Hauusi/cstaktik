@@ -365,7 +365,7 @@ def _util_cmp(match: MatchData) -> dict:
     return utility_cmp.compare(match, pro.load_all(pipeline.PRO_DIR), load_rules_config().get("utility_cmp"))
 
 
-KIND_DE = {"kill": "Kill", "death": "Tod", "plant": "Bombe gelegt", "defuse": "Entschärft"}
+KIND_DE = {"kill": "Kill", "death": "Tod", "plant": "Bombe gelegt", "defuse": "Entschärft", "teamkill": "Teamkill"}
 
 
 def _impact(match: MatchData, result: AnalysisResult) -> dict | None:
@@ -394,7 +394,7 @@ def _impact(match: MatchData, result: AnalysisResult) -> dict | None:
 
         def line(m):
             who = names.get(m["other"]) if m.get("other") else None
-            txt = KIND_DE[m["kind"]] + (f" gegen {who}" if m["kind"] == "kill" and who else
+            txt = KIND_DE[m["kind"]] + (f" gegen {who}" if m["kind"] in ("kill", "teamkill") and who else
                                         f" durch {who}" if m["kind"] == "death" and who else "")
             ctx = CTX_DE.get(m.get("ctx")) if m.get("ctx") not in (None, "bomb", "even") else None
             return {"round": m["round"], "tick": m["tick"], "text": txt + (f" · {ctx}" if ctx else ""),
@@ -507,7 +507,7 @@ def build_context(
         for ro in payload["rounds"]:
             rd = result.impact["rounds"].get(ro.get("n")) if not ro.get("pro") else None
             if rd and rd["line"] and ro.get("side"):
-                ro["wp"] = [[t, p if ro["side"] == "ct" else round(100 - p, 1)] for t, p in rd["line"]]
+                ro["wp"] = [[t, p if p is None or ro["side"] == "ct" else round(100 - p, 1)] for t, p in rd["line"]]
     data_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     return {
         "match": match,

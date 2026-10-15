@@ -35,3 +35,14 @@ def test_pistol_rounds_skipped_and_few_rounds():
     s = tilt.summary(_hist(1), "a")
     assert not s["enough"] and s["reading"] is None
     assert tilt.summary(_hist(1), "zz") is None
+
+
+def test_no_impact_no_verdict():
+    hs = _hist()
+    for h in hs:
+        h["impact"] = {}
+    assert tilt.summary(hs, "a") is None  # z. B. Gegner oder alte Matches: keine "kein Tilt"-Aussage
+    hs = _hist()
+    for h in hs:
+        h["seq"] = {"a": h["seq"]}  # neues Format je Spieler
+    assert tilt.summary(hs, "a")["enough"]

@@ -71,7 +71,7 @@ def rounds(match: MatchData, model: WinModel, trade_s: float = 3.0) -> dict[int,
             return None if res is None else res[0] * 100
 
         cur = p_ct()
-        line = [[t0, round(cur, 1)]] if cur is not None else []
+        line = [[t0, None if cur is None else round(cur, 1)]]
         events = sorted([(k.tick, 0, "kill", k) for k in match.kills if k.round == r.num and k.tick <= r.end_tick]
                         + [(b.tick, 1, b.event, b) for b in match.bomb
                            if b.round == r.num and b.event in ("plant", "defuse") and b.tick <= r.end_tick],
@@ -79,7 +79,6 @@ def rounds(match: MatchData, model: WinModel, trade_s: float = 3.0) -> dict[int,
         evs = []
         done: list = []  # bisherige Kills (tick, Schütze, Opfer) für Opening und Trade
         for tick, _o, kind, e in events:
-            before = cur
             n_before = {sd: len(alive[sd]) for sd in ("ct", "t")}
             was_planted = planted
             if kind == "kill":
@@ -87,12 +86,24 @@ def rounds(match: MatchData, model: WinModel, trade_s: float = 3.0) -> dict[int,
                 alive["t"].discard(e.victim_steamid)
             elif kind == "plant":
                 planted = True
-            after = 100.0 if kind == "defuse" else p_ct()
-            cur = after
-            if after is not None:
-                line.append([tick, round(after, 1)])
-            if before is None or after is None:
+            cur = 100.0 if kind == "defuse" else p_ct()
+            line.append([tick, None if cur is None else round(cur, 1)])  # None: Lage unbekannt, Linie setzt aus
+            if kind == "defuse":
+                pair = model.prob_pair((n_before["ct"], n_before["t"], was_planted), (n_before["ct"], 0, False), eq)
+            else:
+                pair = model.prob_pair((n_before["ct"], n_before["t"], was_planted),
+                                       (len(alive["ct"]), len(alive["t"]), planted), eq)
+            if kind == "defuse":
+                pair = None if pair is None else (pair[0], 1.0)
+            # Bombe, Fallschaden, Welt: kein Schütze, Wert wird niemandem zugeschrieben (Docstring)
+            no_shooter = kind == "kill" and (not e.attacker_steamid or (e.weapon or "").lower() in ("planted_c4", "c4"))
+            if pair is None or no_shooter:
+                if kind == "kill":
+                    done.append((tick, e.attacker_steamid, e.victim_steamid))
+                if kind == "defuse":
+                    break
                 continue
+            before, after = pair[0] * 100, pair[1] * 100
             d_ct = after - before
             if kind == "kill":
                 vs = e.victim_side or r.sides.get(e.victim_steamid)
@@ -107,7 +118,7 @@ def rounds(match: MatchData, model: WinModel, trade_s: float = 3.0) -> dict[int,
                         # Trade: das Opfer hat kurz vorher einen Mitspieler des Schützen getötet
                         trade = any(k_att == e.victim_steamid and r.sides.get(k_vic) == sa and tick - k_t <= tw
                                     for k_t, k_att, k_vic in done)
-                        credit.append((a, "kill", d_ct if sa == "ct" else -d_ct,
+                        credit.append((a, "kill" if sa != vs else "teamkill", d_ct if sa == "ct" else -d_ct,
                                        _ctx(n_before[sa], n_before[_other(sa)], first, was_planted, trade)))
                 done.append((tick, e.attacker_steamid, e.victim_steamid))
                 evs.append({"tick": tick, "kind": "kill", "credit": credit, "d_ct": round(d_ct, 1),
@@ -135,7 +146,7 @@ def build(match: MatchData, model: WinModel, focus: set[str] | None = None, trad
         for ev in rd["events"]:
             for sid, kind, val, ctx in ev["credit"]:
                 p = players.setdefault(sid, {"total": 0.0, "kill": 0.0, "death": 0.0, "plant": 0.0, "defuse": 0.0,
-                                             "n": 0, "rounds": {}, "ctx": {}})
+                                             "teamkill": 0.0, "n": 0, "rounds": {}, "ctx": {}})
                 c = p["ctx"].setdefault(ctx, [0.0, 0])  # Lage -> [Summe, Anzahl]
                 c[0] = round(c[0] + val, 1)
                 c[1] += 1
@@ -146,12 +157,23 @@ def build(match: MatchData, model: WinModel, focus: set[str] | None = None, trad
                 if sid in focus:
                     moments.append({"sid": sid, "round": num, "tick": ev["tick"], "kind": kind, "val": round(val, 1),
                                     "ctx": ctx,
-                                    "other": ev.get("victim") if kind == "kill" else ev.get("attacker")
+                                    "other": ev.get("victim") if kind in ("kill", "teamkill") else ev.get("attacker")
                                     if kind == "death" else None})
+    # Vergleichswert je Lage: Durchschnitt aller Spieler dieses Matches. Kill und Tod haben verschiedene Lagen
+    # (Opfer meist in Unterzahl, Schütze in Überzahl), deshalb ist 0 NICHT der Durchschnitt.
+    ctx_avg: dict[str, list] = {}
+    for p in players.values():
+        for c, (v, k) in p["ctx"].items():
+            a = ctx_avg.setdefault(c, [0.0, 0])
+            a[0] += v
+            a[1] += k
+    n_pl = len(players) or 1
+    ctx_avg = {c: [round(v / n_pl, 1), round(k / n_pl, 2)] for c, (v, k) in ctx_avg.items()}
     n_rounds = len(per_round) or 1
     for p in players.values():
+        p["ctx_avg"] = ctx_avg
         p["per_round"] = round(p["total"] / n_rounds, 1)
-        for k in ("total", "kill", "death", "plant", "defuse"):
+        for k in ("total", "kill", "death", "plant", "defuse", "teamkill"):
             p[k] = round(p[k], 1)
     moments.sort(key=lambda m: -abs(m["val"]))
     return {"rounds": per_round, "players": players, "moments": moments, "n_rounds": len(per_round)}
@@ -202,35 +224,42 @@ MIN_CTX = 10  # so viele Ereignisse braucht eine Lage für eine Aussage
 
 
 def contexts(rows: list[tuple[dict, dict]]) -> tuple[list[dict], str | None]:
-    """Impact nach Lage über die Matches: Netto je Match (Kills minus Tode). 0 = Durchschnitt aller Spieler,
-    weil jeder Kill-Gewinn genau einem Tod-Verlust gegenübersteht."""
-    agg: dict[str, list] = {}
+    """Impact nach Lage über die Matches, je Match gegen den Durchschnitt aller Spieler derselben Matches
+    (``ctx_avg``). Positiv = in dieser Lage besser als ein durchschnittlicher Spieler eurer Matches."""
+    rows = [(h, x) for h, x in rows if x.get("ctx") and x.get("ctx_avg")]  # ältere Einträge ohne Lage/Vergleich
     n = len(rows)
+    if not n:
+        return [], None
+    agg: dict[str, list] = {}
     for _h, x in rows:
-        for ctx, (v, k) in (x.get("ctx") or {}).items():
-            a = agg.setdefault(ctx, [0.0, 0])
+        for ctx in set(x["ctx"]) | set(x["ctx_avg"]):
+            v, k = x["ctx"].get(ctx, (0.0, 0))
+            bv = x["ctx_avg"].get(ctx, (0.0, 0))[0]
+            a = agg.setdefault(ctx, [0.0, 0, 0.0])
             a[0] += v
             a[1] += k
+            a[2] += bv
     out = []
-    for ctx, (v, k) in agg.items():
-        if ctx not in CTX_DE:
+    for ctx, (v, k, bv) in agg.items():
+        if ctx not in CTX_DE or not k:
             continue
-        out.append({"ctx": ctx, "label": CTX_DE[ctx], "n": k, "per_match": v / 100 / n, "per_match_s": de(v / 100 / n),
-                    "per_event_s": de(v / k) if k else "0,0", "enough": k >= MIN_CTX})
+        diff = (v - bv) / 100 / n
+        out.append({"ctx": ctx, "label": CTX_DE[ctx], "n": k, "per_match": diff, "per_match_s": de(diff),
+                    "per_event_s": de(v / k), "enough": k >= MIN_CTX})
     out.sort(key=lambda c: c["per_match"])
     sure = [c for c in out if c["enough"] and c["ctx"] != "bomb"]
     parts = []
     if sure and sure[0]["per_match"] <= -0.15:
         w = sure[0]
-        parts.append(f"Am meisten Runden verlierst du {CTX_IN[w['ctx']]}: {w['per_match_s']} Runden pro Match "
-                     f"({w['n']} Kills und Tode, im Schnitt {w['per_event_s']} Punkte). {CTX_TIP[w['ctx']]}")
+        parts.append(f"Am meisten Runden verlierst du {CTX_IN[w['ctx']]}: {w['per_match_s']} Runden pro Match gegenüber "
+                     f"dem Durchschnitt eurer Matches ({w['n']} Kills und Tode). {CTX_TIP[w['ctx']]}")
     if sure and sure[-1]["per_match"] >= 0.15:
         b = sure[-1]
-        parts.append(f"Am meisten holst du {CTX_IN[b['ctx']]}: {b['per_match_s']} Runden pro Match.")
+        parts.append(f"Am meisten holst du {CTX_IN[b['ctx']]}: {b['per_match_s']} Runden pro Match über dem Schnitt.")
     return out, " ".join(parts) or None
 
 
-KIND_DE = {"kill": "Kill", "death": "Tod", "plant": "Bombe gelegt", "defuse": "Entschärft"}
+KIND_DE = {"kill": "Kill", "death": "Tod", "plant": "Bombe gelegt", "defuse": "Entschärft", "teamkill": "Teamkill"}
 
 
 def highlights(hist: list[dict], sid: str, top: int = 8) -> dict:
@@ -244,7 +273,7 @@ def highlights(hist: list[dict], sid: str, top: int = 8) -> dict:
                 continue
             txt = KIND_DE.get(m["kind"], m["kind"])
             if m.get("other"):
-                txt += f" gegen {m['other']}" if m["kind"] == "kill" else f" durch {m['other']}" if m["kind"] == "death" else ""
+                txt += f" gegen {m['other']}" if m["kind"] in ("kill", "teamkill") else f" durch {m['other']}" if m["kind"] == "death" else ""
             ctx = CTX_DE.get(m.get("ctx")) if m.get("ctx") not in (None, "bomb", "even") else None
             rows.append({"val": m["val"], "val_s": de(m["val"]) + " %", "text": txt, "ctx": ctx,
                          "match": _label(h), "round": m["round"],

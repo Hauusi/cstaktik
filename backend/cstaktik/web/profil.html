@@ -51,7 +51,7 @@
   {% if im.ctx %}<details class="sdet"{% if im.ctx_reading %} open{% endif %}><summary>Impact nach Lage</summary>
   {% for c in im.ctx %}<div class="mrow"><div><b>{{ c.label }}</b> <span class="small muted num">{{ c.n }}x, im Schnitt {{ c.per_event_s }} Punkte{% if not c.enough %} · wenige Fälle{% endif %}</span></div>
     <b class="num" style="color:{{ '#46a758' if c.per_match >= 0.15 else '#e5484d' if c.per_match <= -0.15 else 'inherit' }}">{{ c.per_match_s }}</b></div>{% endfor %}
-  <div class="small muted" style="margin-top:6px">Rechts: Runden pro Match (deine Kills minus deine Tode in dieser Lage). 0 ist der Durchschnitt aller Spieler.</div>
+  <div class="small muted" style="margin-top:6px">Rechts: Runden pro Match gegenüber dem Durchschnitt aller Spieler in denselben Matches (0 = durchschnittlich). Links: wie oft und was ein Kill oder Tod in dieser Lage im Schnitt bewegt.</div>
   </details>{% endif %}
   <a href="/highlights?p={{ p.sid }}" style="display:inline-block;margin-top:8px;color:var(--orange);font-weight:700">Beste Plays und teuerste Momente ›</a>
   <div class="small muted" style="margin-top:6px">Jeder Kill, Tod, Plant und Defuse verschiebt die Siegchance der Runde (gezählt aus euren Matches und Pro-Demos). Schaden ohne Kill, Granaten und Infos zählen nicht. Die einzelnen Momente stehen im Report unter Analyse.</div>

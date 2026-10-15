@@ -44,7 +44,23 @@ def test_credits_follow_win_probability():
 
 def test_unknown_situation_gets_no_value():
     imp = impact.build(_match(), WinModel([], 8))
-    assert imp["players"] == {} and imp["rounds"][1]["line"] == [[1500, 100.0]]
+    assert imp["players"] == {} and imp["rounds"][1]["line"][0] == [100, None]
+    assert imp["rounds"][1]["line"][-1] == [1500, 100.0]
+
+
+def test_bomb_death_and_table_mix():
+    m = _match()
+    m.kills.append(Kill(tick=900, round=1, attacker_steamid=None, victim_steamid="b", victim_name="B",
+                        victim_side="ct", weapon="planted_c4"))
+    m.bomb = [BombEvent(round=1, tick=700, event="plant", steamid="y")]
+    m.rounds[0].winner = "t"
+    pl = impact.build(m, _model())["players"]
+    assert pl.get("b", {}).get("death", 0) == 0  # Explosion: niemandem zugeschrieben
+    # Eco-Tabelle nur für 2v2: vorher/nachher müssen aus derselben Tabelle kommen
+    rows = [{"w": "ct", "s": [[2, 2, 0]], "eq": -1}] * 2 + [{"w": "t", "s": [[2, 2, 0]], "eq": -1}] * 8
+    model = WinModel(rows + [{"w": "ct" if i < 8 else "t", "s": [[1, 2, 0]]} for i in range(10)]
+                     + [{"w": "ct" if i < 5 else "t", "s": [[2, 2, 0]]} for i in range(10)], 8)
+    assert model.prob_pair((2, 2, False), (1, 2, False), -1) == (0.35, 0.8)  # beide exakt, nicht 0.2 -> 0.8 gemischt
 
 
 def test_report_shows_impact_and_line():
@@ -81,7 +97,8 @@ def test_contexts_opening_trade_clutch():
     m.rounds[0].sides["c"] = "ct"  # mit drittem CT: b rächt a sofort (Trade), stirbt in Überzahl
     pl = impact.build(m, _model())["players"]
     assert set(pl["b"]["ctx"]) == {"trade", "up"}
-    rows = [({"rounds": 1}, {"ctx": {"opening": [-300.0, 12], "trade": [200.0, 12]}})]
+    rows = [({"rounds": 1}, {"ctx": {"opening": [-300.0, 12], "trade": [200.0, 12]},
+                             "ctx_avg": {"opening": [0.0, 1.2], "trade": [0.0, 1.0], "down": [-50.0, 2]}})]
     ctx, txt = impact.contexts(rows)
     assert ctx[0]["ctx"] == "opening" and "in Opening-Duellen: -3,0" in txt and "bei Trades" in txt
 
@@ -90,7 +107,9 @@ def test_kabine_mind_uses_impact_context():
     from cstaktik import api
 
     hist = [{"rounds": 20, "players": {"a": {}},
-             "impact": {"a": {"total": -100, "ctx": {"opening": [-60.0, 4], "up": [-40.0, 3]}}}}] * 3
+             "impact": {"a": {"total": -100, "ctx": {"opening": [-60.0, 4], "up": [-40.0, 3]},
+                              "ctx_avg": {"opening": [0.0, 1], "up": [20.0, 1]}}}}] * 3
     lines = api._mind(hist, "a")
     assert lines and lines[0].startswith("Opening-Duell kostet dich 0,6 Runden pro Match")
+    assert not any("Überzahl" in x for x in lines)
     assert api._mind([{"rounds": 20, "players": {"a": {}}}], "a") == []

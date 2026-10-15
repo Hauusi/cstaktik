@@ -24,9 +24,12 @@ def rows(hist: list[dict], sid: str) -> list[dict]:
     out = []
     for h in hist:
         seq = h.get("seq") or []
-        if sid not in (h.get("players") or {}) or not seq:
-            continue
+        if isinstance(seq, dict):  # je Spieler (neu); vorher eine Folge aus Sicht des Teams
+            seq = seq.get(sid) or []
         imp = ((h.get("impact") or {}).get(sid) or {}).get("rounds")
+        # ohne Impact-Daten (z. B. Gegner, ältere Matches) keine Aussage: sonst wirkt "0 %" wie kein Tilt
+        if sid not in (h.get("players") or {}) or not seq or imp is None:
+            continue
         deaths = {d["round"]: d for d in h.get("deaths") or [] if d.get("sid") == sid}
         streak, prev_won, prev_side = 0, None, None
         for num, side, won in seq:
