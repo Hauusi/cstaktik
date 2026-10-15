@@ -371,7 +371,7 @@ def _duel_cmp(match: MatchData) -> dict | None:
     for sid in sorted(match.focus_ids()):
         views = [duels.side_of(d, sid, match.tickrate) for d in match.duels if sid in (d.winner, d.loser)]
         if views:
-            rows[sid] = {"name": match.name_of(sid), **duels.stats(views)}
+            rows[sid] = {"sid": sid, "name": match.name_of(sid), **duels.stats(views)}
     if not rows:
         return None
     from cstaktik.coach_voice import duel_reading

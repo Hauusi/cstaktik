@@ -41,6 +41,16 @@ def _mine(sids):
     return [s for s in sids if s == me] if me else list(sids)
 
 
+async def _personal_report(resp: Response, me: str) -> Response:
+    """Report (fertige HTML-Datei) für den eingeloggten Spieler: SteamID einsetzen, die Seite blendet die Teile
+    anderer Spieler aus. Die Datei selbst bleibt unverändert."""
+    body = b"".join([chunk async for chunk in resp.body_iterator])
+    tag = f'<script>window.__ME="{me}";</script></head>'.encode()
+    body = body.replace(b"</head>", tag, 1)
+    headers = {k: v for k, v in resp.headers.items() if k.lower() not in ("content-length", "etag", "last-modified")}
+    return Response(body, status_code=resp.status_code, headers=headers)
+
+
 _PUBLIC = {"/login", "/fonts.css", "/setup", "/auth/steam", "/auth/steam/callback"}
 _FAILS: dict[str, list[float]] = {}  # Login-Fehlversuche je IP (Schutz gegen Durchprobieren)
 
@@ -64,8 +74,15 @@ async def _password(request: Request, call_next):
         user = accounts.read_session(request.cookies.get(accounts.COOKIE))
         if user or request.url.path in _PUBLIC:
             request.state.user = user
-            _ME.set((accounts.get_steam(user).get("steamid") or None) if user else None)
-            return await call_next(request)
+            me = (accounts.get_steam(user).get("steamid") or None) if user else None
+            _ME.set(me)
+            if me and request.url.path.startswith("/reports/"):  # keine 304 aus dem Cache: die Seite wird angepasst
+                request.scope["headers"] = [(k, v) for k, v in request.scope["headers"]
+                                            if k not in (b"if-none-match", b"if-modified-since")]
+            resp = await call_next(request)
+            if me and request.url.path.startswith("/reports/") and resp.headers.get("content-type", "").startswith("text/html"):
+                return await _personal_report(resp, me)
+            return resp
         if request.method == "GET" and not request.url.path.startswith("/api/"):
             from urllib.parse import quote
 

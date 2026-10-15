@@ -573,7 +573,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   <section class="auftraege">
     <div class="sh"><span class="t cond">Auftrag-Check</span></div>
     {% for a in checks %}{% set c = a.check %}
-    <div class="auftrag {{ 'ok' if c.met else '' if c.met is none else 'no' }}">
+    <div class="auftrag {{ 'ok' if c.met else '' if c.met is none else 'no' }}"{% if a.sid %} data-sid="{{ a.sid }}"{% endif %}>
       <div class="who cond">{{ a.name }}</div>
       <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Zu wenig Runden" if c.met is none else "Nicht geschafft" }}</div></div>
       {% if a.focus and not a.new %}<div class="mantra cond" style="font-size:17px;margin-top:4px">„{{ teach[a.focus.lesson].mantra }}“</div>{% endif %}
@@ -653,7 +653,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   <section class="nextfocus">
     <div class="sh"><span class="t cond">Eure Aufträge ab jetzt</span></div>
     {% for a in nexts %}{% set nf = a.focus %}
-    <div class="nf">
+    <div class="nf"{% if a.sid %} data-sid="{{ a.sid }}"{% endif %}>
       <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
       <div class="atitle cond">{{ nf.title }}</div>
       <div class="mantra cond">„{{ teach[nf.lesson].mantra }}“</div>
@@ -668,19 +668,19 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 
   {# Fazit wie am Ende einer Besprechung: höchstens ein Punkt je Thema, nur aus Werten, die oben schon stehen #}
   {% set take = [] %}
-  {% for a in auftraege if a.focus %}{% set _ = take.append(("Auftrag", a.name ~ ": „" ~ teach[a.focus.lesson].mantra ~ "“")) %}{% endfor %}
-  {% if duel_cmp %}{% for d in duel_cmp.players if d.reading %}{% set _ = take.append(("Duell", d.name ~ ": " ~ d.reading)) %}{% endfor %}{% endif %}
+  {% for a in auftraege if a.focus %}{% set _ = take.append(("Auftrag", a.name ~ ": „" ~ teach[a.focus.lesson].mantra ~ "“", a.sid)) %}{% endfor %}
+  {% if duel_cmp %}{% for d in duel_cmp.players if d.reading %}{% set _ = take.append(("Duell", d.name ~ ": " ~ d.reading, d.sid)) %}{% endfor %}{% endif %}
   {% if tactics %}
     {% set real_t = tactics.t|rejectattr("name", "equalto", "Default ohne Bombsite")|list %}
     {% set good_t = real_t|selectattr("n", "ge", 2)|selectattr("won_pct", "ge", 60)|list %}
     {% set bad_t = real_t|selectattr("n", "ge", 2)|selectattr("won_pct", "le", 34)|list %}
-    {% if good_t %}{% set g = good_t[0] %}{% set _ = take.append(("Taktik", "Weiter so: " ~ g.name ~ " (" ~ g.won ~ " von " ~ g.n ~ " gewonnen).")) %}{% endif %}
-    {% if bad_t %}{% set b = bad_t[0] %}{% set _ = take.append(("Taktik", "Nicht wiederholen: " ~ b.name ~ " (" ~ b.won ~ " von " ~ b.n ~ " gewonnen)" ~ (", Pros gewinnen damit " ~ b.pro.won_pct ~ " %. Ablauf im Playbook vergleichen." if b.pro else ". Im Playbook eine Pro-Taktik für diesen Bombsite ansehen."))) %}{% endif %}
+    {% if good_t %}{% set g = good_t[0] %}{% set _ = take.append(("Taktik", "Weiter so: " ~ g.name ~ " (" ~ g.won ~ " von " ~ g.n ~ " gewonnen).", none)) %}{% endif %}
+    {% if bad_t %}{% set b = bad_t[0] %}{% set _ = take.append(("Taktik", "Nicht wiederholen: " ~ b.name ~ " (" ~ b.won ~ " von " ~ b.n ~ " gewonnen)" ~ (", Pros gewinnen damit " ~ b.pro.won_pct ~ " %. Ablauf im Playbook vergleichen." if b.pro else ". Im Playbook eine Pro-Taktik für diesen Bombsite ansehen."), none)) %}{% endif %}
   {% endif %}
   {% if take %}
   <section class="takeaway">
     <div class="sh"><span class="t cond">Zum Mitnehmen</span></div>
-    {% for k, v in take[:5] %}<div class="tk"><span class="cond">{{ k }}</span><div>{{ v }}</div></div>{% endfor %}
+    {% for k, v, sid in take[:6] %}<div class="tk"{% if sid %} data-sid="{{ sid }}"{% endif %}><span class="cond">{{ k }}</span><div>{{ v }}</div></div>{% endfor %}
   </section>
   {% endif %}
 
@@ -726,7 +726,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   <section class="duelcmp">
     <div class="sh"><span class="t cond">Eure Duelle{% if pr %} gegen Pros{% endif %}</span></div>
     {% for d in duel_cmp.players %}
-    <div class="dp">
+    <div class="dp" data-sid="{{ d.sid }}">
       <div class="who cond">{{ d.name }} · {{ d.n }} Duelle · {{ d.won }} % gewonnen{% if d.n < 10 %} · wenige Duelle, Werte schwanken{% endif %}</div>
       {% if d.reading %}<div class="dread">{{ d.reading }}</div>{% endif %}
       {{ duelchain(d, pr, cmpbar) }}
@@ -916,6 +916,11 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   Regel-Schwellen: config/rules.yaml (Heuristiken).</footer>
 </main>
 
+<script>
+/* Eingeloggt und mit Steam verbunden: Der Server setzt window.__ME, dann nur die eigenen Teile zeigen */
+(function () { var me = window.__ME; if (!me) return;
+  document.querySelectorAll('[data-sid]').forEach(function (e) { if (e.dataset.sid && e.dataset.sid !== me) e.remove(); }); })();
+</script>
 <script type="application/json" id="data">{{ data_json | safe }}</script>
 <script>
 {% raw %}

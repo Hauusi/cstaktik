@@ -203,3 +203,38 @@ def test_logged_in_player_sees_only_own_profile():
     assert "Satoru" in home and "Bruder" not in home
     prog = c.get(f"/progress?p={bro}").text
     assert "Bruder" not in prog  # auch über den Link nicht das fremde Profil
+
+
+def test_personal_report_injects_own_steamid(tmp_path):
+    import asyncio
+
+    from fastapi.responses import Response
+
+    from cstaktik import api
+    from cstaktik.config import load_rules_config
+    from cstaktik.report.render import render_report
+    from cstaktik.rules import analyze
+    from synth import build_match
+
+    from cstaktik.report import render
+
+    m = build_match()
+    orig = render._duel_cmp
+    from cstaktik import duels
+
+    row = {**duels.stats([{"won": True, "err": 5.0}]), "sid": "76561198000000002", "name": "Bruder", "reading": None}
+    render._duel_cmp = lambda match: {"players": [row], "pro": None}
+    try:
+        html = render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
+    finally:
+        render._duel_cmp = orig
+    assert 'data-sid="76561198000000002"' in html and "window.__ME" in html  # markiert, Filter-Skript vorhanden
+
+    async def run():
+        async def it():
+            yield b"<html><head></head><body>x</body></html>"
+        r = Response(media_type="text/html")
+        r.body_iterator = it()
+        return await api._personal_report(r, "76561198000000001")
+    out = asyncio.run(run())
+    assert b'window.__ME="76561198000000001";</script></head>' in out.body
