@@ -127,6 +127,7 @@
   {% for s in book.tactics|map(attribute="site")|select|unique|sort %}<button data-f="site:{{ s }}">{{ s }}</button>{% endfor %}
   {% for st in book.tactics|map(attribute="style")|unique %}<button data-f="style:{{ st }}">{{ (book.tactics|selectattr("style", "equalto", st)|first).style_label }}</button>{% endfor %}
 </div>
+{% if book.no_site %}<div class="pex" style="margin-top:8px">{{ book.no_site }} T-Runden ohne Bombsite (alle T tot, bevor einer ankam) zählen nicht als Taktik.</div>{% endif %}
 <div class="plegend" style="margin-top:8px"><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:transparent;border:2px solid #ff5a6e;border-radius:2px"></i>Plant</span><span>Linien: Laufwege der 5 T</span></div>
 <div class="plays">
 {% for t in book.tactics %}

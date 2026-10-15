@@ -242,8 +242,9 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
                      for x in src if x.get("t") is not None and x["t"] <= stop]
             groups.setdefault(key, []).append({**p, **k, "nades": mine, "deaths": kills, "demo": d.get("source_file")})
     tactics = []
+    no_site = sum(len(rows) for (style, site, _v), rows in groups.items() if site is None)
     for (style, site, via), rows in groups.items():
-        if len(rows) < min_rounds:
+        if len(rows) < min_rounds or site is None:  # ohne Bombsite: alle T tot, bevor einer ankam; keine Taktik
             continue
         n = len(rows)
         # typische Granaten: gleiche Art auf denselben Landeort in mindestens common_share der Runden
@@ -270,7 +271,7 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
     for t in tactics:
         t["share"] = round(100 * t["n"] / total) if total else None
     tactics.sort(key=lambda t: (-t["n"], -t["won_pct"]))
-    return {"map": map_name, "demos": len(demos), "rounds": total, "tactics": tactics,
+    return {"map": map_name, "demos": len(demos), "rounds": total, "tactics": tactics, "no_site": no_site,
             "old_demos": sum(1 for d in pro if d.get("map") == map_name and not d.get("plays"))}
 
 
