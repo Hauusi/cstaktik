@@ -357,9 +357,12 @@ def konto_page(request: Request, saved: str = "", error: str = "") -> str:
 
     user = getattr(request.state, "user", None)
     key = accounts.steam_key()
+    from cstaktik import autodl
+
     return _env.get_template("konto.html").render(
         nav_active="mehr", user=user, steam=accounts.get_steam(user) if user else None, saved=saved, error=error,
-        has_key=bool(key), key_hint=f"…{key[-4:]}" if key else None)
+        has_key=bool(key), key_hint=f"…{key[-4:]}" if key else None, autodl=autodl.status(),
+        bot_user=accounts.get_setting("autodl_bot_user"), docker_cmd=autodl.docker_command())
 
 
 def _need_user(request: Request) -> str:
@@ -383,6 +386,9 @@ async def konto_save(request: Request) -> Response:
         return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
     row = next((r for r in accounts.steam_users() if r["user"] == user), None)
     res = await run_in_threadpool(steam_sync.sync_user, row) if row else {"new": 0, "error": None}
+    from cstaktik import autodl
+
+    autodl.write_config()
     msg = _sync_msg(res)
     return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
 
@@ -410,6 +416,9 @@ async def konto_key(request: Request) -> Response:
     if key and not re.fullmatch(r"[0-9A-Fa-f]{32}", key):
         return RedirectResponse("/konto?error=" + quote("Der Schlüssel hat 32 Zeichen: 0–9 und A–F."), status_code=303)
     accounts.set_setting("steam_web_api_key", key.upper() or None)
+    from cstaktik import autodl
+
+    autodl.write_config()
     return RedirectResponse("/konto?saved=" + quote("Schlüssel gespeichert." if key else "Schlüssel entfernt."),
                             status_code=303)
 
@@ -461,6 +470,81 @@ def konto_sync(request: Request) -> Response:
     res = steam_sync.sync_user(row)
     msg = _sync_msg(res)
     return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
+
+
+@app.post("/konto/bot")
+async def konto_bot(request: Request) -> Response:
+    """Bot-Account für den automatischen Demo-Download speichern (leerer Name = entfernen)."""
+    from urllib.parse import quote
+
+    from cstaktik import accounts, autodl
+
+    _need_user(request)
+    form = await request.form()
+    name, pw = str(form.get("bot_user", "")).strip(), str(form.get("bot_pass", ""))
+    secret = str(form.get("bot_secret", "")).strip()
+    if not name:
+        for k in ("autodl_bot_user", "autodl_bot_pass", "autodl_bot_secret"):
+            accounts.set_setting(k, None)
+        return RedirectResponse("/konto?saved=" + quote("Bot-Account entfernt."), status_code=303)
+    accounts.set_setting("autodl_bot_user", name)
+    if pw:  # leer lassen = altes Passwort behalten
+        accounts.set_setting("autodl_bot_pass", pw)
+    if secret or form.get("bot_secret_clear"):
+        accounts.set_setting("autodl_bot_secret", secret or None)
+    ok = autodl.write_config()
+    msg = ("Bot-Account gespeichert. Der Download startet beim nächsten Lauf." if ok else
+           "Bot-Account gespeichert. Es fehlt noch etwas: Passwort, Steam-Web-API-Schlüssel oder deine Match-Daten.")
+    return RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
+
+
+def _autodl_import() -> int:
+    """Fertig heruntergeladene Demos übernehmen und auswerten (wie ein Upload, ohne Besitzer: sichtbar für alle,
+    die im Match mitgespielt haben)."""
+    from cstaktik import autodl
+
+    n = 0
+    for p in autodl.ready_demos():
+        try:
+            target = autodl.take(p)
+        except OSError as exc:
+            autodl.record(p.name, f"Konnte nicht übernommen werden: {exc}")
+            continue
+        job_id = uuid.uuid4().hex[:12]
+        with _jobs_lock:
+            _jobs[job_id] = {"owner": None, "status": "wartet", "name": f"Automatisch geladen: {target.stem}",
+                             "stage": "Wartet", "frac": 0.0, "started": None, "estimate": None, "samples": 0,
+                             "cached": False, "report": None, "error": None}
+
+        def run(job_id=job_id, target=target):
+            _run_job(job_id, target, None)
+            with _jobs_lock:
+                err = _jobs[job_id].get("error")
+            autodl.record(target.name, err)
+
+        _executor.submit(run)
+        n += 1
+    return n
+
+
+@app.on_event("startup")
+def _start_autodl() -> None:
+    """Jede Minute nach automatisch geladenen Demos schauen; alle 10 Minuten die Konfiguration auffrischen."""
+    from cstaktik import autodl
+
+    def loop():
+        i = 0
+        while True:
+            try:
+                if i % 10 == 0:
+                    autodl.write_config()
+                _autodl_import()
+            except Exception:  # noqa: BLE001 - darf den Server nie stoppen
+                pass
+            i += 1
+            time.sleep(autodl.SCAN_S)
+
+    threading.Thread(target=loop, daemon=True, name="autodl").start()
 
 
 @app.on_event("startup")

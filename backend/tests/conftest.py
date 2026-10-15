@@ -24,6 +24,11 @@ def _isolated_history(tmp_path, monkeypatch):
     from cstaktik import config
 
     monkeypatch.setattr(config, "PLAYERS_FILE", tmp_path / "players.yaml")  # nie die echte players.yaml
+    from cstaktik import autodl
+
+    monkeypatch.setattr(autodl, "BASE", tmp_path / "autodl")  # nie den echten Download-Ordner
+    monkeypatch.setattr(autodl, "CONFIG_DIR", tmp_path / "autodl" / "config")
+    monkeypatch.setattr(autodl, "DEMOS_DIR", tmp_path / "autodl" / "demos")
 
 
 @pytest.fixture(autouse=True)

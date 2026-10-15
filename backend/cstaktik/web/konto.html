@@ -6,6 +6,10 @@
 .ok { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(52,199,123,.1); border: 1px solid rgba(52,199,123,.4); }
 .codes { display: grid; gap: 4px; font-size: 13px; } .codes div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .codes code { font-size: 12px; }
+.steps-ad { display: grid; gap: 4px; margin: 10px 0; font-size: 13.5px; }
+.steps-ad div { color: var(--muted); } .steps-ad div b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-2); color: var(--text); font-size: 11px; margin-right: 6px; }
+.steps-ad div.ok { color: var(--text); } .steps-ad div.ok b { background: #46a758; color: #111; }
+pre.cmd { white-space: pre-wrap; word-break: break-all; font-size: 12px; background: var(--surface-2); padding: 10px; border-radius: 8px; margin: 8px 0; user-select: all; }
 .steambtn { display: flex; align-items: center; justify-content: center; height: 48px; border-radius: 13px;
   background: #171a21; border: 1px solid #2a475e; color: #c7d5e0; font-weight: 700; }
 .linked { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
@@ -52,9 +56,9 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
 </div>
 <h2>Gefundene Matches</h2>
 <div class="card codes">
-  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ "gefunden, Demo noch hochladen" if c.status == "neu" else c.status }}</span></div>
+  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ ("gefunden" if autodl.config else "gefunden, Demo noch hochladen") if c.status == "neu" else c.status }}</span></div>
   {% else %}<div class="muted">Noch keine. Neue Matches erscheinen hier, sobald Steam sie meldet.</div>{% endfor %}
-  <div class="small muted" style="margin-top:6px">Die Demo-Dateien lädt der Coach noch nicht selbst. Bis dahin die Demo wie bisher hochladen.</div>
+  {% if not autodl.config %}<div class="small muted" style="margin-top:6px">Damit der Coach die Demos selbst lädt: rechts „Automatischer Download“ einrichten. Bis dahin die Demo selbst hochladen.</div>{% endif %}
 </div>
 {% endif %}
 </div>
@@ -67,6 +71,35 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
   <div class="hint">Gilt für den ganzen Server. Kostenlos auf steamcommunity.com/dev/apikey. Als Domain die Adresse dieser App eintragen. Ohne Schlüssel findet der Coach keine neuen Matches.</div>
   <button class="btn2" type="submit">Schlüssel speichern</button>
 </form>
+
+<h2>Automatischer Download</h2>
+<div class="card kf">
+  <div class="small">Lädt die Demos deiner Valve-Matches selbst und wertet sie aus. Dafür braucht der Server einen eigenen Steam-Account, der kurz CS2 startet.</div>
+  <div class="steps-ad">
+    <div class="{{ 'ok' if autodl.key }}"><b>1</b> Steam-Web-API-Schlüssel (oben)</div>
+    <div class="{{ 'ok' if steam and steam.auth_code }}"><b>2</b> Auth-Code und Match-Token (links)</div>
+    <div class="{{ 'ok' if autodl.bot }}"><b>3</b> Bot-Account (hier)</div>
+    <div class="{{ 'ok' if autodl.store }}"><b>4</b> Download auf dem Server starten (grün, sobald der Bot sich angemeldet hat)</div>
+  </div>
+  <details class="opt"{% if not autodl.bot %} open{% endif %}><summary>Bot-Account{% if bot_user %}: {{ bot_user }}{% endif %}</summary>
+    <form method="post" action="/konto/bot">
+      <label for="bu">Steam-Login-Name des Bots</label><input class="field" id="bu" name="bot_user" value="{{ bot_user or '' }}" autocomplete="off">
+      <label for="bp">Passwort{% if bot_user %} (leer lassen = unverändert){% endif %}</label><input class="field" id="bp" name="bot_pass" type="password" autocomplete="new-password">
+      <label for="bs">Steam-Guard-Secret (optional)</label><input class="field" id="bs" name="bot_secret" autocomplete="off" placeholder="shared_secret aus einer .maFile">
+      <div class="hint">Nimm einen neuen, leeren Steam-Account, nie deinen Hauptaccount. Füge dort CS2 (kostenlos) zur Bibliothek hinzu. Ohne Secret muss Steam Guard für den Bot aus sein, sonst klappt das Login nicht. Das Passwort liegt auf deinem Server.</div>
+      <button class="btn2" type="submit">Bot speichern</button>
+    </form></details>
+  {% if autodl.config %}
+  <details class="opt"{% if not autodl.store %} open{% endif %}><summary>Einmal auf dem Server ausführen</summary>
+    <div class="hint">Docker vorher installieren, falls noch nicht da: <code>apt install -y docker.io</code></div>
+    <pre class="cmd">{{ docker_cmd }}</pre>
+    <div class="hint">Danach läuft der Download von selbst, auch nach einem Neustart. Er prüft alle 20 Minuten. Logs: <code>docker logs cs-demo-downloader</code></div>
+  </details>
+  {% endif %}
+  {% if autodl.imported %}<div class="small muted" style="margin-top:8px">Zuletzt übernommen:</div>
+  {% for x in autodl.imported[:5] %}<div class="small">{{ x.at[8:10] }}.{{ x.at[5:7] }}. {{ x.at[11:16] }} · {{ x.name }}{% if x.error %} · <span style="color:#e5484d">{{ x.error }}</span>{% else %} · ausgewertet{% endif %}</div>{% endfor %}
+  {% elif autodl.config %}<div class="small muted" style="margin-top:8px">Noch keine Demo geladen. Valve hält Demos nur einige Wochen bereit.</div>{% endif %}
+</div>
 
 <h2>Nutzer</h2>
 <div class="card">
