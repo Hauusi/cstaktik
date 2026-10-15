@@ -227,6 +227,15 @@ def steam_key(path: Path | None = None) -> str | None:
 
 # ---------------------------------------------------------------- Steam-Verknüpfung
 
+def linked_steamids(path: Path | None = None) -> set[str]:
+    """SteamIDs aller Accounts, die mit Steam verbunden sind (ohne die Datenbank anzulegen, falls es keine gibt)."""
+    p = path or DB_FILE
+    if not p.exists():
+        return set()
+    with closing(db(p)) as con:
+        return {r["steamid"] for r in con.execute("SELECT steamid FROM steam WHERE steamid IS NOT NULL")}
+
+
 def link_steamid(name: str, steamid: str, path: Path | None = None) -> None:
     """SteamID aus 'Mit Steam verbinden' am Account speichern. Eine SteamID gehört höchstens zu einem Account."""
     with closing(db(path)) as con, con:

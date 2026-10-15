@@ -14,6 +14,7 @@ def test_choose_players_recomputes_everything(tmp_path, monkeypatch):
 
     shutil.copy(config.CONFIG_DIR / "rules.yaml", tmp_path / "rules.yaml")
     monkeypatch.setattr(config, "CONFIG_DIR", tmp_path)  # nie die echte players.yaml schreiben
+    monkeypatch.setattr(config, "PLAYERS_FILE", tmp_path / "players.yaml")
     monkeypatch.setattr(pipeline, "REPORTS_DIR", tmp_path / "reports")
     config.save_focus_steamids([(ME, "Ich")])
     for i in range(2):

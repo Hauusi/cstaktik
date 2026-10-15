@@ -12,10 +12,17 @@
 {% endblock %}
 {% block hero %}
 <h1>Spieler</h1>
-<p>Wen soll der Coach analysieren? Bis zu zwei Spieler auswählen. Danach wird alles neu berechnet.</p>
+<p>{% if linked %}Wen der Coach analysiert.{% else %}Wen soll der Coach analysieren? Bis zu zwei Spieler auswählen. Danach wird alles neu berechnet.{% endif %}</p>
 {% endblock %}
 {% block content %}
-{% if roster %}
+{% if linked %}
+<div class="card" style="margin-top:18px">
+  <b>Ausgewertet werden die mit Steam verbundenen Accounts.</b>
+  <p class="small muted" style="margin:6px 0 0">Wer analysiert werden will, legt einen Account an (Mehr → Optionen → Nutzer), loggt sich ein und klickt „Mit Steam verbinden“. Danach werden seine Matches automatisch neu ausgewertet. Andere Spieler aus euren Matches erscheinen nur als Mitspieler.</p>
+  {% if roster %}<h2>Gerade ausgewertet</h2>
+  {% for e in roster if e.focus %}<div class="pl on"><div><div class="nm">{{ e.name }}<span class="tag">verbunden</span></div><div class="sub num">in {{ e.matches }} Match{{ "es" if e.matches != 1 }}</div></div></div>{% endfor %}{% endif %}
+</div>
+{% elif roster %}
 <form method="post" action="/spieler" id="pf">
   <h2>Aus euren letzten Matches</h2>
   {% for e in roster %}

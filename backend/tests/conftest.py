@@ -21,6 +21,9 @@ def _isolated_history(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "REPORTS_DIR", tmp_path / "reports")
     monkeypatch.setattr(pipeline, "DEMOS_DIR", tmp_path / "demos")
     monkeypatch.setattr(pipeline, "TIMINGS_FILE", tmp_path / "timings.json")
+    from cstaktik import config
+
+    monkeypatch.setattr(config, "PLAYERS_FILE", tmp_path / "players.yaml")  # nie die echte players.yaml
 
 
 @pytest.fixture(autouse=True)

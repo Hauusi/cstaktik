@@ -275,11 +275,17 @@ def steam_callback(request: Request) -> Response:
         return RedirectResponse(f"{to}?error=" + quote("Steam-Anmeldung nicht bestätigt. Bitte erneut versuchen."),
                                 status_code=303)
     if user:  # verbinden
+        before = accounts.linked_steamids()
         try:
             accounts.link_steamid(user, sid)
         except ValueError as exc:
             return RedirectResponse("/konto?error=" + quote(str(exc)), status_code=303)
-        r = RedirectResponse("/konto?saved=" + quote("Mit Steam verbunden."), status_code=303)
+        msg = "Mit Steam verbunden."
+        if accounts.linked_steamids() != before and _load_hist():
+            # ausgewertet werden nur verbundene Spieler: bisherige Matches für die neue Auswahl neu berechnen
+            _start_rerender()
+            msg += " Deine Matches werden im Hintergrund neu ausgewertet (ein paar Minuten)."
+        r = RedirectResponse("/konto?saved=" + quote(msg), status_code=303)
     else:  # einloggen: nur, wenn dieser Steam-Account mit einem Nutzer verbunden ist
         name = accounts.user_by_steamid(sid)
         if not name:
@@ -1493,13 +1499,20 @@ def players_page() -> str:
     """Wer wird analysiert? Spieler aus den letzten Matches zum Anklicken statt SteamIDs abtippen."""
     from cstaktik.config import load_focus_steamids
 
+    from cstaktik import accounts
+
     return _env.get_template("spieler.html").render(nav_active="mehr", roster=pipeline.roster(),
-                                                    focus=sorted(load_focus_steamids()))
+                                                    focus=sorted(load_focus_steamids()),
+                                                    linked=bool(accounts.linked_steamids()))
 
 
 @app.post("/spieler")
 async def players_save(request: Request) -> RedirectResponse:
+    from cstaktik import accounts
     from cstaktik.config import save_focus_steamids
+
+    if accounts.linked_steamids():
+        raise HTTPException(400, "Ausgewertet werden die mit Steam verbundenen Accounts. Die Auswahl hier gilt nur ohne.")
 
     form = await request.form()
     chosen = [str(x) for x in form.getlist("sid") if str(x).isdigit()][:2]
@@ -1507,13 +1520,18 @@ async def players_save(request: Request) -> RedirectResponse:
         raise HTTPException(400, "Mindestens einen Spieler wählen.")
     names = {e["sid"]: e["name"] for e in pipeline.roster()}
     save_focus_steamids([(sid, names.get(sid, "")) for sid in chosen])
+    return RedirectResponse(f"/jobs/{_start_rerender()}", status_code=303)
+
+
+def _start_rerender() -> str:
+    """Alle Reports und Aufträge im Hintergrund neu berechnen (neue Spielerauswahl)."""
     job_id = uuid.uuid4().hex[:12]
     with _jobs_lock:
         _jobs[job_id] = {"status": "wartet", "name": "Alles für die neue Spielerauswahl neu berechnen",
                          "stage": "Wartet", "frac": 0.0, "started": None, "estimate": None, "samples": 0,
                          "cached": False, "report": None, "error": None}
     _executor.submit(_run_rerender_job, job_id)
-    return RedirectResponse(f"/jobs/{job_id}", status_code=303)
+    return job_id
 
 
 def _run_rerender_job(job_id: str) -> None:

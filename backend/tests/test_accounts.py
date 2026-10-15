@@ -246,3 +246,20 @@ def test_personal_report_injects_own_steamid(tmp_path):
         return await api._personal_report(r, "76561198000000001")
     out = asyncio.run(run())
     assert b'window.__ME="76561198000000001";</script></head>' in out.body
+
+
+def test_only_steam_linked_players_are_analysed(monkeypatch):
+    from cstaktik import api
+    from cstaktik.config import load_focus_steamids, save_focus_steamids
+    from cstaktik import config
+
+    monkeypatch.setattr(config, "PLAYERS_FILE", accounts.DB_FILE.parent / "players.yaml")
+    save_focus_steamids([("76561198000000001", "Ich"), ("76561198000000002", "Bruder")])
+    assert load_focus_steamids() == {"76561198000000001", "76561198000000002"}  # niemand verbunden: players.yaml
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.link_steamid("Hausi", "76561198000000001")
+    assert load_focus_steamids() == {"76561198000000001"}  # verbunden: nur er, der Bruder nicht
+    c = TestClient(api.app)
+    c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
+    assert "verbundenen Accounts" in c.get("/spieler").text
+    assert c.post("/spieler", data={"sid": "76561198000000002"}, headers=O).status_code == 400
