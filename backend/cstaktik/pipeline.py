@@ -176,7 +176,7 @@ def _coach(match: MatchData, config: dict):
     situation.enrich(match, result.findings, model, config["situation"], config["coach"]["trade_window_s"])
     from cstaktik import impact
 
-    result.impact = impact.build(match, model)
+    result.impact = impact.build(match, model, trade_s=config["coach"]["trade_window_s"])
     situation.enrich_pro(match, result.findings, pro, config["situation"]["pro_min_cases"])
     from cstaktik import coach_voice
 

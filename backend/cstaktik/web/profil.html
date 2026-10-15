@@ -47,6 +47,12 @@
     <div><b>Punkte Siegchance je Runde</b><div class="small muted">Pro Match {{ im.match_s }} Runden: Kills {{ im.kill_s }}, Tode {{ im.death_s }}{% if im.obj %}, Bombe {{ im.obj_s }}{% endif %}.</div></div>
     <svg viewBox="-4 -2 108 34" aria-hidden="true"><line x1="0" x2="100" y1="15" y2="15"/>{% if im.n > 1 %}<polyline points="{{ im.spark }}"/>{% endif %}{% for d in im.dots %}<circle cx="{{ d.x }}" cy="{{ d.y }}" r="2.6" class="{{ 'neg' if d.neg }}"/>{% endfor %}</svg></div>
   <div class="small muted num" style="margin-top:8px">{% if im.ranked %}Bester Spieler des Matches (Impact): {{ im.top1 }} von {{ im.ranked }} Mal, im Schnitt Platz {{ im.avg_rank|string|replace(".", ",") }}.{% endif %}{% if im.trend %} Trend: <span class="tr {{ im.trend }}">{{ {"besser": "besser", "schlechter": "schlechter", "gleich": "kein klarer Trend"}[im.trend] }}</span> ({{ im.trend_s }}).{% endif %}</div>
+  {% if im.ctx_reading %}<div class="dread" style="margin-top:10px">{{ im.ctx_reading }}</div>{% endif %}
+  {% if im.ctx %}<details class="sdet"{% if im.ctx_reading %} open{% endif %}><summary>Impact nach Lage</summary>
+  {% for c in im.ctx %}<div class="mrow"><div><b>{{ c.label }}</b> <span class="small muted num">{{ c.n }}x, im Schnitt {{ c.per_event_s }} Punkte{% if not c.enough %} · wenige Fälle{% endif %}</span></div>
+    <b class="num" style="color:{{ '#46a758' if c.per_match >= 0.15 else '#e5484d' if c.per_match <= -0.15 else 'inherit' }}">{{ c.per_match_s }}</b></div>{% endfor %}
+  <div class="small muted" style="margin-top:6px">Rechts: Runden pro Match (deine Kills minus deine Tode in dieser Lage). 0 ist der Durchschnitt aller Spieler.</div>
+  </details>{% endif %}
   <div class="small muted" style="margin-top:6px">Jeder Kill, Tod, Plant und Defuse verschiebt die Siegchance der Runde (gezählt aus euren Matches und Pro-Demos). Schaden ohne Kill, Granaten und Infos zählen nicht. Die einzelnen Momente stehen im Report unter Analyse.</div>
 </div>
 {% endif %}

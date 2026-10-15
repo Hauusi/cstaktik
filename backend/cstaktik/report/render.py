@@ -373,7 +373,7 @@ def _impact(match: MatchData, result: AnalysisResult) -> dict | None:
     imp = result.impact
     if not imp or not imp["players"]:
         return None
-    from cstaktik.impact import de
+    from cstaktik.impact import CTX_DE, de
 
     names = {p.steamid: p.name for p in match.players}
     focus = match.focus_ids()
@@ -396,7 +396,9 @@ def _impact(match: MatchData, result: AnalysisResult) -> dict | None:
             who = names.get(m["other"]) if m.get("other") else None
             txt = KIND_DE[m["kind"]] + (f" gegen {who}" if m["kind"] == "kill" and who else
                                         f" durch {who}" if m["kind"] == "death" and who else "")
-            return {"round": m["round"], "tick": m["tick"], "text": txt, "val": f"{de(m['val'])} %", "up": m["val"] > 0}
+            ctx = CTX_DE.get(m.get("ctx")) if m.get("ctx") not in (None, "bomb", "even") else None
+            return {"round": m["round"], "tick": m["tick"], "text": txt + (f" · {ctx}" if ctx else ""),
+                    "val": f"{de(m['val'])} %", "up": m["val"] > 0}
 
         best = [line(m) for m in sorted(ms, key=lambda m: -m["val"]) if m["val"] > 0][:3]
         worst = [line(m) for m in sorted(ms, key=lambda m: m["val"]) if m["val"] < 0][:3]

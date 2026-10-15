@@ -65,3 +65,22 @@ def test_profile_over_matches():
     assert pr["n"] == 6 and pr["per_round_s"] == "+2,5" and pr["trend"] == "besser"
     assert pr["top1"] == 1 and pr["avg_rank"] == 4.2 and pr["death_s"] == "-1,0"
     assert impact.profile(hist, "zz") is None
+
+
+def test_contexts_opening_trade_clutch():
+    m = _match()
+    m.kills = [Kill(tick=500, round=1, attacker_steamid="x", victim_steamid="a", victim_name="A", victim_side="ct"),
+               Kill(tick=600, round=1, attacker_steamid="b", victim_steamid="x", victim_name="X", victim_side="t"),
+               Kill(tick=950, round=1, attacker_steamid="y", victim_steamid="b", victim_name="B", victim_side="ct")]
+    m.bomb = []
+    m.rounds[0].winner = "t"
+    pl = impact.build(m, _model())["players"]
+    assert set(pl["x"]["ctx"]) == {"opening", "up"} and set(pl["a"]["ctx"]) == {"opening"}
+    assert set(pl["b"]["ctx"]) == {"clutch"}  # letzter CT: Clutch hat Vorrang vor Trade
+    assert set(pl["y"]["ctx"]) == {"clutch"}
+    m.rounds[0].sides["c"] = "ct"  # mit drittem CT: b rächt a sofort (Trade), stirbt in Überzahl
+    pl = impact.build(m, _model())["players"]
+    assert set(pl["b"]["ctx"]) == {"trade", "up"}
+    rows = [({"rounds": 1}, {"ctx": {"opening": [-300.0, 12], "trade": [200.0, 12]}})]
+    ctx, txt = impact.contexts(rows)
+    assert ctx[0]["ctx"] == "opening" and "in Opening-Duellen: -3,0" in txt and "bei Trades" in txt
