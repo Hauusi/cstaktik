@@ -1,5 +1,19 @@
 {# Auftrag als Säulen je Match mit Ziel- und Startlinie. Erwartet a (aus api._auftrag). #}
   {% set ms = a.matches[-6:] %}
+  {% if ms|length < 2 %}
+  {# Mit 0-1 Match ist ein Säulendiagramm leer oder eine einzelne Säule: Skala Start -> Ziel ist klarer #}
+  {% set now = ms[-1].rate if ms else none %}
+  {% set top = ([a.baseline, a.target] + ([now] if now is not none else []))|max * 1.25 or 1 %}
+  <style>.ameter{margin-top:14px}.am-track{position:relative;height:10px;border-radius:999px;background:linear-gradient(90deg,rgba(63,191,127,.35),rgba(255,159,28,.25) 55%,rgba(240,86,106,.35))}
+  .am-track i{position:absolute;top:50%;transform:translate(-50%,-50%);border-radius:50%}.am-track .g{width:4px;height:20px;border-radius:2px;background:var(--text)}
+  .am-track .s{width:10px;height:10px;border:2px solid var(--muted);background:var(--bg)}.am-track .n{width:16px;height:16px;background:var(--orange);box-shadow:0 0 0 4px rgba(255,159,28,.25)}
+  .am-l{display:flex;justify-content:space-between;gap:8px;margin-top:8px;font-size:12.5px;color:var(--muted)}.am-l b{color:var(--text)}</style>
+  <div class="ameter" role="img" aria-label="Fehler pro 10 Runden: Start {{ a.baseline }}, Ziel {{ a.target }}">
+    <div class="am-track"><i class="g" style="left:{{ 100 * a.target / top }}%"></i><i class="s" style="left:{{ 100 * a.baseline / top }}%"></i>{% if now is not none %}<i class="n" style="left:{{ 100 * now / top }}%"></i>{% endif %}</div>
+    <div class="am-l num"><span>Ziel: unter <b>{{ a.target|string|replace(".", ",") }}</b></span>{% if now is not none %}<span>Letztes Match <b>{{ now|string|replace(".", ",") }}</b></span>{% endif %}<span>Start {{ a.baseline|string|replace(".", ",") }}</span></div>
+  </div>
+  <div class="num" style="font-size:12.5px;color:var(--muted);margin-top:6px">Fehler pro 10 Runden. {% if ms %}Nach dem nächsten Match zeigt hier ein Verlauf, ob es weniger wird.{% else %}Noch kein Match seit dem Auftrag.{% endif %} {{ goal_cfg.done_after or 2 }}x in Folge unter dem Ziel = gemeistert.</div>
+  {% else %}
   {% set top = ((ms|map(attribute="rate")|list) + [a.baseline, a.target])|max * 1.15 or 1 %}
   <svg class="achart" viewBox="0 0 300 74" role="img" aria-label="Fehler pro 10 Runden je Match, Linie = Ziel">
     {% set w = 300 / 7 %}
@@ -14,3 +28,4 @@
     {% if not ms %}<text x="150" y="40" class="lbl">noch kein Match seit dem Auftrag</text>{% endif %}
   </svg>
   <div class="num" style="font-size:12.5px;color:var(--muted)">Fehler pro 10 Runden je Match · {{ goal_cfg.done_after or 2 }}x in Folge unter dem Ziel = gemeistert</div>
+  {% endif %}

@@ -61,7 +61,7 @@ def test_training_pages_and_drill_done():
                   "players": {"s1": {"name": "Ich"}}, "scenes": [sc, sc]}, pipeline.HISTORY_DIR)
     c = TestClient(api.app)
     home = c.get("/").text
-    assert "Euer Auftrag" in home and "Nie allein in ein Duell" in home and "1 eigene Situationen" in home
+    assert "Dein Auftrag" in home and "Nie allein in ein Duell" in home and "1 eigene Szenen" in home
     t = c.get("/training/situationen").text
     assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situationen" in t
     hub = c.get("/training").text  # Wochenplan wird beim ersten Aufruf angelegt

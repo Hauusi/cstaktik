@@ -1,73 +1,140 @@
 {% extends "base.html" %}
 {% block title %}Coach · cstaktik{% endblock %}
+{% block head %}
+<style>
+/* Startseite: ein klarer nächster Schritt, darunter Auftrag und Vorbereitung */
+.flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 18px 0 0; counter-reset: fl; }
+.flow > div { position: relative; padding: 10px 10px 9px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; }
+.flow > div::before { counter-increment: fl; content: counter(fl); display: grid; place-items: center; width: 22px; height: 22px;
+  border-radius: 50%; background: var(--surface-2); color: var(--orange); font-weight: 800; font-size: 12px; margin-bottom: 6px; }
+.flow > div.on { border-color: rgba(255,159,28,.55); background: rgba(255,159,28,.08); }
+.flow > div.on::before { background: var(--orange); color: #111; }
+.flow b { display: block; font-size: 14px; line-height: 1.2; } .flow span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+.home { display: grid; gap: 16px; margin-top: 18px; }
+@media (min-width: 960px) { .home { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; align-items: start; } .home > .col { display: grid; gap: 16px; } }
+@media (max-width: 959px) { .home > .col { display: contents; } }
+.kicker { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.last { display: block; padding: 18px; border-radius: 18px; border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(255,159,28,.16), rgba(255,159,28,.02) 60%), var(--surface); }
+.last .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.res { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; }
+.res.w { background: rgba(63,191,127,.15); color: #6fe0a6; } .res.l { background: rgba(240,86,106,.15); color: #ff9aa8; } .res.d { background: var(--surface-2); color: var(--muted); }
+.last h3 { margin: 10px 0 2px; font-size: 30px; line-height: 1.05; letter-spacing: -.02em; display: flex; align-items: baseline; gap: 12px; }
+.last h3 .num { color: var(--orange); }
+.last .topic { color: var(--muted); font-size: 14.5px; } .last .topic b { color: var(--text); }
+.imps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.imps span { font-size: 13px; padding: 5px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.imps b { font-variant-numeric: tabular-nums; } .imps .p { color: #6fe0a6; } .imps .n { color: #ff9aa8; }
+.go { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; height: 52px; border-radius: 14px;
+  background: var(--orange); color: #111; font-weight: 800; font-size: 16px; box-shadow: 0 8px 24px rgba(255,159,28,.28); }
+.go small { font-weight: 600; opacity: .75; }
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+.upbox h3 { margin: 4px 0 2px; font-size: 19px; } .upbox > p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+.upbox.first { border-color: rgba(255,159,28,.5); }
+.week { display: block; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.week .wl { display: flex; justify-content: space-between; font-size: 13.5px; } .week .wl b { color: var(--orange); }
+.week .bar { margin-top: 6px; height: 6px; }
+.prep .maps { margin-top: 8px; }
+.prep .pre { margin-top: 10px; }
+.mini { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--line); }
+.mini b { display: block; } .mini span { color: var(--muted); font-size: 13px; } .mini i { font-style: normal; color: var(--orange); font-weight: 800; }
+.gets { display: grid; gap: 8px; margin-top: 12px; }
+.gets div { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; font-size: 14px; }
+.gets div::before { content: "✓"; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(63,191,127,.15); color: #6fe0a6; font-weight: 800; font-size: 13px; }
+</style>
+{% endblock %}
 {% block hero %}
-<h1>Dein Coach</h1>
-<p>{% if not n_history %}Lade euer erstes Match hoch. Danach weiß der Coach, woran ihr arbeitet.{% else %}Jedes Match läuft in drei Schritten. Mehr braucht ihr nicht.{% endif %}</p>
+<h1>{% if me_name %}Hi {{ me_name }}{% else %}Dein Coach{% endif %}</h1>
+<p>{% if jobs %}Dein Match wird gerade ausgewertet. Gleich ist der Report da.
+{% elif not n_history %}Lade dein erstes Match hoch. In ein paar Minuten weißt du, woran du arbeiten solltest.
+{% elif last and last.topic %}Letztes Match: {{ last.map_label }} {{ last.won }}:{{ last.lost }}. Thema: {{ last.topic }}.
+{% else %}Match hochladen, Report lesen, üben. Mehr braucht es nicht.{% endif %}</p>
+<div class="flow" aria-label="So funktioniert es">
+  <div class="{{ 'on' if not n_history or jobs }}"><b>Hochladen</b><span>Demo nach dem Match</span></div>
+  <div class="{{ 'on' if n_history and not jobs }}"><b>Report lesen</b><span>Coach &amp; Debrief</span></div>
+  <div><b>Üben</b><span>Auftrag &amp; Wochenplan</span></div>
+</div>
 {% endblock %}
 {% block content %}
 {% if missing_players %}<a class="card" href="/spieler" style="display:block;border-color:#e5484d;margin-top:18px">
   <b>{{ missing_players }} eingestellte{{ "r" if missing_players == 1 }} Spieler kam im letzten Match nicht vor.</b>
   <div class="small muted">Wenn er nicht mitgespielt hat, ist alles in Ordnung. Sonst hier die Spieler prüfen ›</div></a>{% endif %}
 
-{% if auftrag %}
-<h2>Euer Auftrag</h2>
-<div class="aufs">
-{% for a in auftrag %}
-<div class="card auf">
-  <div class="who">{{ a.name }}{% if a.mastered %} · {{ a.mastered }} gemeistert{% endif %}</div>
-  <div class="atitle">{{ a.title }}</div>
-  <div class="mantra">„{{ a.mantra }}“</div>
-  {% if a.rueckfall %}<div class="small" style="margin-top:6px;color:#e5484d">Kommt zurück: war am {{ a.rueckfall[8:10] }}.{{ a.rueckfall[5:7] }}. gemeistert, jetzt wieder so oft wie vorher.</div>{% endif %}
-  {% include "auftrag_chart.html" %}
-</div>
-{% endfor %}
-</div>
-{% elif n_history %}
-<h2>Euer Auftrag</h2>
-<div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div>
-{% endif %}
-
-{% if lever %}
-<a class="card levhome" href="/progress?p={{ lever.sid }}"><span class="lg num">+{{ lever.gain_s }}</span>
-  <div><div class="small muted">Größter Hebel · {{ lever.who }} · Runden pro Match</div><b>{{ lever.title }}</b><div class="small muted">{{ lever.text }}</div></div></a>
-{% endif %}
-<div class="steps">
-<section class="step{{ ' off' if not n_history }}">
-  <div class="sh"><span class="sn">1</span><div><div class="st">Vor dem Match</div><div class="sw">10 Minuten vorher</div></div></div>
-  {% if n_history %}
-  {% for a in auftrag %}
-  <details class="pre"><summary><span class="pk">{{ a.name }} · Aufwärmen · {{ a.routine.minutes }} Min</span> <b>{{ a.routine.title }}</b></summary>
-    <ol>{% for st in a.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
-    <div class="small"><b>Im Match:</b> {{ a.in_game }}</div>
-  </details>
-  <form action="/training/done?p={{ a.sid }}" method="post"><button class="btn2" type="submit">✓ {{ a.name }}: Übung gemacht{% if a.drills %} ({{ a.drills }}x bisher){% endif %}</button></form>
-  {% endfor %}
-  <div class="sl">Kabine: Map wählen</div>
-  <div class="small muted">Euer Auftrag und die Winkel, aus denen ihr auf dieser Map sterbt.</div>
-  <div class="maps">{% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
-  {% else %}<div class="small muted">Ab dem ersten Match: Aufwärm-Übung zu eurem Auftrag und eine Kabinenansprache je Map.</div>{% endif %}
-</section>
-
-<section class="step now">
-  <div class="sh"><span class="sn">2</span><div><div class="st">Nach dem Match</div><div class="sw">Demo hochladen, Report lesen</div></div></div>
+<div class="home">
+<div class="col">
   {% include "jobs.html" %}
-  {% include "upload.html" %}
-  <div class="small muted" style="margin-top:8px">Die .dem-Datei aus CS2 oder FACEIT. Die Analyse dauert ein paar Minuten, danach öffnet sich der Report.</div>
-  {% if last and last.report_file %}<a class="lastm" href="/reports/{{ last.report_file }}">
-    <span class="small muted">Letztes Match</span>
-    <b>{{ (last.map or "?").removeprefix("de_")|capitalize }} <span class="num">{{ last.won }}:{{ last.lost }}</span></b>
-    {% for i in last_imp %}<span class="small num">Impact {{ i.name }}: <b style="display:inline;color:{{ '#46a758' if i.pos else '#e5484d' }}">{{ i.total }}</b> Runden{% if i.rank %} · Platz {{ i.rank }} von {{ i.of }}{% endif %}</span>{% endfor %}
-    <span class="small">Report öffnen: erst „Coach“ lesen, dann den Debrief durchklicken ›</span></a>{% endif %}
-</section>
 
-<section class="step{{ ' off' if not n_history }}">
-  <div class="sh"><span class="sn">3</span><div><div class="st">Zwischen den Matches</div><div class="sw">10–20 Minuten, wann ihr wollt</div></div></div>
+  {% if last and last.report_file %}
+  <a class="last" href="/reports/{{ last.report_file }}">
+    <div class="top"><span class="kicker">Letztes Match{% if last.when %} · {{ last.when }}{% endif %}</span><span class="res {{ last.res }}">{{ last.result }}</span></div>
+    <h3>{{ last.map_label }} <span class="num">{{ last.won }}:{{ last.lost }}</span></h3>
+    {% if last.topic %}<div class="topic">Das Thema des Matches: <b>{{ last.topic }}</b></div>{% endif %}
+    {% if last_imp %}<div class="imps">{% for i in last_imp %}<span>{{ i.name }} <b class="{{ 'p' if i.pos else 'n' }}">{{ i.total }}</b> Runden Impact{% if i.rank %} · Platz {{ i.rank }}/{{ i.of }}{% endif %}</span>{% endfor %}</div>{% endif %}
+    <div class="go">Report öffnen ›</div>
+    <div class="hint">Erst „Coach“ lesen, dann den Debrief durchklicken. Dauert 5 Minuten.</div>
+  </a>
+  {% endif %}
+
+  <section class="card upbox{{ ' first' if not n_history }}">
+    <div class="kicker">{{ "Schritt 1" if not n_history else "Nächstes Match" }}</div>
+    <h3>Demo hochladen</h3>
+    <p>Die .dem-Datei aus CS2 oder FACEIT (auch .zip/.rar). Die Auswertung startet sofort und dauert ein paar Minuten.</p>
+    {% set embedded = true %}{% include "upload.html" %}
+    {% if not n_history %}
+    <div class="gets">
+      <div>Ein Report mit 2D-Replay: jede Runde, jeder Tod, jede Granate.</div>
+      <div>Ein Coach, der den einen Fehler findet, der euch am meisten Runden kostet.</div>
+      <div>Ein Auftrag mit Übung und Wochenplan, damit es im nächsten Match besser wird.</div>
+    </div>
+    {% endif %}
+  </section>
+</div>
+
+<div class="col">
+  {% if auftrag %}
+  {% for a in auftrag %}
+  <div class="card auf">
+    <div class="who">{{ a.name }} · Dein Auftrag{% if a.mastered %} · {{ a.mastered }} gemeistert{% endif %}</div>
+    <div class="atitle">{{ a.title }}</div>
+    <div class="mantra">„{{ a.mantra }}“</div>
+    {% if a.rueckfall %}<div class="small" style="margin-top:6px;color:#e5484d">Kommt zurück: war am {{ a.rueckfall[8:10] }}.{{ a.rueckfall[5:7] }}. gemeistert, jetzt wieder so oft wie vorher.</div>{% endif %}
+    {% include "auftrag_chart.html" %}
+    {% if loop.last %}<a class="week" href="/training">
+      {% if week %}<div class="wl"><span>Wochenplan</span><b class="num">{{ week.done }}/{{ week.total }} erledigt ›</b></div><div class="bar"><i style="width:{{ week.pct }}%"></i></div>
+      {% else %}<div class="wl"><span>Wochenplan mit Übungen zum Auftrag</span><b>Öffnen ›</b></div>{% endif %}
+    </a>{% endif %}
+  </div>
+  {% endfor %}
+  {% elif n_history %}
+  <div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler über eure letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Einzelne Fehler sind noch kein Muster.</div>
+  {% endif %}
+
+  {% if lever %}
+  <a class="card levhome" href="/progress?p={{ lever.sid }}"><span class="lg num">+{{ lever.gain_s }}</span>
+    <div><div class="small muted">Größter Hebel · {{ lever.who }} · Runden pro Match</div><b>{{ lever.title }}</b><div class="small muted">{{ lever.text }}</div></div></a>
+  {% endif %}
+
   {% if n_history %}
-  {% for a in auftrag if a.scenes %}<a class="tlink" href="/training/situationen?p={{ a.sid }}">▶ {{ a.name }}: {{ a.scenes }} eigene Situationen entscheiden</a>{% endfor %}
-  <a class="trow" href="/training"><b>Wochenplan</b><span>Aufgaben zum Auftrag abhaken ›</span></a>
-  <a class="trow" href="/training#tools"><b>Eure Maps</b><span>Je Map: Map-Buch, Playbook mit Pro-Taktiken, Lineups ›</span></a>
-  {% else %}<div class="small muted">Ab dem ersten Match: eure eigenen Szenen zum Üben, Wochenplan und Map-Buch.</div>{% endif %}
-</section>
+  <section class="card prep">
+    <div class="kicker">Vor dem nächsten Match · 10 Min</div>
+    {% for a in auftrag %}
+    <details class="pre"><summary><span class="pk">{{ a.name }} · Aufwärmen · {{ a.routine.minutes }} Min</span> <b>{{ a.routine.title }}</b></summary>
+      <ol>{% for st in a.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+      <div class="small"><b>Im Match:</b> {{ a.in_game }}</div>
+    </details>
+    <form action="/training/done?p={{ a.sid }}" method="post"><button class="btn2" type="submit">✓ {{ a.name }}: Übung gemacht{% if a.drills %} ({{ a.drills }}x bisher){% endif %}</button></form>
+    {% endfor %}
+    <div class="small muted" style="margin-top:12px">Kabine: Matchplan und eure gefährlichsten Winkel auf der Map</div>
+    <div class="maps">{% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
+  </section>
+
+  {% for a in auftrag if a.scenes %}
+  <a class="mini" href="/training/situationen?p={{ a.sid }}"><div><b>Situations-Training</b><span>{{ a.name }}: {{ a.scenes }} eigene Szenen entscheiden, wie die Pros</span></div><i>▶</i></a>
+  {% endfor %}
+  {% endif %}
+</div>
 </div>
 <a class="more-link" href="/mehr#anleitung">Wie funktioniert der Coach? ›</a>
 {% endblock %}

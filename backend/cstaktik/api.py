@@ -474,10 +474,43 @@ def index() -> str:
     last_imp = [{"name": names.get(s, s), "total": de(r["total"] / 100), "pos": r["total"] > 0, "rank": r.get("rank"),
                  "of": r.get("of")}
                 for s, r in sorted(((hist[-1].get("impact") or {}) if hist else {}).items()) if s in _mine([s])]
+    auftrag = _auftrag(hist)
+    week = _week_progress([a["sid"] for a in auftrag])
     return _env.get_template("index.html").render(
-        nav_active="coach", jobs=jobs, n_history=len(hist), last=hist[-1] if hist else None, briefing_maps=maps,
-        auftrag=_auftrag(hist), missing_players=missing if hist else 0, lever=lever, last_imp=last_imp,
+        nav_active="coach", jobs=jobs, n_history=len(hist), last=_last_view(hist[-1]) if hist else None,
+        briefing_maps=maps, auftrag=auftrag, missing_players=missing if hist else 0, lever=lever, last_imp=last_imp,
+        me_name=names.get(_me()) if _me() else None, week=week,
     )
+
+
+def _last_view(h: dict) -> dict:
+    """Letztes Match für die Startseite: Ergebnis, Datum, Thema."""
+    from cstaktik.coach_voice import LESSONS
+
+    won, lost = h.get("won", 0), h.get("lost", 0)
+    lid = h.get("main_lesson")
+    try:
+        when = datetime.fromisoformat(h["analyzed_at"]).strftime("%d.%m. %H:%M")
+    except (KeyError, ValueError):
+        when = None
+    return {**h, "result": "Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden",
+            "res": "w" if won > lost else "l" if lost > won else "d", "when": when,
+            "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(),
+            "topic": LESSONS[lid][0] if lid in LESSONS and lid != "duel" else None}
+
+
+def _week_progress(sids: list[str]) -> dict | None:
+    """Wochenplan-Fortschritt (erledigte/alle Aufgaben) über die eigenen Spieler, für die Startseite."""
+    from cstaktik import weekplan
+
+    key = weekplan.week_key(weekplan.local_today())
+    done = total = 0
+    for sid in sids:
+        plan = (_players_state().get(sid) or {}).get("weeks", {}).get(key)
+        if plan:
+            total += len(plan.get("tasks", []))
+            done += sum(1 for t in plan.get("tasks", []) if t["id"] in (plan.get("done") or {}))
+    return {"done": done, "total": total, "pct": round(100 * done / total) if total else 0} if total else None
 
 
 def _running_jobs() -> list[dict]:
