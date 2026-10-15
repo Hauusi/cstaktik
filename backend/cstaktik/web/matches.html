@@ -4,6 +4,15 @@
 <h1>Matches</h1>
 <p>{{ reports|length }} Report{{ "s" if reports|length != 1 }}{% if n_history %} · {{ n_history }} im Verlauf{% endif %}</p>
 {% endblock %}
+{% block head %}
+<style>
+.mrow2.w { box-shadow: inset 3px 0 0 #3fbf7f; } .mrow2.l { box-shadow: inset 3px 0 0 #f0566a; }
+.mrow2 .score { display: grid; justify-items: end; gap: 4px; font-size: 18px; }
+.mrow2 .rb { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 3px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.mrow2 .rb.w { background: rgba(63,191,127,.15); color: #6fe0a6; } .mrow2 .rb.l { background: rgba(240,86,106,.15); color: #ff9aa8; }
+.mimp { display: block; margin-top: 3px; color: var(--muted); } .mimp span { font-weight: 700; } .mimp .p { color: #6fe0a6; } .mimp .n { color: #ff9aa8; }
+</style>
+{% endblock %}
 {% block content %}
 {% include "jobs.html" %}
 {% if n_history >= 2 %}
@@ -15,10 +24,12 @@
 {% if reports %}
 <div class="list">
   {% for r in reports %}
-  <a class="item" href="/reports/{{ r.file }}">
+  <a class="item mrow2 {{ r.res or '' }}" href="/reports/{{ r.file }}">
     <div class="map">{{ r.map[:2] if r.map else "?" }}</div>
-    <div class="meta"><b>{{ r.map or r.name }}</b><span class="muted small">{{ r.date }}{% if r.topic %} · Thema: {{ r.topic }}{% endif %}</span></div>
-    {% if r.won is not none %}<div class="score num"><span class="w">{{ r.won }}</span><span class="muted">:</span><span class="l">{{ r.lost }}</span></div>{% endif %}
+    <div class="meta"><b>{{ r.map or r.name }}</b>
+      <span class="muted small">{{ r.date }}{% if r.topic %} · Thema: {{ r.topic }}{% endif %}</span>
+      {% if r.imp %}<span class="small mimp">{% for i in r.imp %}{{ i.name }} <span class="{{ 'p' if i.pos else 'n' }}">{{ i.v }}</span>{% if i.rank %} · Platz {{ i.rank }}/{{ i.of }}{% endif %}{{ " · " if not loop.last }}{% endfor %}</span>{% endif %}</div>
+    {% if r.won is not none %}<div class="score num"><b>{{ r.won }}:{{ r.lost }}</b><span class="rb {{ r.res }}">{{ {"w": "Sieg", "l": "Niederlage", "d": "Remis"}[r.res] }}</span></div>{% endif %}
   </a>
   {% endfor %}
 </div>

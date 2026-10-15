@@ -269,8 +269,14 @@ details.more > summary { padding: 14px; border-radius: 14px; background: var(--s
 .goalrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .gpill { font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.06); }
 .gpill.ok { color: var(--win); background: rgba(63,191,127,.12); } .gpill.no { color: var(--loss); background: rgba(240,86,106,.12); }
-.subctas { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
-.subctas .linkbtn { margin: 4px auto 0; }
+.subctas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.chipbtn { padding: 11px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text);
+  font-size: 14px; font-weight: 650; text-align: center; line-height: 1.25; }
+.chipbtn span { color: var(--orange); font-variant-numeric: tabular-nums; }
+.guide { margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px dashed var(--line);
+  font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+.guide b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--orange);
+  color: #111; font-size: 11px; margin: 0 2px; }
 .lessons { display: grid; gap: 12px; }
 .lesson { display: flex; gap: 14px; padding: 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
 .lesson:first-child { border-color: rgba(240,86,106,.35); background: linear-gradient(180deg, rgba(240,86,106,.08), var(--surface) 60%); }
@@ -617,10 +623,11 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
   {% endif %}
 
   <div class="ctas">
+    <div class="guide" id="guide">So nutzt du den Report: <b>1</b> den Debrief durchklicken (5 Min) · <b>2</b> im Replay die Szenen ansehen · <b>3</b> „Zum Mitnehmen“ unten merken.</div>
     <button class="tour" id="dbfBtn" hidden>▶ Debrief mit dem Coach <small id="dbfN"></small></button>
-    <button class="linkbtn" id="tourBtn" hidden>Schlüsselmomente im Replay <span id="tourN"></span></button>
-    <div class="subctas"><button class="linkbtn" id="quizBtn" hidden>Training: Was machst du? <span id="quizN"></span></button>
-      <button class="linkbtn" id="allTour" hidden></button></div>
+    <div class="subctas"><button class="chipbtn" id="tourBtn" hidden>Schlüsselmomente im Replay <span id="tourN"></span></button>
+      <button class="chipbtn" id="quizBtn" hidden>Selbst entscheiden: Was machst du? <span id="quizN"></span></button></div>
+    <button class="linkbtn" id="allTour" hidden></button>
   </div>
 
 
@@ -643,7 +650,7 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 
     <div class="cmp">
       <div class="cmpcol bad"><div class="lk cond">So nicht · bei euch</div>
-        <div class="scenes">{% for sc in (l.scenes|unique(attribute="round")|list)[:4] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div></div>
+        <div class="scenes">{% for sc in (l.scenes|unique(attribute="round")|list)[:4] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost and sc.cost > 0 %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div></div>
       {% set good = bright[l.id] %}
       <div class="cmpcol good"><div class="lk cond">So geht's · bei euch</div>
         {% if good %}{% for g in good %}<button class="brightgo" data-round="{{ g.round }}" data-tick="{{ g.from }}"><b class="cond">▶ R{{ g.round }} {{ g.when }}</b>{{ g.text }}</button>{% endfor %}
@@ -1881,7 +1888,7 @@ function quizAnswer(f, pick) {
 function quizScore() { try { return JSON.parse(localStorage.getItem('cstaktik-quiz-' + location.pathname)) || { ok: 0, n: 0 }; } catch (e) { return { ok: 0, n: 0 }; } }
 function quizSave(sc) { try { localStorage.setItem('cstaktik-quiz-' + location.pathname, JSON.stringify(sc)); } catch (e) { /* ohne Speicher weiter */ } }
 function quizEnd() { S.quiz = null; $('quiz').hidden = true; $('coach').dataset.key = ''; draw(); }
-if (QUIZ.length) { $('quizBtn').hidden = false; $('quizN').textContent = QUIZ.length + ' Situationen'; $('quizBtn').onclick = () => quizShow(0); }
+if (QUIZ.length) { $('quizBtn').hidden = false; $('quizN').textContent = '(' + QUIZ.length + ')'; $('quizBtn').onclick = () => quizShow(0); }
 
 // ---- Debrief-Sitzung: Schritt für Schritt mit dem Coach (Daten: D.debrief)
 const DB = D.debrief || {};

@@ -533,6 +533,13 @@ def matches_page() -> str:
             r["sort"] = h["analyzed_at"]
             lid = h.get("main_lesson")
             r["topic"] = LESSONS[lid][0] if lid in LESSONS and lid != "duel" else None
+            from cstaktik.impact import de
+
+            r["imp"] = [{"name": (h.get("players", {}).get(sid) or {}).get("name", sid), "v": de(x["total"] / 100),
+                         "pos": x["total"] > 0, "rank": x.get("rank"), "of": x.get("of")}
+                        for sid, x in sorted((h.get("impact") or {}).items()) if _mine([sid])]
+        if r.get("won") is not None:
+            r["res"] = "w" if r["won"] > r["lost"] else "l" if r["lost"] > r["won"] else "d"
     reports.sort(key=lambda r: r.get("sort") or "", reverse=True)
     return _env.get_template("matches.html").render(nav_active="matches", jobs=_running_jobs(),
                                                     reports=reports, n_history=len(hist))
