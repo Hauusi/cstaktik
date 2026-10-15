@@ -363,6 +363,50 @@ def _util_cmp(match: MatchData) -> dict:
     return utility_cmp.compare(match, pro.load_all(pipeline.PRO_DIR), load_rules_config().get("utility_cmp"))
 
 
+KIND_DE = {"kill": "Kill", "death": "Tod", "plant": "Bombe gelegt", "defuse": "Entschärft"}
+
+
+def _impact(match: MatchData, result: AnalysisResult) -> dict | None:
+    """Impact-Tabelle (alle Spieler) und je Fokus-Spieler die größten Momente nach Siegchance."""
+    imp = result.impact
+    if not imp or not imp["players"]:
+        return None
+    from cstaktik.impact import de
+
+    names = {p.steamid: p.name for p in match.players}
+    focus = match.focus_ids()
+    rows = sorted(({"sid": s, "name": names.get(s, s), "focus": s in focus, "total": p["total"] / 100,
+                    "total_s": de(p["total"] / 100), "kill_s": de(p["kill"] / 100), "death_s": de(p["death"] / 100),
+                    "obj_s": de((p["plant"] + p["defuse"]) / 100), "obj": p["plant"] + p["defuse"]}
+                   for s, p in imp["players"].items() if s in names), key=lambda r: -r["total"])
+    if not rows:
+        return None
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    mine = []
+    for sid in sorted(focus, key=lambda s: names.get(s, s)):
+        p = imp["players"].get(sid)
+        if not p:
+            continue
+        ms = [m for m in imp["moments"] if m["sid"] == sid]
+
+        def line(m):
+            who = names.get(m["other"]) if m.get("other") else None
+            txt = KIND_DE[m["kind"]] + (f" gegen {who}" if m["kind"] == "kill" and who else
+                                        f" durch {who}" if m["kind"] == "death" and who else "")
+            return {"round": m["round"], "tick": m["tick"], "text": txt, "val": f"{de(m['val'])} %", "up": m["val"] > 0}
+
+        best = [line(m) for m in sorted(ms, key=lambda m: -m["val"]) if m["val"] > 0][:3]
+        worst = [line(m) for m in sorted(ms, key=lambda m: m["val"]) if m["val"] < 0][:3]
+        rank = next(r["rank"] for r in rows if r["sid"] == sid)
+        mine.append({"sid": sid, "name": names.get(sid, sid), "best": best, "worst": worst, "rank": rank,
+                     "text": f"{de(p['total'] / 100)} Runden Siegchance im Match (Platz {rank} von {len(rows)}). "
+                             f"Kills {de(p['kill'] / 100)}, Tode {de(p['death'] / 100)}"
+                             + (f", Bombe {de((p['plant'] + p['defuse']) / 100)}" if p["plant"] or p["defuse"] else "")
+                             + "."})
+    return {"rows": rows, "mine": mine}
+
+
 def _duel_cmp(match: MatchData) -> dict | None:
     """Duell-Kennzahlen je Fokus-Spieler gegen den Schnitt aller Pro-Demos (Fadenkreuz, Reaktion, erste Kugel)."""
     from cstaktik import duels, pipeline, pro
@@ -454,6 +498,12 @@ def build_context(
     for ro in payload["rounds"]:  # Taktik-Etikett je Runde (Runden-Reiter)
         if not ro.get("pro") and tac_now and ro.get("n") in tac_now["tags"]:
             ro["tac"] = tac_now["tags"][ro["n"]]
+    imp = _impact(match, result)
+    if result.impact:  # Siegchance-Verlauf je Runde aus Sicht der Fokus-Seite (Linie im Replay)
+        for ro in payload["rounds"]:
+            rd = result.impact["rounds"].get(ro.get("n")) if not ro.get("pro") else None
+            if rd and rd["line"] and ro.get("side"):
+                ro["wp"] = [[t, p if ro["side"] == "ct" else round(100 - p, 1)] for t, p in rd["line"]]
     data_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     return {
         "match": match,
@@ -473,6 +523,7 @@ def build_context(
         "duel_cmp": _duel_cmp(match),
         "util_cmp": _util_cmp(match),
         "tactics": tac_now,
+        "impact": imp,
         "auftraege": auftraege,
         "checks": [a for a in auftraege if a.get("check")],
         "goal_cfg": load_rules_config()["goals"],

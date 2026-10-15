@@ -15,6 +15,10 @@
 .tr.besser { color: #46a758; } .tr.schlechter { color: #e5484d; } .tr.gleich, .tr.wenig { color: var(--muted); }
 .mrow { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .mrow:last-child { border-bottom: 0; }
+.imp .imtop { display: grid; grid-template-columns: auto 1fr 110px; gap: 12px; align-items: center; }
+.imp .lg { font-size: 30px; font-weight: 800; }
+.imp svg { width: 110px; height: 34px; } .imp svg line { stroke: var(--line); stroke-dasharray: 2 3; }
+.imp svg polyline { fill: none; stroke: var(--muted); stroke-width: 1.6; } .imp svg circle { fill: #46a758; } .imp svg circle.neg { fill: #e5484d; }
 .dread { margin: 4px 0 10px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; }
 </style>
 {% endblock %}
@@ -35,6 +39,17 @@
   {% include "auftrag_chart.html" %}
 </div>
 {% else %}<div class="card empty">Kein laufender Auftrag.</div>{% endif %}
+
+{% if p.impact %}{% set im = p.impact %}
+<h2>Impact · letzte {{ im.n }} Match{{ "es" if im.n != 1 }}</h2>
+<div class="card imp">
+  <div class="imtop"><span class="lg num" style="color:{{ '#46a758' if im.per_round > 0 else '#e5484d' if im.per_round < 0 else 'inherit' }}">{{ im.per_round_s }}</span>
+    <div><b>Punkte Siegchance je Runde</b><div class="small muted">Pro Match {{ im.match_s }} Runden: Kills {{ im.kill_s }}, Tode {{ im.death_s }}{% if im.obj %}, Bombe {{ im.obj_s }}{% endif %}.</div></div>
+    <svg viewBox="-4 -2 108 34" aria-hidden="true"><line x1="0" x2="100" y1="15" y2="15"/>{% if im.n > 1 %}<polyline points="{{ im.spark }}"/>{% endif %}{% for d in im.dots %}<circle cx="{{ d.x }}" cy="{{ d.y }}" r="2.6" class="{{ 'neg' if d.neg }}"/>{% endfor %}</svg></div>
+  <div class="small muted num" style="margin-top:8px">{% if im.ranked %}Bester Spieler des Matches (Impact): {{ im.top1 }} von {{ im.ranked }} Mal, im Schnitt Platz {{ im.avg_rank|string|replace(".", ",") }}.{% endif %}{% if im.trend %} Trend: <span class="tr {{ im.trend }}">{{ {"besser": "besser", "schlechter": "schlechter", "gleich": "kein klarer Trend"}[im.trend] }}</span> ({{ im.trend_s }}).{% endif %}</div>
+  <div class="small muted" style="margin-top:6px">Jeder Kill, Tod, Plant und Defuse verschiebt die Siegchance der Runde (gezählt aus euren Matches und Pro-Demos). Schaden ohne Kill, Granaten und Infos zählen nicht. Die einzelnen Momente stehen im Report unter Analyse.</div>
+</div>
+{% endif %}
 
 {% if p.levers %}
 <h2>Eure größten Hebel</h2>

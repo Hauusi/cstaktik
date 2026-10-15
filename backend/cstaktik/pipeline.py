@@ -174,6 +174,9 @@ def _coach(match: MatchData, config: dict):
     states += [s for d in pro for s in d.get("states", [])]
     model = situation.WinModel(states, config["situation"]["win_min_rounds"])
     situation.enrich(match, result.findings, model, config["situation"], config["coach"]["trade_window_s"])
+    from cstaktik import impact
+
+    result.impact = impact.build(match, model)
     situation.enrich_pro(match, result.findings, pro, config["situation"]["pro_min_cases"])
     from cstaktik import coach_voice
 

@@ -266,3 +266,4 @@ class AnalysisResult(BaseModel):
     findings: list[Finding]
     rule_status: list[RuleStatus]
     stats: list[PlayerStats] = Field(default_factory=list)
+    impact: dict | None = None  # impact.build: Siegchance je Aktion (nur mit Gewinnmodell)
