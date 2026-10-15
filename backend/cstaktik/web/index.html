@@ -55,11 +55,13 @@
 {% elif not n_history %}Lade dein erstes Match hoch. In ein paar Minuten weißt du, woran du arbeiten solltest.
 {% elif last and last.topic %}Letztes Match: {{ last.map_label }} {{ last.won }}:{{ last.lost }}. Thema: {{ last.topic }}.
 {% else %}Match hochladen, Report lesen, üben. Mehr braucht es nicht.{% endif %}</p>
+{% if not n_history %}{# nur beim Einstieg: danach kennt man den Ablauf, dann ist es nur Platz #}
 <div class="flow" aria-label="So funktioniert es">
-  <div class="{{ 'on' if not n_history or jobs }}"><b>Hochladen</b><span>Demo nach dem Match</span></div>
-  <div class="{{ 'on' if n_history and not jobs }}"><b>Report lesen</b><span>Coach &amp; Debrief</span></div>
+  <div class="on"><b>Hochladen</b><span>Demo nach dem Match</span></div>
+  <div><b>Report lesen</b><span>Coach &amp; Debrief</span></div>
   <div><b>Üben</b><span>Auftrag &amp; Wochenplan</span></div>
 </div>
+{% endif %}
 {% endblock %}
 {% block content %}
 {% if missing_players %}<a class="card" href="/spieler" style="display:block;border-color:#e5484d;margin-top:18px">
