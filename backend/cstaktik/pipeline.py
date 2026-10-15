@@ -414,6 +414,11 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
                      memory=mem, focus=h.get("focus_check"))
         done += 1
     if rebuild is not None and done:
+        # Übungen und Wochenpläne aus dem JETZIGEN Stand übernehmen: Haken, die während des Neubaus gesetzt
+        # wurden, gingen sonst verloren (der Neubau kann Minuten dauern)
+        for sid, slot in coaching.load(COACHING_FILE).get("players", {}).items():
+            tgt = rebuild["players"].setdefault(sid, {"focus": None, "done": []})
+            tgt["drills"], tgt["weeks"] = slot.get("drills", []), slot.get("weeks", {})
         rebuild["count_version"] = coaching.COUNT_VERSION
         rebuild["focus_ids"] = sorted(focus)
         coaching.save(rebuild, COACHING_FILE)

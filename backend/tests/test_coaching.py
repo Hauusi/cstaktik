@@ -233,3 +233,35 @@ def test_rerender_reparses_demo_when_cache_is_old(tmp_path, monkeypatch):
     seen.clear()
     pipeline._current_match({"id": "x", "source_file": "fehlt.dem"}, set(), {})  # Demo weg: alter Cache
     assert seen == []
+
+
+def test_rerender_keeps_drills_ticked_meanwhile(tmp_path, monkeypatch):
+    """Haken, die während eines Neubaus aller Reports gesetzt werden, bleiben erhalten."""
+    from synth import BRO
+
+    from cstaktik import pipeline
+    from cstaktik.parser.loader import save_match
+
+    m = build_match()
+    m.source_sha256 = "match0"
+    src = tmp_path / "m0.json"
+    save_match(m, src)
+    pipeline.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    save_match(m, pipeline.CACHE_DIR / f"match0.v{pipeline.CACHE_SCHEMA}.json")
+    pipeline.run(src, {ME, BRO}, tmp_path / "reports")
+    st = coaching.load(pipeline.COACHING_FILE)
+    st.pop("count_version", None)  # erzwingt den Neuaufbau
+    coaching.save(st, pipeline.COACHING_FILE)
+    real = coaching.update_all
+
+    def tick_meanwhile(*a, **kw):  # Nutzer hakt während des Neubaus eine Übung ab
+        cur = coaching.load(pipeline.COACHING_FILE)
+        cur.setdefault("players", {}).setdefault(ME, {}).setdefault("drills", []).append(
+            {"lesson": "alone", "date": "2026-10-09T10:00"})
+        coaching.save(cur, pipeline.COACHING_FILE)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(coaching, "update_all", tick_meanwhile)
+    assert pipeline.rerender_reports() == 1
+    drills = coaching.load(pipeline.COACHING_FILE)["players"][ME]["drills"]
+    assert {"lesson": "alone", "date": "2026-10-09T10:00"} in drills
