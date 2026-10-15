@@ -456,9 +456,15 @@ def index() -> str:
         top = levers.build(hist, _load_pro(), sid, load_rules_config().get("playbook"), top=1)
         if top and (lever is None or top[0]["gain"] > lever["gain"]):
             lever = {**top[0], "who": _names(hist).get(sid, sid), "sid": sid}
+    from cstaktik.impact import de
+
+    names = _names(hist)
+    last_imp = [{"name": names.get(s, s), "total": de(r["total"] / 100), "pos": r["total"] > 0, "rank": r.get("rank"),
+                 "of": r.get("of")}
+                for s, r in sorted(((hist[-1].get("impact") or {}) if hist else {}).items()) if s in _mine([s])]
     return _env.get_template("index.html").render(
         nav_active="coach", jobs=jobs, n_history=len(hist), last=hist[-1] if hist else None, briefing_maps=maps,
-        auftrag=_auftrag(hist), missing_players=missing if hist else 0, lever=lever,
+        auftrag=_auftrag(hist), missing_players=missing if hist else 0, lever=lever, last_imp=last_imp,
     )
 
 

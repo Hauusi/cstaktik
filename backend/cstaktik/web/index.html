@@ -55,6 +55,7 @@
   {% if last and last.report_file %}<a class="lastm" href="/reports/{{ last.report_file }}">
     <span class="small muted">Letztes Match</span>
     <b>{{ (last.map or "?").removeprefix("de_")|capitalize }} <span class="num">{{ last.won }}:{{ last.lost }}</span></b>
+    {% for i in last_imp %}<span class="small num">Impact {{ i.name }}: <b style="display:inline;color:{{ '#46a758' if i.pos else '#e5484d' }}">{{ i.total }}</b> Runden{% if i.rank %} · Platz {{ i.rank }} von {{ i.of }}{% endif %}</span>{% endfor %}
     <span class="small">Report öffnen: erst „Coach“ lesen, dann den Debrief durchklicken ›</span></a>{% endif %}
 </section>
 
