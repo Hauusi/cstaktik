@@ -73,14 +73,24 @@ def fetch_icon(name: str, icons_dir: Path = ICONS_DIR, timeout: float = 15.0) ->
     return out
 
 
+_FAILED: dict[str, float] = {}  # Name -> Zeitpunkt des letzten Fehlschlags (nicht bei jeder Auswertung neu warten)
+RETRY_S = 3600
+
+
 def ensure_icons(names: set[str], icons_dir: Path = ICONS_DIR) -> list[str]:
     """Lädt fehlende Icons. Gibt Namen zurück, die nicht geladen werden konnten."""
+    import time
+
     failed = []
     for n in sorted(names):
         if (icons_dir / f"{n}.svg").exists():
             continue
+        if time.time() - _FAILED.get(n, 0) < RETRY_S:  # kürzlich gescheitert: erst in einer Stunde wieder
+            failed.append(n)
+            continue
         try:
             fetch_icon(n, icons_dir)
         except Exception:  # noqa: BLE001 - Replay fällt auf Klassen-Form zurück
+            _FAILED[n] = time.time()
             failed.append(n)
     return failed

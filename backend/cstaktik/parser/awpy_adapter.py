@@ -215,8 +215,12 @@ def parse_demo(
     missing: list[str] = []
     try:  # "spotted" (Radar-Sichtbarkeit) ist optional: fehlt es im Parser, ohne weiterparsen
         dem.parse(player_props=["yaw", "active_weapon_name", "spotted"])
-    except Exception:  # noqa: BLE001
-        dem.parse(player_props=["yaw", "active_weapon_name"])
+    except Exception as first:  # noqa: BLE001
+        try:
+            dem.parse(player_props=["yaw", "active_weapon_name"])
+        except Exception:  # noqa: BLE001 - Demo selbst kaputt: den ursprünglichen Fehler melden, nicht den zweiten
+            raise first from None
+        missing.append("Radar-Sichtung (spotted) nicht lesbar: 'Wer sah zuerst' fehlt")
 
     step("Runden", 0.75)
     # --- Runden ---------------------------------------------------------------
