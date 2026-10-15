@@ -1346,8 +1346,43 @@ def progress_page(p: str = "") -> str:
 
         prof["tilt"] = tilt.summary(hist, sid)
     auftrag = next((x for x in _auftrag(hist) if x["sid"] == sid), None)
+    if prof:
+        prof["summary"] = _profile_summary(prof, auftrag)
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(sids)]
     return _env.get_template("profil.html").render(nav_active="progress", p=prof, a=auftrag, tabs=tabs)
+
+
+def _profile_summary(p: dict, a: dict | None) -> list[dict]:
+    """'Das Wichtigste' oben im Profil: die Aussagen, die die Auswertungen weiter unten schon treffen, an einem Ort.
+    Nur Texte, die es unten gibt (nichts Neues), höchstens fünf."""
+    out = []
+    if a:
+        ms = a.get("matches") or []
+        last = ms[-1] if ms else None
+        if last and last.get("rate") is not None:
+            ok = last["rate"] <= a["target"]
+            out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "good" if ok else "bad",
+                        "text": f"{a['title']}: im letzten Match {str(last['rate']).replace('.', ',')} pro 10 Runden, "
+                                f"Ziel unter {str(a['target']).replace('.', ',')}." + (" Weiter so." if ok else "")})
+        else:
+            out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "",
+                        "text": f"{a['title']}: „{a['mantra']}“ Noch kein Match seit dem Auftrag."})
+    if p.get("levers"):
+        lv = p["levers"][0]
+        out.append({"label": "Hebel", "anchor": "auftrag", "tone": "bad",
+                    "text": f"{lv['title']}: etwa +{lv['gain_s']} Runden pro Match möglich. {lv['text']}"})
+    im = p.get("impact") or {}
+    if im.get("ctx_reading"):
+        out.append({"label": "Impact", "anchor": "impact", "tone": "", "text": im["ctx_reading"]})
+    if p.get("reading"):
+        out.append({"label": "Duelle", "anchor": "duelle", "tone": "", "text": p["reading"]})
+    tl = (p.get("tilt") or {}).get("reading")
+    if tl and "messbar schlechter" in tl:
+        out.append({"label": "Tilt", "anchor": "tilt", "tone": "bad", "text": tl})
+    cl = (p.get("clutch") or {}).get("reading")
+    if cl:
+        out.append({"label": "Clutch", "anchor": "clutch", "tone": "bad" if "liegen" in cl else "good", "text": cl})
+    return out[:5]
 
 
 @app.get("/progress/karte", response_class=HTMLResponse)

@@ -19,19 +19,38 @@
 .imp .lg { font-size: 30px; font-weight: 800; }
 .imp svg { width: 110px; height: 34px; } .imp svg line { stroke: var(--line); stroke-dasharray: 2 3; }
 .imp svg polyline { fill: none; stroke: var(--muted); stroke-width: 1.6; } .imp svg circle { fill: #46a758; } .imp svg circle.neg { fill: #e5484d; }
+.jump { display: flex; gap: 6px; overflow-x: auto; margin-top: 14px; padding-bottom: 2px; scrollbar-width: none; }
+.jump a { flex: none; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--muted); }
+.jump a:hover { color: var(--text); }
+h2[id] { scroll-margin-top: 70px; }
+.sumbox { margin-top: 18px; padding: 16px; border-radius: 18px; border: 1px solid rgba(255,159,28,.35);
+  background: linear-gradient(135deg, rgba(255,159,28,.12), rgba(255,159,28,.02) 60%), var(--surface); }
+.sumbox .kick { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); margin-bottom: 6px; }
+.sumrow { display: grid; grid-template-columns: 86px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14.5px; line-height: 1.4; }
+.sumrow:first-of-type { border-top: 0; }
+.sumrow > span { font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.sumrow.bad > span { color: #ff9aa8; } .sumrow.good > span { color: #6fe0a6; }
+@media (min-width: 960px) { .sumbox { max-width: 860px; } }
 .dread { margin: 4px 0 10px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; }
 </style>
 {% endblock %}
 {% block hero %}
-<h1>{{ p.name if p else "Fortschritt" }}</h1>
+<h1>Fortschritt{% if p and tabs|length <= 1 %} · {{ p.name }}{% endif %}</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/progress?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if p %}{{ p.n_matches }} Match{{ "es" if p.n_matches != 1 }} ausgewertet. Alles, was der Coach über dich weiß.{% else %}Noch keine Matches.{% endif %}</p>
+<p>{% if p %}{{ p.n_matches }} Match{{ "es" if p.n_matches != 1 }} ausgewertet. Oben das Wichtigste, darunter alle Werte.{% else %}Noch keine Matches.{% endif %}</p>
+{% if p %}<nav class="jump" aria-label="Abschnitte">{% for id, lbl, on in [("auftrag", "Auftrag", true), ("impact", "Impact", p.impact), ("duelle", "Duelle", p.duels), ("fehler", "Fehler", p.lessons), ("seiten", "T/CT", p.sides), ("clutch", "Clutch", p.clutch), ("maps", "Maps", p.maps)] if on %}<a href="#{{ id }}">{{ lbl }}</a>{% endfor %}</nav>{% endif %}
 {% endblock %}
 {% block content %}
 {% if p %}
+{% if p.summary %}
+<section class="sumbox">
+  <div class="kick">Das Wichtigste</div>
+  {% for x in p.summary %}<a class="sumrow {{ x.tone }}" href="#{{ x.anchor }}"><span>{{ x.label }}</span><div>{{ x.text }}</div></a>{% endfor %}
+</section>
+{% endif %}
 <div class="cols">
 <div class="col">
-<h2>Auftrag</h2>
+<h2 id="auftrag">Auftrag</h2>
 {% if a %}
 <div class="card auf">
   <div class="atitle">{{ a.title }}</div>
@@ -41,7 +60,7 @@
 {% else %}<div class="card empty">Kein laufender Auftrag.</div>{% endif %}
 
 {% if p.impact %}{% set im = p.impact %}
-<h2>Impact · letzte {{ im.n }} Match{{ "es" if im.n != 1 }}</h2>
+<h2 id="impact">Impact · letzte {{ im.n }} Match{{ "es" if im.n != 1 }}</h2>
 <div class="card imp">
   <div class="imtop"><span class="lg num" style="color:{{ '#46a758' if im.per_round > 0 else '#e5484d' if im.per_round < 0 else 'inherit' }}">{{ im.per_round_s }}</span>
     <div><b>Punkte Siegchance je Runde</b><div class="small muted">Pro Match {{ im.match_s }} Runden: Kills {{ im.kill_s }}, Tode {{ im.death_s }}{% if im.obj %}, Bombe {{ im.obj_s }}{% endif %}.</div></div>
@@ -67,18 +86,18 @@
 </div>
 {% endif %}
 
-<h2>Duell-Profil · letzte {{ p.duels.matches if p.duels else 0 }} Matches</h2>
 {% if p.duels %}{% set d = p.duels %}{% set pr = p.pro %}
+<h2 id="duelle">Duell-Profil · letzte {{ p.duels.matches }} Matches</h2>
 <div class="card">
   {% if p.reading %}<div class="dread">{{ p.reading }}</div>{% endif %}
   {{ duelchain(d, pr, cmpbar) }}
   <div class="small muted num" style="margin-top:10px">{{ d.n }} Duelle, {{ d.won|round|int }} % gewonnen. Werte gewichtet nach Fallzahl je Match.</div>
 </div>
-{% else %}<div class="card empty">Noch keine Duell-Daten.</div>{% endif %}
+{% endif %}
 </div>
 
 <div class="col">
-<h2>Fehler über die Matches</h2>
+<h2 id="fehler">Fehler über die Matches</h2>
 {% for l in p.lessons %}
 <div class="lrow {{ l.trend.state }}">
   <div class="t">{{ l.title }}</div>
@@ -88,7 +107,7 @@
 {% else %}<div class="card empty">Noch keine Fehler-Daten.</div>{% endfor %}
 
 {% for sd in p.sides %}{% set S = sd.side|upper %}
-<h2>{{ S }}-Seite: erster Kill, {{ "nach dem Plant" if sd.side == "t" else "Retake" }}, Kauf</h2>
+<h2{% if loop.first %} id="seiten"{% endif %}>{{ S }}-Seite: erster Kill, {{ "nach dem Plant" if sd.side == "t" else "Retake" }}, Kauf</h2>
 {% set reads = [sd.fb.reading, sd.pp.reading, sd.buys.reading]|select|list %}
 <div class="card">
   {% for r in reads %}<div class="dread">{{ r }}</div>{% endfor %}
@@ -122,7 +141,7 @@
 {% endfor %}
 
 {% if p.tilt %}{% set tl = p.tilt %}
-<h2>Tilt-Check · nach verlorenen Runden</h2>
+<h2 id="tilt">Tilt-Check · nach verlorenen Runden</h2>
 <div class="card">
   {% if tl.reading %}<div class="dread">{{ tl.reading }}</div>{% else %}<div class="small muted">Noch zu wenige Runden für eine Aussage (je Gruppe mindestens 25 Runden nach Serie und nach Sieg).</div>{% endif %}
   <details class="sdet"><summary>Alle Werte</summary>
@@ -137,7 +156,7 @@
 {% endif %}
 
 {% if p.clutch %}{% set c = p.clutch %}
-<h2>Clutch · als Letzter übrig</h2>
+<h2 id="clutch">Clutch · als Letzter übrig</h2>
 <div class="card">
   {% if c.reading %}<div class="dread">{{ c.reading }}</div>{% else %}<div class="small muted">{% if c.exp_n < 5 %}Noch zu wenige Clutches mit Pro-Vergleich für eine Bewertung (ab 5).{% else %}Nichts Auffälliges.{% endif %}</div>{% endif %}
   <details class="sdet"{% if c.reading %} open{% endif %}><summary>Alle Werte</summary>
@@ -150,7 +169,7 @@
 </div>
 {% endif %}
 
-<h2>Maps</h2>
+<h2 id="maps">Maps</h2>
 <div class="card">
 {% for m in p.maps %}
 <div class="mrow"><div><b>{{ m.label }}</b> <span class="small muted num">{{ m.matches }} Match{{ "es" if m.matches != 1 }}, {{ m.won }} gewonnen</span>
