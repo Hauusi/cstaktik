@@ -25,6 +25,22 @@ from cstaktik.config import load_rules_config
 app = FastAPI(title="cstaktik")
 
 
+import contextvars
+
+# SteamID des eingeloggten Nutzers (mit Steam verbunden): Seiten zeigen dann nur sein Profil
+_ME: contextvars.ContextVar[str | None] = contextvars.ContextVar("cstaktik_me", default=None)
+
+
+def _me() -> str | None:
+    return _ME.get()
+
+
+def _mine(sids):
+    """Nur der eigene Spieler, wenn der Nutzer mit Steam verbunden ist; sonst alle (z. B. ohne Login)."""
+    me = _me()
+    return [s for s in sids if s == me] if me else list(sids)
+
+
 _PUBLIC = {"/login", "/fonts.css", "/setup", "/auth/steam", "/auth/steam/callback"}
 _FAILS: dict[str, list[float]] = {}  # Login-Fehlversuche je IP (Schutz gegen Durchprobieren)
 
@@ -48,6 +64,7 @@ async def _password(request: Request, call_next):
         user = accounts.read_session(request.cookies.get(accounts.COOKIE))
         if user or request.url.path in _PUBLIC:
             request.state.user = user
+            _ME.set((accounts.get_steam(user).get("steamid") or None) if user else None)
             return await call_next(request)
         if request.method == "GET" and not request.url.path.startswith("/api/"):
             from urllib.parse import quote
@@ -414,11 +431,11 @@ def index() -> str:
     from cstaktik.config import load_focus_steamids
 
     # eingestellter Spieler, der im letzten Match nicht vorkommt: der Coach sieht ihn nicht -> Hinweis
-    missing = len(load_focus_steamids() - set((hist[-1].get("players") or {}) if hist else ()))
+    missing = len(set(_mine(load_focus_steamids())) - set((hist[-1].get("players") or {}) if hist else ()))
     from cstaktik import levers
 
     lever = None
-    for sid in sorted(load_focus_steamids() | set(_players_state())):  # größter Hebel über die Fokus-Spieler
+    for sid in _mine(sorted(load_focus_steamids() | set(_players_state()))):  # größter Hebel
         top = levers.build(hist, _load_pro(), sid, load_rules_config().get("playbook"), top=1)
         if top and (lever is None or top[0]["gain"] > lever["gain"]):
             lever = {**top[0], "who": _names(hist).get(sid, sid), "sid": sid}
@@ -476,7 +493,10 @@ def _all_scenes(hist: list[dict]) -> list[dict]:
 
 
 def _default_sid(players: dict, names: dict, want: str = "") -> str | None:
-    """Gewählter Spieler, sonst der erste mit Auftrag (nach Name sortiert), überall gleich."""
+    """Gewählter Spieler, sonst der erste mit Auftrag (nach Name sortiert), überall gleich.
+    Eingeloggt und mit Steam verbunden: immer der eigene Spieler."""
+    if _me():
+        return _me()
     if want in players:
         return want
     return next((s for s in sorted(players, key=lambda s: names.get(s, s)) if players[s].get("focus")), None)
@@ -497,7 +517,8 @@ def _auftrag(hist: list[dict]) -> list[dict]:
     names = {sid: p["name"] for h in hist for sid, p in h.get("players", {}).items()}
     scenes = _all_scenes(hist)
     out = []
-    for sid, slot in sorted(_players_state().items(), key=lambda kv: names.get(kv[0], kv[0])):
+    for sid, slot in sorted(((k, v) for k, v in _players_state().items() if k in _mine([k])),
+                            key=lambda kv: names.get(kv[0], kv[0])):
         f = slot.get("focus")
         if not f or f["lesson"] not in LESSONS or f["lesson"] not in TEACH:
             continue  # Lektion gibt es nicht mehr (alte coaching.json)
@@ -589,7 +610,7 @@ def quiz_page(p: str = "") -> str:
     radars = _scene_maps(pick)  # die Seite wählt daraus 12 (falsch beantwortete und neue zuerst)
     data = _json.dumps([{**sc, "lesson_title": LESSONS.get(sc["lesson"], ("?",))[0]} for sc in pick],
                        ensure_ascii=False).replace("</", "<\\/")
-    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus") and s in _mine([s])]
     from cstaktik import coaching, weekplan
 
     week = weekplan.week_key(weekplan.local_today())
@@ -699,7 +720,7 @@ def training_page(p: str = "") -> str:
             if k != key:
                 past.append(weekplan.check(k, slot["weeks"][k], hist, sid, None)
                             | {"title": LESSONS.get(slot["weeks"][k]["lesson"], ("?",))[0]})
-    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus")]
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus") and s in _mine([s])]
     return _env.get_template("training.html").render(
         nav_active="training", tabs=tabs, sid=sid, who=names.get(sid), plan=plan, week=key, chk=chk, past=past[:4],
         title=LESSONS.get(focus["lesson"], ("?",))[0] if focus else None, maps=_player_maps(hist, sid) or ["de_mirage"],
@@ -748,10 +769,10 @@ def mapbook_page(map_name: str, p: str = "") -> str:
     focus_ids = sorted({s for h in hist if h.get("map") == map_name for t in h.get("timeline", []) for s in [t["sid"]]},
                        key=lambda s: names.get(s, s))
     pref = _default_sid(_players_state(), names, p)
-    sid = p if p in focus_ids else pref if pref in focus_ids else (focus_ids[0] if focus_ids else None)
+    sid = _me() or (p if p in focus_ids else pref if pref in focus_ids else (focus_ids[0] if focus_ids else None))
     book = mapbook.build(hist, _load_pro(), map_name, sid, load_rules_config()["mapbook"]) \
         if sid else None
-    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in focus_ids]
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(focus_ids)]
     img = None
     if book:  # Schusslinien aufs Radarbild umrechnen
         from cstaktik.model import MatchData
@@ -1166,7 +1187,7 @@ def progress_page(p: str = "") -> str:
     names = _names(hist)
     sids = sorted({s for h in hist for s in h.get("players", {})}, key=lambda s: names.get(s, s))
     sid = _default_sid({s: v for s, v in _players_state().items() if s in sids}, names, p) or (sids[0] if sids else None)
-    if p in sids:
+    if p in sids and not _me():  # mit Steam verbunden: nur das eigene Profil
         sid = p
     prof = profile(hist, sid, pro.duel_stats(_load_pro())) if sid else None
     if prof:  # Kaufentscheidungen auf T: Team-Wert aus euren Matches gegen die Pros
@@ -1190,7 +1211,7 @@ def progress_page(p: str = "") -> str:
 
         prof["levers"] = levers.build(hist, pros, sid, cfg)
     auftrag = next((x for x in _auftrag(hist) if x["sid"] == sid), None)
-    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in sids]
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(sids)]
     return _env.get_template("profil.html").render(nav_active="progress", p=prof, a=auftrag, tabs=tabs)
 
 

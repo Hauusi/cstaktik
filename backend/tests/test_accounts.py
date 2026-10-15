@@ -180,3 +180,26 @@ def test_steam_unreachable_gives_message_not_crash(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", boom)
     codes, err = steam_sync.next_codes("7656", "ABCD-ABCDE-ABCD", "CSGO-aaaaa-aaaaa-aaaaa-aaaaa-aaaaa", "k")
     assert codes == [] and "nicht erreichbar" in err
+
+
+def test_logged_in_player_sees_only_own_profile():
+    from cstaktik import api, coaching, history, pipeline
+
+    focus = {"lesson": "alone", "target": 1.0, "baseline": 2.0, "created_at": "2026-10-01T10:00", "matches": [],
+             "status": "aktiv"}
+    me, bro = "76561198000000001", "76561198000000002"
+    coaching.save({"players": {me: {"focus": focus, "done": [], "drills": []},
+                               bro: {"focus": {**focus, "lesson": "utility"}, "done": [], "drills": []}}},
+                  pipeline.COACHING_FILE)
+    history.save({"id": "a1", "map": "de_mirage", "rounds": 20, "analyzed_at": "2026-10-02T10:00",
+                  "players": {me: {"name": "Satoru"}, bro: {"name": "Bruder"}}, "scenes": []}, pipeline.HISTORY_DIR)
+    c = TestClient(api.app)
+    both = c.get("/").text
+    assert "Satoru" in both and "Bruder" in both  # ohne Accounts: beide wie bisher
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.link_steamid("Hausi", me)
+    c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
+    home = c.get("/").text
+    assert "Satoru" in home and "Bruder" not in home
+    prog = c.get(f"/progress?p={bro}").text
+    assert "Bruder" not in prog  # auch über den Link nicht das fremde Profil
