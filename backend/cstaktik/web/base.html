@@ -6,6 +6,13 @@
 <meta name="color-scheme" content="dark">
 <title>{% block title %}cstaktik{% endblock %}</title>
 <link rel="stylesheet" href="/fonts.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#0b0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Coach">
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function () {});</script>
 <style>
 :root {
   --bg: #0b0d12; --surface: #141821; --surface-2: #1b202b; --line: rgba(255,255,255,.07);

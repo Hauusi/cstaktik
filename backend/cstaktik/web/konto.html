@@ -72,6 +72,70 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
   <button class="btn2" type="submit">Schlüssel speichern</button>
 </form>
 
+<h2 id="push">Benachrichtigungen</h2>
+<div class="card kf">
+  <div class="small">Der Coach meldet sich auf diesem Gerät, sobald ein neues Match automatisch ausgewertet ist: Ergebnis, dein Impact und das Thema. Antippen öffnet den Report.</div>
+  <div class="small muted" id="pushstate" role="status" style="margin-top:6px"></div>
+  <button class="btn" type="button" id="pushon" hidden>Auf diesem Gerät aktivieren</button>
+  <button class="btn2" type="button" id="pushtest" hidden>Test-Nachricht senden</button>
+  <button class="btn2" type="button" id="pushoff" hidden>Auf diesem Gerät abschalten</button>
+  <details class="how"><summary>iPhone und App-Symbol</summary><ul>
+    <li>Android (Chrome): Menü, dann „Zum Startbildschirm hinzufügen“. Der Coach öffnet sich danach wie eine App.</li>
+    <li>iPhone: In Safari auf „Teilen“, dann „Zum Home-Bildschirm“. Benachrichtigungen gehen auf dem iPhone nur aus diesem App-Symbol heraus (ab iOS 16.4).</li>
+  </ul></details>
+</div>
+<script>
+(function () {
+  var st = document.getElementById("pushstate"), on = document.getElementById("pushon"),
+      off = document.getElementById("pushoff"), test = document.getElementById("pushtest");
+  function say(t, err) { st.textContent = t; st.className = err ? "err" : "small muted"; }
+  function show(active) { on.hidden = active; off.hidden = !active; test.hidden = !active; }
+  function key(b64) {
+    var p = "=".repeat((4 - b64.length % 4) % 4), raw = atob((b64 + p).replace(/-/g, "+").replace(/_/g, "/"));
+    return Uint8Array.from(raw, function (c) { return c.charCodeAt(0); });
+  }
+  function post(url, body) {
+    return fetch(url, {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
+                       body: JSON.stringify(body || {})}).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+  }
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    say("Dieser Browser kann keine Benachrichtigungen empfangen. Auf dem iPhone: erst zum Home-Bildschirm hinzufügen und von dort öffnen.");
+    return;
+  }
+  if (location.protocol !== "https:") { say("Benachrichtigungen gehen nur über HTTPS."); return; }
+  var reg;
+  navigator.serviceWorker.register("/sw.js").then(function () { return navigator.serviceWorker.ready; }).then(function (r) {
+    reg = r; return r.pushManager.getSubscription();
+  }).then(function (sub) {
+    if (sub) { post("/push/subscribe", sub.toJSON()).catch(function () {}); say("Aktiv auf diesem Gerät."); show(true); }
+    else if (Notification.permission === "denied") say("Benachrichtigungen sind für diese Seite im Browser blockiert. In den Website-Einstellungen erlauben.", true);
+    else { say("Aus auf diesem Gerät."); show(false); }
+  }).catch(function (e) { say("Fehler: " + e.message, true); });
+  on.onclick = function () {
+    on.disabled = true;
+    Notification.requestPermission().then(function (p) {
+      if (p !== "granted") throw new Error("Erlaubnis nicht erteilt.");
+      return fetch("/push/key", {credentials: "same-origin"}).then(function (r) { return r.json(); });
+    }).then(function (d) {
+      return reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key(d.key)});
+    }).then(function (sub) { return post("/push/subscribe", sub.toJSON()); }).then(function () {
+      say("Aktiv auf diesem Gerät."); show(true);
+    }).catch(function (e) { say("Hat nicht geklappt: " + e.message, true); }).then(function () { on.disabled = false; });
+  };
+  off.onclick = function () {
+    reg.pushManager.getSubscription().then(function (sub) {
+      if (!sub) return;
+      return post("/push/unsubscribe", {endpoint: sub.endpoint}).then(function () { return sub.unsubscribe(); });
+    }).then(function () { say("Aus auf diesem Gerät."); show(false); }).catch(function (e) { say("Fehler: " + e.message, true); });
+  };
+  test.onclick = function () {
+    post("/push/test").then(function (d) {
+      say(d.sent ? "Test-Nachricht verschickt. Sie sollte gleich erscheinen." : "Keine Nachricht zugestellt. Abschalten und neu aktivieren.", !d.sent);
+    }).catch(function (e) { say("Fehler: " + e.message, true); });
+  };
+})();
+</script>
+
 <h2 id="autodl">Automatischer Download</h2>
 <div class="card kf">
   {% if autodl.store %}<div class="small"><b style="color:#46a758">Aktiv.</b> Der Coach lädt neue Valve-Matches (Premier, Competitive, Wingman) selbst und wertet sie aus. Er schaut alle 20 Minuten.</div>

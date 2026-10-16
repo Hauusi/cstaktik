@@ -11,6 +11,7 @@ dependencies = [
     "jinja2>=3.1",
     "pyyaml>=6.0",
     "pydantic>=2.6",
+    "cryptography>=42",
 ]
 
 [project.optional-dependencies]
@@ -27,7 +28,7 @@ build-backend = "setuptools.build_meta"
 include = ["cstaktik*"]
 
 [tool.setuptools.package-data]
-cstaktik = ["config/*.yaml", "report/templates/*.html", "web/*.html"]
+cstaktik = ["config/*.yaml", "report/templates/*.html", "web/*.html", "static/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

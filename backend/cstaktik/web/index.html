@@ -18,6 +18,7 @@
   background: linear-gradient(135deg, rgba(255,159,28,.16), rgba(255,159,28,.02) 60%), var(--surface); }
 .last .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .res { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; }
+.newb { background: var(--accent); color: #111; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 800; letter-spacing: .08em; margin-right: 4px; }
 .res.w { background: rgba(63,191,127,.15); color: #6fe0a6; } .res.l { background: rgba(240,86,106,.15); color: #ff9aa8; } .res.d { background: var(--surface-2); color: var(--muted); }
 .last h3 { margin: 10px 0 2px; font-size: 30px; line-height: 1.05; letter-spacing: -.02em; display: flex; align-items: baseline; gap: 12px; }
 .last h3 .num { color: var(--orange); }
@@ -83,7 +84,7 @@
 
   {% if last and last.report_file %}
   <a class="last" href="/reports/{{ last.report_file }}">
-    <div class="top"><span class="kicker">Letztes Match{% if last.when %} · {{ last.when }}{% endif %}</span><span class="res {{ last.res }}">{{ last.result }}</span></div>
+    <div class="top"><span class="kicker">{% if last.new %}<span class="newb">Neu</span> {% endif %}Letztes Match{% if last.when %} · {{ last.when }}{% endif %}</span><span class="res {{ last.res }}">{{ last.result }}</span></div>
     <h3>{{ last.map_label }} <span class="num">{{ last.won }}:{{ last.lost }}</span></h3>
     {% if last.topic %}<div class="topic">Thema: <b>{{ last.topic }}</b></div>{% endif %}
     {% if last_imp %}<div class="imps">{% for i in last_imp %}<span>{{ i.name }} <b class="{{ 'p' if i.pos else 'n' }}">{{ i.total }}</b> Runden Impact{% if i.rank %} · Platz {{ i.rank }}/{{ i.of }}{% endif %}</span>{% endfor %}</div>{% endif %}

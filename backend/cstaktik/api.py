@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import base64
 import os
 import re
@@ -64,6 +65,42 @@ def _mine(sids):
     return [s for s in sids if s == me] if me else list(sids)
 
 
+_SEEN_LOCK = threading.Lock()
+
+
+def _seen(user: str | None) -> tuple[str, set[str]] | None:
+    """Gesehene Reports des Nutzers: (seit wann gezählt wird, Dateinamen). Ältere Matches gelten als gesehen,
+    sonst wäre beim ersten Mal alles "neu"."""
+    if not user:
+        return None
+    from cstaktik import accounts
+
+    raw = accounts.get_setting(f"seen:{user}")
+    try:
+        d = json.loads(raw) if raw else None
+    except ValueError:
+        d = None
+    if not d:
+        d = {"since": pipeline.coaching_now(), "files": []}
+        accounts.set_setting(f"seen:{user}", json.dumps(d))
+    return d["since"], set(d.get("files") or [])
+
+
+def _mark_seen(user: str, file: str) -> None:
+    from cstaktik import accounts
+
+    with _SEEN_LOCK:
+        since, files = _seen(user)
+        if file not in files:
+            keep = sorted(files)[-499:] + [file]  # begrenzt; ältere fallen ohnehin unter "since"
+            accounts.set_setting(f"seen:{user}", json.dumps({"since": since, "files": keep}))
+
+
+def _is_new(h: dict, seen: tuple[str, set[str]] | None) -> bool:
+    return bool(seen and h.get("report_file") and (h.get("analyzed_at") or "") > seen[0]
+                and h["report_file"] not in seen[1])
+
+
 async def _personal_report(resp: Response, me: str) -> Response:
     """Report (fertige HTML-Datei) für den eingeloggten Spieler: SteamID einsetzen, die Seite blendet die Teile
     anderer Spieler aus. Die Datei selbst bleibt unverändert."""
@@ -74,7 +111,8 @@ async def _personal_report(resp: Response, me: str) -> Response:
     return Response(body, status_code=resp.status_code, headers=headers)
 
 
-_PUBLIC = {"/login", "/fonts.css", "/setup", "/auth/steam", "/auth/steam/callback"}
+_PUBLIC = {"/login", "/fonts.css", "/setup", "/auth/steam", "/auth/steam/callback", "/manifest.webmanifest", "/sw.js",
+           "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"}
 _FAILS: dict[tuple, list[float]] = {}  # Login-Fehlversuche je IP und Name (Schutz gegen Durchprobieren)
 
 
@@ -110,6 +148,8 @@ async def _password(request: Request, call_next):
                 request.scope["headers"] = [(k, v) for k, v in request.scope["headers"]
                                             if k not in (b"if-none-match", b"if-modified-since")]
             resp = await call_next(request)
+            if user and m and resp.status_code == 200:
+                _mark_seen(user, m.group(1))
             if me and request.url.path.startswith("/reports/") and resp.headers.get("content-type", "").startswith("text/html"):
                 return await _personal_report(resp, me)
             return resp
@@ -547,12 +587,25 @@ def _autodl_import() -> int:
         def run(job_id=job_id, target=target):
             _run_job(job_id, target, None)
             with _jobs_lock:
-                err = _jobs[job_id].get("error")
+                err, report = _jobs[job_id].get("error"), _jobs[job_id].get("report")
             autodl.record(target.name, err)
+            if report and not err:
+                _notify_report(report)
 
         _executor.submit(run)
         n += 1
     return n
+
+
+def _notify_report(report: str) -> None:
+    """Push-Nachricht an alle, die im gerade ausgewerteten Match mitgespielt haben (Fehler stoppen nichts)."""
+    from cstaktik import history, notify
+
+    try:
+        h = next((x for x in history.load_all() if x.get("report_file") == report), None)
+        notify.notify_match(h)
+    except Exception:  # noqa: BLE001 - eine fehlgeschlagene Nachricht darf die Auswertung nicht stören
+        pass
 
 
 @app.on_event("startup")
@@ -607,6 +660,96 @@ def fonts_css() -> Response:
     return Response(css, media_type="text/css", headers={"Cache-Control": cache, "ETag": etag})
 
 
+_STATIC = Path(__file__).parent / "static"
+
+
+@app.get("/manifest.webmanifest")
+def manifest() -> Response:
+    """Damit sich der Coach wie eine App auf den Startbildschirm legen lässt."""
+    data = {"name": "cstaktik CS2-Coach", "short_name": "Coach", "lang": "de", "start_url": "/", "scope": "/",
+            "display": "standalone", "background_color": "#0b0d12", "theme_color": "#0b0d12",
+            "icons": [{"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+                      {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]}
+    return Response(json.dumps(data), media_type="application/manifest+json")
+
+
+@app.get("/{name}.png", include_in_schema=False)
+def app_icon(name: str) -> Response:
+    if name not in ("icon-192", "icon-512", "apple-touch-icon"):
+        raise HTTPException(404)
+    return Response((_STATIC / f"{name}.png").read_bytes(), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=604800"})
+
+
+_SW = """self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', () => {});
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = {body: e.data && e.data.text()}; }
+  e.waitUntil(self.registration.showNotification(d.title || 'cstaktik', {
+    body: d.body || '', icon: '/icon-192.png', badge: '/icon-192.png', data: {url: d.url || '/'}, tag: d.url || 'cstaktik'}));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(clients.matchAll({type: 'window', includeUncontrolled: true}).then(list => {
+    for (const c of list) { if ('focus' in c) { c.navigate(url); return c.focus(); } }
+    return clients.openWindow(url);
+  }));
+});
+"""
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker() -> Response:
+    return Response(_SW, media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/push/key")
+def push_key(request: Request) -> JSONResponse:
+    from cstaktik import notify
+
+    _need_user(request)
+    return JSONResponse({"key": notify.public_key()})
+
+
+@app.post("/push/subscribe")
+async def push_subscribe(request: Request) -> JSONResponse:
+    from cstaktik import notify
+
+    user = _need_user(request)
+    try:
+        notify.subscribe(user, await request.json())
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise HTTPException(400, "Ungültiges Push-Abo.") from exc
+    return JSONResponse({"ok": True})
+
+
+@app.post("/push/unsubscribe")
+async def push_unsubscribe(request: Request) -> JSONResponse:
+    from cstaktik import notify
+
+    user = _need_user(request)
+    try:
+        endpoint = str((await request.json()).get("endpoint") or "")
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(400, "Ungültige Anfrage.") from exc
+    notify.unsubscribe(endpoint, user)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/push/test")
+def push_test(request: Request) -> JSONResponse:
+    from cstaktik import notify
+
+    user = _need_user(request)
+    n = notify.send_user(user, {"title": "Benachrichtigungen aktiv",
+                                "body": "Ab jetzt meldet sich der Coach, sobald ein neues Match ausgewertet ist.",
+                                "url": "/"})
+    return JSONResponse({"sent": n})
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     jobs = _running_jobs()
@@ -633,8 +776,9 @@ def index() -> str:
                 for s, r in sorted(((hist[-1].get("impact") or {}) if hist else {}).items()) if s in _mine([s])]
     auftrag = _auftrag(hist)
     week = _week_progress([a["sid"] for a in auftrag])
+    seen = _seen(_USER.get())
     return _env.get_template("index.html").render(
-        nav_active="coach", jobs=jobs, n_history=len(hist), last=_last_view(hist[-1]) if hist else None,
+        nav_active="coach", jobs=jobs, n_history=len(hist), last={**_last_view(hist[-1]), "new": _is_new(hist[-1], seen)} if hist else None,
         briefing_maps=maps, auftrag=auftrag, missing_players=missing if hist else 0, lever=lever, last_imp=last_imp,
         me_name=names.get(_me()) if _me() else None, week=week,
         need_link=_USER.get() is not None and not _me(),
@@ -705,6 +849,9 @@ def matches_page() -> str:
                         for sid, x in sorted((h.get("impact") or {}).items()) if _mine([sid])]
         if r.get("won") is not None:
             r["res"] = "w" if r["won"] > r["lost"] else "l" if r["lost"] > r["won"] else "d"
+    seen = _seen(_USER.get())
+    for r in reports:
+        r["new"] = _is_new(by_file.get(r["file"]) or {}, seen)
     reports.sort(key=lambda r: r.get("sort") or "", reverse=True)
     return _env.get_template("matches.html").render(nav_active="matches", jobs=_running_jobs(),
                                                     reports=reports, n_history=len(hist))
