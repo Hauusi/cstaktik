@@ -60,4 +60,4 @@ def test_docker_command_uses_pinned_image_and_gc_patch():
     js = autodl.PATCH.read_text()
     # GlobalOffensive vor dem Spielstart, dann auf die GC-Anmeldung warten
     assert js.index("new GlobalOffensive(steamUser)") < js.index("steamUser.gamesPlayed(730, true)")
-    assert "await waitForGC" in js and "connectedToGC" in js
+    assert "await waitForGC" in js and "connectedToGC" in js and "setInterval(() => csgo.requestGame" in js

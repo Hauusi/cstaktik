@@ -60,12 +60,16 @@ export const getAllUsersMatches = async (users, downloadQueue) => {
     // cstaktik-Patch: GlobalOffensive vor dem Spielstart anlegen. Sonst verpasst es das 'appLaunched'-Ereignis,
     // meldet sich nie beim Game Coordinator an (kein Hello) und die Match-Anfragen laufen ins Leere (Timeout).
     const csgo = new GlobalOffensive(steamUser);
+    // Auf die Anmeldung beim Game Coordinator warten, aber nicht daran scheitern: der GC beantwortet Match-Anfragen
+    // teils auch ohne bestätigte Sitzung.
     const waitForGC = promiseTimeout(new Promise((resolve) => {
-        csgo.once('connectedToGC', () => resolve());
-    }), { milliseconds: 90000, message: 'Timed out waiting for game coordinator' });
+        csgo.once('connectedToGC', () => resolve(true));
+    }), { milliseconds: 30000, message: 'Timed out waiting for game coordinator' }).catch(() => false);
     steamUser.gamesPlayed(730, true);
     await waitForGame;
-    await waitForGC;
+    if (!(await waitForGC)) {
+        L.warn('No game coordinator session, requesting matches anyway');
+    }
     // robust match response promise handler
     const pendingMatchResponses = new Map();
     csgo.on('matchList', (matches) => {
@@ -85,16 +89,23 @@ export const getAllUsersMatches = async (users, downloadQueue) => {
         try {
             const { matchId } = decodeMatchShareCode(shareCode);
             L.debug({ matchId, shareCode }, 'Requesting game data');
-            const [match] = await Promise.all([
-                promiseTimeout(new Promise((resolve) => {
-                    pendingMatchResponses.set(matchId.toString(), resolve);
-                }), {
-                    milliseconds: 30000,
-                    message: `Error fetching match data for match ${shareCode}`,
-                }),
-                csgo.requestGame(shareCode),
-            ]);
-            return match;
+            // cstaktik-Patch: Anfrage alle 10 s wiederholen (bis 90 s), statt nach einer unbeantworteten aufzugeben
+            const resend = setInterval(() => csgo.requestGame(shareCode), 10000);
+            try {
+                const [match] = await Promise.all([
+                    promiseTimeout(new Promise((resolve) => {
+                        pendingMatchResponses.set(matchId.toString(), resolve);
+                    }), {
+                        milliseconds: 90000,
+                        message: `Error fetching match data for match ${shareCode}`,
+                    }),
+                    csgo.requestGame(shareCode),
+                ]);
+                return match;
+            }
+            finally {
+                clearInterval(resend);
+            }
         }
         catch (err) {
             L.error({ err, shareCode });
