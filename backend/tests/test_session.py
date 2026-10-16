@@ -105,8 +105,8 @@ def test_today_block_on_home_and_minute_page():
     assert "Heute 2 Matches" not in c.get("/").text
     _save(_h("t2", _today("00").replace(":00:00", ":05:00"), (5, 13)))
     assert "Heute 2 Matches: 1 Sieg, 1 Niederlage." in c.get("/").text
-    assert "Heute · 2 Matches" in c.get("/m/t2.html").text
-    assert "Heute · 2 Matches" not in c.get("/m/t1.html").text  # bis zu diesem Match: erst eins
+    assert "Heute 2 Matches: 1 Sieg, 1 Niederlage." in c.get("/m/t2.html").text  # Story: eine Zeile im Ergebnis
+    assert "Heute 2 Matches" not in c.get("/m/t1.html").text  # bis zu diesem Match: erst eins
     slot = _slot()
     slot["focus"].update({"target": 1.0, "baseline": 2.0, "created_at": "2026-01-01T00:00:00", "status": "aktiv"})
     coaching.save({"players": {ME: {**slot, "drills": []}}}, pipeline.COACHING_FILE)

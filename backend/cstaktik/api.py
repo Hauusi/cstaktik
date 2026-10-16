@@ -981,12 +981,27 @@ def _minute_player(h: dict, sid: str) -> dict:
         out["scenes"] = [{"round": sc["round"], "text": sc.get("happened"), "cost": sc.get("cost"),
                           "href": f"/reports/{h['report_file']}#s{sc['round']}-{sc.get('from') or sc['tick']}"}
                          for sc in scs[:2]]
+    elif sid in (h.get("lead_by") or {}) or (h.get("lessons") or {}).get(sid) is not None:
+        # seine Lektionen sind ausgewertet, aber kein Fehler kam mehrmals vor: das ist die Aussage
+        out["quiet"] = "Kein Fehler kam mehrmals vor. Heute gibt es kein Thema."
+    # Nächstes Match: der laufende Fokus (gilt über mehrere Matches), sonst das heutige Thema
+    fo = fc.get("focus") or {}
+    if fo.get("lesson") in LESSONS and fo.get("lesson") in TEACH:
+        nid = fo["lesson"]
+    else:
+        nid = lid if lid in LESSONS and lid != "duel" and lid in TEACH else None
+    if nid:
+        t = TEACH[nid]
+        target = fo.get("target") if fo.get("lesson") == nid else None
+        out["next"] = {"lesson": nid, "title": LESSONS[nid][0], "in_game": t.get("in_game"), "mantra": t.get("mantra"),
+                       "target": None if target is None else str(target).replace(".", ",")}
     return out
 
 
 @app.get("/m/{report_file}", response_class=HTMLResponse)
-def match_minute(report_file: str) -> str:
-    """Dein Match in 60 Sekunden: Ergebnis, Impact, Auftrag-Check, Thema mit Merksatz, zwei Szenen."""
+def match_minute(report_file: str, p: str = "") -> str:
+    """Match-Story nach dem Spiel: ein Gedanke pro Bildschirm (Ergebnis, Fokus, die eine Szene, nächstes Match).
+    Mehrere Fokus-Spieler ohne Login: erst wählen (``p``); eingeloggt nur der eigene Spieler."""
     if not re.fullmatch(r"[^/\\]+\.html", report_file) or not _report_visible(report_file):
         raise HTTPException(404, "Match nicht gefunden.")
     h = next((x for x in _load_hist() if x.get("report_file") == report_file), None)
@@ -1000,24 +1015,28 @@ def match_minute(report_file: str) -> str:
     focus = sorted(set(history._seq_by(h)) | set(h.get("issues") or {}) | set(h.get("impact") or {}))
     me = _me()
     sids = [me] if me and me in players else [s for s in _mine(focus) if s in players]
-    rows = sorted((_minute_player(h, s) for s in sids), key=lambda r: r["name"].lower())
+    names = {s: (players.get(s) or {}).get("name", s) for s in sids}
+    sids.sort(key=lambda s: names[s].lower())
     try:
         at = datetime.fromisoformat(h["analyzed_at"])
         when = at.strftime("%d.%m. %H:%M")
     except (KeyError, ValueError, TypeError):
         at = when = None
-    from cstaktik import session, weekplan
+    view = {"nav_active": "matches", "jobs": _running_jobs(), "file": report_file, "when": when,
+            "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(), "many": len(sids) > 1}
+    if len(sids) > 1 and p not in sids:  # mehrere Spieler: erst wählen, wessen Story
+        return _env.get_template("minute.html").render(**view, r=None, mine=False,
+                                                       pick=[{"sid": s, "name": names[s]} for s in sids])
+    r = _minute_player(h, p if p in sids else sids[0]) if sids else None
+    if r:
+        from cstaktik import session, weekplan
 
-    players_state = _players_state()
-    for r in rows:
-        # Spielabend nur für heute (bis zu diesem Match), Übungs-Vergleich zum Auftrag
+        # Spielabend nur für heute (bis zu diesem Match), Übungs-Vergleich zum Fokus
         if at is not None and at.date() == weekplan.local_today():
             r["today"] = session.session(_load_hist(), r["sid"], at.date(), until=h["analyzed_at"])
         if r.get("check"):
-            r["practice"] = session.practice(players_state.get(r["sid"]))
-    return _env.get_template("minute.html").render(
-        nav_active="matches", jobs=_running_jobs(), rows=rows, file=report_file, when=when, mine=bool(me),
-        map_label=(h.get("map") or "?").removeprefix("de_").capitalize())
+            r["practice"] = session.practice(_players_state().get(r["sid"]))
+    return _env.get_template("minute.html").render(**view, r=r, pick=None, mine=bool(me and r and r["sid"] == me))
 
 
 @app.get("/pro", response_class=HTMLResponse)

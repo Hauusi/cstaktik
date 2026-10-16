@@ -193,10 +193,18 @@ def test_minute_page_content_and_visibility():
     assert 'href="/m/m1.html"' in home and 'href="/reports/m1.html"' in home  # Kurzfassung und ganzer Report
     assert "/konto#push" in home  # noch kein Gerät für Benachrichtigungen
     page = a.get("/m/m1.html").text
-    assert "13:7" in page and "Sieg" in page and "+2,5 Runden" in page and "Platz 2 von 10" in page
-    assert "1,7 pro 10 Runden" in page and "Nicht geschafft" in page
+    # Story: Ergebnis, Fokus, die eine Szene, nächstes Match, fertig (in dieser Reihenfolge)
+    assert _steps(page) == ["ergebnis", "fokus", "szene", "naechstes", "fertig"]
+    assert "13:7" in page and "Sieg" in page and "+2,5</b>" in page and "Runden Impact" in page
+    assert "Platz 2 von 10" in page
+    assert "1,7 pro 10 Runden" in page and "Nicht geschafft" in page and "Serie: 0 von 2" in page
     assert LESSONS["utility"][0] in page and TEACH["utility"]["mantra"] in page
-    assert 'href="/reports/m1.html#s3-400"' in page and "Ganzer Report" in page
+    assert page.count('href="/reports/m1.html#s') == 1 and 'href="/reports/m1.html#s3-400"' in page  # eine Szene
+    assert TEACH["utility"]["in_game"] in page and "höchstens 1,0x pro 10 Runden" in page
+    assert 'id="deal" data-lesson="utility"' in page and 'data-mine="1"' in page and f'data-sid="{ME}"' in page
+    assert "Ganzer Report" in page and "Zur Startseite" in page
+    assert a.post("/training/deal", json={"sid": ME, "lesson": "utility", "report": "m1.html"},
+                  headers=O).json() == {"ok": True}  # der Button der Story schickt genau das
     assert not api._is_new({"report_file": "m1.html", "analyzed_at": "2999-01-01T10:00"}, api._seen("Hausi"))
     assert a.get("/m/fremd.html").status_code == 404
 
@@ -207,7 +215,67 @@ def test_minute_page_hides_missing_blocks():
                   "won": 5, "lost": 13, "players": {ME: {"name": "Ich"}}, "issues": {ME: {}}}, pipeline.HISTORY_DIR)
     page = TestClient(api.app).get("/m/m2.html").text  # ohne Accounts: alle Fokus-Spieler
     assert "5:13" in page and "Niederlage" in page
-    assert "Impact" not in page and "Auftrag-Check" not in page and "Thema" not in page
+    # ohne Daten: nur Ergebnis und Schluss, kein leerer Schritt
+    assert _steps(page) == ["ergebnis", "fertig"]
+    assert "Impact" not in page and "Fokus" not in page and "Die eine Szene" not in page
+    assert "Nächstes Match" not in page and 'id="deal"' not in page and "Heute" not in page
+
+
+def _steps(page):
+    return re.findall(r'data-step="([a-z]+)"', page)
+
+
+def test_minute_story_quiet_without_topic():
+    pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    # Lektionen ausgewertet, aber nichts zweimal: neutrale Zeile statt Thema, ohne Fokus kein nächstes Match
+    history.save({"id": "q1", "map": "de_nuke", "analyzed_at": "2026-10-01T10:00", "report_file": "q1.html",
+                  "players": {ME: {"name": "Ich"}}, "score_by": {ME: [13, 11]}, "lead_by": {ME: None},
+                  "lessons": {ME: {"alone": 1}}, "issues": {ME: {}}}, pipeline.HISTORY_DIR)
+    page = TestClient(api.app).get("/m/q1.html").text
+    assert _steps(page) == ["ergebnis", "szene", "fertig"]
+    assert "Kein Fehler kam mehrmals vor." in page and 'href="/reports/q1.html#s' not in page
+    # Fokus läuft, heute kein Thema: das nächste Match nimmt den Fokus
+    h = {"report_file": "q1.html", "players": {ME: {"name": "Ich"}}, "lead_by": {ME: None},
+         "focus_check": {ME: {"check": None, "focus": {"lesson": "blind", "target": 0.8}}}}
+    v = api._minute_player(h, ME)
+    assert v["next"]["lesson"] == "blind" and v["next"]["target"] == "0,8" and "check" not in v
+
+
+def _both_entry():
+    pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    sc = {"lesson": "no_shot_close", "sid": BRO, "round": 4, "tick": 900, "cost": 10, "happened": "Bruder-Szene."}
+    history.save({"id": "b2", "map": "de_mirage", "analyzed_at": "2026-10-01T10:00", "report_file": "b2.html",
+                  "players": {ME: {"name": "Ich"}, BRO: {"name": "Bruder"}},
+                  "score_by": {ME: [13, 7], BRO: [7, 13]}, "impact": {ME: {"total": 250}, BRO: {"total": -120}},
+                  "lead_by": {ME: "utility", BRO: "no_shot_close"}, "scenes": [sc]}, pipeline.HISTORY_DIR)
+
+
+def test_minute_story_pick_player_without_login():
+    _both_entry()
+    c = TestClient(api.app)
+    page = c.get("/m/b2.html").text  # zwei Fokus-Spieler, kein Login: erst wählen
+    assert "Wessen Match?" in page and f'href="/m/b2.html?p={BRO}"' in page and f'href="/m/b2.html?p={ME}"' in page
+    assert "13:7" not in page and "data-step" not in page
+    his = c.get(f"/m/b2.html?p={BRO}").text
+    assert "7:13" in his and "Niederlage" in his and LESSONS["no_shot_close"][0] in his
+    assert 'href="/reports/b2.html#s4-900"' in his and "Bruder" in his
+    assert "13:7" not in his and LESSONS["utility"][0] not in his and 'data-mine="1"' not in his
+    assert "13:7" in c.get(f"/m/b2.html?p={ME}").text
+    assert "Wessen Match?" in c.get("/m/b2.html?p=fremd").text
+
+
+def test_minute_story_logged_in_only_own_data():
+    _both_entry()
+    for u, sid in (("Hausi", ME), ("Bruder", BRO)):
+        accounts.add_user(u, "Geheim-12345")
+        accounts.link_steamid(u, sid)
+    a = TestClient(api.app)
+    a.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
+    for url in ("/m/b2.html", f"/m/b2.html?p={BRO}"):  # fremder Spieler per Parameter: trotzdem nur der eigene
+        page = a.get(url).text
+        assert "Wessen Match?" not in page and "13:7" in page and LESSONS["utility"][0] in page
+        assert "7:13" not in page and LESSONS["no_shot_close"][0] not in page and "Bruder" not in page
+        assert "#s4-900" not in page and f'data-sid="{ME}"' in page and 'data-mine="1"' in page
 
 
 def test_home_builds_weekplan_and_shrinks_upload_with_autodl():
