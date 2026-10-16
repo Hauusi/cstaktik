@@ -27,7 +27,10 @@ CONFIG_DIR = BASE / "config"  # -> /config im Container
 DEMOS_DIR = BASE / "demos"  # -> /demos im Container
 SCHEDULE = "*/20 * * * *"  # alle 20 Minuten
 SCAN_S = 60
-IMAGE = "ghcr.io/claabs/cs-demo-downloader:latest"
+# fest auf die geprüfte Version: die Korrektur unten (PATCH) passt genau zu diesem Stand
+IMAGE = "ghcr.io/claabs/cs-demo-downloader@sha256:4f8346bce345c11df34d4db4faef894075cc85c685b57797416cb9bb0a0d9de0"
+# korrigierte steam-gc.js (Anmeldung beim Game Coordinator, siehe Kommentar in der Datei), wird in den Container gelegt
+PATCH = Path(__file__).resolve().parent / "vendor" / "cs_demo_downloader" / "steam-gc.js"
 
 
 def _ids() -> str:
@@ -38,8 +41,9 @@ def _ids() -> str:
 def docker_command() -> str:
     """Einmal auf dem Server ausführen: startet den Download-Container (läuft danach von selbst weiter)."""
     return (f"mkdir -p {CONFIG_DIR} {DEMOS_DIR} && chown -R {_ids()} {BASE} && "
+            f"docker rm -f cs-demo-downloader 2>/dev/null; "
             f"docker run -d --name cs-demo-downloader --restart unless-stopped --user {_ids()} -e HOME=/config "
-            f"-v {CONFIG_DIR}:/config -v {DEMOS_DIR}:/demos {IMAGE}")
+            f"-v {CONFIG_DIR}:/config -v {DEMOS_DIR}:/demos -v {PATCH}:/usr/app/dist/src/steam-gc.js:ro {IMAGE}")
 
 
 def bot() -> dict | None:

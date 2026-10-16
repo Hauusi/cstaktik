@@ -51,3 +51,13 @@ def test_finished_demo_is_taken_and_analysed(monkeypatch):
     monkeypatch.setattr(api, "_run_job", lambda job_id, target, focus: None)
     ran[0]()
     assert autodl.status()["imported"][0]["name"] == "match730_1_2_129.dem"
+
+
+def test_docker_command_uses_pinned_image_and_gc_patch():
+    cmd = autodl.docker_command()
+    assert "@sha256:" in autodl.IMAGE and autodl.IMAGE in cmd
+    assert f"{autodl.PATCH}:/usr/app/dist/src/steam-gc.js:ro" in cmd
+    js = autodl.PATCH.read_text()
+    # GlobalOffensive vor dem Spielstart, dann auf die GC-Anmeldung warten
+    assert js.index("new GlobalOffensive(steamUser)") < js.index("steamUser.gamesPlayed(730, true)")
+    assert "await waitForGC" in js and "connectedToGC" in js
