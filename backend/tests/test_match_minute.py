@@ -70,9 +70,86 @@ def test_one_topic_per_player_in_history_and_report(tmp_path):
 
 def test_old_history_entry_falls_back():
     old = {"main_lesson": "alone", "won": 13, "lost": 7, "players": {ME: {}}}
-    assert history.lead(old, ME) == "alone" and history.score(old, ME) == (13, 7)
+    # ohne Daten je Spieler: Team-Thema kann das eines anderen sein, Ergebnis nur für Fokus-Spieler
+    assert history.lead(old, ME) is None and history.lead(old) == "alone"
+    assert history.score(old, ME) is None and history.score({**old, "issues": {ME: {}}}, ME) == (13, 7)
     seq = {**old, "seq": {ME: [[1, "t", True], [2, "t", False], [3, "ct", False]]}}
     assert history.score(seq, ME) == (1, 2)
+
+
+def test_old_list_seq_does_not_crash():
+    """Ältere Einträge speichern ``seq`` als Liste (Sicht des Teams)."""
+    h = {"won": 13, "lost": 7, "players": {ME: {"name": "Ich"}}, "issues": {ME: {}}, "seq": [[1, "ct", True]]}
+    assert history.score(h, ME) == (13, 7)
+    pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    history.save({**h, "id": "m3", "map": "de_nuke", "analyzed_at": "2026-10-01T10:00", "report_file": "m3.html"},
+                 pipeline.HISTORY_DIR)
+    c = TestClient(api.app)
+    page = c.get("/m/m3.html")
+    assert page.status_code == 200 and "13:7" in page.text
+    assert c.get("/").status_code == 200 and c.get("/matches").status_code == 200
+
+
+def test_non_focus_player_gets_no_team_result_or_topic():
+    # Der Bruder ist verbunden, spielte aber gegen uns und steht nicht im Fokus: kein fremdes "gewonnen"
+    h = {"map": "de_mirage", "won": 13, "lost": 7, "report_file": "r.html",
+         "players": {ME: {"name": "Ich"}, BRO: {"name": "Bruder"}}, "score_by": {ME: [13, 7]},
+         "seq": {ME: [[1, "ct", True]]}, "lead": "utility", "lead_by": {ME: "utility"},
+         "lesson_rank_by": {ME: ["utility"]}}
+    assert history.score(h, BRO) is None and history.lead(h, BRO) is None
+    assert history.score(h, ME) == (13, 7) and history.lead(h, ME) == "utility"
+    msg = notify.match_message(h, BRO)
+    assert "13:7" not in msg["title"] and "gewonnen" not in msg["title"] and LESSONS["utility"][0] not in msg["body"]
+    view = api._minute_player(h, BRO)
+    assert "won" not in view and "result" not in view and "topic" not in view
+
+
+def _render(findings, **kw):
+    from cstaktik.report.render import render_report
+
+    m = build_match()
+    result = analyze(m, load_rules_config())
+    result.findings += findings
+    import tempfile
+    from pathlib import Path
+
+    html = render_report(m, result, maps_dirs=[Path(tempfile.mkdtemp())], **kw)
+    raw = re.search(r'<script type="application/json" id="data">(.*?)</script>', html, re.S).group(1)
+    return html, json.loads(raw)["debrief"]
+
+
+def test_report_team_view_hides_personal_blocks():
+    m, result = _match_with_lessons()
+    html, _ = _render(result.findings[-6:], focus=_focus_check())
+    tags = re.findall(r"<[a-z]+[^>]*\bmp-me\b[^>]*>", html)
+    assert tags and all(re.search(r"\shidden(\s|>)", t) for t in tags)
+    assert "[hidden] { display: none !important; }" in html
+    # Ergebnis je Spieler (persönliche Ansicht) neben dem Team-Ergebnis
+    assert f'class="mp-me" data-sid="{ME}" hidden' in html and '<div class="mp-team">' in html
+
+
+def test_report_topic_follows_history_rule():
+    # je Lektion nur ein Tod: kein Thema, also keine "Der eine Punkt"-Karte und kein Debrief-Thema
+    html, db = _render([_f(ME, "Ich", "alone", 1, 20), _f(BRO, "Bruder", "no_shot_close", 2, 10)])
+    assert "Der eine Punkt" not in html and db["lesson"] is None and db["by"] == {}
+    # Thema aus dem Verlauf gilt (Report, Startseite und Push gleich)
+    fs = [_f(ME, "Ich", "alone", 1, 20), _f(ME, "Ich", "alone", 2, 20), _f(ME, "Ich", "utility", 3, 5)]
+    _, db = _render(fs, leads={"lead": "utility", "lead_by": {ME: "utility"}})
+    assert db["lesson"]["id"] == "utility" and db["by"][ME]["id"] == "utility"
+    _, db = _render(fs)  # ohne Verlauf dieselbe Regel: zwei Tode machen das Thema
+    assert db["lesson"]["id"] == "alone" and db["by"][ME]["id"] == "alone"
+
+
+def test_minute_scenes_for_secondary_lesson():
+    sc = {"lesson": "alone", "lessons": ["alone", "utility"], "sid": ME, "round": 3, "tick": 500, "cost": 12,
+          "happened": "Allein gestorben."}
+    h = {"report_file": "r.html", "players": {ME: {"name": "Ich"}}, "score_by": {ME: [13, 7]},
+         "lead_by": {ME: "utility"}, "scenes": [sc, {**sc, "lessons": ["alone"], "round": 5}]}
+    assert [x["round"] for x in api._minute_player(h, ME)["scenes"]] == [3]
+    # alter Eintrag ohne Lektionen je Szene: seine teuersten Szenen
+    old = [{k: v for k, v in sc.items() if k != "lessons"}, {**sc, "round": 6, "cost": 30, "lessons": None}]
+    old[1].pop("lessons")
+    assert [x["round"] for x in api._minute_player({**h, "scenes": old}, ME)["scenes"]] == [6, 3]
 
 
 def test_push_per_player_topic_and_result():

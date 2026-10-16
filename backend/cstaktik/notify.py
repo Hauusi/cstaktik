@@ -196,9 +196,13 @@ def match_message(h: dict, sid: str, hist: list[dict] | None = None) -> dict:
     from cstaktik.coach_voice import LESSONS
     from cstaktik.impact import de
 
-    won, lost = history.score(h, sid)
-    res = "gewonnen" if won > lost else "verloren" if lost > won else "unentschieden"
+    sc = history.score(h, sid)
     label = (h.get("map") or "").removeprefix("de_").capitalize() or "Match"
+    if sc:
+        won, lost = sc
+        title = f"{label} {won}:{lost} " + ("gewonnen" if won > lost else "verloren" if lost > won else "unentschieden")
+    else:  # Ergebnis aus seiner Sicht unbekannt: keins nennen
+        title = f"{label} ausgewertet"
     parts = []
     imp = (h.get("impact") or {}).get(sid)
     if imp and imp.get("total") is not None:
@@ -210,7 +214,7 @@ def match_message(h: dict, sid: str, hist: list[dict] | None = None) -> dict:
     today = _session_line(h, sid, hist)
     if today:
         body += " " + today
-    return {"title": f"{label} {won}:{lost} {res}", "body": body,
+    return {"title": title, "body": body,
             "url": f"/m/{h['report_file']}" if h.get("report_file") else "/matches"}
 
 

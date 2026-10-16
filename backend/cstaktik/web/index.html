@@ -60,7 +60,7 @@ a.fullrep { display: block; margin-top: -8px; padding: 6px; } a.fullrep:hover { 
 {% elif not n_history %}Lade dein erstes Match hoch. In ein paar Minuten weißt du, woran du arbeiten solltest.
 {% elif auto and n_new > 1 %}{{ n_new }} neue Matches sind ausgewertet. Lies sie kurz durch, dann üben.
 {% elif auto and n_new == 1 %}Dein neues Match ist ausgewertet. Lies es in 60 Sekunden, dann üben.
-{% elif last and last.topic %}Letztes Match: {{ last.map_label }} {{ last.won }}:{{ last.lost }}. Thema: {{ last.topic }}.
+{% elif last and last.topic %}Letztes Match: {{ last.map_label }}{% if last.won is not none %} {{ last.won }}:{{ last.lost }}{% endif %}. Thema: {{ last.topic }}.
 {% elif auto %}Spielen, Report lesen, üben. Neue Matches kommen von selbst.
 {% else %}Hochladen, Report lesen, üben. Mehr braucht es nicht.{% endif %}</p>
 {% if not n_history and not need_link %}{# nur beim Einstieg: danach kennt man den Ablauf, dann ist es nur Platz #}
@@ -92,8 +92,8 @@ a.fullrep { display: block; margin-top: -8px; padding: 6px; } a.fullrep:hover { 
 
   {% if last and last.report_file %}
   <a class="last" href="/m/{{ last.report_file }}">
-    <div class="top"><span class="kicker">{% if last.new %}<span class="newb">Neu</span> {% endif %}Letztes Match{% if last.when %} · {{ last.when }}{% endif %}</span><span class="res {{ last.res }}">{{ last.result }}</span></div>
-    <h3>{{ last.map_label }} <span class="num">{{ last.won }}:{{ last.lost }}</span></h3>
+    <div class="top"><span class="kicker">{% if last.new %}<span class="newb">Neu</span> {% endif %}Letztes Match{% if last.when %} · {{ last.when }}{% endif %}</span>{% if last.res %}<span class="res {{ last.res }}">{{ last.result }}</span>{% endif %}</div>
+    <h3>{{ last.map_label }}{% if last.won is not none %} <span class="num">{{ last.won }}:{{ last.lost }}</span>{% endif %}</h3>
     {% if last.topic %}<div class="topic">Thema: <b>{{ last.topic }}</b></div>{% endif %}
     {% if last_imp %}<div class="imps">{% for i in last_imp %}<span>{{ i.name }} <b class="{{ 'p' if i.pos else 'n' }}">{{ i.total }}</b> Runden Impact{% if i.rank %} · Platz {{ i.rank }}/{{ i.of }}{% endif %}</span>{% endfor %}</div>{% endif %}
     <div class="go">Dein Match in 60 Sekunden ›</div>
@@ -111,11 +111,11 @@ a.fullrep { display: block; margin-top: -8px; padding: 6px; } a.fullrep:hover { 
   {% endfor %}
 
   {% if deal %}
-  <a class="mini" href="/reports/{{ deal.report }}"><div><b>Abgemacht nach {{ deal.map_label }} {{ deal.score }}: {{ deal.text }}</b>{% if deal.mantra %}<span>„{{ deal.mantra }}“</span>{% endif %}</div><i>›</i></a>
+  <a class="mini" href="/reports/{{ deal.report }}"><div><b>Abgemacht nach {{ deal.map_label }}{% if deal.score %} {{ deal.score }}{% endif %}: {{ deal.text }}</b>{% if deal.mantra %}<span>„{{ deal.mantra }}“</span>{% endif %}</div><i>›</i></a>
   {% endif %}
 
   {% for u in unseen %}
-  <a class="mini" href="/m/{{ u.report_file }}"><div><b><span class="newb">Neu</span> {{ u.map_label }} {{ u.won }}:{{ u.lost }} · {{ u.result }}</b><span>{% if u.when %}{{ u.when }}{% endif %}{% if u.topic %}{{ " · " if u.when }}Thema: {{ u.topic }}{% endif %}</span></div><i>›</i></a>
+  <a class="mini" href="/m/{{ u.report_file }}"><div><b><span class="newb">Neu</span> {{ u.map_label }}{% if u.res %} {{ u.won }}:{{ u.lost }} · {{ u.result }}{% endif %}</b><span>{% if u.when %}{{ u.when }}{% endif %}{% if u.topic %}{{ " · " if u.when }}Thema: {{ u.topic }}{% endif %}</span></div><i>›</i></a>
   {% endfor %}
 
   {% if auto %}{# Matches kommen automatisch: Hochladen nur noch als Ausweg, eingeklappt #}

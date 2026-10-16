@@ -805,7 +805,8 @@ def index() -> str:
     today = weekplan.local_today()
     sessions = []
     for sid in _mine(sorted({s for h in hist if (h.get("analyzed_at") or "")[:10] == today.isoformat()
-                             for s in (h.get("players") or {}) if s in (h.get("impact") or {}) or s in (h.get("seq") or {})})):
+                             for s in (h.get("players") or {}) if s in (h.get("impact") or {})
+                             or isinstance(h.get("seq"), dict) and s in h["seq"]})):
         s = session.session(hist, sid, today)
         if s:
             sessions.append({**s, "name": names.get(sid, sid)})
@@ -860,15 +861,16 @@ def _last_view(h: dict) -> dict:
     from cstaktik.coach_voice import LESSONS
 
     me = _me() if _me() in (h.get("players") or {}) else None
-    won, lost = history.score(h, me)
+    sc = history.score(h, me)  # None: kein Ergebnis aus seiner Sicht bekannt, dann keins zeigen
+    won, lost = sc if sc else (None, None)
     lid = history.lead(h, me)
     try:
         when = datetime.fromisoformat(h["analyzed_at"]).strftime("%d.%m. %H:%M")
     except (KeyError, ValueError, TypeError):
         when = None
     return {**h, "won": won, "lost": lost,
-            "result": "Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden",
-            "res": "w" if won > lost else "l" if lost > won else "d", "when": when,
+            "result": None if sc is None else "Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden",
+            "res": None if sc is None else "w" if won > lost else "l" if lost > won else "d", "when": when,
             "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(),
             "topic": LESSONS[lid][0] if lid in LESSONS and lid != "duel" else None}
 
@@ -918,7 +920,7 @@ def matches_page() -> str:
             lid = history.lead(h, me)
             r["topic"] = LESSONS[lid][0] if lid in LESSONS and lid != "duel" else None
             if me:  # Ergebnis aus Sicht des eigenen Spielers (falls ihr gegeneinander gespielt habt)
-                r["won"], r["lost"] = history.score(h, me)
+                r["won"], r["lost"] = history.score(h, me) or (None, None)
             from cstaktik.impact import de
 
             r["imp"] = [{"name": (h.get("players", {}).get(sid) or {}).get("name", sid), "v": de(x["total"] / 100),
@@ -952,10 +954,12 @@ def _minute_player(h: dict, sid: str) -> dict:
     from cstaktik.curriculum import TEACH
     from cstaktik.impact import de
 
-    won, lost = history.score(h, sid)
-    out = {"sid": sid, "name": ((h.get("players") or {}).get(sid) or {}).get("name", sid), "won": won, "lost": lost,
-           "res": "w" if won > lost else "l" if lost > won else "d",
-           "result": "Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden"}
+    sc = history.score(h, sid)
+    out = {"sid": sid, "name": ((h.get("players") or {}).get(sid) or {}).get("name", sid)}
+    if sc:  # ohne Ergebnis aus seiner Sicht keins zeigen
+        won, lost = sc
+        out.update(won=won, lost=lost, res="w" if won > lost else "l" if lost > won else "d",
+                   result="Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden")
     imp = (h.get("impact") or {}).get(sid)
     if imp and imp.get("total") is not None:
         out["imp"] = {"total": de(imp["total"] / 100), "pos": imp["total"] > 0, "rank": imp.get("rank"),
@@ -970,8 +974,13 @@ def _minute_player(h: dict, sid: str) -> dict:
     lid = history.lead(h, sid)
     if lid in LESSONS and lid != "duel":
         out["topic"] = {"id": lid, "title": LESSONS[lid][0], "mantra": (TEACH.get(lid) or {}).get("mantra")}
-        scs = [sc for sc in h.get("scenes") or [] if sc.get("sid") == sid and sc.get("lesson") == lid
+        own = [sc for sc in h.get("scenes") or [] if sc.get("sid") == sid
                and sc.get("round") is not None and sc.get("tick") is not None]
+        scs = [sc for sc in own if sc.get("lesson") == lid or lid in (sc.get("lessons") or [])]
+        if not scs and not any("lessons" in sc for sc in own):
+            # ältere Einträge kennen nur die Haupt-Lektion je Szene: das Thema kann eine Neben-Lektion sein,
+            # dann seine teuersten Szenen
+            scs = own
         scs.sort(key=lambda sc: -(sc.get("cost") or 0))
         out["scenes"] = [{"round": sc["round"], "text": sc.get("happened"), "cost": sc.get("cost"),
                           "href": f"/reports/{h['report_file']}#s{sc['round']}-{sc.get('from') or sc['tick']}"}
@@ -990,7 +999,9 @@ def match_minute(report_file: str) -> str:
     if _USER.get():
         _mark_seen(_USER.get(), report_file)
     players = h.get("players") or {}
-    focus = sorted(set(h.get("seq") or {}) | set(h.get("issues") or {}) | set(h.get("impact") or {}))
+    from cstaktik import history
+
+    focus = sorted(set(history._seq_by(h)) | set(h.get("issues") or {}) | set(h.get("impact") or {}))
     me = _me()
     sids = [me] if me and me in players else [s for s in _mine(focus) if s in players]
     rows = sorted((_minute_player(h, s) for s in sids), key=lambda r: r["name"].lower())
@@ -1128,9 +1139,10 @@ async def training_deal(request: Request) -> JSONResponse:
     if fo.get("lesson") == lesson and fo.get("target") is not None:
         text += f": höchstens {str(fo['target']).replace('.', ',')}x pro 10 Runden"
     mantra = (TEACH.get(lesson) or {}).get("mantra")
-    won, lost = history.score(h, me)
+    sc = history.score(h, me)
     deal = {"sid": me, "lesson": lesson, "text": text + ".", "mantra": mantra, "report": report,
-            "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(), "score": f"{won}:{lost}",
+            "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(),
+            "score": f"{sc[0]}:{sc[1]}" if sc else None,
             "match_at": h.get("analyzed_at"), "at": pipeline.coaching_now()}
     accounts.set_setting(_deal_key(user), json.dumps(deal, ensure_ascii=False))
     return JSONResponse({"ok": True})

@@ -454,15 +454,10 @@ def _debrief_lesson(match: MatchData, l0: dict, sid: str | None = None, bright: 
 
 def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], intro: list[str],
                   mine: list[dict] | None = None) -> dict:
-    """Inhalt der geführten Debrief-Sitzung (Report-JS baut daraus die Schritte). ``by``: je Spieler sein Thema
-    (für die persönliche Ansicht mit window.__ME); Auftrag-Checks und Abmachungen tragen die SteamID."""
-    lesson = None
-    if lessons:
-        # Eine Sache zur Zeit: läuft ein Auftrag und kam er heute vor, geht der Debrief um ihn (nicht um ein
-        # anderes Thema, während der Auftrag ein drittes bleibt)
-        running = {a["focus"]["lesson"] for a in auftraege if a.get("focus") and not a.get("new")}
-        l0 = next((x for x in lessons if x["id"] in running), lessons[0])
-        lesson = _debrief_lesson(match, l0)
+    """Inhalt der geführten Debrief-Sitzung (Report-JS baut daraus die Schritte). ``lessons``: Thema zuerst, leer
+    ohne Thema (wie history.set_leads). ``by``: je Spieler sein Thema (für die persönliche Ansicht mit
+    window.__ME), nur wer eins hat; Auftrag-Checks und Abmachungen tragen die SteamID."""
+    lesson = _debrief_lesson(match, lessons[0]) if lessons else None
     checks = [{"name": a["name"], "sid": a.get("sid"),
                **{k: a["check"].get(k) for k in ("title", "count", "rate", "target", "met", "streak",
                                                  "need", "rounds", "streak_rounds", "need_rounds", "drills")},
@@ -472,39 +467,58 @@ def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], 
               "target": a["focus"]["target"], "new": a.get("new"), "mantra": TEACH[a["focus"]["lesson"]]["mantra"],
               "routine": TEACH[a["focus"]["lesson"]]["routine"], "in_game": TEACH[a["focus"]["lesson"]]["in_game"]}
              for a in auftraege if a.get("focus")]
-    by = {m["sid"]: _debrief_lesson(match, m["lessons"][0], m["sid"], m["bright"]) for m in mine or [] if m["lessons"]}
+    by = {m["sid"]: _debrief_lesson(match, m["lessons"][0], m["sid"], m["bright"]) for m in mine or [] if m["lead"]}
     return {"intro": intro, "lesson": lesson, "checks": checks, "next": nexts, "by": by,
             "intro_by": {m["sid"]: m["intro"] for m in mine or []}}
 
 
-def _lessons_by(match: MatchData, result: AnalysisResult, auftraege: list[dict], past: list[dict] | None) -> list[dict]:
+RANK_N = 10  # so viele Lektionen kennt der Verlauf (history.lesson_rank); das Thema kommt nur aus ihnen
+
+
+def _lead_first(ls: list[dict], running: set | list, fixed: str | None = ...) -> tuple[list[dict], bool]:
+    """Thema zuerst, wie history.set_leads: ein laufender Auftrag, der heute vorkam (unter den ersten ``RANK_N``),
+    sonst die wichtigste Lektion, aber nur ab ``MIN_LEAD_COUNT`` Toden. ``fixed``: Thema aus dem Verlauf (``lead``
+    bzw. ``lead_by``), dann gilt genau dieses. Zweiter Wert: gibt es ein Thema?"""
+    if fixed is ...:
+        ids = [x["id"] for x in ls[:RANK_N]]
+        fixed = next((lid for lid in ids if lid in running), ls[0]["id"] if ls and ls[0]["lead"] else None)
+    lead = next((x for x in ls if x["id"] == fixed), None) if fixed else None
+    return ([lead] + [x for x in ls if x is not lead] if lead else ls), lead is not None
+
+
+def _side_score(match: MatchData, sid: str) -> tuple[int, int]:
+    """Ergebnis aus Sicht des Spielers (falls ihr gegeneinander spielt)."""
+    won = sum(1 for r in match.rounds if r.winner and r.sides.get(sid) == r.winner)
+    lost = sum(1 for r in match.rounds if r.winner and sid in r.sides and r.sides[sid] != r.winner)
+    return won, lost
+
+
+def _lessons_by(match: MatchData, result: AnalysisResult, auftraege: list[dict], past: list[dict] | None,
+                lead_by: dict | None = None) -> list[dict]:
     """Je Fokus-Spieler seine Lektionen, sein Thema zuerst (wie history.set_leads: sein laufender Auftrag, wenn er
-    heute vorkam, sonst seine wichtigste Lektion). Szenen verweisen auf die Findings des ganzen Matches."""
+    heute vorkam, sonst seine wichtigste Lektion ab zwei Toden; ``lead_by`` aus dem Verlauf, falls vorhanden).
+    ``lead``: hat er ein Thema? Ohne Thema keine "Der eine Punkt"-Karte. Auch Spieler ohne Lektion stehen drin
+    (eigene Ansprache mit seinem Ergebnis). Szenen verweisen auf die Findings des ganzen Matches."""
     from cstaktik import coach_voice
 
     running = {a.get("sid"): a["focus"]["lesson"] for a in auftraege if a.get("focus") and not a.get("new")}
     idx = {id(f): i for i, f in enumerate(result.findings)}
+    label = (match.map_name or "?").removeprefix("de_").capitalize()
     out = []
     for sid in sorted(match.focus_ids(), key=match.name_of):
         own = [f for f in result.findings if f.steamid == sid]
         ls = coach_voice.focus(own, 20, coach_voice.recurrence(past or [], sid))
-        if not ls:
-            continue
         for x in ls:
             for sc in x["scenes"]:
                 sc["finding"] = idx[id(own[sc["finding"]])]
                 sc["sid"] = sid
         r = running.get(sid) or running.get(None)
-        lead = next((x for x in ls if x["id"] == r), None)
-        if lead:
-            ls = [lead] + [x for x in ls if x is not lead]
-        # Ergebnis aus seiner Sicht (falls ihr gegeneinander spielt)
-        won = sum(1 for r in match.rounds if r.winner and r.sides.get(sid) == r.winner)
-        lost = sum(1 for r in match.rounds if r.winner and sid in r.sides and r.sides[sid] != r.winner)
-        label = (match.map_name or "?").removeprefix("de_").capitalize()
-        out.append({"sid": sid, "name": match.name_of(sid), "lessons": ls[:3],
-                    "intro": coach_voice.intro(won, lost, label, ls[:3]),
-                    "bright": bright_spots(match, ls[0]["id"], _trade_units(), sid=sid)})
+        ls, has = _lead_first(ls, {r} if r else set(), lead_by[sid] if lead_by and sid in lead_by else ...)
+        won, lost = _side_score(match, sid)
+        out.append({"sid": sid, "name": match.name_of(sid), "lessons": ls[:3], "lead": has,
+                    "intro": coach_voice.intro(won, lost, label, ls[:3] if has else []),
+                    "won": won, "lost": lost,
+                    "bright": bright_spots(match, ls[0]["id"], _trade_units(), sid=sid) if has else None})
     return out
 
 
@@ -530,8 +544,10 @@ def _trade_units() -> float:
 def build_context(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
     pro_clips: list[dict] | None = None, memory: dict | None = None, focus: dict | None = None,
-    recur: tuple | None = None, past: list[dict] | None = None,
+    recur: tuple | None = None, past: list[dict] | None = None, leads: dict | None = None,
 ) -> dict:
+    """``leads``: ``lead``/``lead_by`` aus dem Verlauf (history.set_leads), damit Report, Startseite und Push dasselbe
+    Thema nennen; ohne sie gilt dieselbe Regel hier."""
     from cstaktik.coach import diagnose
 
     debrief = diagnose(match, result, load_rules_config()["coach"], load_rules_config()["mechanics"])
@@ -543,21 +559,21 @@ def build_context(
     auftraege = normalize_focus(focus)
     # Eine Sache zur Zeit: kam ein laufender Auftrag heute vor, ist er überall das Thema (Einleitung, Der eine Punkt,
     # Debrief), statt neben dem Auftrag ein zweites Thema aufzumachen
+    # Ohne Thema (eine einzelne Szene ist noch kein Muster) keine "Der eine Punkt"-Karte, wie auf Startseite und Push
     running = [a["focus"]["lesson"] for a in auftraege if a.get("focus") and not a.get("new")]
-    lead = next((x for x in all_lessons if x["id"] in running), None)
-    if lead:
-        all_lessons = [lead] + [x for x in all_lessons if x is not lead]
+    all_lessons, has_lead = _lead_first(all_lessons, running, leads.get("lead") if leads else ...)
     for x in all_lessons:  # wessen Szene (persönliche Ansicht im Report)
         for sc in x["scenes"]:
             sc["sid"] = result.findings[sc["finding"]].steamid
     lessons = all_lessons[:3]
-    mine = _lessons_by(match, result, auftraege, past)
+    point = lessons if has_lead else []  # "Der eine Punkt" und Debrief nur mit Thema
+    mine = _lessons_by(match, result, auftraege, past, (leads or {}).get("lead_by"))
     won = sum(1 for r in payload["rounds"] if r["out"] == "W" and not r.get("pro"))
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
     radar_note = None if payload["img"] else build_radar(match, maps_dirs).note
     # "</" escapen, damit eingebettetes JSON das <script>-Tag nicht schließen kann
     map_label_s = (match.map_name or "?").removeprefix("de_").capitalize()
-    payload["debrief"] = _debrief_data(match, all_lessons, auftraege, coach_voice.intro(won, lost, map_label_s, lessons),
+    payload["debrief"] = _debrief_data(match, point, auftraege, coach_voice.intro(won, lost, map_label_s, point),
                                        mine)
     tac_now = _tactics(match)
     for ro in payload["rounds"]:  # Taktik-Etikett je Runde (Runden-Reiter)
@@ -580,10 +596,11 @@ def build_context(
         "radar_note": radar_note,
         "debrief": debrief,
         "lessons": lessons,
+        "point": point,
         "lessons_by": mine,
         "coach_line": coach_voice.headline(lessons) or debrief["sentence"],
         "font_css": __import__("cstaktik.fonts", fromlist=["font_css"]).font_css(),
-        "intro": coach_voice.intro(won, lost, (match.map_name or "?").removeprefix("de_").capitalize(), lessons),
+        "intro": coach_voice.intro(won, lost, (match.map_name or "?").removeprefix("de_").capitalize(), point),
         "memory": memory,
         "focus": None,
         "duel_cmp": _duel_cmp(match),
@@ -595,7 +612,7 @@ def build_context(
         "checks": [a for a in auftraege if a.get("check")],
         "goal_cfg": load_rules_config()["goals"],
         "teach": TEACH,
-        "bright": {lid: bright_spots(match, lid, _trade_units()) for lid in {l["id"] for l in lessons[:1]}},
+        "bright": {lid: bright_spots(match, lid, _trade_units()) for lid in {l["id"] for l in point[:1]}},
         "praise": coach_voice.praise(result.findings) + coach_voice.strengths(
             _duel_now(match), {p.steamid: p.name for p in match.players}, past or []),
         "goal_check": goal_check,
@@ -611,19 +628,20 @@ def build_context(
 def render_report(
     match: MatchData, result: AnalysisResult, maps_dirs: list[Path] | None = None, goal_check: dict | None = None,
     pro_clips: list[dict] | None = None, memory: dict | None = None, focus: dict | None = None,
-    recur: tuple | None = None, past: list[dict] | None = None,
+    recur: tuple | None = None, past: list[dict] | None = None, leads: dict | None = None,
 ) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
     return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check, pro_clips,
-                                                                  memory, focus, recur, past))
+                                                                  memory, focus, recur, past, leads))
 
 
 def write_report(
     match: MatchData, result: AnalysisResult, out: Path, maps_dirs: list[Path] | None = None,
     goal_check: dict | None = None, pro_clips: list[dict] | None = None, memory: dict | None = None,
     focus: dict | None = None, recur: tuple | None = None, past: list[dict] | None = None,
+    leads: dict | None = None,
 ) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips, memory, focus, recur, past),
+    out.write_text(render_report(match, result, maps_dirs, goal_check, pro_clips, memory, focus, recur, past, leads),
                    encoding="utf-8")
     return out

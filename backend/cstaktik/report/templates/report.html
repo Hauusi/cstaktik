@@ -316,6 +316,8 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .restag { display: inline-block; margin-top: 10px; font-family: var(--cond); font-weight: 700; font-size: 12px; letter-spacing: .16em;
   text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--muted); color: var(--muted); }
 .restag.loss { color: var(--loss); border-color: var(--loss); } .restag.win { color: var(--win); border-color: var(--win); }
+/* hidden gilt immer, auch gegen display-Regeln einzelner Klassen (z. B. die persönlichen .mp-me-Blöcke) */
+[hidden] { display: none !important; }
 .coachsay { display: flex; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--line); }
 .coachsay .av { flex: none; width: 42px; height: 42px; background: var(--orange); color: #111; font-weight: 800; font-size: 22px;
   line-height: 42px; text-align: center; clip-path: polygon(0 0, 100% 0, 100% 75%, 75% 100%, 0 100%); }
@@ -622,9 +624,13 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
 {% set nav_active = "matches" %}{% include "nav.html" %}
   <header class="hero herohud"><div class="hero-in">
     <div class="eyebrow" title="{{ match.source_file or '' }}">{{ match.rounds|length }} Runden</div>
+    {# Ergebnis fürs Team; mit window.__ME das aus Sicht des eigenen Spielers (falls ihr gegeneinander spielt) #}
+    {% for sc in [score] + lessons_by %}{% set sid = sc.sid %}
+    <div class="{{ 'mp-me' if sid else 'mp-team' }}"{% if sid %} data-sid="{{ sid }}" hidden{% endif %}>
     <div class="hrow"><h1>{{ map_label }}</h1>
-      <div class="hscore num cond"><b>{{ score.won }}</b><span>:</span><b class="l">{{ score.lost }}</b></div></div>
-    <span class="restag {{ 'win' if score.won > score.lost else 'loss' if score.lost > score.won else '' }}">{{ "Sieg" if score.won > score.lost else "Niederlage" if score.lost > score.won else "Unentschieden" }}</span>
+      <div class="hscore num cond"><b>{{ sc.won }}</b><span>:</span><b class="l">{{ sc.lost }}</b></div></div>
+    <span class="restag {{ 'win' if sc.won > sc.lost else 'loss' if sc.lost > sc.won else '' }}">{{ "Sieg" if sc.won > sc.lost else "Niederlage" if sc.lost > sc.won else "Unentschieden" }}</span>
+    </div>{% endfor %}
   </div></header>
 <div class="dbf" id="dbf" hidden role="dialog" aria-modal="true" aria-label="Debrief">
   <div class="dbf-top"><div class="segs" id="dbfSegs"></div><button class="dbf-x" id="dbfX" aria-label="Schließen">✕</button></div>
@@ -691,18 +697,19 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   </div>
 
 
-  {% if lessons %}
-  <div class="mp-team">{{ mainpoint(lessons, bright[lessons[0].id]) }}</div>
+  {# "Der eine Punkt" nur mit Thema (wie Startseite und Push: laufender Auftrag oder Lektion ab zwei Toden) #}
+  {% if point %}
+  <div class="mp-team">{{ mainpoint(point, bright[point[0].id]) }}</div>
+  {% elif memory %}<div class="memo mp-team {{ memory.state }}">{{ memory.text }}</div>{% endif %}
   {# je Spieler sein Thema: nur sichtbar, wenn der Report persönlich geöffnet wird (window.__ME) #}
-  {% for m in lessons_by %}<div class="mp-me" data-sid="{{ m.sid }}" hidden>{{ mainpoint(m.lessons, m.bright, m.sid) }}</div>{% endfor %}
-  {% elif memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
+  {% for m in lessons_by if m.lead %}<div class="mp-me" data-sid="{{ m.sid }}" hidden>{{ mainpoint(m.lessons, m.bright, m.sid) }}</div>{% endfor %}
 
   {% if praise %}<section class="praise"><b class="cond">Gut gemacht</b>{% for p in praise %}<div>{{ p }}</div>{% endfor %}</section>{% endif %}
   {# Aufträge, die nicht schon oben im Auftrag-Check stehen (neu oder ohne Check in diesem Match) #}
   {% set nexts = auftraege|selectattr("focus")|rejectattr("check")|list + auftraege|selectattr("focus")|selectattr("new")|selectattr("check")|list %}
   {% if nexts %}
   <section class="nextfocus">
-    <div class="sh"><span class="t cond">Eure Aufträge</span></div>
+    <div class="sh"><span class="t cond" data-me-text="Dein Auftrag">Eure Aufträge</span></div>
     {% for a in nexts %}{% set nf = a.focus %}
     <div class="nf"{% if a.sid %} data-sid="{{ a.sid }}"{% endif %}>
       <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
@@ -998,9 +1005,14 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
 /* Eingeloggt und mit Steam verbunden: Der Server setzt window.__ME, dann nur die eigenen Teile zeigen */
 (function () { var me = window.__ME; if (!me) return;
   document.querySelectorAll('[data-sid]').forEach(function (e) { if (e.dataset.sid && e.dataset.sid !== me) e.remove(); });
-  // eigenes Thema statt Team-Thema (gleiches Thema wie Startseite und Push)
-  var mp = document.querySelectorAll('.mp-me[data-sid="' + me + '"]');
-  if (mp.length) { mp.forEach(function (e) { e.hidden = false; }); document.querySelectorAll('.mp-team').forEach(function (e) { e.remove(); }); } })();
+  // eigenes Thema und Ergebnis statt Team-Thema (gleiches Thema wie Startseite und Push). Das Team-Thema bleibt auch
+  // ohne eigenes Thema weg: es kann das eines anderen Spielers sein
+  document.querySelectorAll('.mp-me[data-sid="' + me + '"]').forEach(function (e) { e.hidden = false; });
+  document.querySelectorAll('.mp-team').forEach(function (e) { e.remove(); });
+  // Abschnitte, deren Zeilen alle anderen Spielern gehörten, ganz entfernen (keine leeren Überschriften)
+  [['.auftraege', '.auftrag'], ['.nextfocus', '.nf, .anote'], ['.takeaway', '.tk'], ['.glance', '.gl'], ['.duelcmp:not(.imp):not(.utilcmp)', '.dp']]
+    .forEach(function (p) { document.querySelectorAll(p[0]).forEach(function (s) { if (!s.querySelector(p[1])) s.remove(); }); });
+  document.querySelectorAll('[data-me-text]').forEach(function (e) { e.textContent = e.dataset.meText; }); })();
 </script>
 <script type="application/json" id="data">{{ data_json | safe }}</script>
 <script>
@@ -1930,7 +1942,10 @@ const DB = Object.assign({}, D.debrief || {});
 if (window.__ME) { // persönlich: nur der eigene Auftrag-Check, die eigene Abmachung und das eigene Thema
   const me = window.__ME, own = x => !x.sid || x.sid === me;
   DB.checks = (DB.checks || []).filter(own); DB.next = (DB.next || []).filter(own);
-  if (DB.by && DB.by[me]) { DB.lesson = DB.by[me]; if (DB.intro_by && DB.intro_by[me]) DB.intro = DB.intro_by[me]; }
+  // nur das eigene Thema; ohne eigenes Thema keins (das Team-Thema kann das eines anderen sein). Ansprache mit
+  // eigenem Ergebnis; fehlt sie, keine fremde
+  DB.lesson = (DB.by || {})[me] || null;
+  DB.intro = (DB.intro_by || {})[me] || [];
 }
 const DBS = { i: 0, steps: [] };
 const ACT = { 'gehalten': 'Position halten', 'zurückgezogen': 'Zurückziehen', 'Richtung Gegner': 'Richtung Gegner gehen / peeken' };
@@ -1958,8 +1973,10 @@ function dbBuild() {
   });
   st.push(() => {
     const d = el('div'); d.append(el('div', 'k', 'Der Coach'));
-    const say = el('div', 'say'); say.append(el('div', 'av', 'C'), el('p', null, (DB.intro || []).join(' ')));
-    d.appendChild(say);
+    if (DB.intro && DB.intro.length) {
+      const say = el('div', 'say'); say.append(el('div', 'av', 'C'), el('p', null, DB.intro.join(' ')));
+      d.appendChild(say);
+    }
     if (!L) d.appendChild(el('p', null, 'In diesem Match gab es kein wiederkehrendes Muster. Schau dir die Szenen im Replay an.'));
     return d;
   });

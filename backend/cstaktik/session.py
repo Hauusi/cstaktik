@@ -59,7 +59,10 @@ def session(hist: list[dict], sid: str, day: date, until: str | None = None) -> 
         return None
     won = lost = draw = 0
     for h in ms:
-        w, lo = history.score(h, sid)
+        sc = history.score(h, sid)
+        if sc is None:  # Ergebnis aus seiner Sicht unbekannt: kein Spielabend statt einer falschen Bilanz
+            return None
+        w, lo = sc
         won += w > lo
         lost += lo > w
         draw += w == lo

@@ -36,8 +36,8 @@
 <section class="mp" aria-label="{{ r.name }}">
   <div class="card mres">
     <div><div class="kicker">{% if rows|length > 1 %}{{ r.name }} · {% endif %}Ergebnis</div>
-      <h3>{{ map_label }} <span class="num">{{ r.won }}:{{ r.lost }}</span></h3></div>
-    <span class="res {{ r.res }}">{{ r.result }}</span>
+      <h3>{{ map_label }}{% if r.res %} <span class="num">{{ r.won }}:{{ r.lost }}</span>{% endif %}</h3></div>
+    {% if r.res %}<span class="res {{ r.res }}">{{ r.result }}</span>{% endif %}
   </div>
 
   {% if r.imp %}

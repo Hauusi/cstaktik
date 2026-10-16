@@ -309,9 +309,14 @@ def run(
 
     out = write_report(match, result, out_dir / f"{stem}.html", goal_check=summary["goal_check"], pro_clips=clips,
                        recur=recurrence(past), past=past,
-                       memory=mem, focus=summary["focus_check"])
+                       memory=mem, focus=summary["focus_check"], leads=_leads(summary))
     report("Fertig", 1.0)
     return out
+
+
+def _leads(h: dict) -> dict:
+    """Thema je Match und je Spieler aus dem Verlauf (history.set_leads) für den Report."""
+    return {"lead": h.get("lead"), "lead_by": h.get("lead_by") or {}}
 
 
 def coaching_stale(state: dict, focus: set[str]) -> bool:
@@ -453,7 +458,7 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         mem = coach_voice.memory(prev, h["lessons"], h.get("rounds") or 0)
         write_report(match, result, REPORTS_DIR / h["report_file"], goal_check=h.get("goal_check"), pro_clips=clips,
                      recur=coach_voice.recurrence(before(h)), past=before(h),
-                     memory=mem, focus=h.get("focus_check"))
+                     memory=mem, focus=h.get("focus_check"), leads=_leads(h))
         done += 1
     if rebuild is not None and done:
         # Übungen und Wochenpläne aus dem JETZIGEN Stand übernehmen: Haken, die während des Neubaus gesetzt

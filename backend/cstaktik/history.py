@@ -232,13 +232,16 @@ def lesson_rank_by(result: AnalysisResult, past: list[dict] | None = None) -> di
 
 
 def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None) -> list[dict]:
-    """Tod-Szenen mit Lagebild fürs Training über mehrere Matches (Entscheidung nachspielen)."""
+    """Tod-Szenen mit Lagebild fürs Training über mehrere Matches (Entscheidung nachspielen). ``lessons``: alle
+    Lektionen des Todes (Haupt-Lektion zuerst), damit ein Thema auch seine Szenen findet, wenn es nur mitspielte."""
+    from cstaktik.coach_voice import lesson_ids
+
     out = []
     for f in result.findings:
         v, ev = f.evidence.get("coach"), f.evidence
         if not v or not ev.get("snap") or not ev.get("aktion"):
             continue
-        out.append({"lesson": v["id"], "who": f.player_name, "sid": f.steamid, "round": f.round, "tick": f.tick,
+        out.append({"lesson": v["id"], "lessons": lesson_ids(ev.get("f") or {}, v["id"]), "who": f.player_name, "sid": f.steamid, "round": f.round, "tick": f.tick,
                     "from": (f.overlay.get("decision") or [None, None, None])[2], "report": report_file,
                     "map": map_name, "snap": ev["snap"], "info": ev.get("info"), "aktion": ev["aktion"],
                     "pro_rates": ev.get("pro_rates"), "pro_best": ev.get("pro_best"), "cost": ev.get("cost_pct"),
@@ -282,27 +285,41 @@ def set_leads(h: dict) -> dict:
     return h
 
 
+def _seq_by(h: dict) -> dict:
+    """Rundenfolge je Spieler; ältere Einträge speichern eine Liste (Sicht des Teams) und zählen hier nicht."""
+    seq = h.get("seq")
+    return seq if isinstance(seq, dict) else {}
+
+
 def lead(h: dict, sid: str | None = None) -> str | None:
-    """Thema des Matches für einen Spieler (None: fürs Team). Ältere Einträge ohne ``lead``: bisheriges Hauptthema."""
+    """Thema des Matches für einen Spieler (None: fürs Team). Mit Spieler nur sein eigenes Thema: fehlen seine
+    Daten (kein Fokus-Spieler, etwa ein Gegner, oder ein alter Eintrag ohne Daten je Spieler), dann None, denn das
+    Team-Thema kann das eines anderen sein. Ältere Einträge ohne ``lead``: bisheriges Hauptthema."""
     if sid:
         if sid in (h.get("lead_by") or {}):
             return h["lead_by"][sid]
-        by = h.get("lesson_rank_by")
-        if by is not None and sid in (h.get("players") or {}):
-            ls = by.get(sid) or []
-            return ls[0] if ls else None  # ohne eigene Lektion kein fremdes Thema zeigen
+        if h.get("lead_by"):
+            return None
+        ls = (h.get("lesson_rank_by") or {}).get(sid) or []
+        return ls[0] if ls else None  # ohne eigene Lektion kein fremdes Thema zeigen
     return h.get("lead", h.get("main_lesson"))
 
 
-def score(h: dict, sid: str | None = None) -> tuple[int, int]:
-    """(gewonnen, verloren) aus Sicht des Spielers; ohne Spieler oder ohne Daten: Team-Ergebnis."""
+def score(h: dict, sid: str | None = None) -> tuple[int, int] | None:
+    """(gewonnen, verloren) aus Sicht des Spielers; ohne Spieler: Team-Ergebnis. Mit Spieler, aber ohne seine
+    Daten: None (er kann auf der anderen Seite gespielt haben). Alte Einträge ohne Daten je Spieler: Team-Ergebnis
+    nur für Fokus-Spieler (die damals im Team standen)."""
     if sid:
         s = (h.get("score_by") or {}).get(sid)
         if s:
             return int(s[0]), int(s[1])
-        seq = (h.get("seq") or {}).get(sid)
+        seq = _seq_by(h).get(sid)
         if seq:
             return sum(1 for x in seq if x[2]), sum(1 for x in seq if not x[2])
+        if h.get("score_by") or _seq_by(h):
+            return None
+        if sid not in (h.get("issues") or {}) and sid not in (h.get("impact") or {}):
+            return None
     return int(h.get("won") or 0), int(h.get("lost") or 0)
 
 
