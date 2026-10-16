@@ -298,6 +298,7 @@ def run(
         summary["focus_check"] = coaching.update_all(cstate, summary, summary.get("lesson_rank_by") or {},
                                                      past=past, **goal_kw(config))
         coaching.save(cstate, COACHING_FILE)
+    history.set_leads(summary)  # ein Thema je Spieler, überall gleich (Report, Startseite, Push)
     history.save(summary, HISTORY_DIR)
     report("Report bauen", 0.96)
     from cstaktik import coach_voice
@@ -444,6 +445,7 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         h.update(keep)
         if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
             h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], past=before(h), **goal_kw(config))
+        history.set_leads(h)
         history.save(h, HISTORY_DIR)
         from cstaktik import coach_voice
 

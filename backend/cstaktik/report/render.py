@@ -443,26 +443,69 @@ def _duel_cmp(match: MatchData) -> dict | None:
     return {"players": list(rows.values()), "pro": pr}
 
 
-def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], intro: list[str]) -> dict:
-    """Inhalt der geführten Debrief-Sitzung (Report-JS baut daraus die Schritte)."""
+def _debrief_lesson(match: MatchData, l0: dict, sid: str | None = None, bright: list[dict] | None = ...) -> dict:
+    t = TEACH[l0["id"]]
+    if bright is ...:
+        bright = bright_spots(match, l0["id"], _trade_units(), sid=sid)
+    return {"id": l0["id"], "title": l0["lesson"], "why": l0["why"], "count": l0["count"], "cost": l0["cost"],
+            "scenes": l0["scenes"][:4], "principle": t["principle"], "mantra": t["mantra"],
+            "routine": t["routine"], "in_game": t["in_game"], "bright": bright}
+
+
+def _debrief_data(match: MatchData, lessons: list[dict], auftraege: list[dict], intro: list[str],
+                  mine: list[dict] | None = None) -> dict:
+    """Inhalt der geführten Debrief-Sitzung (Report-JS baut daraus die Schritte). ``by``: je Spieler sein Thema
+    (für die persönliche Ansicht mit window.__ME); Auftrag-Checks und Abmachungen tragen die SteamID."""
     lesson = None
     if lessons:
         # Eine Sache zur Zeit: läuft ein Auftrag und kam er heute vor, geht der Debrief um ihn (nicht um ein
         # anderes Thema, während der Auftrag ein drittes bleibt)
         running = {a["focus"]["lesson"] for a in auftraege if a.get("focus") and not a.get("new")}
         l0 = next((x for x in lessons if x["id"] in running), lessons[0])
-        t = TEACH[l0["id"]]
-        lesson = {"id": l0["id"], "title": l0["lesson"], "why": l0["why"], "count": l0["count"], "cost": l0["cost"],
-                  "scenes": l0["scenes"][:4], "principle": t["principle"], "mantra": t["mantra"],
-                  "routine": t["routine"], "in_game": t["in_game"], "bright": bright_spots(match, l0["id"], _trade_units())}
-    checks = [{"name": a["name"], **{k: a["check"].get(k) for k in ("title", "count", "rate", "target", "met", "streak",
-                                                                     "need", "rounds", "streak_rounds", "need_rounds", "drills")}, "mastered": bool(a.get("mastered"))}
+        lesson = _debrief_lesson(match, l0)
+    checks = [{"name": a["name"], "sid": a.get("sid"),
+               **{k: a["check"].get(k) for k in ("title", "count", "rate", "target", "met", "streak",
+                                                 "need", "rounds", "streak_rounds", "need_rounds", "drills")},
+               "mastered": bool(a.get("mastered"))}
               for a in auftraege if a.get("check")]
     nexts = [{"name": a["name"], "sid": a.get("sid"), "lesson": a["focus"]["lesson"], "title": a["focus"]["title"],
               "target": a["focus"]["target"], "new": a.get("new"), "mantra": TEACH[a["focus"]["lesson"]]["mantra"],
               "routine": TEACH[a["focus"]["lesson"]]["routine"], "in_game": TEACH[a["focus"]["lesson"]]["in_game"]}
              for a in auftraege if a.get("focus")]
-    return {"intro": intro, "lesson": lesson, "checks": checks, "next": nexts}
+    by = {m["sid"]: _debrief_lesson(match, m["lessons"][0], m["sid"], m["bright"]) for m in mine or [] if m["lessons"]}
+    return {"intro": intro, "lesson": lesson, "checks": checks, "next": nexts, "by": by,
+            "intro_by": {m["sid"]: m["intro"] for m in mine or []}}
+
+
+def _lessons_by(match: MatchData, result: AnalysisResult, auftraege: list[dict], past: list[dict] | None) -> list[dict]:
+    """Je Fokus-Spieler seine Lektionen, sein Thema zuerst (wie history.set_leads: sein laufender Auftrag, wenn er
+    heute vorkam, sonst seine wichtigste Lektion). Szenen verweisen auf die Findings des ganzen Matches."""
+    from cstaktik import coach_voice
+
+    running = {a.get("sid"): a["focus"]["lesson"] for a in auftraege if a.get("focus") and not a.get("new")}
+    idx = {id(f): i for i, f in enumerate(result.findings)}
+    out = []
+    for sid in sorted(match.focus_ids(), key=match.name_of):
+        own = [f for f in result.findings if f.steamid == sid]
+        ls = coach_voice.focus(own, 20, coach_voice.recurrence(past or [], sid))
+        if not ls:
+            continue
+        for x in ls:
+            for sc in x["scenes"]:
+                sc["finding"] = idx[id(own[sc["finding"]])]
+                sc["sid"] = sid
+        r = running.get(sid) or running.get(None)
+        lead = next((x for x in ls if x["id"] == r), None)
+        if lead:
+            ls = [lead] + [x for x in ls if x is not lead]
+        # Ergebnis aus seiner Sicht (falls ihr gegeneinander spielt)
+        won = sum(1 for r in match.rounds if r.winner and r.sides.get(sid) == r.winner)
+        lost = sum(1 for r in match.rounds if r.winner and sid in r.sides and r.sides[sid] != r.winner)
+        label = (match.map_name or "?").removeprefix("de_").capitalize()
+        out.append({"sid": sid, "name": match.name_of(sid), "lessons": ls[:3],
+                    "intro": coach_voice.intro(won, lost, label, ls[:3]),
+                    "bright": bright_spots(match, ls[0]["id"], _trade_units(), sid=sid)})
+    return out
 
 
 def normalize_focus(fc: dict | None) -> list[dict]:
@@ -504,13 +547,18 @@ def build_context(
     lead = next((x for x in all_lessons if x["id"] in running), None)
     if lead:
         all_lessons = [lead] + [x for x in all_lessons if x is not lead]
+    for x in all_lessons:  # wessen Szene (persönliche Ansicht im Report)
+        for sc in x["scenes"]:
+            sc["sid"] = result.findings[sc["finding"]].steamid
     lessons = all_lessons[:3]
+    mine = _lessons_by(match, result, auftraege, past)
     won = sum(1 for r in payload["rounds"] if r["out"] == "W" and not r.get("pro"))
     lost = sum(1 for r in payload["rounds"] if r["out"] == "L")
     radar_note = None if payload["img"] else build_radar(match, maps_dirs).note
     # "</" escapen, damit eingebettetes JSON das <script>-Tag nicht schließen kann
     map_label_s = (match.map_name or "?").removeprefix("de_").capitalize()
-    payload["debrief"] = _debrief_data(match, all_lessons, auftraege, coach_voice.intro(won, lost, map_label_s, lessons))
+    payload["debrief"] = _debrief_data(match, all_lessons, auftraege, coach_voice.intro(won, lost, map_label_s, lessons),
+                                       mine)
     tac_now = _tactics(match)
     for ro in payload["rounds"]:  # Taktik-Etikett je Runde (Runden-Reiter)
         if not ro.get("pro") and tac_now and ro.get("n") in tac_now["tags"]:
@@ -532,6 +580,7 @@ def build_context(
         "radar_note": radar_note,
         "debrief": debrief,
         "lessons": lessons,
+        "lessons_by": mine,
         "coach_line": coach_voice.headline(lessons) or debrief["sentence"],
         "font_css": __import__("cstaktik.fonts", fromlist=["font_css"]).font_css(),
         "intro": coach_voice.intro(won, lost, (match.map_name or "?").removeprefix("de_").capitalize(), lessons),

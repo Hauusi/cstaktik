@@ -392,7 +392,7 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .hw .ig b { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
 .nextfocus { margin-top: 16px; padding: 14px; border: 1px solid var(--orange); background: rgba(255,159,28,.06); }
 .nextfocus .sh { margin-bottom: 4px; }
-#proslot .sbtn { margin-top: 10px; }
+.proslot .sbtn { margin-top: 10px; }
 @media (min-width: 700px) { .cmp { grid-template-columns: 1fr 1fr; } }
 .auftraege .auftrag { margin-top: 10px; }
 .auftrag .who, .nf .who { font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
@@ -565,6 +565,46 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
 <body>
 {% from "seen.html" import seenblock %}
 {% from "duelchain.html" import duelchain %}
+{% macro mainpoint(ls, good, sid=none) %}{% set l = ls[0] %}{% set t = teach[l.id] %}
+  <section class="mainpoint">
+    <div class="sh"><span class="n cond">01</span><span class="t cond">Der eine Punkt</span></div>
+    <div class="big cond">{{ l.lesson }}</div>
+    <div class="stats">
+      <div><b class="cond">{{ l.count }}x</b><span>{% if l.main is defined and l.main != l.count %}dabei, {{ l.main }}x als Hauptfehler{% else %}passiert{% endif %}</span></div>
+      {% if l.of_matches is defined and l.of_matches > 1 %}<div><b class="cond {{ 'red' if l.seen_in >= 2 }}">{{ l.seen_in }}/{{ l.of_matches }}</b><span>Matches mit diesem Fehler</span></div>{% endif %}
+      {% if l.cost and l.cost >= 30 %}<div><b class="cond red">≈{{ "%.1f"|format(l.cost / 100)|replace(".", ",") }}</b><span>Runden gekostet{% if l.rough %} (grob){% endif %}</span></div>{% endif %}
+      <div><b class="cond">{{ (l.players[0] if l.players|length == 1 else l.players|length ~ " Spieler") if l.players else "–" }}</b><span>{{ "wer" if l.players|length == 1 else "betroffen" }}</span></div>
+    </div>
+
+    <div class="learn">
+      <div class="lk cond">Verstehen</div>
+      <p>{{ t.principle }}</p>
+      <div class="ig"><b class="cond">Im Match</b>{{ t.in_game }}</div>
+    </div>
+
+    <div class="cmp">
+      <div class="cmpcol bad"><div class="lk cond">So nicht · bei {{ "dir" if sid else "euch" }}</div>
+        <div class="scenes">{% for sc in (l.scenes|unique(attribute="round")|list)[:4] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost and sc.cost > 0 %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div></div>
+      <div class="cmpcol good"><div class="lk cond">So geht's · bei {{ "dir" if sid else "euch" }}</div>
+        {% if good %}{% for g in good %}<button class="brightgo" data-round="{{ g.round }}" data-tick="{{ g.from }}"><b class="cond">▶ R{{ g.round }} {{ g.when }}</b>{{ g.text }}</button>{% endfor %}
+        {% elif good is none %}<div class="quiet">Für diese Lektion sucht der Coach keine Gegenbeispiele.</div>
+        {% else %}<div class="quiet">Diesmal keine saubere Szene gefunden.</div>{% endif %}</div>
+    </div>
+    <div class="proslot" data-lesson="{{ l.id }}"{% if sid %} data-who="{{ sid }}"{% endif %}></div>
+
+    {% if not sid and memory and not checks %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
+    <a class="trainlink" href="/training">Übung dazu: <b>{{ t.routine.title }}</b>, {{ t.routine.minutes }} Min. Zum Training ›</a>
+  </section>
+  {% if ls|length > 1 %}
+  <section class="also">
+    <div class="sh"><span class="t cond">Außerdem</span></div>
+    {% for o in ls[1:] %}
+    <div class="arow"><div><b>{{ o.lesson }}</b><span class="num">{{ o.count }}x{% if o.cost %} · ≈{{ "%.1f"|format(o.cost / 100)|replace(".", ",") }} Runden{% endif %}</span></div>
+      <div class="scenes sm">{% for sc in (o.scenes|unique(attribute="round")|list)[:3] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">R{{ sc.round }}</button>{% endfor %}</div></div>
+    {% endfor %}
+  </section>
+  {% endif %}
+{%- endmacro %}
 {% macro cmpbar(label, mine, pro, unit, lower_better=false, maxv=100, tol=8, n=none) -%}
 {%- if mine is not none -%}
 {%- set top = ([mine, pro or 0, maxv]|max) * (1.15 if maxv < 100 or unit != " %" else 1) -%}
@@ -598,10 +638,14 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
 </nav>
 
 <div class="tab" data-tab="coach">
-  <section class="coachsay">
+  <section class="coachsay mp-team">
     <div class="av cond">C</div>
     <div class="say">{% for line in intro %}{{ line }} {% endfor %}</div>
   </section>
+  {% for m in lessons_by %}<section class="coachsay mp-me" data-sid="{{ m.sid }}" hidden>
+    <div class="av cond">C</div>
+    <div class="say">{% for line in m.intro %}{{ line }} {% endfor %}</div>
+  </section>{% endfor %}
 
   {% if glance %}
   <section class="glance">
@@ -647,46 +691,10 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   </div>
 
 
-  {% if lessons %}{% set l = lessons[0] %}{% set t = teach[l.id] %}
-  <section class="mainpoint">
-    <div class="sh"><span class="n cond">01</span><span class="t cond">Der eine Punkt</span></div>
-    <div class="big cond">{{ l.lesson }}</div>
-    <div class="stats">
-      <div><b class="cond">{{ l.count }}x</b><span>{% if l.main is defined and l.main != l.count %}dabei, {{ l.main }}x als Hauptfehler{% else %}passiert{% endif %}</span></div>
-      {% if l.of_matches is defined and l.of_matches > 1 %}<div><b class="cond {{ 'red' if l.seen_in >= 2 }}">{{ l.seen_in }}/{{ l.of_matches }}</b><span>Matches mit diesem Fehler</span></div>{% endif %}
-      {% if l.cost and l.cost >= 30 %}<div><b class="cond red">≈{{ "%.1f"|format(l.cost / 100)|replace(".", ",") }}</b><span>Runden gekostet{% if l.rough %} (grob){% endif %}</span></div>{% endif %}
-      <div><b class="cond">{{ (l.players[0] if l.players|length == 1 else l.players|length ~ " Spieler") if l.players else "–" }}</b><span>{{ "wer" if l.players|length == 1 else "betroffen" }}</span></div>
-    </div>
-
-    <div class="learn">
-      <div class="lk cond">Verstehen</div>
-      <p>{{ t.principle }}</p>
-      <div class="ig"><b class="cond">Im Match</b>{{ t.in_game }}</div>
-    </div>
-
-    <div class="cmp">
-      <div class="cmpcol bad"><div class="lk cond">So nicht · bei euch</div>
-        <div class="scenes">{% for sc in (l.scenes|unique(attribute="round")|list)[:4] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">▶ R{{ sc.round }}{% if sc.cost and sc.cost > 0 %} <i>-{{ sc.cost }}%</i>{% endif %}</button>{% endfor %}</div></div>
-      {% set good = bright[l.id] %}
-      <div class="cmpcol good"><div class="lk cond">So geht's · bei euch</div>
-        {% if good %}{% for g in good %}<button class="brightgo" data-round="{{ g.round }}" data-tick="{{ g.from }}"><b class="cond">▶ R{{ g.round }} {{ g.when }}</b>{{ g.text }}</button>{% endfor %}
-        {% elif good is none %}<div class="quiet">Für diese Lektion sucht der Coach keine Gegenbeispiele.</div>
-        {% else %}<div class="quiet">Diesmal keine saubere Szene gefunden.</div>{% endif %}</div>
-    </div>
-    <div id="proslot" data-lesson="{{ l.id }}"></div>
-
-    {% if memory and not checks %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
-    <a class="trainlink" href="/training">Übung dazu: <b>{{ t.routine.title }}</b>, {{ t.routine.minutes }} Min. Zum Training ›</a>
-  </section>
-  {% if lessons|length > 1 %}
-  <section class="also">
-    <div class="sh"><span class="t cond">Außerdem</span></div>
-    {% for o in lessons[1:] %}
-    <div class="arow"><div><b>{{ o.lesson }}</b><span class="num">{{ o.count }}x{% if o.cost %} · ≈{{ "%.1f"|format(o.cost / 100)|replace(".", ",") }} Runden{% endif %}</span></div>
-      <div class="scenes sm">{% for sc in (o.scenes|unique(attribute="round")|list)[:3] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">R{{ sc.round }}</button>{% endfor %}</div></div>
-    {% endfor %}
-  </section>
-  {% endif %}
+  {% if lessons %}
+  <div class="mp-team">{{ mainpoint(lessons, bright[lessons[0].id]) }}</div>
+  {# je Spieler sein Thema: nur sichtbar, wenn der Report persönlich geöffnet wird (window.__ME) #}
+  {% for m in lessons_by %}<div class="mp-me" data-sid="{{ m.sid }}" hidden>{{ mainpoint(m.lessons, m.bright, m.sid) }}</div>{% endfor %}
   {% elif memory %}<div class="memo {{ memory.state }}">{{ memory.text }}</div>{% endif %}
 
   {% if praise %}<section class="praise"><b class="cond">Gut gemacht</b>{% for p in praise %}<div>{{ p }}</div>{% endfor %}</section>{% endif %}
@@ -989,7 +997,10 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
 <script>
 /* Eingeloggt und mit Steam verbunden: Der Server setzt window.__ME, dann nur die eigenen Teile zeigen */
 (function () { var me = window.__ME; if (!me) return;
-  document.querySelectorAll('[data-sid]').forEach(function (e) { if (e.dataset.sid && e.dataset.sid !== me) e.remove(); }); })();
+  document.querySelectorAll('[data-sid]').forEach(function (e) { if (e.dataset.sid && e.dataset.sid !== me) e.remove(); });
+  // eigenes Thema statt Team-Thema (gleiches Thema wie Startseite und Push)
+  var mp = document.querySelectorAll('.mp-me[data-sid="' + me + '"]');
+  if (mp.length) { mp.forEach(function (e) { e.hidden = false; }); document.querySelectorAll('.mp-team').forEach(function (e) { e.remove(); }); } })();
 </script>
 <script type="application/json" id="data">{{ data_json | safe }}</script>
 <script>
@@ -1832,10 +1843,10 @@ function goTour(name, i) {
 }
 function endTour() { S.tour = null; $('coach').dataset.key = ''; draw(); }
 // Pro-Szene zur Lektion: erste Szene dieser Lektion mit Pro-Clip
-{
-  const slot = document.getElementById('proslot');
-  const f = slot && D.findings.find(x => x.evidence && x.evidence.coach && x.evidence.coach.id === slot.dataset.lesson
-                                    && x.ov && x.ov.pro_clip != null && D.rounds[x.ov.pro_clip]);
+document.querySelectorAll('.proslot').forEach(slot => {
+  const f = D.findings.find(x => x.evidence && x.evidence.coach && x.evidence.coach.id === slot.dataset.lesson
+                                 && (!slot.dataset.who || x.sid === slot.dataset.who)
+                                 && x.ov && x.ov.pro_clip != null && D.rounds[x.ov.pro_clip]);
   if (f) {
     const box = el('div', 'cmpcol'); box.style.borderLeft = '3px solid #9db4e0';
     const k = el('div', 'lk cond', 'So spielt es ein Pro'); k.style.color = '#9db4e0';
@@ -1844,7 +1855,7 @@ function endTour() { S.tour = null; $('coach').dataset.key = ''; draw(); }
     b.onclick = () => openPro(f);
     box.append(k, b); slot.appendChild(box);
   }
-}
+});
 document.querySelectorAll('.brightgo[data-round]').forEach(b => b.onclick = () => {
   const ri = D.rounds.findIndex(r => r.n === +b.dataset.round); if (ri < 0) return;
   S.tour = null; selectRound(ri); seek(+b.dataset.tick); setPlaying(true);
@@ -1915,7 +1926,12 @@ function quizEnd() { S.quiz = null; $('quiz').hidden = true; $('coach').dataset.
 if (QUIZ.length) { $('quizBtn').hidden = false; $('quizN').textContent = '(' + QUIZ.length + ')'; $('quizBtn').onclick = () => quizShow(0); }
 
 // ---- Debrief-Sitzung: Schritt für Schritt mit dem Coach (Daten: D.debrief)
-const DB = D.debrief || {};
+const DB = Object.assign({}, D.debrief || {});
+if (window.__ME) { // persönlich: nur der eigene Auftrag-Check, die eigene Abmachung und das eigene Thema
+  const me = window.__ME, own = x => !x.sid || x.sid === me;
+  DB.checks = (DB.checks || []).filter(own); DB.next = (DB.next || []).filter(own);
+  if (DB.by && DB.by[me]) { DB.lesson = DB.by[me]; if (DB.intro_by && DB.intro_by[me]) DB.intro = DB.intro_by[me]; }
+}
 const DBS = { i: 0, steps: [] };
 const ACT = { 'gehalten': 'Position halten', 'zurückgezogen': 'Zurückziehen', 'Richtung Gegner': 'Richtung Gegner gehen / peeken' };
 function dbWatch(round, tick) {

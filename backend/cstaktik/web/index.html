@@ -30,6 +30,9 @@
   background: var(--orange); color: #111; font-weight: 800; font-size: 16px; box-shadow: 0 8px 24px rgba(255,159,28,.28); }
 .go small { font-weight: 600; opacity: .75; }
 .hint { font-size: 12.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+a.fullrep { display: block; margin-top: -8px; padding: 6px; } a.fullrep:hover { color: var(--text); }
+.upbox.auto summary { cursor: pointer; list-style: none; display: grid; gap: 2px; } .upbox.auto summary::-webkit-details-marker { display: none; }
+.upbox.auto summary b::after { content: " ›"; color: var(--orange); } .upbox.auto[open] summary { margin-bottom: 12px; }
 .upbox h3 { margin: 4px 0 2px; font-size: 19px; } .upbox > p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
 .upbox.first { border-color: rgba(255,159,28,.5); }
 .week { display: block; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -55,7 +58,10 @@
 <p>{% if jobs %}Dein Match wird ausgewertet. Gleich ist der Report da.
 {% elif need_link %}Verbinde deinen Steam-Account. Dann zeigt der Coach deine Matches.
 {% elif not n_history %}Lade dein erstes Match hoch. In ein paar Minuten weißt du, woran du arbeiten solltest.
+{% elif auto and n_new > 1 %}{{ n_new }} neue Matches sind ausgewertet. Lies sie kurz durch, dann üben.
+{% elif auto and n_new == 1 %}Dein neues Match ist ausgewertet. Lies es in 60 Sekunden, dann üben.
 {% elif last and last.topic %}Letztes Match: {{ last.map_label }} {{ last.won }}:{{ last.lost }}. Thema: {{ last.topic }}.
+{% elif auto %}Spielen, Report lesen, üben. Neue Matches kommen von selbst.
 {% else %}Hochladen, Report lesen, üben. Mehr braucht es nicht.{% endif %}</p>
 {% if not n_history and not need_link %}{# nur beim Einstieg: danach kennt man den Ablauf, dann ist es nur Platz #}
 <div class="flow" aria-label="So funktioniert es">
@@ -82,17 +88,29 @@
 <div class="col">
   {% include "jobs.html" %}
 
+  {% if push_hint %}<a class="mini" href="/konto#push"><div><b>Benachrichtigungen einschalten</b><span>Dann meldet sich der Coach, sobald dein Match ausgewertet ist.</span></div><i>›</i></a>{% endif %}
+
   {% if last and last.report_file %}
-  <a class="last" href="/reports/{{ last.report_file }}">
+  <a class="last" href="/m/{{ last.report_file }}">
     <div class="top"><span class="kicker">{% if last.new %}<span class="newb">Neu</span> {% endif %}Letztes Match{% if last.when %} · {{ last.when }}{% endif %}</span><span class="res {{ last.res }}">{{ last.result }}</span></div>
     <h3>{{ last.map_label }} <span class="num">{{ last.won }}:{{ last.lost }}</span></h3>
     {% if last.topic %}<div class="topic">Thema: <b>{{ last.topic }}</b></div>{% endif %}
     {% if last_imp %}<div class="imps">{% for i in last_imp %}<span>{{ i.name }} <b class="{{ 'p' if i.pos else 'n' }}">{{ i.total }}</b> Runden Impact{% if i.rank %} · Platz {{ i.rank }}/{{ i.of }}{% endif %}</span>{% endfor %}</div>{% endif %}
-    <div class="go">Report öffnen ›</div>
-    <div class="hint">Erst „Coach“ lesen, dann den Debrief. Dauert 5 Minuten.</div>
+    <div class="go">Dein Match in 60 Sekunden ›</div>
   </a>
+  <a class="hint fullrep" href="/reports/{{ last.report_file }}">Ganzer Report mit Debrief und Replay ›</a>
   {% endif %}
 
+  {% for u in unseen %}
+  <a class="mini" href="/m/{{ u.report_file }}"><div><b><span class="newb">Neu</span> {{ u.map_label }} {{ u.won }}:{{ u.lost }} · {{ u.result }}</b><span>{% if u.when %}{{ u.when }}{% endif %}{% if u.topic %}{{ " · " if u.when }}Thema: {{ u.topic }}{% endif %}</span></div><i>›</i></a>
+  {% endfor %}
+
+  {% if auto %}{# Matches kommen automatisch: Hochladen nur noch als Ausweg, eingeklappt #}
+  <details class="card upbox auto">
+    <summary><b>Demo selbst hochladen</b> <span class="small muted">Nur nötig, wenn ein Match fehlt, z. B. FACEIT.</span></summary>
+    {% set embedded = true %}{% include "upload.html" %}
+  </details>
+  {% else %}
   <section class="card upbox{{ ' first' if not n_history }}">
     <div class="kicker">{{ "Schritt 1" if not n_history else "Nächstes Match" }}</div>
     <h3>Demo hochladen</h3>
@@ -113,6 +131,7 @@
     </div>
     {% endif %}
   </section>
+  {% endif %}
 </div>
 
 <div class="col">
