@@ -74,7 +74,7 @@ def _slot(with_rounds=45, without_rounds=45, with_n=2, without_n=9):
 def test_practice_needs_rounds_on_both_sides():
     p = session.practice(_slot())
     assert p["state"] == "besser"
-    assert p["text"].startswith("In Matches nach einer Übung: 0,4 Auftrags-Fehler pro 10 Runden (2x in 45 Runden). "
+    assert p["text"].startswith("In Matches nach einer Übung: 0,4 Fokus-Fehler pro 10 Runden (2x in 45 Runden). "
                                 "Ohne: 2,0 (9x in 45 Runden).")
     assert "kein Beweis" in p["text"]
     assert session.practice(_slot(with_rounds=30)) is None  # zu wenig Runden nach Übungen
@@ -102,9 +102,8 @@ def _login(name):
 def test_today_block_on_home_and_minute_page():
     _save(_h("t1", _today("00"), (13, 9)))
     c = TestClient(api.app)
-    assert "Heute 2 Matches" not in c.get("/").text
     _save(_h("t2", _today("00").replace(":00:00", ":05:00"), (5, 13)))
-    assert "Heute 2 Matches: 1 Sieg, 1 Niederlage." in c.get("/").text
+    assert "Heute 2 Matches" not in c.get("/").text  # Startseite: nur neues Match und Fokus, der Abend steht im Match
     assert "Heute 2 Matches: 1 Sieg, 1 Niederlage." in c.get("/m/t2.html").text  # Story: eine Zeile im Ergebnis
     assert "Heute 2 Matches" not in c.get("/m/t1.html").text  # bis zu diesem Match: erst eins
     slot = _slot()

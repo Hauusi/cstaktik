@@ -37,13 +37,13 @@
 <h2>Kabine</h2>
 {% for a in kabine.players %}
 <div class="kab" style="border-left-color:{{ a.color }}">
-  <div class="kwho" style="color:{{ a.color }}">{{ a.name }} · Auftrag</div>
+  <div class="kwho" style="color:{{ a.color }}">{{ a.name }} · Fokus</div>
   <div class="ktitle">{{ a.title }}</div>
   <div class="kmantra">„{{ a.mantra }}“</div>
   <div class="kline"><b>Im Match:</b> {{ a.in_game }}</div>
   {% for side, k in a.angles.items() %}<div class="kline"><b>{{ side }}: meist erschossen aus {{ k.place }}.</b> {{ k.n }}x, das sind {{ k.share }} % deiner {{ side }}-Tode hier. Dorthin vorzielen.</div>{% endfor %}
   {% for side, k in a.seen_at.items() %}<div class="kline"><b>{{ side }}: In {{ k.place }} sieht er dich zuerst.</b> {{ k.n }}x. Dort nicht offen stehen. Erst Utility nutzen oder anders hinstellen.</div>{% endfor %}
-  {% if a.top_place %}<div class="kline"><b>Achtung in {{ a.top_place[0] }}.</b> Dort passieren {{ a.top_place[1] }} deiner Szenen zu diesem Auftrag auf {{ b.label }}.</div>{% endif %}
+  {% if a.top_place %}<div class="kline"><b>Achtung in {{ a.top_place[0] }}.</b> Dort passieren {{ a.top_place[1] }} deiner Szenen zu diesem Fokus auf {{ b.label }}.</div>{% endif %}
   {% if a.points %}<div class="kline muted">{{ a.points|length }} Szene{{ "n" if a.points|length != 1 }} auf {{ b.label }}. Die Punkte stehen auf der Karte.</div>{% endif %}
   {% for m in a.mind %}<div class="kline"><b>Im Kopf:</b> {{ m }}</div>{% endfor %}
   <div class="kline muted">Vorher üben: {{ a.routine.title }}, {{ a.routine.minutes }} Min.{% if a.drills %} Bisher {{ a.drills }}x gemacht.{% endif %}</div>
@@ -81,7 +81,7 @@
     {% endfor %}{% endfor %}
   </svg>
 </div>
-<div class="small muted" style="margin-top:6px">Jeder Punkt ist eine Szene zu diesem Auftrag. Antippen öffnet sie im Replay.</div>
+<div class="small muted" style="margin-top:6px">Jeder Punkt ist eine Szene zu deinem Fokus. Antippen öffnet sie im Replay.</div>
 {% endif %}
 <details class="more-map"{% if not kabine %} open{% endif %}><summary class="cond">Mehr zu {{ b.label }}</summary>
 {% if map_lessons %}

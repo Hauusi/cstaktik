@@ -214,6 +214,9 @@ def profile(hist: list[dict], sid: str) -> dict | None:
            "match_s": de(tot["total"] / 100 / n),
            "spark": " ".join(f"{x:.1f},{y:.1f}" for x, y in pts),
            "dots": [{"x": round(x, 1), "y": round(y, 1), "neg": v < 0} for (x, y), v in zip(pts, per)],
+           # je Match ein Balken (Höhe relativ zum größten Betrag, -1..1), für den Trend auf "Fortschritt"
+           "bars": [{"h": round(v / top, 3), "s": de(v), "map": (h.get("map") or "?").removeprefix("de_").capitalize()}
+                    for (h, _), v in zip(rows, per)],
            "top1": sum(1 for r in ranks if r == 1), "ranked": len(ranks),
            "avg_rank": round(sum(ranks) / len(ranks), 1) if ranks else None}
     out["trend"] = None

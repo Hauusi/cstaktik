@@ -3,7 +3,7 @@
 {% block hero %}
 <h1>Training</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if plan %}Woche {{ chk.from }}–{{ chk.to }} · Thema{% if who and who != "Ich" %} {{ who }}{% endif %}: <b>{{ title }}</b>{% else %}Lade ein Match hoch. Dann gibt es einen Wochenplan.{% endif %}</p>
+<p>{% if plan %}Woche {{ chk.from }}–{{ chk.to }} · Fokus{% if who and who != "Ich" %} {{ who }}{% endif %}: <b>{{ title }}</b>{% else %}Lade ein Match hoch. Dann gibt es einen Fokus mit Übungen.{% endif %}</p>
 {% endblock %}
 {% block head %}<style>
 .hub { display: grid; gap: 10px; }
@@ -18,7 +18,7 @@
 {% block content %}
 <div class="cols">
 <div class="col">
-<h2 id="plan">Wochenplan</h2>
+<h2 id="plan">Übungen für deinen Fokus</h2>
 {% if plan %}
 <div class="kpis num">
   <div><b>{{ chk.done }}/{{ chk.total }}</b><span>Aufgaben</span></div>
@@ -42,11 +42,11 @@
   <form><button class="chk" type="button" disabled aria-label="zählt automatisch">✓</button></form>
   <div class="k">Match · zählt automatisch</div>
   <div class="tt">{{ chk.need }} Matches spielen und hochladen</div>
-  <div class="small muted">{{ chk.matches }} diese Woche. Danach prüft der Coach, ob der Auftrag sitzt.</div>
+  <div class="small muted">{{ chk.matches }} diese Woche. Danach prüft der Coach, ob der Fokus sitzt.</div>
 </div>
 </div>
 {% else %}
-<div class="card empty">Noch kein Auftrag. Er entsteht, sobald ein Fehler in euren letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. <a href="/" style="color:var(--orange)">Match hochladen ›</a></div>
+<div class="card empty">Noch kein Fokus. Er entsteht, sobald ein Fehler in euren letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. <a href="/" style="color:var(--orange)">Match hochladen ›</a></div>
 {% endif %}
 {% if past %}
 <h2>Letzte Wochen</h2>
@@ -57,6 +57,20 @@
 {% endif %}
 </div>
 <div class="col">
+{% if n_history %}
+<h2 id="vorbereitung">Vor dem Match · 10 Min</h2>
+<section class="card prep">
+  {% if prep %}
+  <details class="pre" open style="margin-top:0;padding-top:0;border-top:0"><summary><span class="pk">Aufwärmen · {{ prep.routine.minutes }} Min</span> <b>{{ prep.routine.title }}</b></summary>
+    <ol>{% for st in prep.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+    <div class="small"><b>Im Match:</b> {{ prep.in_game }}</div>
+  </details>
+  <form action="/training/done?p={{ prep.sid }}" method="post"><button class="btn2" type="submit">✓ Übung gemacht{% if prep.drills %} ({{ prep.drills }}x bisher){% endif %}</button></form>
+  {% endif %}
+  <div class="small muted" style="margin-top:{{ '12px' if prep else '0' }}">Kabine: Matchplan und gefährliche Winkel je Map</div>
+  <div class="maps" style="margin-top:8px">{% for m in briefing_maps %}<a class="mapbtn" href="/briefing/{{ m }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
+</section>
+{% endif %}
 <h2 id="tools">Eure Maps</h2>
 <div class="hub">
 {% for m in hub %}
@@ -72,7 +86,7 @@
 {% else %}<div class="card empty">Noch keine Maps. Lade ein Match oder eine Pro-Demo hoch.</div>{% endfor %}
 </div>
 <h2>Jederzeit</h2>
-<a class="card tool sit" href="/training/situationen{% if sid %}?p={{ sid }}{% endif %}"><div class="tt">Situations-Training</div><p>Eure echten Szenen kurz vor dem Tod. Erst entscheiden, dann auflösen. Die Karte zeigt, woher der Killer kam.</p></a>
+<a class="card tool sit" href="/training/situationen{% if sid %}?p={{ sid }}{% endif %}"><div class="tt">Situations-Training</div>{% if prep and prep.scenes %}<div class="small num" style="color:var(--orange);margin-top:2px">{{ prep.scenes }} eigene Szenen zu deinem Fokus</div>{% endif %}<p>Eure echten Szenen kurz vor dem Tod. Erst entscheiden, dann auflösen. Die Karte zeigt, woher der Killer kam.</p></a>
 </div>
 </div>
 </div>

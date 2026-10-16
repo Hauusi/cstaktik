@@ -38,7 +38,8 @@ def test_start_page_and_briefing_route():
     goals.update(st, history.load_all(pipeline.HISTORY_DIR)[0], load_rules_config()["goals"])
     goals.save(st, pipeline.GOALS_FILE)
     home = c.get("/").text
-    assert "/briefing/de_mirage" in home and "Letztes Match" in home and 'class="gnav"' in home
+    assert "Letztes Match" in home and 'class="gnav"' in home and 'href="/training#vorbereitung"' in home
+    assert "/briefing/de_mirage" in c.get("/training").text  # Kabine: unter "Vor dem Match" im Training
     b = c.get("/briefing/de_mirage")
     assert b.status_code == 200 and "Kabine Mirage" in b.text and "SynthMid" in b.text
     assert c.get("/briefing/..%2Fetc").status_code in (400, 404)

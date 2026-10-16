@@ -61,14 +61,21 @@ def test_training_pages_and_drill_done():
                   "players": {"s1": {"name": "Ich"}}, "scenes": [sc, sc]}, pipeline.HISTORY_DIR)
     c = TestClient(api.app)
     home = c.get("/").text
-    assert "Dein Auftrag" in home and "Nie allein in ein Duell" in home and "1 eigene Szenen" in home
+    assert "Dein Fokus fürs nächste Match" in home and "Nie allein in ein Duell" in home
+    assert "Übungen für deinen Fokus" in home and "&back=home" in home  # Wochenplan als Checkliste auf der Startseite
     t = c.get("/training/situationen").text
     assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situationen" in t
-    hub = c.get("/training").text  # Wochenplan wird beim ersten Aufruf angelegt
-    assert "Wochenplan" in hub and "Zu zweit peeken" in hub and "Situations-Training" in hub
+    hub = c.get("/training").text
+    assert "Übungen für deinen Fokus" in hub and "Zu zweit peeken" in hub and "Situations-Training" in hub
+    assert "1 eigene Szenen zu deinem Fokus" in hub and 'id="vorbereitung"' in hub
     st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
     (week, plan), = st["weeks"].items()
     tid = plan["tasks"][0]["id"]
+    r = c.post(f"/training/plan?p=s1&week={week}&task={tid}&back=home", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/#fokus"  # Haken auf der Startseite: zurück dorthin
+    st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
+    assert tid in st["weeks"][week]["done"]
+    c.post(f"/training/plan?p=s1&week={week}&task={tid}")  # wieder offen
     assert c.post(f"/training/plan?p=s1&week={week}&task={tid}", follow_redirects=False).status_code == 303
     st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
     assert tid in st["weeks"][week]["done"] and len(st["drills"]) == 1  # Übung zählt auch als Drill
@@ -79,7 +86,7 @@ def test_training_pages_and_drill_done():
     assert c.post("/training/done?p=s1", follow_redirects=False).status_code == 303
     st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
     assert len(st["drills"]) == 1 and tid in st["weeks"][week]["done"]
-    assert "(1x bisher)" in c.get("/").text
+    assert "(1x bisher)" in c.get("/training").text
     # Formular von fremder Seite wird abgelehnt
     assert c.post("/training/done?p=s1", headers={"origin": "https://evil.example"}).status_code == 403
     # hinter einem Proxy: Origin = öffentliche Adresse, Host = intern

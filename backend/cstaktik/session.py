@@ -101,7 +101,7 @@ def session(hist: list[dict], sid: str, day: date, until: str | None = None) -> 
 
 
 def practice(slot: dict | None, min_rounds: int | None = None) -> dict | None:
-    """Auftrags-Fehler pro 10 Runden in Matches nach einer abgehakten Übung gegen Matches ohne Übung davor.
+    """Fokus-Fehler pro 10 Runden in Matches nach einer abgehakten Übung gegen Matches ohne Übung davor.
 
     Gezählt aus den Auftrag-Checks (laufender und gemeisterte Aufträge): ``drills`` = Übungen derselben Lektion
     seit dem Match davor. Nur mit genug Runden auf beiden Seiten (``coaching.compare_rates``), sonst None."""
@@ -130,6 +130,6 @@ def practice(slot: dict | None, min_rounds: int | None = None) -> dict | None:
                "schlechter": "Nach Übungen nicht seltener, eher häufiger.",
                "gleich": "Kein klarer Unterschied."}[v["state"]]
     return {"state": v["state"],
-            "text": (f"In Matches nach einer Übung: {_de1(10 * n[True] / r[True])} Auftrags-Fehler pro 10 Runden "
+            "text": (f"In Matches nach einer Übung: {_de1(10 * n[True] / r[True])} Fokus-Fehler pro 10 Runden "
                      f"({n[True]}x in {r[True]} Runden). Ohne: {_de1(10 * n[False] / r[False])} "
                      f"({n[False]}x in {r[False]} Runden). {reading}")}

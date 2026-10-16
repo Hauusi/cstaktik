@@ -429,7 +429,7 @@ def konto_page(request: Request, saved: str = "", error: str = "") -> str:
     from cstaktik import autodl
 
     return _env.get_template("konto.html").render(
-        nav_active="mehr", user=user, steam=accounts.get_steam(user) if user else None, saved=saved, error=error,
+        nav_active="settings", user=user, steam=accounts.get_steam(user) if user else None, saved=saved, error=error,
         has_key=bool(key), key_hint=f"…{key[-4:]}" if key else None, autodl=autodl.status(),
         bot_user=accounts.get_setting("autodl_bot_user"), docker_cmd=autodl.docker_command())
 
@@ -762,31 +762,26 @@ def push_test(request: Request) -> JSONResponse:
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    jobs = _running_jobs()
-
-    hist = _load_hist()
-    played = [h.get("map") for h in reversed(hist) if h.get("map")]
-    maps = list(dict.fromkeys(played + ["de_mirage", "de_dust2", "de_inferno"]))
+    """Startseite: nur zwei Dinge. Oben das neue Match (oder eine Zeile zum letzten), darunter der Fokus fürs
+    nächste Match mit den Übungen dieser Woche. Alles andere liegt unter Training, Matches und Fortschritt."""
+    from cstaktik import weekplan
     from cstaktik.config import load_focus_steamids
 
+    jobs = _running_jobs()
+    hist = _load_hist()
     # eingestellter Spieler, der im letzten Match nicht vorkommt: der Coach sieht ihn nicht -> Hinweis
     missing = len(set(_mine(load_focus_steamids())) - set((hist[-1].get("players") or {}) if hist else ()))
-    from cstaktik import levers
-
-    lever = None
-    for sid in _mine(sorted(load_focus_steamids() | set(_players_state()))):  # größter Hebel
-        top = levers.build(hist, _load_pro(), sid, load_rules_config().get("playbook"), top=1)
-        if top and (lever is None or top[0]["gain"] > lever["gain"]):
-            lever = {**top[0], "who": _names(hist).get(sid, sid), "sid": sid}
-    from cstaktik.impact import de
-
     names = _names(hist)
-    last_imp = [{"name": names.get(s, s), "total": de(r["total"] / 100), "pos": r["total"] > 0, "rank": r.get("rank"),
-                 "of": r.get("of")}
-                for s, r in sorted(((hist[-1].get("impact") or {}) if hist else {}).items()) if s in _mine([s])]
     auftrag = _auftrag(hist)
     _ensure_weekplans(hist, [a["sid"] for a in auftrag])
-    week = _week_progress([a["sid"] for a in auftrag])
+    key = weekplan.week_key(weekplan.local_today())
+    players = _players_state()
+    for a in auftrag:  # Übungen dieser Woche als kurze Checkliste (Haken über /training/plan)
+        plan = ((players.get(a["sid"]) or {}).get("weeks") or {}).get(key)
+        if plan and plan.get("lesson") == a["lesson"] and plan.get("tasks"):
+            done = plan.get("done") or {}
+            a["week"] = {"key": key, "tasks": [{**t, "done": t["id"] in done} for t in plan["tasks"]],
+                         "done": sum(1 for t in plan["tasks"] if t["id"] in done), "total": len(plan["tasks"])}
     seen = _seen(_USER.get())
     from cstaktik import autodl
 
@@ -794,18 +789,7 @@ def index() -> str:
         auto = bool(autodl.status()["config"])
     except Exception:  # noqa: BLE001 - ohne Download-Konfiguration bleibt es beim Hochladen
         auto = False
-    # Neue Matches (noch nicht geöffnet), neueste zuerst; das letzte steht schon oben als eigene Karte
-    unseen = [_last_view(h) for h in reversed(hist[:-1]) if _is_new(h, seen)][:5]
-    from cstaktik import session, weekplan
-
-    today = weekplan.local_today()
-    sessions = []
-    for sid in _mine(sorted({s for h in hist if (h.get("analyzed_at") or "")[:10] == today.isoformat()
-                             for s in (h.get("players") or {}) if s in (h.get("impact") or {})
-                             or isinstance(h.get("seq"), dict) and s in h["seq"]})):
-        s = session.session(hist, sid, today)
-        if s:
-            sessions.append({**s, "name": names.get(sid, sid)})
+    news = [_last_view(h) for h in reversed(hist) if _is_new(h, seen)]  # noch nicht geöffnet, neueste zuerst
     deal = _deal_view(hist)
     push_hint = False
     if _USER.get() and _me():  # erst nach der Steam-Verbindung: vorher kommt ohnehin keine Nachricht
@@ -813,13 +797,11 @@ def index() -> str:
 
         push_hint = not notify.subs(_USER.get())
     return _env.get_template("index.html").render(
-        nav_active="coach", jobs=jobs, n_history=len(hist), last={**_last_view(hist[-1]), "new": _is_new(hist[-1], seen)} if hist else None,
-        briefing_maps=maps, auftrag=auftrag, missing_players=missing if hist else 0, lever=lever, last_imp=last_imp,
-        me_name=names.get(_me()) if _me() else None, week=week,
+        nav_active="coach", jobs=jobs, n_history=len(hist), last=_last_view(hist[-1]) if hist else None,
+        news=news[:6], n_new=len(news), auftrag=auftrag, missing_players=missing if hist else 0,
+        me_name=names.get(_me()) if _me() else None,
         need_link=_USER.get() is not None and not _me(),
-        auto=auto and bool(hist), unseen=unseen, push_hint=push_hint,
-        n_new=len(unseen) + (1 if hist and _is_new(hist[-1], seen) else 0),
-        sessions=sessions, deal=deal,
+        auto=auto and bool(hist), push_hint=push_hint, deal=deal,
     )
 
 
@@ -869,20 +851,6 @@ def _last_view(h: dict) -> dict:
             "res": None if sc is None else "w" if won > lost else "l" if lost > won else "d", "when": when,
             "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(),
             "topic": LESSONS[lid][0] if lid in LESSONS and lid != "duel" else None}
-
-
-def _week_progress(sids: list[str]) -> dict | None:
-    """Wochenplan-Fortschritt (erledigte/alle Aufgaben) über die eigenen Spieler, für die Startseite."""
-    from cstaktik import weekplan
-
-    key = weekplan.week_key(weekplan.local_today())
-    done = total = 0
-    for sid in sids:
-        plan = (_players_state().get(sid) or {}).get("weeks", {}).get(key)
-        if plan:
-            total += len(plan.get("tasks", []))
-            done += sum(1 for t in plan.get("tasks", []) if t["id"] in (plan.get("done") or {}))
-    return {"done": done, "total": total, "pct": round(100 * done / total) if total else 0} if total else None
 
 
 def _running_jobs() -> list[dict]:
@@ -1043,7 +1011,7 @@ def match_minute(report_file: str, p: str = "") -> str:
 def pro_page() -> str:
     from cstaktik import pro
 
-    return _env.get_template("pro.html").render(nav_active="pro", jobs=_running_jobs(),
+    return _env.get_template("pro.html").render(nav_active="settings", jobs=_running_jobs(),
                                                 pro_overview=pro.stats(pipeline.PRO_DIR),
                                                 faceit_ready=bool(os.environ.get("FACEIT_API_KEY")))
 
@@ -1092,7 +1060,16 @@ def _auftrag(hist: list[dict]) -> list[dict]:
         if not f or f["lesson"] not in LESSONS or f["lesson"] not in TEACH:
             continue  # Lektion gibt es nicht mehr (alte coaching.json)
         t = TEACH[f["lesson"]]
-        out.append({"sid": sid, "name": names.get(sid, sid), "lesson": f["lesson"], "title": LESSONS[f["lesson"]][0],
+        streak = 0  # Matches in Folge unter dem Ziel (wie coaching.check: zu kurze Matches zählen nicht)
+        for m in reversed(f.get("matches", [])):
+            if m.get("met") is None:
+                continue
+            if not m["met"]:
+                break
+            streak += 1
+        out.append({"streak": streak,
+                    "mastered_titles": [LESSONS[d["lesson"]][0] for d in reversed(slot.get("done", []))
+                                        if d.get("lesson") in LESSONS][:3],"sid": sid, "name": names.get(sid, sid), "lesson": f["lesson"], "title": LESSONS[f["lesson"]][0],
                     "target": f["target"], "baseline": f["baseline"], "matches": f.get("matches", []),
                     "baseline_n": f.get("baseline_n"), "baseline_rounds": f.get("baseline_rounds"),
                     "rueckfall": f.get("rueckfall"),
@@ -1183,7 +1160,9 @@ def training_done(p: str = "") -> RedirectResponse:
                 if open_:
                     weekplan.toggle(slot, key, open_)
             coaching.save(state, pipeline.COACHING_FILE)
-    return RedirectResponse("/", status_code=303)
+    from urllib.parse import quote
+
+    return RedirectResponse(f"/training?p={quote(p)}#vorbereitung", status_code=303)
 
 
 def _scene_maps(scenes: list[dict]) -> dict[str, str]:
@@ -1248,7 +1227,7 @@ def quiz_page(p: str = "") -> str:
     week = weekplan.week_key(weekplan.local_today())
     plan = ((coaching.load(pipeline.COACHING_FILE).get("players", {}).get(sid) or {}).get("weeks") or {}).get(week)
     quiz_open = bool(plan) and any(t["id"] == "quiz" for t in plan["tasks"]) and "quiz" not in plan["done"]
-    return _env.get_template("quiz.html").render(nav_active="training", title=LESSONS.get(lesson, ("?",))[0] if lesson else None,
+    return _env.get_template("quiz.html").render(nav_active="coach", title=LESSONS.get(lesson, ("?",))[0] if lesson else None,
                                                  n=min(12, len(pick)), data_json=data, tabs=tabs, who=names.get(sid),
                                                  sid=sid, week=week, quiz_open=quiz_open, radars=radars)
 
@@ -1364,8 +1343,13 @@ def training_page(p: str = "") -> str:
                 past.append(weekplan.check(k, slot["weeks"][k], hist, sid, None)
                             | {"title": LESSONS.get(slot["weeks"][k]["lesson"], ("?",))[0]})
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s, v in players.items() if v.get("focus") and s in _mine([s])]
+    # Vor dem Match (10 Minuten): Aufwärm-Übung zum Fokus und die Kabine je Map
+    prep = next((a for a in _auftrag(hist) if a["sid"] == sid), None)
+    played = [h.get("map") for h in reversed(hist) if h.get("map")]
+    briefing_maps = list(dict.fromkeys(played + ["de_mirage", "de_dust2", "de_inferno"]))
     return _env.get_template("training.html").render(
-        nav_active="training", tabs=tabs, sid=sid, who=names.get(sid), plan=plan, week=key, chk=chk, past=past[:4],
+        prep=prep, briefing_maps=briefing_maps, n_history=len(hist),
+        nav_active="coach", tabs=tabs, sid=sid, who=names.get(sid), plan=plan, week=key, chk=chk, past=past[:4],
         title=LESSONS.get(focus["lesson"], ("?",))[0] if focus else None, maps=_player_maps(hist, sid) or ["de_mirage"],
         pro_maps=sorted({d.get("map") for d in _load_pro() if d.get("map")}), hub=_map_hub(hist, sid))
 
@@ -1384,8 +1368,9 @@ def _map_hub(hist: list[dict], sid: str | None) -> list[dict]:
 
 
 @app.post("/training/plan")
-def plan_toggle(p: str = "", task: str = "", week: str = "", done: int = 0) -> RedirectResponse:
-    """Aufgabe abhaken/Haken entfernen. ``done=1``: nur abhaken (automatisch, z. B. Quiz), nie den Haken entfernen."""
+def plan_toggle(p: str = "", task: str = "", week: str = "", done: int = 0, back: str = "") -> RedirectResponse:
+    """Aufgabe abhaken/Haken entfernen. ``done=1``: nur abhaken (automatisch, z. B. Quiz), nie den Haken entfernen.
+    ``back=home``: danach zurück zur Startseite (Checkliste im Fokus)."""
     from cstaktik import coaching, weekplan
 
     _own_only(p)
@@ -1404,6 +1389,8 @@ def plan_toggle(p: str = "", task: str = "", week: str = "", done: int = 0) -> R
                     coaching.drill_undo(slot, slot["focus"]["lesson"])
             if now is not None:
                 coaching.save(state, pipeline.COACHING_FILE)
+    if back == "home":
+        return RedirectResponse("/#fokus", status_code=303)
     return RedirectResponse(f"/training?p={p}#plan", status_code=303)
 
 
@@ -1443,7 +1430,7 @@ def mapbook_page(map_name: str, p: str = "") -> str:
                     y0 = min(max(cy - size / 2, 0), 1024 - size)
                     sd["vb"] = f"{x0:.0f} {y0:.0f} {size:.0f} {size:.0f}"
                     sd["sw"] = round(size / 340, 2)
-    return _env.get_template("mapbook.html").render(img=img,nav_active="training", book=book, cfg=load_rules_config()["mapbook"], tabs=tabs, sid=sid,
+    return _env.get_template("mapbook.html").render(img=img,nav_active="coach", book=book, cfg=load_rules_config()["mapbook"], tabs=tabs, sid=sid,
                                                     who=names.get(sid), map_name=map_name,
                                                     label=map_name.removeprefix("de_").capitalize())
 
@@ -1544,7 +1531,7 @@ def playbook_page(map_name: str, who: str = "", side: str = "") -> str:
     data = _json.dumps({t["id"]: t.get("draws") for t in book["tactics"]} if side == "t" else
                        {"zones": ct["zones_px"], **{st["id"]: st["draws"] for st in ct["setups"]}},
                        ensure_ascii=False).replace("</", "<\\/")
-    return _env.get_template("playbook.html").render(nav_active="training", book=book, img=img, maps=maps,
+    return _env.get_template("playbook.html").render(nav_active="coach", book=book, img=img, maps=maps,
                                                      map_name=map_name, data=data, who=who, mix=mix, side=side, ct=ct,
                                                      label=map_name.removeprefix("de_").capitalize())
 
@@ -1579,7 +1566,7 @@ def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "", p: 
             x["sw"] = round(size / 300, 2)  # Strichstärke passend zum Ausschnitt
     data = _json.dumps(sel, ensure_ascii=False).replace("</", "<\\/")
     return _env.get_template("lineups.html").render(
-        nav_active="training", items=sel, data_json=data, img=radar.image_data_uri, map_name=map_name,
+        nav_active="coach", items=sel, data_json=data, img=radar.image_data_uri, map_name=map_name,
         label=map_name.removeprefix("de_").capitalize(), side=side, kind=kind, sel=l, total=len(allx),
         kinds=lineups.KIND_DE, sid=re.sub(r"[^0-9]", "", p), n_demos=sum(1 for d in _load_pro() if d.get("map") == map_name))
 
@@ -1885,9 +1872,8 @@ def review_page(n: int = 5) -> str:
     return _env.get_template("review.html").render(nav_active="matches", r=r)
 
 
-@app.get("/progress", response_class=HTMLResponse)
-def progress_page(p: str = "") -> str:
-    """Spielerprofil: Auftrag, Duell-Profil gegen Pros, Fehler-Trends, Maps, letzte Matches."""
+def _progress_ctx(p: str) -> dict:
+    """Alles für Fortschritt und Fortschritt-Details: Profil, Fokus, Spieler-Tabs."""
     from cstaktik import pro
     from cstaktik.report.progress import profile
 
@@ -1931,7 +1917,72 @@ def progress_page(p: str = "") -> str:
     if prof:
         prof["summary"] = _profile_summary(prof, auftrag)
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(sids)]
-    return _env.get_template("profil.html").render(nav_active="progress", p=prof, a=auftrag, tabs=tabs)
+    return {"p": prof, "a": auftrag, "tabs": tabs}
+
+
+@app.get("/progress", response_class=HTMLResponse)
+def progress_page(p: str = "") -> str:
+    """Fortschritt auf einen Blick: Fokus-Verlauf, Impact-Trend, Stärke und Baustelle. Der Rest liegt unter Details."""
+    ctx = _progress_ctx(p)
+    sw = _strength_weakness(ctx["p"]) if ctx["p"] else {}
+    return _env.get_template("profil.html").render(nav_active="progress", sw=sw, **ctx)
+
+
+@app.get("/progress/details", response_class=HTMLResponse)
+def progress_details(p: str = "") -> str:
+    """Alle Auswertungen: Impact, Hebel, Duelle, Fehler, T/CT, Tilt, Clutch, Maps, letzte Matches."""
+    return _env.get_template("fortschritt_details.html").render(nav_active="progress", **_progress_ctx(p))
+
+
+_SIDE_GROUPS = (("fb", "rows", ("for", "against"), "Nach dem ersten Kill"),
+                ("pp", "rows", ("up", "even", "down"), None),
+                ("buys", "buys", ("eco", "force", "full"), "Kauf"))
+
+
+def _strength_weakness(p: dict) -> dict:
+    """Eine Stärke und eine Baustelle, nur aus Werten, die unter Details stehen, und nur bei klarer Datenlage:
+    Impact nach Lage ab 10 Fällen und ±0,15 Runden pro Match, Seiten-Werte mit denselben Mindestzahlen wie die
+    Texte der Seiten-Auswertung (mindestens 8 eigene und Pro-Runden, 15 Prozentpunkte Abstand). Baustelle zuerst der
+    größte Hebel. Fehlt etwas, bleibt der Platz leer."""
+    sid = p.get("sid")
+    det = f"/progress/details?p={sid}"
+    im = p.get("impact") or {}
+    sure = [c for c in im.get("ctx") or [] if c.get("enough") and c.get("ctx") != "bomb"]
+    strong = weak = None
+    best = max(sure, key=lambda c: c["per_match"], default=None)
+    if best and best["per_match"] >= 0.15:
+        strong = {"title": best["label"], "text": f"{best['per_match_s']} Runden pro Match über dem Schnitt eurer Matches.",
+                  "src": f"Impact nach Lage aus {best['n']} Kills und Toden, letzte {im['n']} Matches.",
+                  "href": det + "#impact"}
+    sides = []
+    for sd in p.get("sides") or []:
+        S = sd["side"].upper()
+        for grp, field, keys, lbl in _SIDE_GROUPS:
+            own, pro = (sd[grp]["own"].get(field) or {}), (sd[grp]["pro"].get(field) or {})
+            where = lbl or ("Nach dem Plant" if sd["side"] == "t" else "Retake")
+            for k in keys:
+                o, q = own.get(k), pro.get(k)
+                if o and q and o["n"] >= 8 and q["n"] >= 8 and abs(o["won_pct"] - q["won_pct"]) >= 15:
+                    sides.append({"diff": o["won_pct"] - q["won_pct"], "title": f"{S}: {where}, {o['label']}",
+                                  "text": f"Ihr gewinnt {o['won_pct']} %, {o['won']} von {o['n']}. Pros: {q['won_pct']} %.",
+                                  "src": f"Eure {S}-Runden gegen die Pro-Demos, alle Maps.", "href": det + "#seiten"})
+    if not strong:
+        top = max(sides, key=lambda x: x["diff"], default=None)
+        strong = top if top and top["diff"] > 0 else None
+    if p.get("levers"):
+        lv = p["levers"][0]
+        weak = {"title": lv["title"], "text": f"Etwa {lv['gain_s']} Runden pro Match möglich. {lv['text']}",
+                "src": "Gerechnet aus euren letzten Matches. Eine Rechnung, keine Garantie.", "href": det + "#hebel"}
+    else:
+        worst = min(sure, key=lambda c: c["per_match"], default=None)
+        if worst and worst["per_match"] <= -0.15:
+            weak = {"title": worst["label"], "text": f"{worst['per_match_s']} Runden pro Match unter dem Schnitt eurer Matches.",
+                    "src": f"Impact nach Lage aus {worst['n']} Kills und Toden, letzte {im['n']} Matches.",
+                    "href": det + "#impact"}
+        else:
+            low = min(sides, key=lambda x: x["diff"], default=None)
+            weak = low if low and low["diff"] < 0 else None
+    return {"strong": strong, "weak": weak}
 
 
 def _profile_summary(p: dict, a: dict | None) -> list[dict]:
@@ -1942,15 +1993,15 @@ def _profile_summary(p: dict, a: dict | None) -> list[dict]:
         ms = a.get("matches") or []
         last = ms[-1] if ms else None
         if last and last.get("rate") is not None:
-            ok = last.get("met")  # wie der Auftrag-Check: None = zu wenige Runden, zählt nicht
-            out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "" if ok is None else "good" if ok else "bad",
+            ok = last.get("met")  # wie der Fokus-Check: None = zu wenige Runden, zählt nicht
+            out.append({"label": "Fokus", "anchor": "fokus", "tone": "" if ok is None else "good" if ok else "bad",
                         "text": f"{a['title']}. Letztes Match: {str(last['rate']).replace('.', ',')} pro 10 Runden, "
                                 f"Ziel höchstens {str(a['target']).replace('.', ',')}."
                                 + (" Zu wenige Runden, das Match zählt nicht." if ok is None
                                    else " Weiter so." if ok else "")})
         else:
-            out.append({"label": "Auftrag", "anchor": "auftrag", "tone": "",
-                        "text": f"{a['title']}: „{a['mantra']}“ Noch kein Match seit dem Auftrag."})
+            out.append({"label": "Fokus", "anchor": "fokus", "tone": "",
+                        "text": f"{a['title']}: „{a['mantra']}“ Noch kein Match seit dem Fokus-Start."})
     if p.get("levers"):
         lv = p["levers"][0]
         out.append({"label": "Hebel", "anchor": "hebel", "tone": "bad",
@@ -2026,14 +2077,14 @@ def highlights_page(p: str = "") -> str:
                                                                names) or (sids[0] if sids else None)
     hl = impact.highlights(hist, sid) if sid else None
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(sids)]
-    return _env.get_template("highlights.html").render(nav_active="mehr", hl=hl, name=names.get(sid, sid) if sid else None,
+    return _env.get_template("highlights.html").render(nav_active="progress", hl=hl, name=names.get(sid, sid) if sid else None,
                                                        tabs=tabs)
 
 
 @app.get("/mehr", response_class=HTMLResponse)
 def more_page() -> str:
     """Einstellungen, seltene Auswertungen und die Anleitung an einem Ort."""
-    return _env.get_template("mehr.html").render(nav_active="mehr", n_history=len(_load_hist()), n_pro=len(_load_pro()))
+    return _env.get_template("mehr.html").render(nav_active="settings", n_history=len(_load_hist()), n_pro=len(_load_pro()))
 
 
 @app.get("/spieler", response_class=HTMLResponse)
@@ -2043,7 +2094,7 @@ def players_page() -> str:
 
     from cstaktik import accounts
 
-    return _env.get_template("spieler.html").render(nav_active="mehr", roster=pipeline.roster(),
+    return _env.get_template("spieler.html").render(nav_active="settings", roster=pipeline.roster(),
                                                     focus=sorted(load_focus_steamids()),
                                                     linked=bool(accounts.linked_steamids()))
 
