@@ -107,7 +107,20 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
   navigator.serviceWorker.register("/sw.js").then(function () { return navigator.serviceWorker.ready; }).then(function (r) {
     reg = r; return r.pushManager.getSubscription();
   }).then(function (sub) {
-    if (sub) { post("/push/subscribe", sub.toJSON()).catch(function () {}); say("Aktiv auf diesem Gerät."); show(true); }
+    if (!sub) return sub;
+    // mit altem Server-Schlüssel angemeldet (z. B. nach Neuaufsetzen): würde nie etwas empfangen -> neu anmelden
+    return fetch("/push/key", {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
+      var cur = sub.options && sub.options.applicationServerKey, want = key(d.key);
+      if (cur && new Uint8Array(cur).join() !== want.join()) return sub.unsubscribe().then(function () { return null; });
+      return sub;
+    });
+  }).then(function (sub) {
+    if (sub) {
+      post("/push/subscribe", sub.toJSON()).then(function () { say("Aktiv auf diesem Gerät."); show(true); }).catch(function (e) {
+        if (String(e.message).indexOf("409") >= 0) { say("Dieses Gerät bekommt die Nachrichten eines anderen Nutzers. Aktivieren übernimmt es für dich."); show(false); }
+        else say("Fehler: " + e.message, true);
+      });
+    }
     else if (Notification.permission === "denied") say("Benachrichtigungen sind für diese Seite im Browser blockiert. In den Website-Einstellungen erlauben.", true);
     else { say("Aus auf diesem Gerät."); show(false); }
   }).catch(function (e) { say("Fehler: " + e.message, true); });
@@ -118,7 +131,7 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
       return fetch("/push/key", {credentials: "same-origin"}).then(function (r) { return r.json(); });
     }).then(function (d) {
       return reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key(d.key)});
-    }).then(function (sub) { return post("/push/subscribe", sub.toJSON()); }).then(function () {
+    }).then(function (sub) { var b = sub.toJSON(); b.take = true; return post("/push/subscribe", b); }).then(function () {
       say("Aktiv auf diesem Gerät."); show(true);
     }).catch(function (e) { say("Hat nicht geklappt: " + e.message, true); }).then(function () { on.disabled = false; });
   };
@@ -154,6 +167,7 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
       <label for="bu">Steam-Login-Name des Bots</label><input class="field" id="bu" name="bot_user" value="{{ bot_user or '' }}" autocomplete="off">
       <label for="bp">Passwort{% if bot_user %} (leer lassen = unverändert){% endif %}</label><input class="field" id="bp" name="bot_pass" type="password" autocomplete="new-password">
       <label for="bs">Steam-Guard-Secret (optional)</label><input class="field" id="bs" name="bot_secret" autocomplete="off" placeholder="shared_secret aus einer .maFile">
+      <label class="small"><input type="checkbox" name="bot_secret_clear" value="1"> Gespeichertes Secret löschen</label>
       <div class="hint">Nimm einen neuen, leeren Steam-Account, nie deinen Hauptaccount. Füge dort CS2 (kostenlos) zur Bibliothek hinzu. Ohne Secret muss Steam Guard für den Bot aus sein, sonst klappt das Login nicht. Das Passwort liegt auf deinem Server.</div>
       <button class="btn2" type="submit">Bot speichern</button>
     </form></details>
@@ -182,7 +196,21 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
       <button class="btn2" type="submit">Ändern</button>
     </form></details>
 </div>
-<form method="post" action="/logout" style="margin-top:20px"><button class="logout" type="submit">Ausloggen</button></form>
+<form method="post" action="/logout" style="margin-top:20px" id="logoutf"><button class="logout" type="submit">Ausloggen</button></form>
+<script>
+// Ausloggen meldet auch die Benachrichtigungen dieses Geräts ab (sonst kämen sie auf einem geteilten Gerät weiter)
+document.getElementById("logoutf").addEventListener("submit", function (ev) {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  var f = this; ev.preventDefault();
+  var done = function () { f.submit(); };
+  setTimeout(done, 2500);
+  navigator.serviceWorker.ready.then(function (r) { return r.pushManager.getSubscription(); }).then(function (sub) {
+    if (!sub) return;
+    return fetch("/push/unsubscribe", {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
+                                       body: JSON.stringify({endpoint: sub.endpoint})}).then(function () { return sub.unsubscribe(); });
+  }).then(done, done);
+});
+</script>
 </div></div>
 {% endif %}
 {% endblock %}

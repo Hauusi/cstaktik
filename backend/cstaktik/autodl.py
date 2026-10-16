@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from contextlib import closing
 from pathlib import Path
@@ -75,9 +76,10 @@ def build_config() -> dict | None:
 def write_config() -> bool:
     """Konfiguration schreiben (nur lesbar für den Coach und den Container, enthält das Bot-Passwort)."""
     cfg = build_config()
-    if cfg is None:
-        return False
     path = CONFIG_DIR / "config.json"
+    if cfg is None:  # Bot oder Schlüssel entfernt: alte Datei weg, sonst lädt der Container mit alten Daten weiter
+        path.unlink(missing_ok=True)
+        return False
     write_atomic(path, json.dumps(cfg, indent=2))
     os.chmod(path, 0o600)
     return True
@@ -122,7 +124,15 @@ def take(p: Path) -> Path:
     return target
 
 
+_LOCK = threading.Lock()
+
+
 def record(name: str, error: str | None = None) -> None:
+    with _LOCK:
+        _record(name, error)
+
+
+def _record(name: str, error: str | None) -> None:
     state = _load_state()
     imported = state.get("imported", [])
     imported.insert(0, {"name": name, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "error": error})

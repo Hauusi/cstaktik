@@ -50,12 +50,13 @@ def _raw_public(key: ec.EllipticCurvePublicKey) -> bytes:
 def _private() -> ec.EllipticCurvePrivateKey:
     """VAPID-Schlüssel des Servers (beim ersten Mal erzeugt)."""
     pem = accounts.get_setting("vapid_private")
-    if pem:
-        return serialization.load_pem_private_key(pem.encode(), None)
-    key = ec.generate_private_key(ec.SECP256R1())
-    accounts.set_setting("vapid_private", key.private_bytes(
-        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode())
-    return key
+    if not pem:
+        new = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+            serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+        with closing(accounts.db()) as con, con:  # gleichzeitiger erster Aufruf: der erste Schlüssel gewinnt
+            con.execute("INSERT OR IGNORE INTO settings VALUES ('vapid_private', ?)", (new,))
+        pem = accounts.get_setting("vapid_private")
+    return serialization.load_pem_private_key(pem.encode(), None)
 
 
 def public_key() -> str:
@@ -82,12 +83,29 @@ def _push_host(endpoint: str) -> bool:
 def subscribe(user: str, sub: dict) -> None:
     endpoint = sub.get("endpoint") or ""
     keys = sub.get("keys") or {}
-    if not _push_host(endpoint) or not keys.get("p256dh") or not keys.get("auth"):
+    p256dh, auth = keys.get("p256dh"), keys.get("auth")
+    if not _push_host(endpoint) or not isinstance(p256dh, str) or not isinstance(auth, str):
+        raise ValueError("Ungültiges Push-Abo.")
+    try:  # Schlüssel des Geräts prüfen: ein kaputtes Abo würde sonst später jeden Versand stören
+        ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), unb64u(p256dh))
+        ok = len(unb64u(auth)) == 16
+    except (ValueError, TypeError) as exc:
+        raise ValueError("Ungültiges Push-Abo.") from exc
+    if not ok:
         raise ValueError("Ungültiges Push-Abo.")
     with closing(_db()) as con, con:
         con.execute("INSERT OR REPLACE INTO push_subs VALUES (?, ?, ?, ?)",
                     (endpoint, user, json.dumps({"endpoint": endpoint, "keys": keys}),
                      time.strftime("%Y-%m-%dT%H:%M:%S")))
+
+
+def owner(endpoint: str) -> str | None:
+    """Für welchen Nutzer ist dieses Gerät angemeldet?"""
+    if not endpoint or not accounts.DB_FILE.exists():
+        return None
+    with closing(_db()) as con:
+        row = con.execute("SELECT user FROM push_subs WHERE endpoint = ?", (endpoint,)).fetchone()
+    return row["user"] if row else None
 
 
 def unsubscribe(endpoint: str, user: str | None = None) -> None:
@@ -159,7 +177,7 @@ def send_user(user: str, message: dict, post=None) -> int:
     for sub in subs(user):
         try:
             status = send(sub, message, post)
-        except OSError:
+        except Exception:  # noqa: BLE001 - ein kaputtes Abo darf die anderen nicht aufhalten
             continue
         if status in (404, 410):
             unsubscribe(sub["endpoint"])

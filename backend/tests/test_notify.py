@@ -116,3 +116,28 @@ def test_new_matches_marked_until_opened():
     assert not api._is_new(new, api._seen("Hausi"))
     assert api._seen("Hausi")[0] == since
     assert api._seen(None) is None
+
+
+def test_bad_keys_rejected_and_device_not_silently_moved():
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.add_user("Bruder", "Geheim-12345")
+    _, sub = _device()
+    import pytest
+    with pytest.raises(ValueError):
+        notify.subscribe("Hausi", {**sub, "keys": {"p256dh": "AAAA", "auth": sub["keys"]["auth"]}})
+    notify.subscribe("Hausi", sub)
+    c = TestClient(api.app)
+    c.post("/login", data={"name": "Bruder", "password": "Geheim-12345"}, headers=O)
+    r = c.post("/push/subscribe", json=sub, headers=O)
+    assert r.status_code == 409 and r.json()["owner"] == "Hausi"
+    assert c.post("/push/subscribe", json={**sub, "take": True}, headers=O).json() == {"ok": True}
+    assert notify.owner(sub["endpoint"]) == "Bruder"
+
+
+def test_removed_bot_deletes_config():
+    from cstaktik import autodl
+
+    autodl.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    (autodl.CONFIG_DIR / "config.json").write_text("{}")
+    assert autodl.write_config() is False
+    assert not (autodl.CONFIG_DIR / "config.json").exists()

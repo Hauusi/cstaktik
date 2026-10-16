@@ -304,7 +304,12 @@ def test_https_proxy_locks_direct_access():
     assert c.get("/login", follow_redirects=False).status_code == 200  # ohne HTTPS-Proxy: wie bisher
     c.get("/login", headers={"x-forwarded-proto": "https", "host": "evil.example"})  # direkt: Header zählt nicht
     assert accounts.get_setting("public_url") is None
-    TestClient(api.app, base_url="https://cs2coach.duckdns.org").get("/login")  # über den Proxy (Schema https)
+    h = TestClient(api.app, base_url="https://cs2coach.duckdns.org")
+    h.get("/login", headers={"host": "evil.example"})  # ohne Login: fremder Host-Header wird nicht gemerkt
+    assert accounts.get_setting("public_url") is None
+    accounts.add_user("Hausi", "Geheim-12345")
+    h.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers={"Origin": "https://cs2coach.duckdns.org"})
+    h.get("/")  # eingeloggt über den Proxy (Schema https)
     assert accounts.get_setting("public_url") == "https://cs2coach.duckdns.org"
     r = c.get("/login?next=/x", follow_redirects=False)  # direkt von außen: umgeleitet
     assert r.status_code == 307 and r.headers["location"] == "https://cs2coach.duckdns.org/login?next=/x"

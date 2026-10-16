@@ -65,10 +65,10 @@ def _mine(sids):
     return [s for s in sids if s == me] if me else list(sids)
 
 
-_SEEN_LOCK = threading.Lock()
+_SEEN_LOCK = threading.RLock()
 
 
-def _seen(user: str | None) -> tuple[str, set[str]] | None:
+def _seen(user: str | None) -> tuple[str, list[str]] | None:
     """Gesehene Reports des Nutzers: (seit wann gezählt wird, Dateinamen). Ältere Matches gelten als gesehen,
     sonst wäre beim ersten Mal alles "neu"."""
     if not user:
@@ -81,9 +81,12 @@ def _seen(user: str | None) -> tuple[str, set[str]] | None:
     except ValueError:
         d = None
     if not d:
-        d = {"since": pipeline.coaching_now(), "files": []}
-        accounts.set_setting(f"seen:{user}", json.dumps(d))
-    return d["since"], set(d.get("files") or [])
+        with _SEEN_LOCK:
+            raw = accounts.get_setting(f"seen:{user}")  # gleichzeitiger erster Aufruf: nicht überschreiben
+            d = json.loads(raw) if raw else {"since": pipeline.coaching_now(), "files": []}
+            if not raw:
+                accounts.set_setting(f"seen:{user}", json.dumps(d))
+    return d["since"], list(d.get("files") or [])
 
 
 def _mark_seen(user: str, file: str) -> None:
@@ -92,11 +95,11 @@ def _mark_seen(user: str, file: str) -> None:
     with _SEEN_LOCK:
         since, files = _seen(user)
         if file not in files:
-            keep = sorted(files)[-499:] + [file]  # begrenzt; ältere fallen ohnehin unter "since"
+            keep = files[-499:] + [file]  # begrenzt, älteste zuerst raus; ältere fallen ohnehin unter "since"
             accounts.set_setting(f"seen:{user}", json.dumps({"since": since, "files": keep}))
 
 
-def _is_new(h: dict, seen: tuple[str, set[str]] | None) -> bool:
+def _is_new(h: dict, seen: tuple[str, list[str]] | None) -> bool:
     return bool(seen and h.get("report_file") and (h.get("analyzed_at") or "") > seen[0]
                 and h["report_file"] not in seen[1])
 
@@ -313,7 +316,9 @@ def _https_only(request: Request) -> Response | None:
     if request.url.scheme == "https":
         host = request.headers.get("host", "")
         url = f"https://{host}"
-        if host and accounts.get_setting("public_url") != url:
+        # nur mit gültigem Login merken: sonst könnte jeder per Host-Header eine fremde Adresse eintragen
+        if (host and re.fullmatch(r"[A-Za-z0-9.-]+(:\d+)?", host) and accounts.get_setting("public_url") != url
+                and accounts.read_session(request.cookies.get(accounts.COOKIE))):
             accounts.set_setting("public_url", url)
         return None
     url = accounts.get_setting("public_url")
@@ -554,6 +559,7 @@ async def konto_bot(request: Request) -> Response:
     if not name:
         for k in ("autodl_bot_user", "autodl_bot_pass", "autodl_bot_secret"):
             accounts.set_setting(k, None)
+        autodl.write_config()  # löscht die Konfiguration: der Container lädt nichts mehr
         return RedirectResponse("/konto?saved=" + quote("Bot-Account entfernt."), status_code=303)
     accounts.set_setting("autodl_bot_user", name)
     if pw:  # leer lassen = altes Passwort behalten
@@ -694,8 +700,11 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || '/';
   e.waitUntil(clients.matchAll({type: 'window', includeUncontrolled: true}).then(list => {
-    for (const c of list) { if ('focus' in c) { c.navigate(url); return c.focus(); } }
-    return clients.openWindow(url);
+    const same = list.find(c => new URL(c.url).pathname === url);
+    if (same) return same.focus();
+    const c = list.find(c => 'navigate' in c);
+    if (!c) return clients.openWindow(url);
+    return c.navigate(url).then(w => (w || c).focus()).catch(() => clients.openWindow(url));
   }));
 });
 """
@@ -720,7 +729,11 @@ async def push_subscribe(request: Request) -> JSONResponse:
 
     user = _need_user(request)
     try:
-        notify.subscribe(user, await request.json())
+        body = await request.json()
+        owner = notify.owner(str(body.get("endpoint") or ""))
+        if owner and owner != user and not body.get("take"):  # Gerät gehört einem anderen Nutzer: nicht still umhängen
+            return JSONResponse({"ok": False, "owner": owner}, status_code=409)
+        notify.subscribe(user, body)
     except (ValueError, TypeError, AttributeError) as exc:
         raise HTTPException(400, "Ungültiges Push-Abo.") from exc
     return JSONResponse({"ok": True})
