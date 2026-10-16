@@ -37,7 +37,7 @@ def _ids() -> str:
 def docker_command() -> str:
     """Einmal auf dem Server ausführen: startet den Download-Container (läuft danach von selbst weiter)."""
     return (f"mkdir -p {CONFIG_DIR} {DEMOS_DIR} && chown -R {_ids()} {BASE} && "
-            f"docker run -d --name cs-demo-downloader --restart unless-stopped --user {_ids()} "
+            f"docker run -d --name cs-demo-downloader --restart unless-stopped --user {_ids()} -e HOME=/config "
             f"-v {CONFIG_DIR}:/config -v {DEMOS_DIR}:/demos {IMAGE}")
 
 
