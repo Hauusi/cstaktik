@@ -56,9 +56,9 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
 </div>
 <h2>Gefundene Matches</h2>
 <div class="card codes">
-  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ ("gefunden" if (gcpd.on or autodl.config) else "gefunden, Demo noch hochladen") if c.status == "neu" else c.status }}</span></div>
+  {% for c in steam.codes %}<div><code>{{ c.code }}</code><span class="muted">{{ c.found[8:10] }}.{{ c.found[5:7] }}. · {{ ("gefunden" if autodl.config else "gefunden, Demo noch hochladen") if c.status == "neu" else c.status }}</span></div>
   {% else %}<div class="muted">Noch keine. Neue Matches erscheinen hier, sobald Steam sie meldet.</div>{% endfor %}
-  {% if not gcpd.on and not autodl.config %}<div class="small muted" style="margin-top:6px">Damit der Coach die Demos selbst lädt: „Automatischer Download“ einrichten. Bis dahin die Demo selbst hochladen.</div>{% endif %}
+  {% if not autodl.config %}<div class="small muted" style="margin-top:6px">Damit der Coach die Demos selbst lädt: „Automatischer Download“ einrichten. Bis dahin die Demo selbst hochladen.</div>{% endif %}
 </div>
 {% endif %}
 </div>
@@ -74,70 +74,11 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
 
 <h2 id="autodl">Automatischer Download</h2>
 <div class="card kf">
-  {% if gcpd.on %}
-  <div class="small"><b style="color:#46a758">Aktiv.</b> Der Coach lädt deine neuen Valve-Matches selbst und wertet sie aus. Er schaut alle 20 Minuten.</div>
-  {% if gcpd.checked %}<div class="small muted" style="margin-top:4px">Zuletzt geprüft: {{ gcpd.checked[8:10] }}.{{ gcpd.checked[5:7] }}. {{ gcpd.checked[11:16] }}</div>{% endif %}
-  {% if gcpd.error %}<div class="err">{{ gcpd.error }}</div>{% endif %}
-  <form method="post" action="/konto/steamlogout" style="margin-top:10px"><button class="btn2" type="submit">Beenden und Anmeldung löschen</button></form>
-  {% elif gcpd.qr %}
-  <div class="small"><b>Am PC:</b> Öffne die Steam-App auf dem Handy, tippe unten auf das Schild-Symbol (Steam Guard) und dann auf „QR-Code scannen“. Scanne diesen Code und bestätige.</div>
-  <div id="qr" style="background:#fff;padding:12px;display:inline-block;margin:10px 0;border-radius:8px"></div>
-  <div class="small"><b>Am Handy:</b> <a class="btn2" id="qrlink" href="{{ gcpd.qr }}">In der Steam-App öffnen</a></div>
-  <div class="small muted" id="qrstate" style="margin-top:8px" role="status">Warte auf Bestätigung in der Steam-App …</div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script>
-  (function () {
-    var box = document.getElementById("qr"), link = document.getElementById("qrlink"), st = document.getElementById("qrstate");
-    var url = {{ gcpd.qr|tojson }}, qr = null;
-    function draw(u) {
-      url = u; link.href = u; box.innerHTML = "";
-      if (window.QRCode) qr = new QRCode(box, {text: u, width: 200, height: 200});
-      else box.textContent = "QR-Code konnte nicht geladen werden. Nutze „In der Steam-App öffnen“.";
-    }
-    draw(url);
-    function poll() {
-      fetch("/konto/steamqr/status", {credentials: "same-origin"}).then(function (r) { return r.json(); }).then(function (d) {
-        if (d.state === "done") { location.href = "/konto?saved=" + encodeURIComponent("Angemeldet. Der Coach lädt deine neuen Matches jetzt selbst und wertet sie aus.") + "#autodl"; return; }
-        if (d.state === "error" || d.state === "none") { st.textContent = d.msg || "Anmeldung abgebrochen. Seite neu laden."; st.className = "err"; return; }
-        if (d.url && d.url !== url) draw(d.url);
-        setTimeout(poll, 3000);
-      }).catch(function () { setTimeout(poll, 5000); });
-    }
-    setTimeout(poll, 3000);
-  })();
-  </script>
-  {% elif gcpd.pending %}
-  <form method="post" action="/konto/steamcode">
-    <div class="small">{% if gcpd.needs == "mail" %}Steam hat dir einen Code per E-Mail geschickt.{% elif gcpd.needs == "confirm" %}Bestätige die Anmeldung in deiner Steam-App, dann auf „Weiter“ tippen.{% else %}Öffne die Steam-App und gib den aktuellen Steam-Guard-Code ein. Oder bestätige die Anmeldung dort und lass das Feld leer.{% endif %}</div>
-    {% if gcpd.needs != "confirm" %}<label for="sc">Steam-Guard-Code</label><input class="field" id="sc" name="code" autocomplete="one-time-code" maxlength="5" style="text-transform:uppercase">{% endif %}
-    <button class="btn" type="submit">Weiter</button>
-  </form>
-  {% elif not https %}
-  <div class="small">Der Coach kann deine Valve-Matches selbst laden. Dafür meldest du dich einmal mit deinem Steam-Account an. Das geht aus Sicherheitsgründen nur über HTTPS. Öffne die App über deine HTTPS-Adresse.</div>
-  {% else %}
-  <div class="small">Der Coach lädt deine Valve-Matches (Premier, Competitive, Wingman) selbst und wertet sie aus. Dafür meldest du dich einmal mit deinem Steam-Account an: per QR-Code und Bestätigung in der Steam-App, ohne Passwort.</div>
-  <form method="post" action="/konto/steamqr" style="margin-top:8px">
-    <button class="btn" type="submit" {{ "disabled" if not (steam and steam.steamid) }}>Mit Steam-App anmelden</button>
-  </form>
-  <details class="how"><summary>Was wird gespeichert?</summary>
-    <ul>
-      <li>Nur der Anmelde-Schlüssel von Steam, auf deinem Server. Kein Passwort. Er läuft nach einigen Monaten ab.</li>
-      <li>Damit liest der Coach nur deine Seite „Persönliche Spieldaten“ von CS2 mit den Demo-Links deiner letzten Matches.</li>
-      <li>Wer deinen Server übernimmt, könnte den Schlüssel nutzen. Halte den Server geschützt.</li>
-    </ul></details>
-  <details class="opt"><summary>Ohne Steam-App: mit Passwort anmelden</summary>
-  <form method="post" action="/konto/steamlogin" style="margin-top:8px">
-    <label for="su">Steam-Login-Name</label><input class="field" id="su" name="steam_user" autocomplete="username">
-    <label for="sp">Steam-Passwort</label><input class="field" id="sp" name="steam_pass" type="password" autocomplete="current-password">
-    <button class="btn" type="submit" {{ "disabled" if not (steam and steam.steamid) }}>Anmelden</button>
-  </form>
-  <div class="small muted">Das Passwort geht verschlüsselt an Steam und wird nicht gespeichert. Danach fragt Steam nach deinem Steam-Guard-Code.</div>
-  </details>
-  {% endif %}
+  {% if autodl.store %}<div class="small"><b style="color:#46a758">Aktiv.</b> Der Coach lädt neue Valve-Matches (Premier, Competitive, Wingman) selbst und wertet sie aus. Er schaut alle 20 Minuten.</div>
+  {% else %}<div class="small">Der Coach lädt neue Valve-Matches selbst und wertet sie aus. Dafür braucht der Server einen eigenen, leeren Steam-Account (Bot), der kurz CS2 startet. Dein Hauptaccount meldet sich dabei nirgends an.</div>{% endif %}
   {% if autodl.imported %}<div class="small muted" style="margin-top:8px">Zuletzt geladen:</div>
   {% for x in autodl.imported[:5] %}<div class="small">{{ x.at[8:10] }}.{{ x.at[5:7] }}. {{ x.at[11:16] }} · {% if x.error %}<span style="color:#e5484d">{{ x.error }}</span>{% else %}ausgewertet{% endif %}</div>{% endfor %}{% endif %}
-  <details class="opt"><summary>Alternative: mit einem Bot-Account (Docker)</summary>
-  <div class="small">Dafür braucht der Server einen eigenen Steam-Account, der kurz CS2 startet.</div>
+  <details class="opt"{% if not autodl.store %} open{% endif %}><summary>Einrichtung</summary>
   <div class="steps-ad">
     <div class="{{ 'ok' if autodl.key }}"><b>1</b> Steam-Web-API-Schlüssel (oben)</div>
     <div class="{{ 'ok' if steam and steam.auth_code }}"><b>2</b> Auth-Code und Match-Token (links)</div>
