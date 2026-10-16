@@ -608,8 +608,9 @@ def _notify_report(report: str) -> None:
     from cstaktik import history, notify
 
     try:
-        h = next((x for x in history.load_all(pipeline.HISTORY_DIR) if x.get("report_file") == report), None)
-        notify.notify_match(h)
+        hist = history.load_all(pipeline.HISTORY_DIR)
+        h = next((x for x in hist if x.get("report_file") == report), None)
+        notify.notify_match(h, hist=hist)
     except Exception:  # noqa: BLE001 - eine fehlgeschlagene Nachricht darf die Auswertung nicht stören
         pass
 
@@ -799,6 +800,16 @@ def index() -> str:
         auto = False
     # Neue Matches (noch nicht geöffnet), neueste zuerst; das letzte steht schon oben als eigene Karte
     unseen = [_last_view(h) for h in reversed(hist[:-1]) if _is_new(h, seen)][:5]
+    from cstaktik import session, weekplan
+
+    today = weekplan.local_today()
+    sessions = []
+    for sid in _mine(sorted({s for h in hist if (h.get("analyzed_at") or "")[:10] == today.isoformat()
+                             for s in (h.get("players") or {}) if s in (h.get("impact") or {}) or s in (h.get("seq") or {})})):
+        s = session.session(hist, sid, today)
+        if s:
+            sessions.append({**s, "name": names.get(sid, sid)})
+    deal = _deal_view(hist)
     push_hint = False
     if _USER.get() and _me():  # erst nach der Steam-Verbindung: vorher kommt ohnehin keine Nachricht
         from cstaktik import notify
@@ -811,6 +822,7 @@ def index() -> str:
         need_link=_USER.get() is not None and not _me(),
         auto=auto and bool(hist), unseen=unseen, push_hint=push_hint,
         n_new=len(unseen) + (1 if hist and _is_new(hist[-1], seen) else 0),
+        sessions=sessions, deal=deal,
     )
 
 
@@ -983,9 +995,19 @@ def match_minute(report_file: str) -> str:
     sids = [me] if me and me in players else [s for s in _mine(focus) if s in players]
     rows = sorted((_minute_player(h, s) for s in sids), key=lambda r: r["name"].lower())
     try:
-        when = datetime.fromisoformat(h["analyzed_at"]).strftime("%d.%m. %H:%M")
+        at = datetime.fromisoformat(h["analyzed_at"])
+        when = at.strftime("%d.%m. %H:%M")
     except (KeyError, ValueError, TypeError):
-        when = None
+        at = when = None
+    from cstaktik import session, weekplan
+
+    players_state = _players_state()
+    for r in rows:
+        # Spielabend nur für heute (bis zu diesem Match), Übungs-Vergleich zum Auftrag
+        if at is not None and at.date() == weekplan.local_today():
+            r["today"] = session.session(_load_hist(), r["sid"], at.date(), until=h["analyzed_at"])
+        if r.get("check"):
+            r["practice"] = session.practice(players_state.get(r["sid"]))
     return _env.get_template("minute.html").render(
         nav_active="matches", jobs=_running_jobs(), rows=rows, file=report_file, when=when, mine=bool(me),
         map_label=(h.get("map") or "?").removeprefix("de_").capitalize())
@@ -1031,7 +1053,7 @@ def _players_state() -> dict:
 
 def _auftrag(hist: list[dict]) -> list[dict]:
     """Laufende Aufträge je Spieler für die Startseite: Lektion, Merksatz, Übung, Checks, erledigte Übungen."""
-    from cstaktik import coaching
+    from cstaktik import coaching, session
     from cstaktik.coach_voice import LESSONS
     from cstaktik.curriculum import TEACH
 
@@ -1051,8 +1073,67 @@ def _auftrag(hist: list[dict]) -> list[dict]:
                     "mantra": t["mantra"], "routine": t["routine"], "in_game": t["in_game"],
                     "drills": coaching.drills_since(slot, f.get("created_at")),
                     "scenes": min(12, sum(1 for sc in scenes if sc["lesson"] == f["lesson"] and sc.get("sid") == sid)),
-                    "mastered": len(slot.get("done", []))})
+                    "mastered": len(slot.get("done", [])), "practice": session.practice(slot)})
     return out
+
+
+def _deal_key(user: str) -> str:
+    return f"deal:{user}"
+
+
+def _deal_view(hist: list[dict]) -> dict | None:
+    """Abmachung aus dem Report ("Abgemacht"), bis das nächste Match des Spielers ausgewertet ist."""
+    user, me = _USER.get(), _me()
+    if not user or not me:
+        return None
+    from cstaktik import accounts
+
+    try:
+        d = json.loads(accounts.get_setting(_deal_key(user)) or "null")
+    except ValueError:
+        return None
+    if not isinstance(d, dict) or d.get("sid") != me:
+        return None
+    if any(me in (h.get("players") or {}) and (h.get("analyzed_at") or "") > (d.get("match_at") or "")
+           for h in hist):
+        return None  # nächstes Match ist da: die Abmachung ist erledigt
+    return d
+
+
+@app.post("/training/deal")
+async def training_deal(request: Request) -> JSONResponse:
+    """"Abgemacht" im Report: Abmachung bis zum nächsten Match speichern (nur für den eigenen Spieler)."""
+    user = _USER.get()
+    me = _me()
+    if not user or not me:  # ohne Accounts oder ohne Steam-Verbindung bleibt es beim Browser-Speicher
+        raise HTTPException(400, "Nur eingeloggt und mit Steam verbunden.")
+    try:
+        data = await request.json()
+    except ValueError:
+        raise HTTPException(400, "Ungültige Anfrage.") from None
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Ungültige Anfrage.")
+    sid, lesson, report = str(data.get("sid") or ""), str(data.get("lesson") or ""), str(data.get("report") or "")
+    if sid != me:
+        raise HTTPException(403, "Nur deine eigene Abmachung.")
+    from cstaktik import accounts, history
+    from cstaktik.coach_voice import LESSONS
+    from cstaktik.curriculum import TEACH
+
+    h = next((x for x in _load_hist() if report and x.get("report_file") == report), None)
+    if h is None or me not in (h.get("players") or {}) or lesson not in LESSONS:
+        raise HTTPException(404, "Match oder Auftrag nicht gefunden.")
+    fo = (_focus_entry(h.get("focus_check"), me) or {}).get("focus") or {}
+    text = LESSONS[lesson][0]
+    if fo.get("lesson") == lesson and fo.get("target") is not None:
+        text += f": höchstens {str(fo['target']).replace('.', ',')}x pro 10 Runden"
+    mantra = (TEACH.get(lesson) or {}).get("mantra")
+    won, lost = history.score(h, me)
+    deal = {"sid": me, "lesson": lesson, "text": text + ".", "mantra": mantra, "report": report,
+            "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(), "score": f"{won}:{lost}",
+            "match_at": h.get("analyzed_at"), "at": pipeline.coaching_now()}
+    accounts.set_setting(_deal_key(user), json.dumps(deal, ensure_ascii=False))
+    return JSONResponse({"ok": True})
 
 
 @app.post("/training/done")

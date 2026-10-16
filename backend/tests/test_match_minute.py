@@ -155,7 +155,7 @@ def test_home_builds_weekplan_and_shrinks_upload_with_autodl():
 def test_notify_report_finds_history_entry(monkeypatch):
     _save_entry()
     got = []
-    monkeypatch.setattr(notify, "notify_match", lambda h, post=None: got.append(h) or 1)
+    monkeypatch.setattr(notify, "notify_match", lambda h, post=None, hist=None: got.append(h) or 1)
     api._notify_report("m1.html")
     assert got and got[0]["id"] == "m1"
 

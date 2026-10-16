@@ -2045,7 +2045,13 @@ function dbBuild() {
       const key = 'cstaktik-deal-' + location.pathname + '-' + (n.sid || n.name);
       let dealt = false; try { dealt = !!localStorage.getItem(key); } catch (e) { /* ohne Speicher */ }
       const ok = el('button', 'play big', dealt ? '✓ Abgemacht' : 'Abgemacht');
-      ok.onclick = () => { ok.textContent = '✓ Abgemacht'; try { localStorage.setItem(key, '1'); } catch (e) { /* ohne Speicher */ } };
+      ok.onclick = () => {
+        ok.textContent = '✓ Abgemacht'; try { localStorage.setItem(key, '1'); } catch (e) { /* ohne Speicher */ }
+        // eingeloggt und mit Steam verbunden: Abmachung auch auf dem Server (Startseite zeigt sie bis zum nächsten Match)
+        if (window.__ME && n.sid === window.__ME && window.fetch) fetch('/training/deal', { method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sid: n.sid, lesson: n.lesson, report: location.pathname.split('/').pop() }) }).catch(() => {});
+      };
       b.appendChild(ok); d.appendChild(b);
     });
     return d;

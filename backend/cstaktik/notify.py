@@ -188,9 +188,10 @@ def send_user(user: str, message: dict, post=None) -> int:
 
 # ---------------------------------------------------------------- Nachrichten
 
-def match_message(h: dict, sid: str) -> dict:
+def match_message(h: dict, sid: str, hist: list[dict] | None = None) -> dict:
     """Kurzmeldung zu einem ausgewerteten Match aus dem Verlaufs-Eintrag (nur Daten aus der Auswertung), aus Sicht
-    des Spielers: sein Ergebnis (seine Seite), sein Impact, sein Thema."""
+    des Spielers: sein Ergebnis (seine Seite), sein Impact, sein Thema. Mit ``hist`` ab dem zweiten Match des Tages
+    eine Zeile zum Spielabend (session.py)."""
     from cstaktik import history
     from cstaktik.coach_voice import LESSONS
     from cstaktik.impact import de
@@ -205,12 +206,33 @@ def match_message(h: dict, sid: str) -> dict:
     lid = history.lead(h, sid)
     if lid in LESSONS and lid != "duel":
         parts.append(f"Dein Thema: {LESSONS[lid][0]}")
-    return {"title": f"{label} {won}:{lost} {res}", "body": ". ".join(parts) or "Der Report ist fertig.",
+    body = ". ".join(parts) + "." if parts else "Der Report ist fertig."
+    today = _session_line(h, sid, hist)
+    if today:
+        body += " " + today
+    return {"title": f"{label} {won}:{lost} {res}", "body": body,
             "url": f"/m/{h['report_file']}" if h.get("report_file") else "/matches"}
 
 
-def notify_match(h: dict, post=None) -> int:
-    """Alle Nutzer, deren verbundener Steam-Account mitgespielt hat, bekommen eine Nachricht."""
+def _session_line(h: dict, sid: str, hist: list[dict] | None) -> str | None:
+    """Eine kurze Zeile zum Spielabend bis zu diesem Match; None vor dem zweiten Match des Tages."""
+    if not hist or not h.get("analyzed_at"):
+        return None
+    from datetime import datetime
+
+    from cstaktik.session import session
+
+    try:
+        day = datetime.fromisoformat(h["analyzed_at"]).date()
+    except (TypeError, ValueError):
+        return None
+    s = session(hist, sid, day, until=h["analyzed_at"])
+    return s["line"] if s else None
+
+
+def notify_match(h: dict, post=None, hist: list[dict] | None = None) -> int:
+    """Alle Nutzer, deren verbundener Steam-Account mitgespielt hat, bekommen eine Nachricht. ``hist``: Verlauf für
+    die Zeile zum Spielabend."""
     if not h or not accounts.DB_FILE.exists():
         return 0
     n = 0
@@ -219,5 +241,5 @@ def notify_match(h: dict, post=None) -> int:
         linked = [(r["user"], r["steamid"]) for r in con.execute("SELECT user, steamid FROM steam WHERE steamid IS NOT NULL")]
     for user, sid in linked:
         if sid in players:
-            n += send_user(user, match_message(h, sid), post)
+            n += send_user(user, match_message(h, sid, hist), post)
     return n

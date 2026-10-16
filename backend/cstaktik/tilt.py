@@ -69,7 +69,7 @@ def summary(hist: list[dict], sid: str) -> dict | None:
                      "untraded": round(100 * sum(r["untraded"] for r in x) / len(x)) if x else None}
     for g in groups.values():
         g["impact_s"] = _de(g["impact"]) if g["impact"] is not None else None
-    out = {"groups": groups, "reading": None, "enough": False}
+    out = {"groups": groups, "reading": None, "enough": False, "bad": False}
     a, b = groups["serie"], groups["sieg"]
     if a["n"] >= MIN_ROUNDS and b["n"] >= MIN_ROUNDS:
         out["enough"] = True
@@ -82,6 +82,7 @@ def summary(hist: list[dict], sid: str) -> dict | None:
         if a["untraded"] - b["untraded"] >= FIRST_GAP:
             parts.append(f"Ohne Trade stirbst du in {a['untraded']} % statt {b['untraded']} % der Runden.")
         if parts:
+            out["bad"] = True  # nach Serien messbar schlechter (Schwellen oben)
             out["reading"] = (f"Nach {STREAK}+ verlorenen Runden in Folge spielst du messbar schlechter. "
                               + " ".join(parts) + " Tipp: Spiel genau dann eine ruhige Standard-Runde zu zweit, "
                               "keinen Einzel-Peek.")

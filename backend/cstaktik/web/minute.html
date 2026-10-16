@@ -53,7 +53,18 @@
     <div class="kicker">Auftrag-Check</div>
     <div class="big">{{ c.title }}</div>
     <div class="small muted num">Heute {{ c.rate }} pro 10 Runden, Ziel höchstens {{ c.target }}.{% if c.count is not none and c.rounds %} {{ c.count }}x in {{ c.rounds }} Runden.{% endif %}</div>
+    {% if r.practice %}<div class="small muted num" style="margin-top:8px">{{ r.practice.text }}</div>{% endif %}
     <div class="stamp">{% if c.mastered %}Gemeistert{% elif c.met is none %}Zu wenig Runden, zählt nicht{% elif c.met %}Geschafft{% if c.need %} · {{ c.streak }}/{{ c.need }}{% endif %}{% else %}Nicht geschafft{% endif %}</div>
+  </div>
+  {% endif %}
+
+  {% if r.today %}{% set t = r.today %}
+  <div class="card">
+    <div class="kicker">Heute · {{ t.n }} Matches</div>
+    <div class="big num">{{ t.won }}:{{ t.lost }}{% if t.draw %}:{{ t.draw }}{% endif %}</div>
+    <div class="small muted">{{ t.line }}{% if t.impact %} Impact zusammen <b class="num" style="color:{{ '#6fe0a6' if t.impact.pos else '#ff9aa8' }}">{{ t.impact.total }}</b> Runden.{% endif %}</div>
+    {% if t.auftrag %}<div class="small muted num" style="margin-top:6px">Auftrag „{{ t.auftrag.title }}“ heute zusammen: {{ t.auftrag.text }}</div>{% endif %}
+    {% if t.tilt %}<div class="small" style="margin-top:6px">{{ t.tilt }}</div>{% endif %}
   </div>
   {% endif %}
 

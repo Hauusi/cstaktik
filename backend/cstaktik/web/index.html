@@ -101,6 +101,19 @@ a.fullrep { display: block; margin-top: -8px; padding: 6px; } a.fullrep:hover { 
   <a class="hint fullrep" href="/reports/{{ last.report_file }}">Ganzer Report mit Debrief und Replay ›</a>
   {% endif %}
 
+  {% for t in sessions %}
+  <section class="card">
+    <div class="kicker">Heute{% if sessions|length > 1 %} · {{ t.name }}{% endif %} · {{ t.n }} Matches</div>
+    <div class="small" style="margin-top:6px">{{ t.line }}{% if t.impact %} Impact zusammen <b class="num" style="color:{{ '#6fe0a6' if t.impact.pos else '#ff9aa8' }}">{{ t.impact.total }}</b> Runden.{% endif %}</div>
+    {% if t.auftrag %}<div class="small muted num" style="margin-top:6px">Auftrag „{{ t.auftrag.title }}“ heute zusammen: {{ t.auftrag.text }}</div>{% endif %}
+    {% if t.tilt %}<div class="small" style="margin-top:6px">{{ t.tilt }}</div>{% endif %}
+  </section>
+  {% endfor %}
+
+  {% if deal %}
+  <a class="mini" href="/reports/{{ deal.report }}"><div><b>Abgemacht nach {{ deal.map_label }} {{ deal.score }}: {{ deal.text }}</b>{% if deal.mantra %}<span>„{{ deal.mantra }}“</span>{% endif %}</div><i>›</i></a>
+  {% endif %}
+
   {% for u in unseen %}
   <a class="mini" href="/m/{{ u.report_file }}"><div><b><span class="newb">Neu</span> {{ u.map_label }} {{ u.won }}:{{ u.lost }} · {{ u.result }}</b><span>{% if u.when %}{{ u.when }}{% endif %}{% if u.topic %}{{ " · " if u.when }}Thema: {{ u.topic }}{% endif %}</span></div><i>›</i></a>
   {% endfor %}
