@@ -6,6 +6,10 @@
 - Check: bei jeder Auswertung. "geschafft", wenn der Zielwert in ``done_after`` Matches in Folge
   erreicht wurde; dann rückt ein neues Ziel nach. Max. ``max_active`` Ziele gleichzeitig.
 
+Mindestgrößen (rules.yaml ``goals``): Matches unter ``min_check_rounds`` Runden prüfen und erzeugen kein Ziel,
+"geschafft" erst ab zusammen ``min_master_rounds`` Runden in der Serie, ein Team-Ziel erst ab ``min_count``
+Runden mit der Ursache. Mechanik-Ziele brauchen mindestens ``MIN_MECH_SAMPLE`` Schüsse bzw. Tode.
+
 Gespeichert in data/goals.json. Schwellen in rules.yaml unter ``goals`` (Heuristiken).
 """
 
@@ -75,8 +79,23 @@ MECH_GOALS = {
 }
 
 
+MIN_MECH_SAMPLE = 8  # weniger Schüsse/Tode: ein Prozentwert ist Zufall
+
+
+def _mech_sample(summary: dict, sid: str, metric: str) -> int | None:
+    """Stichprobe hinter einer Mechanik-Kennzahl: Schüsse (moving_pct) bzw. Tode (deaths_no_shot_pct)."""
+    if metric == "moving_pct":
+        return (summary.get("mech", {}).get(sid) or {}).get("shots")
+    if metric == "deaths_no_shot_pct":
+        return (summary.get("players", {}).get(sid) or {}).get("deaths")
+    return None
+
+
 def _value(summary: dict, goal: dict) -> float | None:
     if goal.get("kind") == "mech":
+        n = _mech_sample(summary, goal["player"], goal["metric"])
+        if n is None or n < MIN_MECH_SAMPLE:
+            return None  # zu wenig Daten: zählt weder für noch gegen das Ziel
         return (summary.get("mech", {}).get(goal["player"]) or {}).get(goal["metric"])
     return _pct(summary, goal["cause"])
 
@@ -111,25 +130,30 @@ def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) 
     match_id = summary.get("id")
     checks = []
     still_active = []
+    rounds = summary.get("rounds") or 0
+    min_check = cfg.get("min_check_rounds", 12)
+    enough = rounds >= min_check  # kurzes Match: kein Check, kein neues Ziel
     for g in state["active"]:
         if g.get("created_from") == match_id:
             still_active.append(g)
             continue
-        pct = _value(summary, g)
+        pct = _value(summary, g) if enough else None
         when = summary.get("analyzed_at") or ""
         if pct is None or (when and when < (g.get("created_at") or "")):  # älteres Match als das Ziel: zählt nicht
             still_active.append(g)
             continue
         prior = [c for c in g["checks"] if c["match"] != match_id]
-        entry = {"match": match_id, "pct": pct, "met": pct <= g["target_pct"], "date": summary.get("analyzed_at")}
+        entry = {"match": match_id, "pct": pct, "met": pct <= g["target_pct"], "date": summary.get("analyzed_at"),
+                 "rounds": rounds}
         # chronologisch, damit ein später neu ausgewertetes altes Match die Serie nicht verfälscht
         g["checks"] = sorted(prior + [entry], key=lambda c: c.get("date") or "")
-        streak = 0
+        streak = streak_rounds = 0
         for c in reversed(g["checks"]):
             if not c["met"]:
                 break
             streak += 1
-        if streak >= cfg["done_after"]:
+            streak_rounds += c.get("rounds") or 0  # alte Checks ohne Rundenzahl zählen nicht mit
+        if streak >= cfg["done_after"] and streak_rounds >= cfg.get("min_master_rounds", 40):
             g["status"] = "geschafft"
             g["done_at"] = summary.get("analyzed_at")
             state["done"].append(g)
@@ -145,13 +169,13 @@ def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) 
     when = summary.get("analyzed_at") or ""
     active_causes |= {g["cause"] for g in state["done"] if (g.get("done_at") or "") >= when}
     new_goals = []
-    for cause in summary.get("cause_order", []):
+    for cause in summary.get("cause_order", []) if enough else []:
         if len(state["active"]) >= cfg["max_active"]:
             break
         if cause in active_causes or cause not in GOAL_TEXT:
             continue
         base = _pct(summary, cause)
-        if not base:
+        if not base or (summary.get("cause_rounds") or {}).get(cause, 0) < cfg.get("min_count", 3):
             continue
         title, drills = GOAL_TEXT[cause]
         from cstaktik.coach_voice import LESSONS
@@ -174,7 +198,7 @@ def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) 
         new_goals.append(state["active"][-1]["title"])
 
     # Mechanik-Ziele je Spieler, wenn eine Kennzahl über der Schwelle liegt
-    for sid, mech in (summary.get("mech") or {}).items() if mech_cfg else []:
+    for sid, mech in (summary.get("mech") or {}).items() if mech_cfg and enough else []:
         name = (summary.get("players", {}).get(sid) or {}).get("name", sid)
         for metric, (title, label, thr_key, drills, why, tip) in MECH_GOALS.items():
             if len(state["active"]) >= cfg["max_active"]:
@@ -183,7 +207,8 @@ def update(state: dict, summary: dict, cfg: dict, mech_cfg: dict | None = None) 
             if metric == "moving_pct" and "moving" in active_causes:
                 continue  # dasselbe Thema läuft schon als Team-Ziel ("Stehend schießen")
             base = mech.get(metric)
-            if key in active_causes or base is None or base < mech_cfg[thr_key]:
+            n = _mech_sample(summary, sid, metric)
+            if key in active_causes or base is None or base < mech_cfg[thr_key] or n is None or n < MIN_MECH_SAMPLE:
                 continue
             state["active"].append({
                 "cause": key, "kind": "mech", "metric": metric, "player": sid,

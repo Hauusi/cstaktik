@@ -165,10 +165,11 @@ def _duel_sentence(fx: dict) -> str | None:
                      + (" Trotzdem hast du verloren." if d.get("won") is False else ""))
     elif seen == "gleich":
         parts.append("Ihr habt euch gleichzeitig gesehen.")
-    if d.get("tts") is not None and seen in ("ich", "gleich"):
+    early = bool(d.get("early_shot"))  # eigener Schuss vor dem Kontakt: Reaktion/erste Kugel sagen dann nichts
+    if d.get("tts") is not None and seen in ("ich", "gleich") and not early:
         parts.append(f"Bis zu deinem ersten Schuss vergingen {d['tts']} ms.")
     if d.get("err") is not None:
-        s = f"Beim ersten Schuss lag dein Fadenkreuz {_de1(d['err'])}° neben {att}"
+        s = f"Beim Duellstart lag dein Fadenkreuz {_de1(d['err'])}° neben {att}"
         h = d.get("height")
         if h is not None and d["err"] <= 20 and abs(h) > 2:
             s += f", {_de1(abs(h))}° {'unter' if h > 0 else 'über'} dem Kopf"
@@ -176,7 +177,9 @@ def _duel_sentence(fx: dict) -> str | None:
         if d.get("opp_err") is not None:
             s += f" Seins lag {_de1(d['opp_err'])}° neben dir."
         parts.append(s)
-    if d.get("react") == 0:
+    if early:
+        pass
+    elif d.get("react") == 0:
         parts.append("Du hast zuerst geschossen." + (" Die erste Kugel traf." if d.get("hit")
                                                      else " Die erste Kugel ging daneben." if d.get("hit") is False else ""))
     elif d.get("react") is not None:
@@ -254,17 +257,23 @@ def _next(lid: str, fx: dict, snap: dict | None, aktion: str | None = None) -> s
 
 
 def _pro_line(ev: dict) -> str | None:
+    """``pro_rates``: Aktion -> [gewonnene Runden, verschiedene Runden] (situation.compare). Eine "beste" Aktion
+    nur mit genug Runden je Aktion; sonst lieber nichts sagen."""
+    from cstaktik.situation import BEST_MIN_ROUNDS
+
     best, mine, rates = ev.get("pro_best"), ev.get("aktion"), ev.get("pro_rates") or {}
     if not best or best not in rates:
         return None
     won, n = rates[best]
+    if n < BEST_MIN_ROUNDS:
+        return None
     lage = "in ähnlicher Lage" if ev.get("pro_coarse") else "in dieser Lage"
     line = f"Pros {lage} gewinnen am häufigsten mit {ACTION_NOUN[best]}: {won} von {n} Runden."
-    if mine and mine != best and mine in rates:
+    if mine and mine != best and mine in rates and rates[mine][1] >= BEST_MIN_ROUNDS:
         w2, n2 = rates[mine]
         line += f" Mit {ACTION_NOUN[mine]} wie du: {w2} von {n2}."
     if ev.get("pro_rounds"):
-        line += f" Basis: {ev['pro_rounds']} Pro-Runden."
+        line += f" Basis: {ev['pro_rounds']} Pro-Runden in dieser Lage."
     return line
 
 
@@ -352,8 +361,10 @@ def focus(findings: list[Finding], n: int = 3, recur: tuple[dict[str, int], int]
     """Die Lektionen des Matches, gleiche Lektion zusammengefasst.
 
     Gezählt wird jede Beteiligung an einem Tod (wie im Verlauf und im Auftrag-Check), die verlorene Rundenchance
-    nur beim Hauptfehler. Reihenfolge: zuerst Muster, die auch in früheren Matches vorkamen (``recur``, Gedächtnis),
-    dann verlorene Rundenchance, dann Häufigkeit. Ein einzelner teurer Ausreißer schlägt so kein Dauerproblem."""
+    nur beim Hauptfehler. Reihenfolge: zuerst Lektionen, die heute mindestens ``MIN_LEAD_COUNT``-mal vorkamen
+    (eine einzelne Szene ist noch kein Muster), darunter zuerst Muster aus früheren Matches (``recur``, Gedächtnis),
+    dann verlorene Rundenchance, dann Häufigkeit. Ein einzelner teurer Ausreißer schlägt so kein Dauerproblem.
+    ``lead``: darf die Lektion Thema des Matches sein (Überschrift, Einleitung)?"""
     groups: dict[str, dict] = defaultdict(lambda: {"count": 0, "main": 0, "cost": 0, "has_cost": False, "scenes": [],
                                                    "players": set()})
     for i, f in enumerate(findings):
@@ -386,17 +397,23 @@ def focus(findings: list[Finding], n: int = 3, recur: tuple[dict[str, int], int]
                     "cost": g["cost"] if g["has_cost"] else None, "players": sorted(p for p in g["players"] if p),
                     "seen_in": seen.get(lid, 0) + 1, "of_matches": n_past + 1,
                     "rough": g.get("cost_n", 99) < 20,  # Rundenchance aus wenigen Vergleichsrunden
+                    "lead": g["count"] >= MIN_LEAD_COUNT,
                     "scenes": sorted(g["scenes"], key=lambda s: -(s["cost"] or 0))})
-    out.sort(key=lambda x: (-(x["seen_in"] >= 2), -(x["cost"] or 0), -x["count"]))
+    # Gedächtnis-Bonus nur, wenn die Lektion auch heute ein Muster ist (nicht nur eine Szene)
+    out.sort(key=lambda x: (-x["lead"], -(x["lead"] and x["seen_in"] >= 2), -(x["cost"] or 0), -x["count"]))
     return out[:n]
+
+
+MIN_LEAD_COUNT = 2  # so oft muss eine Lektion heute vorkommen, bevor sie Thema des Matches sein darf
 
 
 def headline(lessons: list[dict]) -> str | None:
     """Ein Satz wie vom Coach nach dem Match."""
-    if not lessons:
+    items = [f"{l['lesson']} ({l['count']}x)" for l in lessons[:2] if l["count"] >= MIN_LEAD_COUNT]
+    if not items:
         return None
-    items = [f"{l['lesson']} ({l['count']}x)" for l in lessons[:2]]
-    return "Was euch heute Runden gekostet hat: " + " und ".join(items) + "."
+    # neutral: nicht jeder dieser Tode hat die Runde gekostet (auch in gewonnenen Runden gezählt)
+    return "Woran ihr heute am häufigsten gestorben seid: " + " und ".join(items) + "."
 
 
 # ---------------------------------------------------------------- Coach-Ansprache für den ganzen Match
@@ -439,7 +456,8 @@ def intro(won: int, lost: int, map_label: str, lessons: list[dict]) -> list[str]
     out = [f"Ich hab mir euer {won}:{lost}{on} angesehen." if lost > won
            else f"{won}:{lost}{on}. Gewonnen, trotzdem gibt es was zu holen." if won > lost
            else f"{won}:{lost}{on}. Ich hab es mir angesehen."]
-    if lessons:  # nur das Thema; Anzahl, Matches und Kosten stehen direkt darunter als Zahlen
+    # nur das Thema, und nur bei einem Muster (mind. MIN_LEAD_COUNT Szenen); Zahlen stehen direkt darunter
+    if lessons and lessons[0]["count"] >= MIN_LEAD_COUNT:
         out.append(f"Heute geht es um: {lessons[0]['lesson']}.")
     return out
 

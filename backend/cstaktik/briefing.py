@@ -13,7 +13,11 @@ from cstaktik.reference import pro_spots, pro_utility, winning_spots
 SIDE_DE = {"ct": "CT", "t": "T"}
 
 
-def build(map_name: str, histories: list[dict], goals_state: dict, min_count: int = 2, pro: list[dict] | None = None) -> dict:
+MIN_PLACE_DEATHS = 3  # weniger Tode an einem Ort sind noch kein Muster
+
+
+def build(map_name: str, histories: list[dict], goals_state: dict, min_count: int = MIN_PLACE_DEATHS,
+          pro: list[dict] | None = None) -> dict:
     hs = [h for h in histories if h.get("map") == map_name]
     names: dict[str, str] = {}
     for h in hs:
@@ -41,7 +45,9 @@ def build(map_name: str, histories: list[dict], goals_state: dict, min_count: in
             elif f * 2 > n:
                 tip = f"In {place} fällt meist der erste Tod der Runde. Zeig dich dort nicht ohne Info oder Utility als Erster."
             else:
-                tip = f"{place} ist gelesen. Ändere das Timing, nimm den Spot mit Utility oder wechsle die Position."
+                # neutral: aus den Toden allein ist nicht zu sehen, ob der Gegner den Spot erwartet
+                tip = (f"Hier bist du {n}x gestorben. Probier ein anderes Timing, nimm den Spot mit Utility "
+                       "oder wechsle die Position.")
             notes.append({
                 "side": SIDE_DE[side],
                 "text": f"{names.get(sid, sid)}: {n}x in {place} gestorben, von {all_side[sid]} {SIDE_DE[side]}-Toden."

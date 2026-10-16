@@ -18,7 +18,8 @@ def test_review_window_vs_before():
     assert top["id"] == "alone" and top["count"] == 10 and top["rounds_lost"] == 1.5
     assert top["rate"] == 1.0 and top["rate_before"] == 2.0 and top["trend"] == "besser"
     assert p["duels"]["err"] == 18.0 and p["duels_before"]["err"] == 25.0
-    assert r["say"][0].startswith("Satoru: „Nicht ohne Trade-Partner peeken“ hat dich in den letzten 5 Matches")
+    assert r["say"][0].startswith("Satoru: „Nicht ohne Trade-Partner peeken“ ist dein größter Punkt der letzten 5 Matches")
+    assert "Verlorene Rundenchance bei diesen Toden: zusammen etwa 1,5 Runden" in r["say"][0]
     assert "weniger als davor" in r["say"][0] and "jetzt 18° daneben, vorher 25°. Das ist besser." in r["say"][0]
 
 
@@ -44,3 +45,16 @@ def test_review_team_trends():
     row = next(t for t in r["team"] if t["label"] == "T: nach eurem ersten Kill")
     assert row["now"]["won_pct"] == 100 and row["before"]["won_pct"] == 0 and row["trend"] == "besser"
     assert any(s.startswith("Als Team hat sich etwas bewegt. T: nach eurem ersten Kill jetzt 100 % gewonnen statt 0 %") for s in r["say"])
+
+
+def test_review_counts_draws_separately():
+    hs = [_h(i, 4, 20, 25.0) for i in range(3)]
+    hs[1].update(won=12, lost=12)
+    hs[2].update(won=9, lost=13)
+    r = review.build(hs, 5)
+    assert (r["won"], r["lost"], r["draws"]) == (1, 1, 1)
+
+
+def test_review_says_nothing_from_a_single_scene():
+    r = review.build([_h(0, 1, 40, 20.0)], 5)
+    assert r["say"] == []

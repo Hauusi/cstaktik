@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 
-from cstaktik.mechanics import is_gun
+from cstaktik.mechanics import is_gun, is_teamkill
 from cstaktik.model import Duel, MatchData
 
 EYE_HEIGHT = 64.0  # Augenhöhe stehend (Spieleinheiten), Näherung
@@ -42,7 +42,7 @@ def contacts(match: MatchData, window_s: float = 3.0) -> list[tuple]:
         dmg_round.setdefault(d.round, []).append(d)
     out = []
     for k in match.kills:
-        if not k.attacker_steamid or k.attacker_side == k.victim_side or not is_gun(k.weapon):
+        if not k.attacker_steamid or is_teamkill(match, k) or not is_gun(k.weapon):
             continue
         lo = k.tick - int(window_s * tr)
         sh = [s for s in by_round.get(k.round, []) if lo <= s.tick <= k.tick]
@@ -153,6 +153,15 @@ def compute(match: MatchData, views: dict[tuple[int, str], tuple], window_s: flo
                 out[-1].w_seen = first_seen(seen, win, a, v, tr)
                 out[-1].l_seen = first_seen(seen, win, v, a, tr)
     return out
+
+
+def shot_before_contact(match: MatchData, d: Duel, sid: str, window_s: float = 3.0) -> bool:
+    """Hat ``sid`` im Fenster vor dem Kill schon VOR dem Kontakt geschossen? Der Kontakt beginnt nur mit Schüssen,
+    die getroffen haben; ein früherer Fehlschuss des Opfers fehlt dort. Dann ist "Reaktion" nach dem Kontakt
+    keine Reaktion, sondern ein zweiter Versuch."""
+    lo = d.tick - int(window_s * match.tickrate)
+    return any(s.steamid == sid and s.round == d.round and is_gun(s.weapon) and lo <= s.tick < d.contact
+               for s in match.shots)
 
 
 def seen_first(mine: int | None, theirs: int | None, known: bool, tickrate: int) -> str | None:

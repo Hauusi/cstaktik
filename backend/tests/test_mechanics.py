@@ -49,11 +49,12 @@ def test_death_review_uses_shot_facts():
 def test_mechanics_goal_created_per_player():
     st = {"active": [], "done": []}
     summary = {"id": "1", "rounds": 24, "cause_rounds": {}, "cause_order": [],
-               "players": {ME: {"name": "Ich"}}, "mech": {ME: {"moving_pct": 50.0, "deaths_no_shot_pct": 10.0}}}
+               "players": {ME: {"name": "Ich", "deaths": 15}},
+               "mech": {ME: {"moving_pct": 50.0, "deaths_no_shot_pct": 10.0, "shots": 120}}}
     goals.update(st, summary, CFG["goals"], M)
     assert [g["title"] for g in st["active"]] == ["Stehend schießen (Ich)"]
     assert st["active"][0]["target_pct"] == 30.0
-    nxt = {**summary, "id": "2", "mech": {ME: {"moving_pct": 20.0}}}
+    nxt = {**summary, "id": "2", "mech": {ME: {"moving_pct": 20.0, "shots": 90}}}
     r = goals.update(st, nxt, CFG["goals"], M)
     assert r["checks"][0]["met"] and r["checks"][0]["pct"] == 20.0
 
@@ -107,8 +108,11 @@ def test_crosshair_lesson_and_duel_sentence():
     fx = {"label": "Duell verloren", "attacker": "Blackwell", "duel": {"err": 31.0, "opp_err": 4.0, "react": 250,
                                                                       "hit": False, "speed": 160}}
     assert lesson_id(fx) == "crosshair"
-    assert _duel_sentence(fx) == ("Beim ersten Schuss lag dein Fadenkreuz 31° neben Blackwell. Seins lag 4° neben dir. "
+    assert _duel_sentence(fx) == ("Beim Duellstart lag dein Fadenkreuz 31° neben Blackwell. Seins lag 4° neben dir. "
                                   "Dein erster Schuss kam 250 ms nach seinem. Du warst dabei mit 160 Units/s unterwegs.")
+    # eigener (verfehlter) Schuss vor dem Kontakt: keine Reaktionszeit, kein "nach seinem"
+    early = {**fx, "duel": {**fx["duel"], "early_shot": True}}
+    assert "nach seinem" not in _duel_sentence(early) and "zuerst geschossen" not in _duel_sentence(early)
     fx["duel"]["err"] = 8.0
     assert lesson_id(fx) == "duel"
 
@@ -186,13 +190,32 @@ def test_focus_prefers_recurring_pattern_over_one_off():
         return Finding(rule_id="death_review", title="t", round=1, tick=1, steamid="a", player_name="A", severity="hoch",
                        text="", tip="", evidence={"coach": {"id": lid}, "cost_pct": cost, "f": {"issues": issues}})
 
-    fs = [f("blind", 60, ["Geblendet"]), f("alone", 10, ["Allein, kein Trade", "Utility nicht genutzt"])]
+    fs = [f("blind", 60, ["Geblendet"]), f("blind", 0, ["Geblendet"]),
+          f("alone", 10, ["Allein, kein Trade", "Utility nicht genutzt"]),
+          f("alone", 5, ["Allein, kein Trade"])]
     assert focus(fs)[0]["id"] == "blind"  # ohne Gedächtnis: teuerster zuerst
     past = [{"lessons": {"a": {"alone": 2}}, "players": {"a": {}}}, {"lessons": {"a": {"alone": 1}}, "players": {"a": {}}}]
     top = focus(fs, recur=recurrence(past, "a"))
     assert top[0]["id"] == "alone" and top[0]["seen_in"] == 3 and top[0]["of_matches"] == 3
     util = next(x for x in focus(fs) if x["id"] == "utility")
     assert util["count"] == 1 and util["main"] == 0  # beteiligt, aber nicht Hauptfehler
+    assert not util["lead"]
+
+
+def test_one_off_lesson_never_leads():
+    from cstaktik.coach_voice import focus, headline, intro, recurrence
+    from cstaktik.model import Finding
+
+    def f(lid, cost, issues):
+        return Finding(rule_id="death_review", title="t", round=1, tick=1, steamid="a", player_name="A", severity="hoch",
+                       text="", tip="", evidence={"coach": {"id": lid}, "cost_pct": cost, "f": {"issues": issues}})
+
+    fs = [f("blind", 80, ["Geblendet"]), f("alone", 5, ["Allein, kein Trade"]), f("alone", 5, ["Allein, kein Trade"])]
+    assert focus(fs)[0]["id"] == "alone"  # einmal teuer schlägt kein Muster
+    past = [{"lessons": {"a": {"blind": 3}}, "players": {"a": {}}}] * 3
+    assert focus(fs, recur=recurrence(past, "a"))[0]["id"] == "alone"  # Gedächtnis hilft nur bei Muster heute
+    one = focus([f("blind", 80, ["Geblendet"])])
+    assert headline(one) is None and intro(10, 13, "Mirage", one) == ["Ich hab mir euer 10:13 auf Mirage angesehen."]
 
 
 def test_why_follows_the_data_not_assumed_intent():
@@ -261,3 +284,37 @@ def test_duel_reading_connects_the_numbers():
     assert duel_reading({**me, "shot_first": 57}, pro).startswith("Im Duell selbst bist du auf Pro-Niveau")
     assert duel_reading({**me, "n": 8}, pro) is None  # zu wenige Duelle
     assert duel_reading(me, None) is None
+
+
+def test_victim_missed_first_shot_is_not_a_late_reaction():
+    from cstaktik.duels import compute, shot_before_contact
+    from cstaktik.rules.death_review import _duel
+
+    m = build_match()
+    k = next(k for k in m.kills if k.victim_steamid == ME)
+    # ME schießt zuerst und verfehlt, dann schießt der Killer und trifft, dann ME erneut
+    m.shots += [Shot(round=k.round, tick=k.tick - 60, steamid=ME, weapon="weapon_m4a1", speed=0.0),
+                Shot(round=k.round, tick=k.tick - 40, steamid=k.attacker_steamid, weapon="weapon_ak47", speed=0.0),
+                Shot(round=k.round, tick=k.tick - 20, steamid=ME, weapon="weapon_m4a1", speed=0.0)]
+    m.duels = compute(m, {})
+    d = next(x for x in m.duels if x.loser == ME)
+    assert d.contact == k.tick - 40 and shot_before_contact(m, d, ME)
+    v = _duel(m, k)
+    assert v["early_shot"] and v["react"] is not None  # Rohwert bleibt, der Text lässt ihn weg
+
+
+def test_unknown_sides_are_not_a_teamkill():
+    from cstaktik.mechanics import is_teamkill
+
+    m = build_match()
+    k = next(k for k in m.kills if k.victim_steamid == ME)
+    k2 = k.model_copy(update={"attacker_side": None, "victim_side": None})
+    assert not is_teamkill(m, k2)  # Seiten aus der Runde: verschieden
+    m.round_by_num(k.round).sides.pop(k.attacker_steamid, None)
+    assert not is_teamkill(m, k2)  # eine Seite unbekannt: kein Teamkill
+    assert is_teamkill(m, k.model_copy(update={"attacker_side": "ct", "victim_side": "ct"}))
+    f = next(x for x in death_review.run(m, {**CFG["rules"]["death_review"], "mech": M}) if x.tick == k.tick)
+    assert f.rule_id == "death_review"
+    m.kills = [k2 if x is k else x for x in m.kills]
+    f = next(x for x in death_review.run(m, {**CFG["rules"]["death_review"], "mech": M}) if x.tick == k.tick)
+    assert f.title != "Tod: Teamschaden"

@@ -19,3 +19,10 @@ def test_levers_rank_lessons_and_round_gaps():
     assert round(lv[1]["gain"], 2) == 0.3  # 30 Prozentpunkte je Match, nur Spieler a
     assert all(x["title"] != "Erst Utility, dann Duell" for x in lv)  # 0,05 Runden: Rauschen
     assert levers.build([], pro, "a") == []
+
+
+def test_levers_need_enough_scenes():
+    hs = [{"players": {"a": {}}, "scenes": [{"sid": "a", "lesson": "alone", "cost": 90}]}]
+    assert levers.build(hs, [], "a") == []  # eine Szene in einem Match: keine Zahl
+    lv = levers.build(hs * 4, [], "a")
+    assert lv and lv[0]["text"].startswith("Verlorene Rundenchance bei diesen Toden") and "4 Szenen in 4 Matches" in lv[0]["text"]

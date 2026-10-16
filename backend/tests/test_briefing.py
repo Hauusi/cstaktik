@@ -52,3 +52,13 @@ def test_briefing_pro_utility():
     tl = [{"round": r, "sid": "p", "side": "t", "won": True, "places": []} for r in range(1, 7)]
     b = briefing.build("de_mirage", [], {"active": []}, pro=[{"id": "x", "map": "de_mirage", "nades": nades, "timeline": tl}])
     assert b["pro_util"] == [{"side": "T", "items": [{"kind": "Smoke", "from": "SynthT", "to": "SynthB", "n": 4, "rounds": 6}]}]
+
+
+def test_briefing_needs_three_deaths_and_stays_neutral():
+    def h(place, n):
+        return {"map": "de_mirage", "players": {"a": {"name": "A"}},
+                "deaths": [{"sid": "a", "side": "ct", "place": place, "first": False, "traded": True}] * n}
+
+    assert briefing.build("de_mirage", [h("SynthA", 2)], {"active": []})["notes"] == []
+    notes = briefing.build("de_mirage", [h("SynthA", 3)], {"active": []})["notes"]
+    assert notes[0]["tip"].startswith("Hier bist du 3x gestorben.") and "gelesen" not in notes[0]["tip"]

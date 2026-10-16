@@ -117,15 +117,16 @@ def test_pro_decisions_and_compare_by_situation():
     assert rows and all(r[4] in ("gehalten", "zurückgezogen", "Richtung Gegner") for r in rows)
     assert all(len(r) == 9 and r[0] in ("ct", "t") for r in rows)
 
-    # handgebaut: CT 4 gegen 5 ohne Bombe: 6x gehalten (4 Siege), 4x Richtung Gegner (1 Sieg)
-    dec = [["ct", 4, 5, 0, "gehalten", i < 4, i, 0, "p"] for i in range(6)] + \
-          [["ct", 4, 5, 0, "Richtung Gegner", i < 1, 10 + i, 0, "p"] for i in range(4)]
+    # handgebaut: CT 4 gegen 5 ohne Bombe: 12 Runden gehalten (8 Siege), 8 Runden Richtung Gegner (2 Siege)
+    dec = [["ct", 4, 5, 0, "gehalten", i < 8, i, 0, "p"] for i in range(12)] + \
+          [["ct", 4, 5, 0, "Richtung Gegner", i < 2, 20 + i, 0, "p"] for i in range(8)]
     pro = [{"id": "a", "map": "de_synth", "decisions": dec}]
     cmp = compare(pro, "de_synth", "ct", 4, 5, False, min_n=8)
-    assert cmp["best"] == "gehalten" and cmp["n"] == 10 and not cmp["coarse"]
+    assert cmp["best"] == "gehalten" and cmp["n"] == 20 and not cmp["coarse"]
     assert compare_text(cmp, "ct", 4, 5, False, "Richtung Gegner") == (
-        "Pros in dieser Lage: CT, 4 gegen 5, Bombe nicht gelegt. Basis: 10 Fälle aus 10 Runden in 1 Demo. "
-        "Position gehalten 6x, davon 67 % gewonnen. Richtung Gegner 4x, davon 25 % gewonnen. Du: Richtung Gegner.")
+        "Pros in dieser Lage: CT, 4 gegen 5, Bombe nicht gelegt. Basis: 20 Fälle aus 20 Runden in 1 Demo. "
+        "Position gehalten in 12 Runden, davon 67 % gewonnen. Richtung Gegner in 8 Runden, davon 25 % gewonnen. "
+        "Du: Richtung Gegner.")
     assert compare(pro, "de_other", "ct", 4, 5, False) is None
 
     m = _match(moving_at_death=True)
@@ -146,8 +147,8 @@ def test_pro_tip_and_situation_clip():
     pm.source_sha256 = "pm1"
     rnd = next(r for r in pm.rounds if r.winner == "ct")
     dec = [["ct", 4, 5, 0, "gehalten", True, rnd.num, rnd.freeze_end_tick + 15 * TR, MATES[2]]] + \
-          [["ct", 4, 5, 0, "gehalten", True, 100 + i, 0, "p"] for i in range(5)] + \
-          [["ct", 4, 5, 0, "Richtung Gegner", i < 1, 200 + i, 0, "p"] for i in range(4)]
+          [["ct", 4, 5, 0, "gehalten", True, 100 + i, 0, "p"] for i in range(8)] + \
+          [["ct", 4, 5, 0, "Richtung Gegner", i < 2, 200 + i, 0, "p"] for i in range(8)]
     pro = [{"id": "pm1", "map": "de_synth", "decisions": dec}]
     m = _match(moving_at_death=True)
     m.map_name = pm.map_name = "de_synth"
@@ -156,10 +157,25 @@ def test_pro_tip_and_situation_clip():
     enrich_pro(m, [f], pro)
     assert f.evidence["pro_tip"] == ('Pros gewinnen diese Lage am häufigsten mit "Position gehalten", '
                                      'zu 100 %. Du: Richtung Gegner (25 %).')
+    assert f.evidence["pro_rates"] == {"gehalten": [9, 9], "Richtung Gegner": [2, 8]}
     clips = pro_clips(m, [f], [pm], pro)  # kein Pro am selben Ort -> Szene nach Lage
     assert len(clips) == 1 and clips[0]["sid"] == MATES[2]
     assert f.evidence["pro_clip"].startswith("Gleiche Lage (CT, 4 gegen 5, Bombe nicht gelegt): Mate3 hat "
                                              "Position gehalten und die Runde gewonnen.")
+
+
+def test_pro_rates_count_rounds_not_players():
+    from cstaktik.coach_voice import _pro_line
+    from cstaktik.situation import compare
+
+    # 6 Runden, je 5 Pros "gehalten" (alle gewonnen) und 6 Runden je 5 Pros "Richtung Gegner": 30 Momente, 6 Runden
+    dec = [["ct", 4, 5, 0, "gehalten", True, r, 0, f"p{j}"] for r in range(6) for j in range(5)] + \
+          [["ct", 4, 5, 0, "Richtung Gegner", False, 10 + r, 0, f"p{j}"] for r in range(6) for j in range(5)]
+    cmp = compare([{"id": "a", "map": "m", "decisions": dec}], "m", "ct", 4, 5, False)
+    held = next(b for b in cmp["by"] if b["act"] == "gehalten")
+    assert (held["won"], held["rounds"], held["n"]) == (6, 6, 30)
+    assert cmp["best"] is None  # unter 8 Runden je Aktion: keine "beste" Aktion
+    assert _pro_line({"pro_best": "gehalten", "pro_rates": {"gehalten": [6, 6]}, "aktion": "Richtung Gegner"}) is None
 
 
 def test_no_best_action_with_single_option():
@@ -188,7 +204,7 @@ def test_coach_voice_scene_and_focus():
     assert "Gegner1 aus SynthPalace" in v["happened"]
     foc = coach_voice.focus([f, f])
     assert foc[0]["count"] == 2 and foc[0]["lesson"] == v["lesson"]
-    assert coach_voice.headline(foc).startswith("Was euch heute Runden gekostet hat: ")
+    assert coach_voice.headline(foc).startswith("Woran ihr heute am häufigsten gestorben seid: ")
 
 
 def test_coach_intro_memory_praise():
@@ -244,3 +260,14 @@ def test_pair_detail_uses_one_table():
     rows = [{"w": "t", "s": [[5, 5, 0], [5, 4, 0]], "eq": -1}] * 10 + [{"w": "ct", "s": [[5, 5, 0], [4, 5, 0]]}] * 10
     d = WinModel(rows).pair_detail((5, 5, False), (4, 5, False), -1)
     assert d["level"] == "exact" and (d["before"], d["after"]) == (0.5, 1.0) and d["n_after"] == 10
+
+
+def test_death_never_shows_negative_cost():
+    # Rauschen: aus 4v5 gewinnt CT 2 von 10, aus 3v5 aber 6 von 10 -> ein Tod würde die Chance "erhöhen"
+    rounds = [{"w": "ct" if i < 2 else "t", "s": [[4, 5, 0]]} for i in range(10)] + \
+             [{"w": "ct" if i < 6 else "t", "s": [[3, 5, 0]]} for i in range(10)]
+    model = WinModel(rounds, min_n=5)
+    m = _match(moving_at_death=True)
+    f = _finding(m)
+    enrich(m, [f], model, CFG)
+    assert "cost_pct" not in f.evidence and "chance" not in f.evidence

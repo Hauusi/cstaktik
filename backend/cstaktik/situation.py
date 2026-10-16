@@ -465,6 +465,10 @@ def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cf
         pb = (conv(d["before"]), d["n_before"], d["level"] == "coarse")
         pa = (conv(d["after"]), d["n_after"], d["level"] == "coarse")
         used_eq = d["level"] == "eq"
+        # Ein Tod kann die Chance des eigenen Teams nicht erhöhen (wie impact.py). Zeigt die Tabelle das doch,
+        # ist es Rauschen aus wenigen Runden: dann keine Kosten und keine Chance statt eines falschen Vorzeichens.
+        if pb[0] < pa[0]:
+            continue
         cost = round(100 * (pb[0] - pa[0]))
         f.evidence["cost_pct"] = cost
         traded = bool(trade)
@@ -515,10 +519,16 @@ def pro_decisions(match: MatchData, window_s: float = 5.0) -> list[list]:
     return out
 
 
+BEST_MIN_ROUNDS = 8  # so viele verschiedene Pro-Runden braucht eine Aktion, bevor sie "die beste" heißen darf
+
+
 def compare(pro: list[dict], map_name: str | None, side: str, own: int, enemy: int, planted: bool,
-            min_n: int = 8) -> dict | None:
+            min_n: int = 8, min_best: int = BEST_MIN_ROUNDS) -> dict | None:
     """Was haben Pros in derselben Lage gemacht und wie oft haben sie die Runde gewonnen?
-    Erst exakte Lage (gleiche Map), sonst gleiche Differenz und Bombe. None bei zu wenigen Fällen."""
+    Erst exakte Lage (gleiche Map), sonst gleiche Differenz und Bombe. None bei zu wenigen Fällen.
+
+    Je Aktion zählen RUNDEN, nicht Spieler-Momente: fünf Pros derselben Runde sind ein Fall. ``won``/``rounds``
+    = gewonnene / verschiedene Runden mit dieser Aktion, ``n`` = Spieler-Momente (nur für den Lage-Text)."""
     rows = [(d.get("id"), r) for d in pro if d.get("map") == map_name for r in d.get("decisions", [])]
     exact = [(i, r) for i, r in rows if (r[0], r[1], r[2], r[3]) == (side, own, enemy, int(planted))]
     coarse = False
@@ -534,11 +544,11 @@ def compare(pro: list[dict], map_name: str | None, side: str, own: int, enemy: i
         xs = [(i, r) for i, r in use if r[4] == act]
         if xs:
             # mehrere Pros derselben Runde sind keine unabhängigen Fälle: Runden extra zählen
-            by.append({"act": act, "n": len(xs), "won": sum(1 for _i, r in xs if r[5]),
-                       "rounds": len({(i, r[6]) for i, r in xs})})
-    # "Beste" Aktion nur, wenn mindestens zwei Aktionen aus je 3+ verschiedenen Runden verglichen werden können
-    cands = [b for b in by if b["rounds"] >= 3]
-    best = max(cands, key=lambda b: b["won"] / b["n"]) if len(cands) >= 2 else None
+            rnds = {(i, r[6]): r[5] for i, r in xs}
+            by.append({"act": act, "n": len(xs), "won": sum(1 for w in rnds.values() if w), "rounds": len(rnds)})
+    # "Beste" Aktion nur, wenn mindestens zwei Aktionen aus je ``min_best`` verschiedenen Runden vergleichbar sind
+    cands = [b for b in by if b["rounds"] >= min_best]
+    best = max(cands, key=lambda b: b["won"] / b["rounds"]) if len(cands) >= 2 else None
     return {"n": len(use), "by": by, "coarse": coarse, "best": best["act"] if best else None,
             "demos": len({i for i, _r in use}), "rounds": len({(i, r[6]) for i, r in use}), "rows": use}
 
@@ -547,7 +557,8 @@ def compare_text(cmp: dict, side: str, own: int, enemy: int, planted: bool, mine
     lage = f"{side.upper()}, {own} gegen {enemy}, Bombe {'liegt' if planted else 'nicht gelegt'}"
     if cmp["coarse"]:
         lage += f". Ähnliche Lage mit gleicher Differenz {own - enemy:+d}"
-    parts = [f"{ACTION_DE[b['act']]} {b['n']}x, davon {round(100 * b['won'] / b['n'])} % gewonnen." for b in cmp["by"]]
+    parts = [f"{ACTION_DE[b['act']]} in {b['rounds']} Runde{'n' if b['rounds'] != 1 else ''}, "
+             f"davon {round(100 * b['won'] / b['rounds'])} % gewonnen." for b in cmp["by"]]
     text = f"Pros in dieser Lage: {lage}. Basis: {cmp['n']} Fälle aus {cmp.get('rounds', '?')} Runden in " \
            f"{cmp['demos']} Demo{'s' if cmp['demos'] != 1 else ''}. " \
            + " ".join(parts)
@@ -558,7 +569,8 @@ def compare_text(cmp: dict, side: str, own: int, enemy: int, planted: bool, mine
 
 def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict], min_n: int = 8) -> None:
     """Ergänzt Tod-Analysen mit Lagebild um ``evidence["pro_lage"]`` (Vergleich nach Lage) und
-    ``evidence["pro_best"]`` (Aktion mit der höchsten Siegquote, mind. 3 Fälle)."""
+    ``evidence["pro_best"]`` (Aktion mit der höchsten Siegquote, mind. BEST_MIN_ROUNDS Runden je Aktion).
+    ``pro_rates``: Aktion -> [gewonnene Runden, Runden]."""
     for f in findings:
         snap = f.evidence.get("snap")
         if f.rule_id != "death_review" or not snap or f.round is None:
@@ -570,7 +582,7 @@ def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict], min_n
         cmp = compare(pro, match.map_name, side, snap["own"], snap["enemy"], snap["planted"], min_n)
         if cmp is None:
             continue
-        f.evidence["pro_rates"] = {b["act"]: [b["won"], b["n"]] for b in cmp["by"]}
+        f.evidence["pro_rates"] = {b["act"]: [b["won"], b["rounds"]] for b in cmp["by"]}
         f.evidence["pro_coarse"] = cmp["coarse"]
         f.evidence["pro_rounds"] = cmp.get("rounds")
         f.evidence["pro_lage"] = compare_text(cmp, side, snap["own"], snap["enemy"], snap["planted"],
@@ -578,11 +590,11 @@ def enrich_pro(match: MatchData, findings: list[Finding], pro: list[dict], min_n
         if cmp["best"]:
             f.evidence["pro_best"] = cmp["best"]
             mine = f.evidence.get("aktion")
-            rate = {b["act"]: (b["won"] / b["n"], b["n"]) for b in cmp["by"]}
+            rate = {b["act"]: (b["won"] / b["rounds"], b["rounds"]) for b in cmp["by"]}
             best_r = rate[cmp["best"]][0]
             mine_r = rate.get(mine, (None, 0))
             if mine and mine != cmp["best"] and (mine_r[0] is None or best_r - mine_r[0] >= 0.15):
-                vs = f" ({round(100 * mine_r[0])} %)" if mine_r[0] is not None and mine_r[1] >= 3 else ""
+                vs = f" ({round(100 * mine_r[0])} %)" if mine_r[0] is not None and mine_r[1] >= BEST_MIN_ROUNDS else ""
                 f.evidence["pro_tip"] = (f"Pros gewinnen diese Lage am häufigsten mit "
                                          f"\"{ACTION_DE[cmp['best']]}\", zu {round(100 * best_r)} %. "
                                          f"Du: {ACTION_DE.get(mine, mine)}{vs}.")

@@ -5,6 +5,12 @@ gewonnenen Runde oder sonst. Verglichen werden, was in den Demos steht: Impact j
 Erster der Runde stirbst und wie oft ohne Trade. Pistolenrunden (1. Runde jeder Hälfte) zählen nicht, weil davor
 nichts lief bzw. die Seite wechselt. Ein Unterschied ist ein Zusammenhang, kein Beweis; deshalb erst ab
 genug Runden je Gruppe und mit klaren Schwellen.
+
+Impact je Runde: Der Verlauf speichert nur Runden, in denen der Spieler einen bewerteten Wert bekam. Fehlt eine
+Runde, in der er gestorben ist, war sein Tod nicht bewertbar (zu wenig Vergleichsrunden, Bombe, falsches
+Vorzeichen): Impact unbekannt, die Runde fällt aus dem Impact-Schnitt. Fehlt eine Runde ohne Tod, lässt sich aus
+den gespeicherten Daten nicht unterscheiden, ob er dort nichts bewirkt hat oder ein Kill nicht bewertbar war; sie
+zählt weiter als 0.
 """
 
 from __future__ import annotations
@@ -38,8 +44,10 @@ def rows(hist: list[dict], sid: str) -> list[dict]:
                 "sieg" if prev_won else "sonst"
             if group:
                 d = deaths.get(num)
-                out.append({"group": group,
-                            "impact": None if imp is None else float(imp.get(str(num), imp.get(num, 0)) or 0),
+                val = imp.get(str(num), imp.get(num))
+                # gestorben, aber kein Wert gespeichert: Tod war nicht bewertbar -> unbekannt statt 0
+                impact = None if val is None and d else float(val or 0)
+                out.append({"group": group, "impact": impact,
                             "first": bool(d and d.get("first")), "untraded": bool(d and not d.get("traded"))})
             streak = 0 if won else streak + 1
             prev_won, prev_side = won, side

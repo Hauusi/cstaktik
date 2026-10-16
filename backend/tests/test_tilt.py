@@ -46,3 +46,13 @@ def test_no_impact_no_verdict():
     for h in hs:
         h["seq"] = {"a": h["seq"]}  # neues Format je Spieler
     assert tilt.summary(hs, "a")["enough"]
+
+
+def test_unscored_death_round_is_unknown_not_zero():
+    hs = _hist(1)
+    r = next(d["round"] for d in hs[0]["deaths"])
+    del hs[0]["impact"]["a"]["rounds"][str(r)]  # Tod nicht bewertbar
+    del hs[0]["impact"]["a"]["rounds"]["5"]  # Runde ohne Tod und ohne Wert: bleibt 0
+    rows = {i: x for i, x in enumerate(tilt.rows(hs, "a"))}
+    vals = [x["impact"] for x in rows.values()]
+    assert vals.count(None) == 1 and 0.0 in vals

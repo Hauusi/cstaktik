@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from cstaktik.mechanics import is_teamkill, kill_sides
 from cstaktik.model import MatchData, PlayerStats
 
 
@@ -12,12 +13,12 @@ def player_stats(match: MatchData, trade_window_s: float) -> list[PlayerStats]:
     kills = sorted(match.kills, key=lambda k: k.tick)
     first: dict[int, object] = {}
     for k in kills:  # erstes DUELL der Runde: Teamkills, Bombe, Fallschaden zählen nicht als Opening
-        if k.attacker_steamid and k.attacker_side and k.attacker_side != k.victim_side:
+        if k.attacker_steamid and kill_sides(match, k)[0] and not is_teamkill(match, k):
             first.setdefault(k.round, k)
     out = []
     for sid in sorted(match.focus_ids()):
         rounds = sum(1 for r in match.rounds if sid in r.sides)
-        my_kills = [k for k in kills if k.attacker_steamid == sid and k.victim_side != k.attacker_side]
+        my_kills = [k for k in kills if k.attacker_steamid == sid and not is_teamkill(match, k)]
         my_deaths = [k for k in kills if k.victim_steamid == sid]
         traded = 0
         for d in my_deaths:

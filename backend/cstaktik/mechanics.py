@@ -44,6 +44,21 @@ def is_gun(name: str | None) -> bool:
     return bool(w) and not any(x in w for x in _NO_GUN)
 
 
+def kill_sides(match: MatchData, k) -> tuple[str | None, str | None]:
+    """Seiten von Schütze und Opfer: aus dem Kill-Event, sonst aus den Seiten der Runde. None = unbekannt."""
+    rnd = match.round_by_num(k.round) if (k.attacker_side is None or k.victim_side is None) else None
+    sides = rnd.sides if rnd else {}
+    a = k.attacker_side or (sides.get(k.attacker_steamid) if k.attacker_steamid else None)
+    v = k.victim_side or sides.get(k.victim_steamid)
+    return a, v
+
+
+def is_teamkill(match: MatchData, k) -> bool:
+    """Teamkill nur, wenn beide Seiten bekannt und gleich sind. Unbekannt gegen unbekannt ist kein Teamkill."""
+    a, v = kill_sides(match, k)
+    return a is not None and a == v
+
+
 def mechanics(match: MatchData, cfg: dict) -> list[dict]:
     tr = match.tickrate
     gap = int(cfg["burst_gap_s"] * tr)
@@ -82,11 +97,11 @@ def mechanics(match: MatchData, cfg: dict) -> list[dict]:
         # Werte über max_plausible (z. B. Sprung, Fallschaden, Messfehler) gelten als unbekannt
         with_speed = [s for s in shots if s.speed is not None and s.speed <= cfg.get("max_plausible_speed_units_s", 400)]
         moving = [s for s in with_speed if s.speed > cfg["moving_shot_speed_units_s"]]
-        my_kills = [k for k in match.kills if k.attacker_steamid == sid and k.victim_side != k.attacker_side
+        my_kills = [k for k in match.kills if k.attacker_steamid == sid and not is_teamkill(match, k)
                     and is_gun(k.weapon)]
         # nur Tode im Duell (Gegner mit Schusswaffe): Bombe, Fallschaden, Granaten, Teamkills sind kein "ohne Schuss"
         deaths = [k for k in match.kills if k.victim_steamid == sid and k.attacker_steamid
-                  and k.attacker_steamid != sid and k.attacker_side != k.victim_side and is_gun(k.weapon)]
+                  and k.attacker_steamid != sid and not is_teamkill(match, k) and is_gun(k.weapon)]
         window = int(cfg["no_shot_window_s"] * tr)
         no_shot = [k for k in deaths
                    if not any(s.round == k.round and k.tick - window <= s.tick <= k.tick for s in shots)]

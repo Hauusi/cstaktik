@@ -12,7 +12,7 @@ Geblendet > Ohne Gegenwehr > Allein ohne Trade > Utility nicht genutzt > Wenig H
 
 from __future__ import annotations
 
-from cstaktik.mechanics import is_gun, weapon_key, weapon_label
+from cstaktik.mechanics import is_gun, is_teamkill, weapon_key, weapon_label
 from cstaktik.model import Finding, MatchData
 from cstaktik.rules.base import PositionIndex, dist, round_time_s
 
@@ -61,10 +61,13 @@ def _list_de(items: list[str]) -> str:
 
 def _duel(match: MatchData, k) -> dict | None:
     """Duell-Werte aus Sicht des Opfers (duels.py), falls die Demo sie hergibt."""
-    from cstaktik.duels import side_of
+    from cstaktik.duels import shot_before_contact, side_of
 
     d = next((d for d in match.duels if d.tick == k.tick and d.loser == k.victim_steamid), None)
-    return side_of(d, k.victim_steamid, match.tickrate) if d else None
+    v = side_of(d, k.victim_steamid, match.tickrate) if d else None
+    if v is not None and shot_before_contact(match, d, k.victim_steamid):
+        v["early_shot"] = True  # eigener Schuss vor dem Kontakt: Reaktionszeit sagt dann nichts
+    return v
 
 
 def _other_death(match: MatchData, k, sid: str, name: str) -> Finding:
@@ -78,7 +81,7 @@ def _other_death(match: MatchData, k, sid: str, name: str) -> Finding:
         what = "Zeus" if "taser" in w else "Messer"
     if k.attacker_steamid == sid:
         title, tip = "Eigener Schaden", f"Durch die eigene {what} gestorben. Halte Abstand zur eigenen Granate."
-    elif k.attacker_steamid and k.attacker_side == k.victim_side:
+    elif k.attacker_steamid and is_teamkill(match, k):
         title, tip = "Teamschaden", f"Getötet von Mitspieler {by} ({what})."
     elif what in ("Messer", "Zeus"):
         title, tip = what, f"{by} kam unbemerkt bis auf Nahkampf-Distanz. Behalte Rücken und Sound im Blick."
@@ -111,7 +114,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             continue
         side = rnd.sides.get(sid)
         name = match.name_of(sid)
-        if not k.attacker_steamid or k.attacker_side == k.victim_side or (k.weapon and not is_gun(k.weapon)):
+        if not k.attacker_steamid or is_teamkill(match, k) or (k.weapon and not is_gun(k.weapon)):
             findings.append(_other_death(match, k, sid, name))  # Bombe, Granate, Welt, Teamkill: kein Duell
             continue
         contact = next((d.contact for d in match.duels if d.tick == k.tick and d.loser == sid), None)

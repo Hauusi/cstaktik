@@ -4,7 +4,7 @@ Vergleicht das Fenster der letzten ``n`` Matches mit den ``n`` Matches davor (je
 - Lektionen: Anzahl, verlorene Rundenchance (Summe aus den Szenen), Rate pro 10 Runden vorher/jetzt.
 - Duelle: Median Fadenkreuz-Abweichung, Reaktion, Erste-Kugel-Treffer (aus history["duel_stats"]).
 - Auftrag: Checks im Fenster (geschafft/nicht).
-- Empfehlung: die teuerste Lektion im Fenster.
+- Empfehlung: die teuerste Lektion im Fenster (nur ab ``MIN_SAY_COUNT`` Szenen aus ``MIN_SAY_MATCHES`` Matches).
 Nur gespeicherte Werte aus dem Verlauf, nichts geschätzt.
 """
 
@@ -13,6 +13,9 @@ from __future__ import annotations
 from cstaktik.coaching import compare_rates
 
 import statistics
+
+MIN_SAY_COUNT = 3  # so oft muss eine Lektion im Fenster vorkommen, bevor die Ansage sie nennt
+MIN_SAY_MATCHES = 2  # ... in mindestens so vielen Matches
 
 
 def _de(x: float | None, d: int = 1) -> str:
@@ -24,11 +27,12 @@ def _lessons(window: list[dict], sid: str) -> dict[str, dict]:
     rounds = sum((h["players"][sid].get("rounds") or h.get("rounds") or 0) for h in window if sid in h.get("players", {}))
     for h in window:
         for lid, n in (h.get("lessons") or {}).get(sid, {}).items():
-            e = out.setdefault(lid, {"count": 0, "cost": 0})
+            e = out.setdefault(lid, {"count": 0, "cost": 0, "matches": 0})
             e["count"] += n
+            e["matches"] += 1 if n else 0
         for sc in h.get("scenes", []):
             if sc.get("sid") == sid and sc.get("cost"):
-                out.setdefault(sc["lesson"], {"count": 0, "cost": 0})["cost"] += max(0, sc["cost"])
+                out.setdefault(sc["lesson"], {"count": 0, "cost": 0, "matches": 0})["cost"] += max(0, sc["cost"])
     for e in out.values():
         e["rate"] = round(10 * e["count"] / rounds, 1) if rounds else None
         e["rounds"] = rounds
@@ -68,7 +72,8 @@ def build(histories: list[dict], n: int = 5) -> dict:
                 # derselbe ehrliche Vergleich wie im Fortschritt: Richtung nur bei genug Runden und klarem Abstand
                 c = compare_rates((o or {}).get("count", 0), _rounds(before, sid), e["count"], e.get("rounds") or 0)
                 trend, trend_text = (None if c["state"] == "wenig" else c["state"]), c["text"]
-            lessons.append({"id": lid, "title": LESSONS[lid][0], "count": e["count"], "rounds_lost": round(e["cost"] / 100, 1),
+            lessons.append({"id": lid, "title": LESSONS[lid][0], "count": e["count"], "matches": e["matches"],
+                            "rounds_lost": round(e["cost"] / 100, 1),
                             "rate": e["rate"], "rate_before": o.get("rate") if o else None, "trend": trend,
                             "trend_text": trend_text,
                             "mantra": TEACH[lid]["mantra"]})
@@ -80,6 +85,7 @@ def build(histories: list[dict], n: int = 5) -> dict:
                                     "count": c.get("count"), "rounds": c.get("rounds")}
                                    for c in checks]})
     won = sum(1 for h in window if (h.get("won") or 0) > (h.get("lost") or 0))
+    lost = sum(1 for h in window if (h.get("won") or 0) < (h.get("lost") or 0))  # Unentschieden ist keine Niederlage
     team = _team(window, before)
     say = _say(players, len(window))
     moved = [t for t in team if t["trend"] in ("besser", "schlechter")]
@@ -87,7 +93,7 @@ def build(histories: list[dict], n: int = 5) -> dict:
         say.append("Als Team hat sich etwas bewegt. " + " ".join(
             f"{t['label']} jetzt {t['now']['won_pct']} % gewonnen statt {t['before']['won_pct']} %."
             for t in moved[:3]))
-    return {"n": len(window), "won": won, "lost": len(window) - won, "players": players,
+    return {"n": len(window), "won": won, "lost": lost, "draws": len(window) - won - lost, "players": players,
             "has_before": bool(before), "say": say, "team": team}
 
 
@@ -129,10 +135,12 @@ def _say(players: list[dict], n: int) -> list[str]:
         if not p["lessons"]:
             continue
         top = p["lessons"][0]
-        s = (f"{p['name']}: „{top['title']}“ hat dich in den letzten {n} Matches am meisten gekostet. "
+        if top["count"] < MIN_SAY_COUNT or (top.get("matches") or 0) < MIN_SAY_MATCHES:
+            continue  # zu wenige Szenen für eine Ansage
+        s = (f"{p['name']}: „{top['title']}“ ist dein größter Punkt der letzten {n} Matches. "
              f"Das passierte {top['count']}x")
         if top["rounds_lost"] >= 0.3:
-            s += f", rechnerisch etwa {_de(top['rounds_lost'])} Runden"
+            s += f". Verlorene Rundenchance bei diesen Toden: zusammen etwa {_de(top['rounds_lost'])} Runden"
         s += "."
         if top["trend"] == "besser":
             s += " Es wird weniger als davor. Das greift."

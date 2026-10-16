@@ -2,7 +2,8 @@
 
 - Clutch: erwartete Siege nach Pro-Quote derselben Lage minus eigene Siege, je Match.
 - Fehler (Coach-Lektionen): Summe der verlorenen Rundenchance der Szenen (situation.cost_pct, Prozentpunkte) je Match.
-  Bedeutung: "kostet euch etwa so viele Runden pro Match".
+  Bedeutung: "verlorene Rundenchance bei diesen Toden", kein Beweis, dass genau diese Runden sonst gewonnen wären.
+  Nur ab ``MIN_SCENES`` Szenen aus ``MIN_MATCHES`` Matches.
 - Kauf, nach dem Plant, Retake, Taktikart (nur Full Buy, damit der Kauf nicht doppelt zählt): eure Runden dieser Art
   je Match mal Abstand der Siegquote zu den Pros.
   Bedeutung: "wenn ihr diese Runden so oft gewinnen würdet wie Pros, etwa so viele Runden mehr pro Match".
@@ -17,6 +18,8 @@ from cstaktik.coach_voice import LESSONS
 
 WINDOW = 10  # letzte Matches des Spielers
 MIN_GAIN = 0.2  # kleinere Hebel sind Rauschen
+MIN_SCENES = 4  # Fehler-Hebel: so viele Szenen mit Rundenchance ...
+MIN_MATCHES = 2  # ... aus mindestens so vielen Matches
 
 
 def _gap(own: dict | None, pro: dict | None, per_match: float, min_n: int) -> float | None:
@@ -33,13 +36,20 @@ def build(hist: list[dict], pro: list[dict], sid: str, cfg: dict | None = None, 
     out = []
     # Fehler: verlorene Rundenchance je Match
     cost: dict[str, float] = {}
-    for h in hs:
+    scenes: dict[str, int] = {}
+    matches: dict[str, set] = {}
+    for i, h in enumerate(hs):
         for sc in h.get("scenes", []):
             if sc.get("sid") == sid and sc.get("cost") and sc.get("lesson") in LESSONS and sc["lesson"] != "duel":
                 cost[sc["lesson"]] = cost.get(sc["lesson"], 0) + max(0, sc["cost"]) / 100
+                scenes[sc["lesson"]] = scenes.get(sc["lesson"], 0) + 1
+                matches.setdefault(sc["lesson"], set()).add(i)
     for lid, c in cost.items():
+        if scenes[lid] < MIN_SCENES or len(matches[lid]) < MIN_MATCHES:
+            continue  # zu wenige Szenen: eine Zahl daraus wäre Zufall
         out.append({"kind": "Fehler", "gain": c * per, "title": LESSONS[lid][0], "link": "/training",
-                    "text": f"Kostet euch etwa {_de(c * per)} Runden pro Match. Gemessen an der verlorenen Rundenchance in diesen Szenen."})
+                    "text": f"Verlorene Rundenchance bei diesen Toden: im Schnitt etwa {_de(c * per)} Runden pro Match, "
+                            f"aus {scenes[lid]} Szenen in {len(matches[lid])} Matches. Eine Rechnung, keine Garantie."})
     for side in ("t", "ct"):
         S = side.upper()
         own_b, pro_b = playbook.buy_mix(hs, cfg, side), playbook.buy_mix(pro, cfg, side)
