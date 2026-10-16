@@ -48,3 +48,6 @@ backend/data/fonts/
 # Login-Schlüssel und Account-Datenbank
 backend/data/secret.key
 backend/data/cstaktik.db
+
+# Arbeitskopien von Claude Code
+.claude/worktrees/
