@@ -1581,7 +1581,7 @@ def _mind(hist: list[dict], sid: str) -> list[str]:
         sure = [c for c in im["ctx"] if c["enough"] and c["ctx"] != "bomb"]
         if sure and sure[0]["per_match"] <= -0.15:
             w = sure[0]
-            out.append(f"{w['label']}: Das kostet dich {w['per_match_s'].lstrip('-')} Runden pro Match mehr als im "
+            out.append(f"{w['label']}: Hier liegst du {w['per_match_s'].lstrip('-')} Runden pro Match unter dem "
                        f"Schnitt. {impact.CTX_TIP[w['ctx']]}")
     t = tilt.summary(hist, sid)
     if t and t["reading"] and "messbar schlechter" in t["reading"]:
@@ -1847,7 +1847,7 @@ def _profile_summary(p: dict, a: dict | None) -> list[dict]:
     if p.get("levers"):
         lv = p["levers"][0]
         out.append({"label": "Hebel", "anchor": "hebel", "tone": "bad",
-                    "text": f"{lv['title']}: etwa +{lv['gain_s']} Runden pro Match möglich. {lv['text']}"})
+                    "text": f"{lv['title']}: verlorene Rundenchance etwa {lv['gain_s']} Runden pro Match. {lv['text']}"})
     im = p.get("impact") or {}
     if im.get("ctx_reading"):
         out.append({"label": "Impact", "anchor": "impact", "tone": "", "text": im["ctx_reading"]})

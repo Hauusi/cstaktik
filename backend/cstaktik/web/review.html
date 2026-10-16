@@ -25,7 +25,7 @@
 {% block hero %}
 <a class="back" href="/matches">‹ Matches</a>
 <h1>Review</h1>
-<p>Letzte {{ r.n }} Matches · {{ r.won }} gewonnen, {{ r.lost }} verloren{% if r.has_before %} · verglichen mit den {{ r.n }} davor{% endif %}.</p>
+<p>Letzte {{ r.n }} Matches · {{ r.won }} gewonnen, {{ r.lost }} verloren{% if r.draws %}, {{ r.draws }} unentschieden{% endif %}{% if r.has_before %} · verglichen mit den {{ r.n }} davor{% endif %}.</p>
 {% endblock %}
 {% block content %}
 {% if r.say %}<div class="say"><div class="av">C</div><div>{% for s in r.say %}<p>{{ s }}</p>{% endfor %}</div></div>{% endif %}

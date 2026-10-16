@@ -158,3 +158,14 @@ def test_notify_report_finds_history_entry(monkeypatch):
     monkeypatch.setattr(notify, "notify_match", lambda h, post=None: got.append(h) or 1)
     api._notify_report("m1.html")
     assert got and got[0]["id"] == "m1"
+
+
+def test_one_off_lesson_is_no_topic():
+    from cstaktik import history
+
+    h = {"lesson_rank": ["flash"], "lesson_rank_by": {"1": ["flash"]}, "lessons": {"1": {"flash": 1}}}
+    history.set_leads(h)
+    assert h["lead"] is None and h["lead_by"]["1"] is None
+    h["lessons"] = {"1": {"flash": 2}}
+    history.set_leads(h)
+    assert h["lead"] == "flash" and h["lead_by"]["1"] == "flash"

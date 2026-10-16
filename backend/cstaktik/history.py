@@ -265,12 +265,19 @@ def set_leads(h: dict) -> dict:
     Braucht ``focus_check``; ohne ihn bleibt es bei der Reihenfolge der Lektionen."""
     running = _running(h.get("focus_check"))
     rank = h.get("lesson_rank") or []
-    h["lead"] = next((lid for lid in rank if lid in running.values()), rank[0] if rank else None)
+    counts = h.get("lessons") or {}  # {sid: {lid: Anzahl}}
+
+    def often(lid, sids):  # einmal gestorben ist noch kein Thema (wie coach_voice.MIN_LEAD_COUNT)
+        return lid is not None and sum((counts.get(x) or {}).get(lid, 0) for x in sids) >= 2
+
+    first = rank[0] if rank and (not counts or often(rank[0], list(counts))) else None
+    h["lead"] = next((lid for lid in rank if lid in running.values()), first)
     h["main_lesson"] = h["lead"]
     by = {}
     for sid, ls in (h.get("lesson_rank_by") or {}).items():
         r = running.get(sid) or running.get(None)
-        by[sid] = r if r and r in ls else (ls[0] if ls else None)
+        top = ls[0] if ls and (sid not in counts or often(ls[0], [sid])) else None
+        by[sid] = r if r and r in ls else top
     h["lead_by"] = by
     return h
 

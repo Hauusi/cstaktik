@@ -110,7 +110,7 @@ def test_kabine_mind_uses_impact_context():
              "impact": {"a": {"total": -100, "ctx": {"opening": [-60.0, 4], "up": [-40.0, 3]},
                               "ctx_avg": {"opening": [0.0, 1], "up": [20.0, 1]}}}}] * 3
     lines = api._mind(hist, "a")
-    assert lines and lines[0].startswith("Opening-Duell: Das kostet dich 0,6 Runden pro Match")
+    assert lines and lines[0].startswith("Opening-Duell: Hier liegst du 0,6 Runden pro Match unter dem Schnitt")
     assert not any("Überzahl" in x for x in lines)
     assert api._mind([{"rounds": 20, "players": {"a": {}}}], "a") == []
 
