@@ -24,16 +24,20 @@ from cstaktik.fsutil import write_atomic
 BASE = pipeline.DATA_DIR / "autodl"
 CONFIG_DIR = BASE / "config"  # -> /config im Container
 DEMOS_DIR = BASE / "demos"  # -> /demos im Container
-CONTAINER_UID = 1000  # das Werkzeug läuft im Container als Nutzer "node"
 SCHEDULE = "*/20 * * * *"  # alle 20 Minuten
 SCAN_S = 60
 IMAGE = "ghcr.io/claabs/cs-demo-downloader:latest"
 
 
+def _ids() -> str:
+    """Der Container läuft als derselbe Nutzer wie der Coach: beide dürfen die Dateien lesen und verschieben."""
+    return f"{os.getuid()}:{os.getgid()}"
+
+
 def docker_command() -> str:
     """Einmal auf dem Server ausführen: startet den Download-Container (läuft danach von selbst weiter)."""
-    return (f"mkdir -p {CONFIG_DIR} {DEMOS_DIR} && chown -R {CONTAINER_UID}:{CONTAINER_UID} {BASE} && "
-            f"docker run -d --name cs-demo-downloader --restart unless-stopped "
+    return (f"mkdir -p {CONFIG_DIR} {DEMOS_DIR} && chown -R {_ids()} {BASE} && "
+            f"docker run -d --name cs-demo-downloader --restart unless-stopped --user {_ids()} "
             f"-v {CONFIG_DIR}:/config -v {DEMOS_DIR}:/demos {IMAGE}")
 
 
@@ -69,18 +73,13 @@ def build_config() -> dict | None:
 
 
 def write_config() -> bool:
-    """Konfiguration schreiben (nur lesbar für den Container-Nutzer, enthält das Bot-Passwort). True = geschrieben."""
+    """Konfiguration schreiben (nur lesbar für den Coach und den Container, enthält das Bot-Passwort)."""
     cfg = build_config()
     if cfg is None:
         return False
     path = CONFIG_DIR / "config.json"
     write_atomic(path, json.dumps(cfg, indent=2))
-    try:
-        os.chmod(path, 0o600)
-        os.chown(path, CONTAINER_UID, CONTAINER_UID)  # der Container liest als Nutzer 1000
-        os.chown(CONFIG_DIR, CONTAINER_UID, CONTAINER_UID)
-    except (PermissionError, OSError):
-        pass  # ohne root (z. B. Tests): Rechte bleiben, wie sie sind
+    os.chmod(path, 0o600)
     return True
 
 
