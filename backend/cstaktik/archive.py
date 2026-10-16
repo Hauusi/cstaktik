@@ -27,22 +27,22 @@ def is_archive_name(name: str) -> bool:
 
 
 def _is_demo(name: str) -> bool:
-    return name.lower().endswith((".dem", ".dem.bz2", ".dem.gz"))
+    return name.lower().endswith((".dem", ".dem.bz2", ".dem.gz", ".dem.zst"))
 
 
 def _safe(name: str) -> str:
     low = name.lower()
-    suffix = ".dem.bz2" if low.endswith(".dem.bz2") else ".dem.gz" if low.endswith(".dem.gz") else ".dem"
+    suffix = next((s for s in (".dem.bz2", ".dem.gz", ".dem.zst") if low.endswith(s)), ".dem")
     stem = re.sub(r"[^A-Za-z0-9._-]+", "_", name[: -len(suffix)]).strip("._") or "demo"
     return stem[:80] + suffix
 
 
 def _unique(dest: Path, name: str) -> Path:
     """Freier Name in ``dest``. Für .dem.bz2 muss auch die entpackte .dem frei sein (prepare_demo legt sie daneben)."""
-    stem, suffix = ((name[:-8], ".dem.bz2") if name.endswith(".dem.bz2") else (name[:-7], ".dem.gz")
-                    if name.endswith(".dem.gz") else (name[:-4], ".dem"))
+    suffix = next((s for s in (".dem.bz2", ".dem.gz", ".dem.zst") if name.endswith(s)), ".dem")
+    stem = name[: -len(suffix)]
     cand, i = stem, 2
-    while any((dest / f"{cand}{x}").exists() for x in (suffix, ".dem", ".dem.bz2", ".dem.gz")):
+    while any((dest / f"{cand}{x}").exists() for x in (suffix, ".dem", ".dem.bz2", ".dem.gz", ".dem.zst")):
         cand, i = f"{stem}_{i}", i + 1
     return dest / f"{cand}{suffix}"
 

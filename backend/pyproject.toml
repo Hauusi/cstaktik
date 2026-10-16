@@ -12,6 +12,7 @@ dependencies = [
     "pyyaml>=6.0",
     "pydantic>=2.6",
     "cryptography>=42",
+    "zstandard>=0.22",
 ]
 
 [project.optional-dependencies]

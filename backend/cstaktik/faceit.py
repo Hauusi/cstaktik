@@ -15,8 +15,6 @@ from __future__ import annotations
 
 from cstaktik.fsutil import write_atomic
 
-import bz2
-import gzip
 import json
 import os
 import shutil
@@ -81,7 +79,7 @@ def signed_url(resource_url: str) -> str:
 
 
 def download(url: str, dest_dir: Path, name: str, timeout: float = 120.0) -> Path:
-    """Lädt die Demo und entpackt .gz/.bz2 zu .dem. Andere Formate werden klar abgelehnt."""
+    """Lädt die Demo und entpackt .gz/.bz2/.zst zu .dem. Andere Formate werden klar abgelehnt."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     raw = dest_dir / f"{name}.part"
     req = urllib.request.Request(url, headers={"User-Agent": "cstaktik"})
@@ -97,23 +95,32 @@ def download(url: str, dest_dir: Path, name: str, timeout: float = 120.0) -> Pat
         with raw.open("rb") as fh:
             head = fh.read(8)
         if head[:2] == b"\x1f\x8b":
-            opener = gzip.open
+            kind = ".gz"
         elif head[:3] == b"BZh":
-            opener = bz2.open
+            kind = ".bz2"
+        elif head[:4] == b"\x28\xb5\x2f\xfd":
+            kind = ".zst"
         elif head[:7] == b"PBDEMS2":
             raw.replace(out)
             return out
-        elif head[:4] == b"\x28\xb5\x2f\xfd":
-            raise FaceitError("Demo ist zstd-komprimiert; dieses Format wird noch nicht unterstützt.")
         else:
-            raise FaceitError("Unbekanntes Demo-Format (kein .dem, .gz oder .bz2).")
+            raise FaceitError("Unbekanntes Demo-Format (kein .dem, .gz, .bz2 oder .zst).")
+        from cstaktik.pipeline import open_packed
+
+        import zstandard
+
         written = 0
-        with opener(raw, "rb") as fin, out.open("wb") as fout:
-            while chunk := fin.read(1 << 20):
-                written += len(chunk)
-                if written > MAX_DEMO_BYTES:  # entpackt begrenzen: eine kleine Datei kann sich riesig aufblähen
-                    raise FaceitError("Entpackte Demo größer als 2 GB, abgebrochen.")
-                fout.write(chunk)
+        try:
+            with open_packed(raw, kind) as fin, out.open("wb") as fout:
+                while chunk := fin.read(1 << 20):
+                    written += len(chunk)
+                    if written > MAX_DEMO_BYTES:  # entpackt begrenzen: eine kleine Datei kann sich riesig aufblähen
+                        raise FaceitError("Entpackte Demo größer als 2 GB, abgebrochen.")
+                    fout.write(chunk)
+        except FaceitError:
+            raise
+        except (EOFError, ValueError, zstandard.ZstdError) as exc:
+            raise FaceitError(f"Gepackte Demo ist kaputt ({kind}): {exc}") from exc
         return out
     except BaseException:
         out.unlink(missing_ok=True)

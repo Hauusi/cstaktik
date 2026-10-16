@@ -114,3 +114,35 @@ def test_reupload_same_gz_reuses_unpacked_demo(tmp_path, monkeypatch):
     assert sorted(p.name for p in pipeline.DEMOS_DIR.iterdir()) == ["x.dem"]  # kein x_2
     c.post("/analyze", files={"demo": ("x.dem.gz", gzip.compress(b"PBDEMS2 andere"))}, headers=hdr)
     assert "x_2.dem.gz" in {p.name for p in pipeline.DEMOS_DIR.iterdir()}
+
+
+def test_dem_zst_from_faceit(tmp_path, monkeypatch):
+    """FACEIT liefert Demos inzwischen als .dem.zst: entpacken, Upload annehmen, gleiche Demo erkennen."""
+    import zstandard
+    from fastapi.testclient import TestClient
+
+    from cstaktik import api, pipeline
+
+    z = zstandard.ZstdCompressor().compress
+    src = tmp_path / "1-abc-1-1.dem.zst"
+    src.write_bytes(z(b"PBDEMS2\0demo"))
+    assert pipeline.is_demo_name(src.name) and pipeline.demo_stem(src.name) == "1-abc-1-1"
+    out = pipeline.prepare_demo(src, remove_source=True)
+    assert out.name == "1-abc-1-1.dem" and out.read_bytes() == b"PBDEMS2\0demo" and not src.exists()
+    bad = tmp_path / "kaputt.dem.zst"
+    bad.write_bytes(b"\x28\xb5\x2f\xfdkaputt")
+    with pytest.raises(ValueError):
+        pipeline.prepare_demo(bad)
+    assert not (tmp_path / "kaputt.dem").exists()
+
+    monkeypatch.setattr(api._executor, "submit", lambda *a, **k: None)
+    monkeypatch.setattr(api, "_jobs", {})
+    pipeline.DEMOS_DIR.mkdir(parents=True, exist_ok=True)
+    (pipeline.DEMOS_DIR / "y.dem").write_bytes(b"PBDEMS2 demo")
+    c = TestClient(api.app)
+    hdr = {"origin": "http://testserver"}
+    r = c.post("/analyze", files={"demo": ("y.dem.zst", z(b"PBDEMS2 demo"))}, headers=hdr, follow_redirects=False)
+    assert r.status_code in (200, 303)
+    assert sorted(p.name for p in pipeline.DEMOS_DIR.iterdir()) == ["y.dem"]  # dieselbe Demo: kein Duplikat
+    c.post("/analyze", files={"demo": ("y.dem.zst", z(b"PBDEMS2 andere"))}, headers=hdr)
+    assert "y_2.dem.zst" in {p.name for p in pipeline.DEMOS_DIR.iterdir()}

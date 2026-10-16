@@ -46,7 +46,8 @@ class _Resp(io.BytesIO):
 @pytest.mark.parametrize("payload,ok", [
     (gzip.compress(b"PBDEMS2\x00rest"), True),
     (b"PBDEMS2\x00raw", True),
-    (b"\x28\xb5\x2f\xfdzstd", False),
+    (__import__("zstandard").ZstdCompressor().compress(b"PBDEMS2\x00zst"), True),
+    (b"\x28\xb5\x2f\xfdkaputt", False),
     (b"<html>", False),
 ])
 def test_download_formats(tmp_path, monkeypatch, payload, ok):

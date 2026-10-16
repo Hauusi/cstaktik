@@ -30,43 +30,104 @@ CACHE_SCHEMA = 15
 MAX_DEMO_BYTES = 2 * 1024**3
 
 
+# gepackte Demos: Valve (.bz2), FACEIT (.gz, neuer .zst)
+PACKED = (".dem.bz2", ".dem.gz", ".dem.zst")
+
+
+def packed_suffix(name: str) -> str | None:
+    """'.dem.bz2', '.dem.gz' oder '.dem.zst', wenn der Name eine gepackte Demo ist, sonst None."""
+    low = name.lower()
+    return next((s for s in PACKED if low.endswith(s)), None)
+
+
+def open_packed(path: Path, kind: str | None = None):
+    """Gepackte Demo zum Lesen öffnen (entpackt beim Lesen). Art nach ``kind`` oder der Dateiendung."""
+    import gzip
+
+    low = (kind or path.name).lower()
+    if low.endswith(".zst"):
+        return _ZstReader(path)
+    return gzip.open(path, "rb") if low.endswith(".gz") else bz2.open(path, "rb")
+
+
+class _ZstReader:
+    """Liest eine .zst-Datei entpackt. Anders als zstandard.stream_reader meldet sie eine abgeschnittene oder kaputte
+    Datei als Fehler (sonst entstünde still eine halbe Demo)."""
+
+    def __init__(self, path: Path):
+        import zstandard
+
+        self._z = zstandard
+        # großes Fenster erlauben: FACEIT packt mit langen Fenstern; die entpackte Größe begrenzt der Aufrufer
+        self._dctx = zstandard.ZstdDecompressor(max_window_size=1 << 31)
+        self._obj = self._dctx.decompressobj()
+        self._fh = path.open("rb")
+        self._buf = b""
+        self._started = False
+
+    def read(self, n: int = -1) -> bytes:
+        while n < 0 or len(self._buf) < n:
+            raw = self._fh.read(1 << 20)
+            if not raw:
+                if not self._started or not self._obj.eof:
+                    raise ValueError("unvollständige oder kaputte .zst-Datei")
+                break
+            self._started = True
+            while raw:
+                if self._obj.eof:  # nächster Frame
+                    self._obj = self._dctx.decompressobj()
+                self._buf += self._obj.decompress(raw)
+                raw = self._obj.unused_data if self._obj.eof else b""
+        out, self._buf = (self._buf, b"") if n < 0 else (self._buf[:n], self._buf[n:])
+        return out
+
+    def close(self) -> None:
+        self._fh.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+
 def demo_stem(name: str) -> str:
     """'match.dem.bz2' -> 'match', 'match.dem' -> 'match'."""
     low = name.lower()
-    for suffix in (".dem.bz2", ".dem.gz", ".bz2", ".gz", ".dem", ".json"):
+    for suffix in (".dem.bz2", ".dem.gz", ".dem.zst", ".bz2", ".gz", ".zst", ".dem", ".json"):
         if low.endswith(suffix):
             return name[: -len(suffix)]
     return name
 
 
 def is_demo_name(name: str) -> bool:
-    return name.lower().endswith((".dem", ".dem.bz2", ".dem.gz"))
+    return name.lower().endswith((".dem", *PACKED))
 
 
 def decompress_bz2(src: Path, dst: Path, max_bytes: int = MAX_DEMO_BYTES) -> Path:
-    """Entpackt .bz2 oder .gz (FACEIT liefert .dem.gz) mit Größengrenze."""
-    import gzip
+    """Entpackt .bz2, .gz oder .zst (FACEIT) mit Größengrenze."""
+    import zstandard
 
-    opener = gzip.open if src.name.lower().endswith(".gz") else bz2.open
     written = 0
     try:
-        with opener(src, "rb") as fin, dst.open("wb") as fout:
+        with open_packed(src) as fin, dst.open("wb") as fout:
             while chunk := fin.read(1 << 20):
                 written += len(chunk)
                 if written > max_bytes:
                     raise ValueError(f"Entpackte Demo größer als {max_bytes // 1024**2} MB")
                 fout.write(chunk)
-    except (OSError, EOFError, ValueError) as exc:
+    except (OSError, EOFError, ValueError, zstandard.ZstdError) as exc:
         dst.unlink(missing_ok=True)
-        if isinstance(exc, ValueError):
+        if isinstance(exc, ValueError) and not isinstance(exc, zstandard.ZstdError):
             raise
         raise ValueError(f"Keine gültige gepackte Demo ({src.suffix}): {exc}") from exc
     return dst
 
 
 def prepare_demo(path: Path, remove_source: bool = False) -> Path:
-    """.dem.bz2/.dem.gz wird neben die Quelle als .dem entpackt; alles andere bleibt unverändert."""
-    if not path.name.lower().endswith((".bz2", ".gz")):
+    """.dem.bz2/.dem.gz/.dem.zst wird neben die Quelle als .dem entpackt; alles andere bleibt unverändert."""
+    if not path.name.lower().endswith((".bz2", ".gz", ".zst")):
         return path
     target = decompress_bz2(path, path.with_name(f"{demo_stem(path.name)}.dem"))
     if remove_source:
