@@ -38,7 +38,7 @@
 <a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Situationen</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training/situationen?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if title %}{% if who and who != "Ich" %}Auftrag {{ who }}:{% else %}Dein Auftrag:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Erst entscheiden, dann siehst du, was passiert ist.</p>
+<p>{% if title %}{% if who and who != "Ich" %}Fokus {{ who }}:{% else %}Dein Fokus:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Erst entscheiden, dann siehst du, was passiert ist.</p>
 {% endblock %}
 {% block content %}
 {% if radars %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{% for m, img in radars.items() %}<image id="rad-{{ m }}" href="{{ img }}" width="1024" height="1024"/>{% endfor %}</defs></svg>{% endif %}

@@ -72,11 +72,13 @@ def test_run_writes_history_and_progress_route(tmp_path, monkeypatch):
     h["clutch"] = [{"sid": ME, "side": "t", "vs": 2, "planted": False, "won": True, "kills": 2, "alive": True,
                     "plant": True}]
     files[0].write_text(json.dumps(h))
-    page = TestClient(api.app).get(f"/progress?p={ME}").text
+    top = TestClient(api.app).get(f"/progress?p={ME}").text  # Fortschritt: drei Karten, Details verlinkt
+    assert "Impact-Trend" in top and "Punkte Siegchance je Runde" in top and "0 von 1 Mal bester Spieler" in top
+    assert f'href="/progress/details?p={ME}"' in top and "Clutch · als Letzter übrig" not in top
+    page = TestClient(api.app).get(f"/progress/details?p={ME}").text
     assert "Clutch · als Letzter übrig" in page and "1 gegen 2" in page and "Du 1 von 1" in page
     assert "Punkte Siegchance je Runde" in page
     assert "Tilt-Check" in page and h["seq"][ME]  # seq je Spieler aus summarize
-    assert "Platz 2/10" in TestClient(api.app).get("/").text
     h["moments"] = [{"sid": ME, "round": 3, "tick": 4000, "kind": "kill", "val": 22.5, "ctx": "opening", "other": "Gegner1"},
                     {"sid": ME, "round": 5, "tick": 6000, "kind": "death", "val": -30.0, "ctx": "up", "other": "Gegner2"}]
     files[0].write_text(json.dumps(h))

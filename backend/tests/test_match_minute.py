@@ -190,7 +190,7 @@ def test_minute_page_content_and_visibility():
     a.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
     assert api._is_new({"report_file": "m1.html", "analyzed_at": "2999-01-01T10:00"}, api._seen("Hausi"))
     home = a.get("/").text
-    assert 'href="/m/m1.html"' in home and 'href="/reports/m1.html"' in home  # Kurzfassung und ganzer Report
+    assert 'href="/m/m1.html"' in home and "Neues Match ansehen" in home  # neues Match: eine große Karte
     assert "/konto#push" in home  # noch kein Gerät für Benachrichtigungen
     page = a.get("/m/m1.html").text
     assert "13:7" in page and "Sieg" in page and "+2,5 Runden" in page and "Platz 2 von 10" in page

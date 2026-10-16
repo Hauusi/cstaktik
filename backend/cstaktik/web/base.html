@@ -57,6 +57,11 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
   .hero h1 { font-size: 38px; }
   .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 36px; align-items: start; }
 }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hset { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; color: var(--muted);
+  border: 1px solid var(--line); background: var(--surface); flex: none; }
+.hset svg { width: 20px; height: 20px; }
+.hset:hover, .hset.on { color: var(--orange); border-color: rgba(255,159,28,.45); }
 .err { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(240,86,106,.1); border: 1px solid rgba(240,86,106,.35); color: #ffc9d0; }
 
 /* ---- HUD-Design ---- */
@@ -80,7 +85,10 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 <body class="{% block bodyclass %}wide{% endblock %}">
 {% include "nav.html" %}
   <header class="hero"><div class="hero-in">
+    <div class="topbar">
     <a class="brand" href="/"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>cstaktik</a>
+    <a class="hset{{ ' on' if nav_active == 'settings' }}" href="/mehr" aria-label="Einstellungen" title="Einstellungen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></a>
+    </div>
     {% block hero %}{% endblock %}
   </div></header>
 <main>

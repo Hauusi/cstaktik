@@ -102,9 +102,8 @@ def _login(name):
 def test_today_block_on_home_and_minute_page():
     _save(_h("t1", _today("00"), (13, 9)))
     c = TestClient(api.app)
-    assert "Heute 2 Matches" not in c.get("/").text
     _save(_h("t2", _today("00").replace(":00:00", ":05:00"), (5, 13)))
-    assert "Heute 2 Matches: 1 Sieg, 1 Niederlage." in c.get("/").text
+    assert "Heute 2 Matches" not in c.get("/").text  # Startseite: nur neues Match und Fokus, der Abend steht im Match
     assert "Heute · 2 Matches" in c.get("/m/t2.html").text
     assert "Heute · 2 Matches" not in c.get("/m/t1.html").text  # bis zu diesem Match: erst eins
     slot = _slot()

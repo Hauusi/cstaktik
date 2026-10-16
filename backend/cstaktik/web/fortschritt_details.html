@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% from "bars.html" import cmpbar %}
+{% from "duelchain.html" import duelchain %}
+{% block title %}Fortschritt · Details{{ " · " ~ p.name if p }} · cstaktik{% endblock %}
+{% block head %}
+<style>
+.sec { margin-top: 8px; }
+.lrow { display: grid; grid-template-columns: 1fr 110px; gap: 4px 12px; align-items: center; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); }
+.lrow + .lrow { margin-top: 6px; }
+.lrow .t { font-weight: 700; } .lrow .s { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+.lrow svg { width: 110px; height: 34px; }
+.lrow polyline { fill: none; stroke: var(--muted); stroke-width: 1.6; } .lrow circle { fill: var(--text); }
+.lrow.besser polyline { stroke: #46a758; } .lrow.schlechter polyline { stroke: #e5484d; }
+.tr { font-family: var(--cond); font-weight: 800; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.tr.besser { color: #46a758; } .tr.schlechter { color: #e5484d; } .tr.gleich, .tr.wenig { color: var(--muted); }
+.mrow { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.mrow:last-child { border-bottom: 0; }
+.imp .imtop { display: grid; grid-template-columns: auto 1fr 110px; gap: 12px; align-items: center; }
+.imp .lg { font-size: 30px; font-weight: 800; }
+.imp svg { width: 110px; height: 34px; } .imp svg line { stroke: var(--line); stroke-dasharray: 2 3; }
+.imp svg polyline { fill: none; stroke: var(--muted); stroke-width: 1.6; } .imp svg circle { fill: #46a758; } .imp svg circle.neg { fill: #e5484d; }
+.jump { display: flex; gap: 6px; overflow-x: auto; margin-top: 14px; padding-bottom: 2px; scrollbar-width: none; }
+.jump a { flex: none; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; color: var(--muted); }
+.jump a:hover { color: var(--text); }
+h2[id] { scroll-margin-top: 70px; }
+.sumbox { margin-top: 18px; padding: 16px; border-radius: 18px; border: 1px solid rgba(255,159,28,.35);
+  background: linear-gradient(135deg, rgba(255,159,28,.12), rgba(255,159,28,.02) 60%), var(--surface); }
+.sumbox .kick { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); margin-bottom: 6px; }
+.sumrow { display: grid; grid-template-columns: 86px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14.5px; line-height: 1.4; }
+.sumrow:first-of-type { border-top: 0; }
+.sumrow > span { font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding-top: 2px; }
+.sumrow.bad > span { color: #ff9aa8; } .sumrow.good > span { color: #6fe0a6; }
+@media (min-width: 960px) { .sumbox { max-width: 860px; } }
+.dread { margin: 4px 0 10px; padding: 10px 12px; border-left: 3px solid var(--orange); background: rgba(255,159,28,.07); font-size: 14.5px; }
+</style>
+{% endblock %}
+{% block hero %}
+<a class="back" href="/progress{% if p %}?p={{ p.sid }}{% endif %}" style="display:inline-block;margin-top:14px">‹ Fortschritt</a>
+<h1 style="margin-top:6px">Alle Details{% if p and tabs|length <= 1 %} · {{ p.name }}{% endif %}</h1>
+{% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/progress/details?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<p>{% if p %}{{ p.n_matches }} Match{{ "es" if p.n_matches != 1 }} ausgewertet. Oben das Wichtigste, darunter alle Auswertungen.{% else %}Noch keine Matches.{% endif %}</p>
+{% if p %}<nav class="jump" aria-label="Abschnitte">{% for id, lbl, on in [("impact", "Impact", p.impact), ("hebel", "Hebel", p.levers), ("duelle", "Duelle", p.duels), ("fehler", "Fehler", p.lessons), ("seiten", "T/CT", p.sides), ("clutch", "Clutch", p.clutch), ("maps", "Maps", p.maps)] if on %}<a href="#{{ id }}">{{ lbl }}</a>{% endfor %}</nav>{% endif %}
+{% endblock %}
+{% block content %}
+{% if p %}
+{% if p.summary %}
+<section class="sumbox">
+  <div class="kick">Das Wichtigste</div>
+  {% for x in p.summary %}<a class="sumrow {{ x.tone }}" href="{{ '/progress?p=' ~ p.sid ~ '#fokus' if x.anchor == 'fokus' else '#' ~ x.anchor }}"><span>{{ x.label }}</span><div>{{ x.text }}</div></a>{% endfor %}
+</section>
+{% endif %}
+<div class="cols">
+<div class="col">
+{% if p.impact %}{% set im = p.impact %}
+<h2 id="impact">Impact · letzte {{ im.n }} Match{{ "es" if im.n != 1 }}</h2>
+<div class="card imp">
+  <div class="imtop"><span class="lg num" style="color:{{ '#46a758' if im.per_round > 0 else '#e5484d' if im.per_round < 0 else 'inherit' }}">{{ im.per_round_s }}</span>
+    <div><b>Punkte Siegchance je Runde</b><div class="small muted">Pro Match {{ im.match_s }} Runden: Kills {{ im.kill_s }}, Tode {{ im.death_s }}{% if im.obj %}, Bombe {{ im.obj_s }}{% endif %}.</div></div>
+    <svg viewBox="-4 -2 108 34" aria-hidden="true"><line x1="0" x2="100" y1="15" y2="15"/>{% if im.n > 1 %}<polyline points="{{ im.spark }}"/>{% endif %}{% for d in im.dots %}<circle cx="{{ d.x }}" cy="{{ d.y }}" r="2.6" class="{{ 'neg' if d.neg }}"/>{% endfor %}</svg></div>
+  <div class="small muted num" style="margin-top:8px">{% if im.ranked %}{{ im.top1 }} von {{ im.ranked }} Mal bester Spieler des Matches. Im Schnitt Platz {{ im.avg_rank|string|replace(".", ",") }}.{% endif %}{% if im.trend %} Trend: <span class="tr {{ im.trend }}">{{ {"besser": "besser", "schlechter": "schlechter", "gleich": "kein klarer Trend"}[im.trend] }}</span> ({{ im.trend_s }}).{% endif %}</div>
+  {% if im.ctx_reading %}<div class="dread" style="margin-top:10px">{{ im.ctx_reading }}</div>{% endif %}
+  {% if im.ctx %}<details class="sdet"{% if im.ctx_reading %} open{% endif %}><summary>Impact nach Lage</summary>
+  {% for c in im.ctx %}<div class="mrow"><div><b>{{ c.label }}</b> <span class="small muted num">{{ c.n }}x, im Schnitt {{ c.per_event_s }} Punkte{% if not c.enough %} · wenige Fälle{% endif %}</span></div>
+    <b class="num" style="color:{{ '#46a758' if c.per_match >= 0.15 else '#e5484d' if c.per_match <= -0.15 else 'inherit' }}">{{ c.per_match_s }}</b></div>{% endfor %}
+  <div class="small muted" style="margin-top:6px">Rechts: Runden pro Match im Vergleich zum Schnitt. 0 ist durchschnittlich.</div>
+  <details class="how"><summary>Wie wird das gemessen?</summary>
+    <p>Rechts steht der Abstand zum Durchschnitt aller Spieler in denselben Matches, in Runden pro Match. Links steht, wie oft die Lage vorkam. Dazu, was ein Kill oder Tod dort im Schnitt bewegt.</p></details>
+  </details>{% endif %}
+  <a href="/highlights?p={{ p.sid }}" style="display:inline-block;margin-top:8px;color:var(--orange);font-weight:700">Beste Plays und teuerste Momente ›</a>
+  <div class="small muted" style="margin-top:6px">Impact misst, wie stark du die Siegchance der Runden verschiebst.</div>
+  <details class="how"><summary>Wie wird das gemessen?</summary>
+    <ul><li>Jeder Kill, Tod, Plant und Defuse verschiebt die Siegchance der Runde.</li>
+      <li>Die Chancen sind aus euren Matches und den Pro-Demos gezählt.</li>
+      <li>Schaden ohne Kill, Granaten und Infos zählen nicht.</li>
+      <li>Die einzelnen Momente stehen im Report unter Analyse.</li></ul></details>
+</div>
+{% endif %}
+
+{% if p.levers %}
+<h2 id="hebel">Eure größten Hebel</h2>
+<div class="card lev">
+  {% for l in p.levers %}<a class="lv" href="{{ l.link }}"><span class="lg num">+{{ l.gain_s }}</span>
+    <div><b>{{ l.title }}</b><span class="lk2">{{ l.kind }}</span><div class="small muted">{{ l.text }}</div></div></a>{% endfor %}
+  <div class="small muted" style="margin-top:8px">Die Zahl: mögliche Runden pro Match. Eine Rechnung, keine Garantie.</div>
+  <details class="how"><summary>Wie wird das gemessen?</summary>
+    <ul><li>Gerechnet aus euren letzten Matches.</li>
+      <li>Bei Fehlern: die Rundenchance, die sie gekostet haben.</li>
+      <li>Sonst: der Abstand zu den Pros, wenn ihr diese Runden so oft gewinnen würdet wie sie.</li>
+      <li>Hebel können sich teilweise überschneiden.</li></ul></details>
+</div>
+{% endif %}
+
+{% if p.duels %}{% set d = p.duels %}{% set pr = p.pro %}
+<h2 id="duelle">Duell-Profil · letzte {{ p.duels.matches }} Matches</h2>
+<div class="card">
+  {% if p.reading %}<div class="dread">{{ p.reading }}</div>{% endif %}
+  {{ duelchain(d, pr, cmpbar) }}
+  <div class="small muted num" style="margin-top:10px">{{ d.n }} Duelle, {{ d.won|round|int }} % gewonnen. Gewichtet nach Fallzahl je Match.</div>
+</div>
+{% endif %}
+</div>
+
+<div class="col">
+<h2 id="fehler">Fehler im Verlauf</h2>
+{% for l in p.lessons %}
+<div class="lrow {{ l.trend.state }}">
+  <div class="t">{{ l.title }}</div>
+  <svg viewBox="-4 -2 108 36" aria-hidden="true">{% if l.spark.points %}<polyline points="{{ l.spark.points }}"/>{% set dl = l.spark.dots[-1] %}<circle cx="{{ dl.x }}" cy="{{ dl.y }}" r="3"/>{% endif %}</svg>
+  <div class="s num">{{ l.total }}x insgesamt · <span class="tr {{ l.trend.state }}">{{ {"besser": "besser", "schlechter": "schlechter", "gleich": "kein klarer Trend", "wenig": "noch zu wenig"}[l.trend.state] }}</span> · {{ l.trend.text }}</div>
+</div>
+{% else %}<div class="card empty">Noch keine Fehler-Daten.</div>{% endfor %}
+
+{% for sd in p.sides %}{% set S = sd.side|upper %}
+<h2{% if loop.first %} id="seiten"{% endif %}>{{ S }}-Seite · Opening, {{ "Plant" if sd.side == "t" else "Retake" }}, Kauf</h2>
+{% set reads = [sd.fb.reading, sd.pp.reading, sd.buys.reading]|select|list %}
+<div class="card">
+  {% for r in reads %}<div class="dread">{{ r }}</div>{% endfor %}
+  {% if not reads %}<div class="small muted">{% if sd.fb.pro.total + sd.pp.pro.total + sd.buys.pro.total == 0 %}Noch kein Pro-Vergleich. Die Pro-Demos haben für diese Seite keine Daten. Mehr Pro-Demos hochladen oder pro-update ausführen.{% else %}Nichts Auffälliges. Wo es genug Runden gibt, liegt ihr nicht klar unter den Pros.{% endif %}</div>{% endif %}
+  <details class="sdet"{% if reads %} open{% endif %}><summary>Alle Werte</summary>
+
+  {% if sd.fb.own.total %}
+  <div class="small muted" style="margin:4px 0 2px">Nach dem ersten Kill: Wie oft gewinnt ihr die Runde?</div>
+  {% for k in ["for", "against"] %}{% set o = sd.fb.own.rows.get(k) %}{% set q = sd.fb.pro.rows.get(k) %}
+  {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
+    <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {{ q.won_pct }} % ({{ q.n }}){% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+  {% endfor %}{% endif %}
+  {% if sd.pp.own.total %}
+  <div class="small muted" style="margin:12px 0 2px">{{ "Nach dem Plant: Siege je nach Spielerzahl" if sd.side == "t" else "Retake: Siege je nach Spielerzahl beim Plant" }}</div>
+  {% for k in ["up", "even", "down"] %}{% set o = sd.pp.own.rows.get(k) %}{% set q = sd.pp.pro.rows.get(k) %}
+  {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
+    <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {{ q.won_pct }} % ({{ q.n }}){% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+  {% endfor %}{% endif %}
+  {% if sd.buys.own.total %}
+  <div class="small muted" style="margin:12px 0 2px">Kauf: wie oft und wie erfolgreich</div>
+  {% for k in ["eco", "force", "full"] %}{% set o = sd.buys.own.buys.get(k) %}{% set q = sd.buys.pro.buys.get(k) %}
+  {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
+    <span class="small muted num">Ihr {{ o.share if o else 0 }} % der Runden{% if o %}, {{ o.won }}/{{ o.n }} gewonnen{% endif %}{% if q %} · Pros {{ q.share }} %, {{ q.won_pct }} % gewonnen{% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+  {% endfor %}{% endif %}
+  <div class="small muted num" style="margin-top:8px">Basis: {{ sd.pp.own.total }} eigene {{ S }}-Runden mit Plant und {{ sd.buys.own.total }} mit Kaufwerten, alle Maps. Pistolenrunden zählen nicht. Kauf ist die Ausrüstung der 5 {{ S }} beim Rundenstart. Eco geht bis {{ p.buy_cfg.eco_max }}, Force bis {{ p.buy_cfg.force_max }}.</div>
+  </details>
+</div>
+{% endfor %}
+
+{% if p.tilt %}{% set tl = p.tilt %}
+<h2 id="tilt">Tilt-Check · nach verlorenen Runden</h2>
+<div class="card">
+  {% if tl.reading %}<div class="dread">{{ tl.reading }}</div>{% else %}<div class="small muted">Noch zu wenige Runden für eine Aussage. Nötig sind je mindestens 25 Runden nach einer Serie und nach einem Sieg.</div>{% endif %}
+  <details class="sdet"><summary>Alle Werte</summary>
+  {% for k in ["serie", "sonst", "sieg"] %}{% set g = tl.groups[k] %}
+  <div class="mrow"><div><b>{{ g.label }}</b>
+    <span class="small muted num">{{ g.n }} Runden{% if g.n %} · als Erster gestorben {{ g.first }} % · ohne Trade gestorben {{ g.untraded }} %{% endif %}</span></div>
+    {% if g.impact_s %}<b class="num" style="color:{{ '#46a758' if g.impact > 0 else '#e5484d' if g.impact < 0 else 'inherit' }}">{{ g.impact_s }}</b>{% endif %}</div>
+  {% endfor %}
+  <div class="small muted" style="margin-top:8px">Rechts: Impact je Runde in Punkten Siegchance. Pistolenrunden zählen nicht. Ein Unterschied ist ein Zusammenhang, kein Beweis.</div>
+  </details>
+</div>
+{% endif %}
+
+{% if p.clutch %}{% set c = p.clutch %}
+<h2 id="clutch">Clutch · als Letzter übrig</h2>
+<div class="card">
+  {% if c.reading %}<div class="dread">{{ c.reading }}</div>{% else %}<div class="small muted">{% if c.exp_n < 5 %}Noch zu wenige Clutches mit Pro-Vergleich. Eine Bewertung gibt es ab 5.{% else %}Nichts Auffälliges.{% endif %}</div>{% endif %}
+  <details class="sdet"{% if c.reading %} open{% endif %}><summary>Alle Werte</summary>
+  {% for r in c.rows %}<div class="mrow"><div><b>{{ r.label }}</b>
+    <span class="small muted num">{% if r.n %}Du {{ r.won }} von {{ r.n }}{% else %}Du noch keiner{% endif %}{% if r.pro_pct is not none %} · Pros {{ r.pro_pct }} % ({{ r.pro_n }}){% endif %}</span></div>
+    {% if r.n %}<b class="num" style="color:{{ '#46a758' if r.pro_pct is not none and r.won_pct - r.pro_pct >= 10 else '#e5484d' if r.pro_pct is not none and r.pro_pct - r.won_pct >= 10 and r.n >= 5 else 'inherit' }}">{{ r.won_pct }} %</b>{% endif %}</div>
+  {% endfor %}
+  <div class="small muted num" style="margin-top:8px">{{ c.n }} Clutches, {{ c.won }} gewonnen, {{ c.kills }} Kills.{% if c.lost %} Von {{ c.lost }} verlorenen hast du {{ c.saved }} überlebt und die Waffe gerettet.{% endif %}{% if c.t_plant.n %} Als T ohne gelegte Bombe hast du sie {{ c.t_plant.planted }} von {{ c.t_plant.n }} Mal noch gelegt.{% if c.t_plant.pro_pct is not none %} Pros: {{ c.t_plant.pro_pct }} %.{% endif %}{% endif %} Pro-Quoten stammen aus den Pro-Demos, alle Maps.</div>
+  </details>
+</div>
+{% endif %}
+
+<h2 id="maps">Maps</h2>
+<div class="card">
+{% for m in p.maps %}
+<div class="mrow"><div><b>{{ m.label }}</b> <span class="small muted num">{{ m.matches }} Match{{ "es" if m.matches != 1 }}, {{ m.won }} gewonnen</span>
+  {% if m.worst %}<div class="small muted num">Häufigster Fehler: {{ m.worst.title }}, {{ m.worst.count }}x in {{ m.worst.rounds }} Runden</div>{% endif %}</div>
+  <a class="go" href="/mapbook/{{ m.map }}?p={{ p.sid }}" style="color:var(--orange);white-space:nowrap">Map-Buch ›</a></div>
+{% endfor %}
+</div>
+<h2>Letzte Matches</h2>
+<div class="card">
+{% for mt in p.matches %}<div class="mrow"><span>{{ mt.label }}</span><span class="num"><b style="color:{{ '#46a758' if mt.won > mt.lost else '#e5484d' if mt.lost > mt.won else 'inherit' }}">{{ mt.won }}:{{ mt.lost }}</b>{% if mt.report %} · <a href="/reports/{{ mt.report }}" style="color:var(--orange)">Report ›</a>{% endif %}</span></div>{% endfor %}
+</div>
+<a class="more-link" href="/progress/karte">Todes-Karte und alle Kurven ›</a>
+<a class="more-link" href="/spieler">Spieler einstellen ›</a>
+</div>
+</div>
+{% endif %}
+{% endblock %}
