@@ -189,22 +189,24 @@ def send_user(user: str, message: dict, post=None) -> int:
 # ---------------------------------------------------------------- Nachrichten
 
 def match_message(h: dict, sid: str) -> dict:
-    """Kurzmeldung zu einem ausgewerteten Match aus dem Verlaufs-Eintrag (nur Daten aus der Auswertung)."""
+    """Kurzmeldung zu einem ausgewerteten Match aus dem Verlaufs-Eintrag (nur Daten aus der Auswertung), aus Sicht
+    des Spielers: sein Ergebnis (seine Seite), sein Impact, sein Thema."""
+    from cstaktik import history
     from cstaktik.coach_voice import LESSONS
     from cstaktik.impact import de
 
-    won, lost = h.get("won", 0), h.get("lost", 0)
+    won, lost = history.score(h, sid)
     res = "gewonnen" if won > lost else "verloren" if lost > won else "unentschieden"
     label = (h.get("map") or "").removeprefix("de_").capitalize() or "Match"
     parts = []
     imp = (h.get("impact") or {}).get(sid)
     if imp and imp.get("total") is not None:
         parts.append(f"Dein Impact: {de(imp['total'] / 100)}")
-    lid = h.get("main_lesson")
+    lid = history.lead(h, sid)
     if lid in LESSONS and lid != "duel":
-        parts.append(f"Thema: {LESSONS[lid][0]}")
+        parts.append(f"Dein Thema: {LESSONS[lid][0]}")
     return {"title": f"{label} {won}:{lost} {res}", "body": ". ".join(parts) or "Der Report ist fertig.",
-            "url": f"/reports/{h['report_file']}" if h.get("report_file") else "/matches"}
+            "url": f"/m/{h['report_file']}" if h.get("report_file") else "/matches"}
 
 
 def notify_match(h: dict, post=None) -> int:

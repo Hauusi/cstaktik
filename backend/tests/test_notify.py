@@ -82,7 +82,7 @@ def test_notify_match_only_players():
     assert notify.notify_match(h, lambda url, body, headers: got.append(url) or 201) == 1
     assert got == ["https://fcm.googleapis.com/fcm/send/Hausi"]
     msg = notify.match_message(h, "76561198000000001")
-    assert msg["title"] == "Mirage 13:10 gewonnen" and msg["url"] == "/reports/r.html" and "Impact" in msg["body"]
+    assert msg["title"] == "Mirage 13:10 gewonnen" and msg["url"] == "/m/r.html" and "Impact" in msg["body"]
 
 
 def test_app_files_without_login_and_push_routes():

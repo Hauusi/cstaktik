@@ -608,7 +608,7 @@ def _notify_report(report: str) -> None:
     from cstaktik import history, notify
 
     try:
-        h = next((x for x in history.load_all() if x.get("report_file") == report), None)
+        h = next((x for x in history.load_all(pipeline.HISTORY_DIR) if x.get("report_file") == report), None)
         notify.notify_match(h)
     except Exception:  # noqa: BLE001 - eine fehlgeschlagene Nachricht darf die Auswertung nicht stören
         pass
@@ -788,27 +788,74 @@ def index() -> str:
                  "of": r.get("of")}
                 for s, r in sorted(((hist[-1].get("impact") or {}) if hist else {}).items()) if s in _mine([s])]
     auftrag = _auftrag(hist)
+    _ensure_weekplans(hist, [a["sid"] for a in auftrag])
     week = _week_progress([a["sid"] for a in auftrag])
     seen = _seen(_USER.get())
+    from cstaktik import autodl
+
+    try:
+        auto = bool(autodl.status()["config"])
+    except Exception:  # noqa: BLE001 - ohne Download-Konfiguration bleibt es beim Hochladen
+        auto = False
+    # Neue Matches (noch nicht geöffnet), neueste zuerst; das letzte steht schon oben als eigene Karte
+    unseen = [_last_view(h) for h in reversed(hist[:-1]) if _is_new(h, seen)][:5]
+    push_hint = False
+    if _USER.get() and _me():  # erst nach der Steam-Verbindung: vorher kommt ohnehin keine Nachricht
+        from cstaktik import notify
+
+        push_hint = not notify.subs(_USER.get())
     return _env.get_template("index.html").render(
         nav_active="coach", jobs=jobs, n_history=len(hist), last={**_last_view(hist[-1]), "new": _is_new(hist[-1], seen)} if hist else None,
         briefing_maps=maps, auftrag=auftrag, missing_players=missing if hist else 0, lever=lever, last_imp=last_imp,
         me_name=names.get(_me()) if _me() else None, week=week,
         need_link=_USER.get() is not None and not _me(),
+        auto=auto and bool(hist), unseen=unseen, push_hint=push_hint,
+        n_new=len(unseen) + (1 if hist and _is_new(hist[-1], seen) else 0),
     )
 
 
+def _ensure_weekplans(hist: list[dict], sids: list[str]) -> None:
+    """Wochenplan der aktuellen Woche anlegen, falls er fehlt oder der Auftrag gewechselt hat (sonst nichts tun:
+    der Plan wird nur gebaut, wenn es nötig ist). So zeigt die Startseite den Fortschritt auch ohne Besuch auf
+    /training, z. B. nach einer automatischen Auswertung."""
+    from cstaktik import coaching, weekplan
+
+    key = weekplan.week_key(weekplan.local_today())
+    players = _players_state()
+    todo = [sid for sid in sids if (players.get(sid) or {}).get("focus")
+            and ((players[sid].get("weeks") or {}).get(key) or {}).get("lesson") != players[sid]["focus"]["lesson"]]
+    if not todo:
+        return
+    pro_all = _load_pro()
+    for sid in todo:
+        try:
+            ctx = _plan_ctx(hist, pro_all, sid, players[sid]["focus"])  # außerhalb der Sperre (liest nur)
+            with coaching.LOCK:  # frisch laden: Haken, die inzwischen gesetzt wurden, bleiben erhalten
+                state = coaching.load(pipeline.COACHING_FILE)
+                slot = state.get("players", {}).get(sid)
+                if not slot or (slot.get("focus") or {}).get("lesson") != ctx["lesson"]:
+                    continue
+                if weekplan.ensure(slot, ctx)[2]:
+                    coaching.save(state, pipeline.COACHING_FILE)
+        except Exception:  # noqa: BLE001 - ein fehlender Plan darf die Startseite nicht verhindern
+            continue
+
+
 def _last_view(h: dict) -> dict:
-    """Letztes Match für die Startseite: Ergebnis, Datum, Thema."""
+    """Ein Match für die Startseite: Ergebnis, Datum, Thema. Mit Steam verbunden: aus Sicht des eigenen Spielers
+    (seine Seite, sein Thema), sonst fürs Team."""
+    from cstaktik import history
     from cstaktik.coach_voice import LESSONS
 
-    won, lost = h.get("won", 0), h.get("lost", 0)
-    lid = h.get("main_lesson")
+    me = _me() if _me() in (h.get("players") or {}) else None
+    won, lost = history.score(h, me)
+    lid = history.lead(h, me)
     try:
         when = datetime.fromisoformat(h["analyzed_at"]).strftime("%d.%m. %H:%M")
-    except (KeyError, ValueError):
+    except (KeyError, ValueError, TypeError):
         when = None
-    return {**h, "result": "Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden",
+    return {**h, "won": won, "lost": lost,
+            "result": "Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden",
             "res": "w" if won > lost else "l" if lost > won else "d", "when": when,
             "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(),
             "topic": LESSONS[lid][0] if lid in LESSONS and lid != "duel" else None}
@@ -853,8 +900,13 @@ def matches_page() -> str:
         if h and h.get("analyzed_at"):
             r["date"] = datetime.fromisoformat(h["analyzed_at"]).strftime("%d.%m.%Y %H:%M")
             r["sort"] = h["analyzed_at"]
-            lid = h.get("main_lesson")
+            from cstaktik import history
+
+            me = _me() if _me() in (h.get("players") or {}) else None
+            lid = history.lead(h, me)
             r["topic"] = LESSONS[lid][0] if lid in LESSONS and lid != "duel" else None
+            if me:  # Ergebnis aus Sicht des eigenen Spielers (falls ihr gegeneinander gespielt habt)
+                r["won"], r["lost"] = history.score(h, me)
             from cstaktik.impact import de
 
             r["imp"] = [{"name": (h.get("players", {}).get(sid) or {}).get("name", sid), "v": de(x["total"] / 100),
@@ -868,6 +920,75 @@ def matches_page() -> str:
     reports.sort(key=lambda r: r.get("sort") or "", reverse=True)
     return _env.get_template("matches.html").render(nav_active="matches", jobs=_running_jobs(),
                                                     reports=reports, n_history=len(hist))
+
+
+def _focus_entry(fc: dict | None, sid: str) -> dict | None:
+    """Auftrags-Ergebnis dieses Spielers aus ``focus_check``; altes Format (ein gemeinsamer Auftrag) gilt für alle."""
+    if not fc:
+        return None
+    if "check" in fc or "focus" in fc and not any(isinstance(v, dict) and "check" in v for v in fc.values()):
+        return fc
+    v = fc.get(sid)
+    return v if isinstance(v, dict) else None
+
+
+def _minute_player(h: dict, sid: str) -> dict:
+    """Ein Spieler in "Dein Match in 60 Sekunden": nur Werte, die im Verlaufs-Eintrag stehen. Fehlt etwas, bleibt
+    das Feld leer und die Seite lässt den Block weg."""
+    from cstaktik import history
+    from cstaktik.coach_voice import LESSONS
+    from cstaktik.curriculum import TEACH
+    from cstaktik.impact import de
+
+    won, lost = history.score(h, sid)
+    out = {"sid": sid, "name": ((h.get("players") or {}).get(sid) or {}).get("name", sid), "won": won, "lost": lost,
+           "res": "w" if won > lost else "l" if lost > won else "d",
+           "result": "Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden"}
+    imp = (h.get("impact") or {}).get(sid)
+    if imp and imp.get("total") is not None:
+        out["imp"] = {"total": de(imp["total"] / 100), "pos": imp["total"] > 0, "rank": imp.get("rank"),
+                      "of": imp.get("of")}
+    fc = _focus_entry(h.get("focus_check"), sid) or {}
+    c = fc.get("check")
+    if c and c.get("rate") is not None and c.get("target") is not None:
+        de1 = lambda x: str(x).replace(".", ",")  # noqa: E731
+        out["check"] = {"title": c.get("title"), "rate": de1(c["rate"]), "target": de1(c["target"]),
+                        "count": c.get("count"), "rounds": c.get("rounds"), "met": c.get("met"),
+                        "streak": c.get("streak"), "need": c.get("need"), "mastered": bool(fc.get("mastered"))}
+    lid = history.lead(h, sid)
+    if lid in LESSONS and lid != "duel":
+        out["topic"] = {"id": lid, "title": LESSONS[lid][0], "mantra": (TEACH.get(lid) or {}).get("mantra")}
+        scs = [sc for sc in h.get("scenes") or [] if sc.get("sid") == sid and sc.get("lesson") == lid
+               and sc.get("round") is not None and sc.get("tick") is not None]
+        scs.sort(key=lambda sc: -(sc.get("cost") or 0))
+        out["scenes"] = [{"round": sc["round"], "text": sc.get("happened"), "cost": sc.get("cost"),
+                          "href": f"/reports/{h['report_file']}#s{sc['round']}-{sc.get('from') or sc['tick']}"}
+                         for sc in scs[:2]]
+    return out
+
+
+@app.get("/m/{report_file}", response_class=HTMLResponse)
+def match_minute(report_file: str) -> str:
+    """Dein Match in 60 Sekunden: Ergebnis, Impact, Auftrag-Check, Thema mit Merksatz, zwei Szenen."""
+    if not re.fullmatch(r"[^/\\]+\.html", report_file) or not _report_visible(report_file):
+        raise HTTPException(404, "Match nicht gefunden.")
+    h = next((x for x in _load_hist() if x.get("report_file") == report_file), None)
+    if h is None:
+        raise HTTPException(404, "Match nicht gefunden.")
+    if _USER.get():
+        _mark_seen(_USER.get(), report_file)
+    players = h.get("players") or {}
+    focus = sorted(set(h.get("seq") or {}) | set(h.get("issues") or {}) | set(h.get("impact") or {}))
+    me = _me()
+    sids = [me] if me and me in players else [s for s in _mine(focus) if s in players]
+    rows = sorted((_minute_player(h, s) for s in sids), key=lambda r: r["name"].lower())
+    try:
+        when = datetime.fromisoformat(h["analyzed_at"]).strftime("%d.%m. %H:%M")
+    except (KeyError, ValueError, TypeError):
+        when = None
+    return _env.get_template("minute.html").render(
+        nav_active="matches", jobs=_running_jobs(), rows=rows, file=report_file, when=when, mine=bool(me),
+        map_label=(h.get("map") or "?").removeprefix("de_").capitalize())
 
 
 @app.get("/pro", response_class=HTMLResponse)

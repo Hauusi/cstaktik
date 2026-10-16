@@ -25,7 +25,7 @@
 {% if reports %}
 <div class="list">
   {% for r in reports %}
-  <a class="item mrow2 {{ r.res or '' }}" href="/reports/{{ r.file }}">
+  <a class="item mrow2 {{ r.res or '' }}" href="{{ '/m/' if r.sort else '/reports/' }}{{ r.file }}">
     <div class="map">{{ r.map[:2] if r.map else "?" }}</div>
     <div class="meta"><b>{{ r.map or r.name }}</b>
       <span class="muted small">{% if r.new %}<span class="newb">Neu</span> {% endif %}{{ r.date }}{% if r.topic %} · Thema: {{ r.topic }}{% endif %}</span>

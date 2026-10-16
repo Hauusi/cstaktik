@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ map_label }} in 60 Sekunden · cstaktik{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}
+<style>
+/* Dein Match in 60 Sekunden: nur das Wichtigste, jeder Block nur mit Daten */
+.kicker { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.mp { margin-top: 18px; display: grid; gap: 12px; }
+.mp + .mp { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); }
+.mres { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.mres h3 { margin: 4px 0 0; font-size: 34px; line-height: 1; letter-spacing: -.02em; }
+.mres .num { color: var(--orange); }
+.res { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; }
+.res.w { background: rgba(63,191,127,.15); color: #6fe0a6; } .res.l { background: rgba(240,86,106,.15); color: #ff9aa8; } .res.d { background: var(--surface-2); color: var(--muted); }
+.big { font-size: 24px; font-weight: 800; line-height: 1.1; margin-top: 4px; }
+.big.p { color: #6fe0a6; } .big.n { color: #ff9aa8; }
+.chk.ok { border-color: rgba(63,191,127,.45); } .chk.no { border-color: rgba(240,86,106,.45); }
+.stamp { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.chk.ok .stamp { color: #6fe0a6; } .chk.no .stamp { color: #ff9aa8; } .chk .stamp { color: var(--muted); }
+.mantra { margin-top: 8px; font-size: 17px; font-weight: 700; color: var(--orange); }
+.scene { display: block; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px; }
+.scene b { color: var(--orange); margin-right: 6px; }
+.go { display: flex; align-items: center; justify-content: center; margin-top: 22px; height: 52px; border-radius: 14px;
+  background: var(--orange); color: #111; font-weight: 800; font-size: 16px; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>{{ "Dein" if mine or rows|length == 1 else "Euer" }} Match in 60 Sekunden</h1>
+<p>{{ map_label }}{% if when %} · {{ when }}{% endif %}</p>
+{% endblock %}
+{% block content %}
+{% if not rows %}
+<div class="card empty" style="margin-top:18px">Für dieses Match gibt es keine Spieler-Daten.</div>
+{% endif %}
+{% for r in rows %}
+<section class="mp" aria-label="{{ r.name }}">
+  <div class="card mres">
+    <div><div class="kicker">{% if rows|length > 1 %}{{ r.name }} · {% endif %}Ergebnis</div>
+      <h3>{{ map_label }} <span class="num">{{ r.won }}:{{ r.lost }}</span></h3></div>
+    <span class="res {{ r.res }}">{{ r.result }}</span>
+  </div>
+
+  {% if r.imp %}
+  <div class="card">
+    <div class="kicker">Impact</div>
+    <div class="big num {{ 'p' if r.imp.pos else 'n' }}">{{ r.imp.total }} Runden</div>
+    <div class="small muted">Siegchance, die {{ "du" if mine or rows|length == 1 else r.name }} dem Team gebracht {{ "hast" if mine or rows|length == 1 else "hat" }}.{% if r.imp.rank %} Platz {{ r.imp.rank }} von {{ r.imp.of }} im Match.{% endif %}</div>
+  </div>
+  {% endif %}
+
+  {% if r.check %}{% set c = r.check %}
+  <div class="card chk {{ 'ok' if c.met else 'no' if c.met is not none else '' }}">
+    <div class="kicker">Auftrag-Check</div>
+    <div class="big">{{ c.title }}</div>
+    <div class="small muted num">Heute {{ c.rate }} pro 10 Runden, Ziel höchstens {{ c.target }}.{% if c.count is not none and c.rounds %} {{ c.count }}x in {{ c.rounds }} Runden.{% endif %}</div>
+    <div class="stamp">{% if c.mastered %}Gemeistert{% elif c.met is none %}Zu wenig Runden, zählt nicht{% elif c.met %}Geschafft{% if c.need %} · {{ c.streak }}/{{ c.need }}{% endif %}{% else %}Nicht geschafft{% endif %}</div>
+  </div>
+  {% endif %}
+
+  {% if r.topic %}
+  <div class="card">
+    <div class="kicker">{{ "Dein Thema" if mine or rows|length == 1 else "Thema" }}</div>
+    <div class="big">{{ r.topic.title }}</div>
+    {% if r.topic.mantra %}<div class="mantra">„{{ r.topic.mantra }}“</div>{% endif %}
+    {% for sc in r.scenes %}<a class="scene" href="{{ sc.href }}"><b>▶ R{{ sc.round }}</b>{{ sc.text or "Szene im Replay ansehen" }}</a>{% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endfor %}
+<a class="go" href="/reports/{{ file }}">Ganzer Report ›</a>
+{% endblock %}

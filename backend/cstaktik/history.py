@@ -71,6 +71,10 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
                       if r.winner and sid in r.sides] for sid in focus},
         "won": won,
         "lost": lost,
+        # Ergebnis je Fokus-Spieler aus seiner Sicht (Siege, Niederlagen): stimmt auch, wenn ihr gegeneinander spielt
+        "score_by": {sid: [sum(1 for r in match.rounds if r.winner and r.sides.get(sid) == r.winner),
+                           sum(1 for r in match.rounds if r.winner and sid in r.sides and r.sides[sid] != r.winner)]
+                     for sid in focus},
         "players": {
             s.steamid: {
                 "name": s.name, "rounds": s.rounds, "kills": s.kills, "deaths": s.deaths, "adr": s.adr,
@@ -241,6 +245,58 @@ def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None
                     "happened": v["happened"], "next": v["next"], "pos": (ev.get("f") or {}).get("vpos"),
                     "frame": ev.get("frame")})
     return out
+
+
+def _running(fc: dict | None) -> dict[str | None, str]:
+    """Laufende Aufträge (nicht gerade neu gesetzt) je Spieler aus ``focus_check``. Altes Format (ein gemeinsamer
+    Auftrag) steht unter dem Schlüssel None und gilt für alle."""
+    if not fc:
+        return {}
+    if "check" in fc or "focus" in fc and not any(isinstance(v, dict) and "check" in v for v in fc.values()):
+        fc = {None: fc}
+    return {sid: v["focus"]["lesson"] for sid, v in fc.items()
+            if isinstance(v, dict) and v.get("focus") and not v.get("new")}
+
+
+def set_leads(h: dict) -> dict:
+    """Das eine Thema des Matches, einmal festgelegt (wie "Der eine Punkt" im Report): Kam ein laufender Auftrag
+    heute vor, ist er das Thema, sonst die wichtigste Lektion. ``lead`` fürs Team, ``lead_by`` je Spieler (sein
+    Auftrag, falls er ihn heute hatte, sonst seine wichtigste Lektion). ``main_lesson`` folgt ``lead``.
+    Braucht ``focus_check``; ohne ihn bleibt es bei der Reihenfolge der Lektionen."""
+    running = _running(h.get("focus_check"))
+    rank = h.get("lesson_rank") or []
+    h["lead"] = next((lid for lid in rank if lid in running.values()), rank[0] if rank else None)
+    h["main_lesson"] = h["lead"]
+    by = {}
+    for sid, ls in (h.get("lesson_rank_by") or {}).items():
+        r = running.get(sid) or running.get(None)
+        by[sid] = r if r and r in ls else (ls[0] if ls else None)
+    h["lead_by"] = by
+    return h
+
+
+def lead(h: dict, sid: str | None = None) -> str | None:
+    """Thema des Matches für einen Spieler (None: fürs Team). Ältere Einträge ohne ``lead``: bisheriges Hauptthema."""
+    if sid:
+        if sid in (h.get("lead_by") or {}):
+            return h["lead_by"][sid]
+        by = h.get("lesson_rank_by")
+        if by is not None and sid in (h.get("players") or {}):
+            ls = by.get(sid) or []
+            return ls[0] if ls else None  # ohne eigene Lektion kein fremdes Thema zeigen
+    return h.get("lead", h.get("main_lesson"))
+
+
+def score(h: dict, sid: str | None = None) -> tuple[int, int]:
+    """(gewonnen, verloren) aus Sicht des Spielers; ohne Spieler oder ohne Daten: Team-Ergebnis."""
+    if sid:
+        s = (h.get("score_by") or {}).get(sid)
+        if s:
+            return int(s[0]), int(s[1])
+        seq = (h.get("seq") or {}).get(sid)
+        if seq:
+            return sum(1 for x in seq if x[2]), sum(1 for x in seq if not x[2])
+    return int(h.get("won") or 0), int(h.get("lost") or 0)
 
 
 def previous(histories: list[dict], current: dict) -> dict | None:
