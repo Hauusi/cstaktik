@@ -5,7 +5,9 @@ Ankunft am Bombsite, Plant (Ort, Zeit), Ausrüstung der Teams. Daraus wird je Ru
 
 - Kauf: Pistolenrunde (erste Runde je Halbzeit), Eco, Force oder Full Buy (Team-Ausrüstung, Schwellen in rules.yaml).
 - Ziel: Bombsite des Plants, sonst der Bombsite, den die T zuerst erreicht haben.
-- Tempo: Rush (Ankunft bis ``rush_s``), Execute (bis ``late_s``), Default/spät (danach).
+- Tempo: Rush (Ankunft bis ``rush_s``), Execute (bis ``late_s``), spät (danach).
+- Spät: Default, wenn die T nach ``early_s`` verteilt stehen; "Zusammen", wenn mindestens ``group_min`` von ihnen
+  dann im Umkreis ``group_r`` um ihren Mittelpunkt stehen (z. B. alle 5 Mitte: das ist kein Default).
 - Split: Die T, die den Bombsite betreten, kommen aus mindestens zwei verschiedenen Orten.
 
 Runden mit gleichem Ziel, Tempo und gleichen Zugängen bilden eine Taktik ("A-Split über Palace + Ramp").
@@ -24,7 +26,7 @@ PATH_STEP_S = 2
 PATH_MAX_S = 115
 
 DEFAULTS = {"eco_max": 6000, "force_max": 18000, "rush_s": 25, "late_s": 55, "nade_before_s": 20,
-            "nade_after_s": 5, "common_share": 0.5}
+            "nade_after_s": 5, "common_share": 0.5, "early_s": 20, "group_min": 4, "group_r": 700}
 
 STYLE_TEXT = {
     "rush": ("Rush", "Alle gehen schnell auf einen Bombsite, bevor die CT rotieren. Das lebt von Tempo und "
@@ -36,6 +38,9 @@ STYLE_TEXT = {
                            "Flashes blenden beim Reinlaufen, Molotovs räumen Ecken. Dann gehen alle zusammen rein."),
     "default": ("Default", "Erst kontrolliert ihr die Map und sammelt Infos, verteilt auf mehrere Orte. Der Bombsite "
                            "wird spät gewählt, oft nach einem Pick oder einer Info."),
+    "group": ("Zusammen", "Das Team spielt die erste Phase gemeinsam an einem Ort, meist um ihn zu übernehmen. Der "
+                          "Bombsite wird erst danach gewählt. Anders als beim Default fehlen Infos aus den übrigen "
+                          "Bereichen. Dafür seid ihr beim ersten Kontakt eher in Überzahl."),
     "eco": ("Eco-Push", "Mit wenig Geld gewinnt man selten ein faires Duell. Deshalb drückt ihr zusammen und schnell "
                         "auf einen Ort. Sucht Überzahl im ersten Kontakt und hebt die Waffen der Gegner auf."),
     "pistol": ("Pistolenrunde", "Die erste Runde der Halbzeit. Alle haben nur Pistolen, Utility ist knapp und wertvoll. "
@@ -112,7 +117,10 @@ def plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
                     break
         eq = {sd: (sum(vals) if (vals := [e.equip_value for e in r.economy if e.side == sd
                                            and e.equip_value is not None]) else None) for sd in ("t", "ct")}
+        ei = DEFAULTS["early_s"] // PATH_STEP_S  # Orte nach early_s: verteilt (Default) oder zusammen
+        early = {sid: pls[ei] for sid, pls in places.items() if ei < len(pls) and pls[ei]}
         out.append({"r": r.num, "won": r.winner == "t", "site": site, "arrive": arrive, "plant_t": plant_t,
+                    "early": early,
                     "plant": [round(plant.pos.x), round(plant.pos.y)] if plant and plant.pos else None,
                     "approach": approach, "paths": paths, "t_eq": eq.get("t"), "ct_eq": eq.get("ct"),
                     "pistol": r.num in halves,
@@ -144,6 +152,9 @@ def classify(p: dict, cfg: dict) -> dict:
     split = site is not None and len(groups) >= 2 and len(p.get("approach") or {}) >= 3
     style = ("eco" if buy == "eco" and tempo != "default" else "split" if split and tempo != "default"
              else tempo)
+    together = grouped(p, c) if tempo == "default" else None
+    if together is not None:
+        style = "group"
     if buy == "pistol" and tempo != "default":
         style = "pistol"
     main = main_via(p.get("approach") or {}, style)
@@ -151,6 +162,9 @@ def classify(p: dict, cfg: dict) -> dict:
     via = " + ".join(main) if main and style not in ("eco", "pistol") else None
     if style == "default":
         name = f"Default, spät auf {site}" if site else "Default ohne Bombsite"
+    elif style == "group":
+        main = [together] if together else []
+        name = (f"Zusammen {together}" if together else "Zusammen") + (f", spät auf {site}" if site else "")
     else:
         name = f"{site}-{STYLE_TEXT[style][0]}" + (f" über {via}" if via else "")
     return {"buy": buy, "tempo": tempo, "style": style, "via": main, "via_all": groups, "name": name}
@@ -169,9 +183,29 @@ def main_via(approach: dict, style: str) -> list[str]:
     return order[:1]
 
 
+def grouped(p: dict, c: dict) -> str | None:
+    """Stehen die T nach ``early_s`` zusammen? Dann der gemeinsame Ort ("" ohne Ortsangabe), sonst None.
+    Zusammen: mindestens ``group_min`` Spieler im Umkreis ``group_r`` (Units) um ihren Mittelpunkt."""
+    i = c["early_s"] // PATH_STEP_S
+    pts = [v[i] for v in (p.get("paths") or {}).values() if i < len(v)]
+    need = c["group_min"]
+    if len(pts) < need:
+        return None
+    best = 0
+    for cx, cy in pts:  # Mittelpunkt der Nachbarn je Spieler: größte Gruppe zählen
+        near = [q for q in pts if ((q[0] - cx) ** 2 + (q[1] - cy) ** 2) ** .5 <= 2 * c["group_r"]]
+        mx, my = sum(q[0] for q in near) / len(near), sum(q[1] for q in near) / len(near)
+        best = max(best, sum(1 for q in near if ((q[0] - mx) ** 2 + (q[1] - my) ** 2) ** .5 <= c["group_r"]))
+    if best < need:
+        return None
+    early = [pl for pl in (p.get("early") or {}).values() if pl]
+    top = Counter(early).most_common(1)
+    return top[0][0] if top and top[0][1] >= need - 1 else ""
+
+
 def group_key(p: dict, k: dict) -> tuple:
-    """Gruppe einer T-Runde: Taktikart, Bombsite, Hauptzugänge (nur bei Split, Execute, Rush)."""
-    return k["style"], p.get("site"), tuple(k["via"]) if k["style"] in ("split", "execute", "rush") else ()
+    """Gruppe einer T-Runde: Taktikart, Bombsite, Hauptzugänge (bei Split, Execute, Rush; bei Zusammen der Ort)."""
+    return k["style"], p.get("site"), tuple(k["via"]) if k["style"] in ("split", "execute", "rush", "group") else ()
 
 
 def key_id(key: tuple) -> str:

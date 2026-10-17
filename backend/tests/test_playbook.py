@@ -46,9 +46,21 @@ def test_rush_eco_pistol_default():
     assert playbook.classify(p, {})["style"] == "pistol"
     p = playbook.plays(_match(8, rush, plant_s=22, equip=5000))[0]
     assert playbook.classify(p, {})["name"] == "B-Rush über Apartments"
-    slow = {s: [(0, "TSpawn", 0, 0), (10, "Mid", 5, 5), (70, "BombsiteB", 9, 9)] for s in T}
-    p = playbook.plays(_match(9, slow, plant_s=80, equip=5000))[0]
-    assert playbook.classify(p, {})["name"] == "Default, spät auf B"
+    # spät und verteilt: Default
+    spots = {"t1": ("Apartments", -2000, 0), "t2": ("Mid", 0, 0), "t3": ("Palace", 2000, 0), "t4": ("Mid", 0, 1500),
+             "t5": ("Underpass", -1500, 1500)}
+    spread = {s: [(0, "TSpawn", 0, 0), (10, pl, x, y), (70, "BombsiteB", 9, 9)] for s, (pl, x, y) in spots.items()}
+    p = playbook.plays(_match(9, spread, plant_s=80, equip=5000))[0]
+    k = playbook.classify(p, {})
+    assert k["style"] == "default" and k["name"] == "Default, spät auf B"
+    # spät, aber alle 5 früh Mitte: kein Default
+    slow = {s: [(0, "TSpawn", 0, 0), (10, "Mid", 5 + 50 * i, 5), (70, "BombsiteB", 9, 9)] for i, s in enumerate(T)}
+    p = playbook.plays(_match(10, slow, plant_s=80, equip=5000))[0]
+    k = playbook.classify(p, {})
+    assert k["style"] == "group" and k["name"] == "Zusammen Mid, spät auf B" and k["via"] == ["Mid"]
+    # ältere Daten ohne Orte nach 20 s: Name ohne Ort
+    p.pop("early")
+    assert playbook.classify(p, {})["name"] == "Zusammen, spät auf B"
 
 
 def test_build_groups_rounds_and_finds_common_nades():
