@@ -6,9 +6,10 @@ Ankunft am Bombsite, Plant (Ort, Zeit), Ausrüstung der Teams. Daraus wird je Ru
 - Kauf: Pistolenrunde (erste Runde je Halbzeit), Eco, Force oder Full Buy (Team-Ausrüstung, Schwellen in rules.yaml).
 - Ziel: Bombsite des Plants, sonst der Bombsite, den die T zuerst erreicht haben.
 - Tempo: Rush (Ankunft bis ``rush_s``), Execute (bis ``late_s``), spät (danach).
-- Spät: Default, wenn die T verteilt bleiben; "Zusammen", wenn zu einem der Zeitpunkte ``group_at`` (s nach
-  Rundenstart) mindestens ``group_min`` von ihnen im Umkreis ``group_r`` um ihren Mittelpunkt stehen (z. B. alle
-  5 Mitte oder 4 gemeinsam über Palace: das ist kein Default).
+- Spät: Default nur, wenn die T sich über die Map verteilen. "Zusammen", wenn mindestens ``group_min`` von ihnen
+  gemeinsam spielen: zu einem der Zeitpunkte ``group_at`` im Umkreis ``group_r`` um ihren Mittelpunkt, oder auf
+  demselben Weg (gleiche Orte zwischen ``route_from`` und ``route_to`` s, Überlappung ab ``route_overlap``),
+  auch wenn sie dabei hintereinander laufen (z. B. 4 über Palace, einer Mitte: kein Default).
 - Split: Die T, die den Bombsite betreten, kommen aus mindestens zwei verschiedenen Orten.
 
 Runden mit gleichem Ziel, Tempo und gleichen Zugängen bilden eine Taktik ("A-Split über Palace + Ramp").
@@ -27,7 +28,8 @@ PATH_STEP_S = 2
 PATH_MAX_S = 115
 
 DEFAULTS = {"eco_max": 6000, "force_max": 18000, "rush_s": 25, "late_s": 55, "nade_before_s": 20,
-            "nade_after_s": 5, "common_share": 0.5, "group_at": (20, 30, 40), "group_min": 4, "group_r": 700}
+            "nade_after_s": 5, "common_share": 0.5, "group_at": (20, 30, 40), "group_min": 4, "group_r": 700,
+            "route_from": 8, "route_to": 50, "route_overlap": 0.5}
 
 STYLE_TEXT = {
     "rush": ("Rush", "Alle gehen schnell auf einen Bombsite, bevor die CT rotieren. Das lebt von Tempo und "
@@ -118,10 +120,9 @@ def plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
                     break
         eq = {sd: (sum(vals) if (vals := [e.equip_value for e in r.economy if e.side == sd
                                            and e.equip_value is not None]) else None) for sd in ("t", "ct")}
-        # Orte alle 10 s: verteilt (Default) oder zusammen (Name der Gruppe)
-        pl10 = {sid: pls[::10 // PATH_STEP_S] for sid, pls in places.items()}
+        # Orte je Spieler (alle PATH_STEP_S s): verteilt (Default) oder gemeinsamer Weg (Name der Gruppe)
         out.append({"r": r.num, "won": r.winner == "t", "site": site, "arrive": arrive, "plant_t": plant_t,
-                    "pl10": pl10,
+                    "places": places,
                     "plant": [round(plant.pos.x), round(plant.pos.y)] if plant and plant.pos else None,
                     "approach": approach, "paths": paths, "t_eq": eq.get("t"), "ct_eq": eq.get("ct"),
                     "pistol": r.num in halves,
@@ -202,11 +203,40 @@ def grouped(p: dict, c: dict) -> str | None:
                 best = grp
         if len(best) < need:
             continue
-        j = sec // 10
-        pl = [v[j] for s, v in (p.get("pl10") or {}).items() if s in best and j < len(v) and v[j]]
+        j = i
+        pl = [v[j] for s, v in (p.get("places") or {}).items() if s in best and j < len(v) and v[j]]
         top = Counter(pl).most_common(1)
         return top[0][0] if top and top[0][1] >= need - 1 else ""
-    return None
+    return same_route(p, c)
+
+
+def same_route(p: dict, c: dict) -> str | None:
+    """Laufen mindestens ``group_min`` T denselben Weg (auch hintereinander)? Weg = Orte zwischen ``route_from``
+    und ``route_to`` s ohne Bombsites. Gleich: Überlappung (Jaccard) ab ``route_overlap``. Rückgabe: der Ort,
+    den die meisten der Gruppe passiert haben, sonst None."""
+    lo, hi = c["route_from"] // PATH_STEP_S, c["route_to"] // PATH_STEP_S
+    routes = {sid: {q for q in pls[lo:hi + 1] if q and not _site_of(q)} for sid, pls in (p.get("places") or {}).items()}
+    routes = {s: r for s, r in routes.items() if r}
+    need = c["group_min"]
+    if len(routes) < need:
+        return None
+    sim = lambda a, b: len(a & b) / len(a | b)  # noqa: E731
+    best: list[str] = []
+    for s, r in routes.items():
+        grp = [t for t, q in routes.items() if sim(r, q) >= c["route_overlap"]]
+        if len(grp) > len(best):
+            best = grp
+    if len(best) < need:
+        return None
+    # Name: gemeinsamer Ort (fast alle der Gruppe), der am spätesten erreicht wird, also nah am Ziel, nicht der Spawn
+    cnt = Counter(q for s in best for q in routes[s])
+    pls = p.get("places") or {}
+
+    def when(q):
+        firsts = [pls[s].index(q) for s in best if q in pls[s]]
+        return sum(firsts) / len(firsts)
+    shared = [q for q in cnt if cnt[q] >= need - 1]
+    return max(shared, key=lambda q: (when(q), q)) if shared else ""
 
 
 def group_key(p: dict, k: dict) -> tuple:

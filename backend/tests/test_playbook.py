@@ -64,8 +64,15 @@ def test_rush_eco_pistol_default():
     late["t5"] = [(0, "TSpawn", 0, 0), (10, "Mid", 0, 0), (70, "BombsiteB", 9, 9)]
     p2 = playbook.plays(_match(11, late, plant_s=80, equip=5000))[0]
     assert playbook.classify(p2, {})["name"] == "Zusammen Palace, spät auf B"
+    # hintereinander denselben Weg (nie 4 im Umkreis), einer Mitte: kein Default
+    line = {s: [(0, "TSpawn", 0, 0), (10, "TRamp", 1000 * i, 0), (25, "Palace", 4000 + 1000 * i, 0),
+                (45, "PalaceInterior", 9000 + 1000 * i, 0), (70, "BombsiteA", 9, 9)] for i, s in enumerate(T[:4])}
+    line["t5"] = [(0, "TSpawn", 0, 0), (10, "Mid", -3000, 3000), (70, "BombsiteA", 9, 9)]
+    p3 = playbook.plays(_match(12, line, plant_s=80, equip=5000))[0]
+    k3 = playbook.classify(p3, {})
+    assert k3["style"] == "group" and k3["name"] == "Zusammen PalaceInterior, spät auf A"
     # ältere Daten ohne Orte: Name ohne Ort
-    p.pop("pl10")
+    p.pop("places")
     assert playbook.classify(p, {})["name"] == "Zusammen, spät auf B"
 
 
