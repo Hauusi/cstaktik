@@ -58,8 +58,14 @@ def test_rush_eco_pistol_default():
     p = playbook.plays(_match(10, slow, plant_s=80, equip=5000))[0]
     k = playbook.classify(p, {})
     assert k["style"] == "group" and k["name"] == "Zusammen Mid, spät auf B" and k["via"] == ["Mid"]
-    # ältere Daten ohne Orte nach 20 s: Name ohne Ort
-    p.pop("early")
+    # erst nach 20 s verteilt, nach 30 s laufen 4 gemeinsam über Palace: auch kein Default
+    late = {s: [(0, "TSpawn", 0, 0), (10, pl, x, y), (28, "Palace", 3000 + 40 * i, 0), (70, "BombsiteB", 9, 9)]
+            for i, (s, (pl, x, y)) in enumerate(spots.items())}
+    late["t5"] = [(0, "TSpawn", 0, 0), (10, "Mid", 0, 0), (70, "BombsiteB", 9, 9)]
+    p2 = playbook.plays(_match(11, late, plant_s=80, equip=5000))[0]
+    assert playbook.classify(p2, {})["name"] == "Zusammen Palace, spät auf B"
+    # ältere Daten ohne Orte: Name ohne Ort
+    p.pop("pl10")
     assert playbook.classify(p, {})["name"] == "Zusammen, spät auf B"
 
 

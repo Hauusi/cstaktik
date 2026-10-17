@@ -6,8 +6,9 @@ Ankunft am Bombsite, Plant (Ort, Zeit), Ausrüstung der Teams. Daraus wird je Ru
 - Kauf: Pistolenrunde (erste Runde je Halbzeit), Eco, Force oder Full Buy (Team-Ausrüstung, Schwellen in rules.yaml).
 - Ziel: Bombsite des Plants, sonst der Bombsite, den die T zuerst erreicht haben.
 - Tempo: Rush (Ankunft bis ``rush_s``), Execute (bis ``late_s``), spät (danach).
-- Spät: Default, wenn die T nach ``early_s`` verteilt stehen; "Zusammen", wenn mindestens ``group_min`` von ihnen
-  dann im Umkreis ``group_r`` um ihren Mittelpunkt stehen (z. B. alle 5 Mitte: das ist kein Default).
+- Spät: Default, wenn die T verteilt bleiben; "Zusammen", wenn zu einem der Zeitpunkte ``group_at`` (s nach
+  Rundenstart) mindestens ``group_min`` von ihnen im Umkreis ``group_r`` um ihren Mittelpunkt stehen (z. B. alle
+  5 Mitte oder 4 gemeinsam über Palace: das ist kein Default).
 - Split: Die T, die den Bombsite betreten, kommen aus mindestens zwei verschiedenen Orten.
 
 Runden mit gleichem Ziel, Tempo und gleichen Zugängen bilden eine Taktik ("A-Split über Palace + Ramp").
@@ -26,7 +27,7 @@ PATH_STEP_S = 2
 PATH_MAX_S = 115
 
 DEFAULTS = {"eco_max": 6000, "force_max": 18000, "rush_s": 25, "late_s": 55, "nade_before_s": 20,
-            "nade_after_s": 5, "common_share": 0.5, "early_s": 20, "group_min": 4, "group_r": 700}
+            "nade_after_s": 5, "common_share": 0.5, "group_at": (20, 30, 40), "group_min": 4, "group_r": 700}
 
 STYLE_TEXT = {
     "rush": ("Rush", "Alle gehen schnell auf einen Bombsite, bevor die CT rotieren. Das lebt von Tempo und "
@@ -117,10 +118,10 @@ def plays(match: MatchData, team: set[str] | None = None) -> list[dict]:
                     break
         eq = {sd: (sum(vals) if (vals := [e.equip_value for e in r.economy if e.side == sd
                                            and e.equip_value is not None]) else None) for sd in ("t", "ct")}
-        ei = DEFAULTS["early_s"] // PATH_STEP_S  # Orte nach early_s: verteilt (Default) oder zusammen
-        early = {sid: pls[ei] for sid, pls in places.items() if ei < len(pls) and pls[ei]}
+        # Orte alle 10 s: verteilt (Default) oder zusammen (Name der Gruppe)
+        pl10 = {sid: pls[::10 // PATH_STEP_S] for sid, pls in places.items()}
         out.append({"r": r.num, "won": r.winner == "t", "site": site, "arrive": arrive, "plant_t": plant_t,
-                    "early": early,
+                    "pl10": pl10,
                     "plant": [round(plant.pos.x), round(plant.pos.y)] if plant and plant.pos else None,
                     "approach": approach, "paths": paths, "t_eq": eq.get("t"), "ct_eq": eq.get("ct"),
                     "pistol": r.num in halves,
@@ -184,23 +185,28 @@ def main_via(approach: dict, style: str) -> list[str]:
 
 
 def grouped(p: dict, c: dict) -> str | None:
-    """Stehen die T nach ``early_s`` zusammen? Dann der gemeinsame Ort ("" ohne Ortsangabe), sonst None.
-    Zusammen: mindestens ``group_min`` Spieler im Umkreis ``group_r`` (Units) um ihren Mittelpunkt."""
-    i = c["early_s"] // PATH_STEP_S
-    pts = [v[i] for v in (p.get("paths") or {}).values() if i < len(v)]
-    need = c["group_min"]
-    if len(pts) < need:
-        return None
-    best = 0
-    for cx, cy in pts:  # Mittelpunkt der Nachbarn je Spieler: größte Gruppe zählen
-        near = [q for q in pts if ((q[0] - cx) ** 2 + (q[1] - cy) ** 2) ** .5 <= 2 * c["group_r"]]
-        mx, my = sum(q[0] for q in near) / len(near), sum(q[1] for q in near) / len(near)
-        best = max(best, sum(1 for q in near if ((q[0] - mx) ** 2 + (q[1] - my) ** 2) ** .5 <= c["group_r"]))
-    if best < need:
-        return None
-    early = [pl for pl in (p.get("early") or {}).values() if pl]
-    top = Counter(early).most_common(1)
-    return top[0][0] if top and top[0][1] >= need - 1 else ""
+    """Laufen die T früh gemeinsam? Zu einem der Zeitpunkte ``group_at`` stehen mindestens ``group_min`` Spieler im
+    Umkreis ``group_r`` (Units) um ihren Mittelpunkt. Dann deren häufigster Ort ("" ohne Ortsangabe), sonst None."""
+    need, rad = c["group_min"], c["group_r"]
+    for sec in c["group_at"]:
+        i = sec // PATH_STEP_S
+        pts = {sid: v[i] for sid, v in (p.get("paths") or {}).items() if i < len(v)}
+        if len(pts) < need:
+            continue
+        best: list[str] = []
+        for cx, cy in pts.values():  # Mittelpunkt der Nachbarn je Spieler: größte Gruppe suchen
+            near = {s: q for s, q in pts.items() if ((q[0] - cx) ** 2 + (q[1] - cy) ** 2) ** .5 <= 2 * rad}
+            mx, my = sum(q[0] for q in near.values()) / len(near), sum(q[1] for q in near.values()) / len(near)
+            grp = [s for s, q in near.items() if ((q[0] - mx) ** 2 + (q[1] - my) ** 2) ** .5 <= rad]
+            if len(grp) > len(best):
+                best = grp
+        if len(best) < need:
+            continue
+        j = sec // 10
+        pl = [v[j] for s, v in (p.get("pl10") or {}).items() if s in best and j < len(v) and v[j]]
+        top = Counter(pl).most_common(1)
+        return top[0][0] if top and top[0][1] >= need - 1 else ""
+    return None
 
 
 def group_key(p: dict, k: dict) -> tuple:
