@@ -1189,16 +1189,54 @@ def _scene_maps(scenes: list[dict]) -> dict[str, str]:
                 "foes": [px(q) for q in fr.get("foes", [])], "spotted": fr.get("spotted")}
         if fr.get("killer"):
             view["killer"], view["dead"], view["kplace"] = px(fr["killer"]), px(fr["dead"]), fr.get("kplace")
-        # Ausschnitt: du, Killer, sichtbare Gegner und der nächste Mitspieler (weit entfernte sind am Rand/außerhalb)
+        # Ausschnitt: du, sichtbare Gegner und der nächste Mitspieler (weit entfernte sind am Rand/außerhalb).
+        # Der Killer bestimmt den Ausschnitt erst nach der Antwort (``vb_rev``), sonst verrät der Rahmen die Richtung.
         near = sorted(view["mates"], key=lambda q: (q[0] - view["me"][0]) ** 2 + (q[1] - view["me"][1]) ** 2)[:1]
-        pts = [view["me"]] + [q[:2] for q in near] + view["foes"] + ([view["killer"]] if "killer" in view else [])
-        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
-        size = min(1024, max(max(max(xs) - min(xs), max(ys) - min(ys)) + 240, 420))
-        cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
-        view["vb"] = [round(min(max(cx - size / 2, 0), 1024 - size)), round(min(max(cy - size / 2, 0), 1024 - size)),
-                      round(size)]
+        pts = [view["me"]] + [q[:2] for q in near] + view["foes"]
+
+        def box(pts):
+            xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+            size = min(1024, max(max(max(xs) - min(xs), max(ys) - min(ys)) + 240, 420))
+            cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+            return [round(min(max(cx - size / 2, 0), 1024 - size)), round(min(max(cy - size / 2, 0), 1024 - size)),
+                    round(size)]
+
+        view["vb"] = box(pts)
+        view["vb_rev"] = box(pts + [view["killer"], view["dead"]]) if "killer" in view else view["vb"]
         sc["view"] = view
     return imgs
+
+
+_INFO_RE = re.compile(r"^Info: (?P<now>.*?(?:sichtbar|Radar)\.)(?: (?P<after>.*))?$")
+
+
+def _quiz_scene(sc: dict) -> dict:
+    """Eine Szene fürs Situations-Training, ohne Spoiler vor der Antwort:
+    - ``lage_info``: nur, was man im Moment wissen konnte (Gegner auf dem Radar); wer später tötete und ab wann er
+      sichtbar war, steht in ``reveal_info`` und erscheint erst nach der Antwort.
+    - ``uhr``: Spieluhr wie in CS (Rundenzeit herunter, nach dem Plant Bombentimer).
+    - ``did``: was der Spieler getan hat, in denselben Worten wie die Optionen, mit Hinweis, wenn Laufen und
+      Wertung auseinanderliegen (losgegangen, aber nicht näher an den Gegner = "Position gehalten")."""
+    from cstaktik.callouts import clock
+
+    snap = sc.get("snap") or {}
+    m = _INFO_RE.match(sc.get("info") or "")
+    sc["lage_info"] = m.group("now") if m else None
+    sc["reveal_info"] = (m.group("after") if m else None) or None
+    if snap.get("planted"):
+        left = snap.get("time_left")
+        sc["uhr"] = f"Bombe liegt, noch 0:{int(left):02d}" if left is not None else "Bombe liegt"
+    elif snap.get("secs") is not None:
+        sc["uhr"] = f"Uhr {clock(snap['secs'])}, Bombe nicht gelegt"
+    act, kind = sc.get("aktion"), snap.get("kind")
+    label = {"gehalten": "Position halten", "zurückgezogen": "Zurückziehen", "Richtung Gegner": "Richtung Gegner gehen"}
+    sc["did"] = label.get(act)
+    if act == "gehalten" and kind == "bewegt":
+        sc["did_note"] = ("Du bist losgegangen, aber in den 5 Sekunden danach weder näher an den Gegner noch weiter "
+                          "weg. Das zählt hier als Position halten.")
+    elif act == "Richtung Gegner" and kind == "gehalten":
+        sc["did_note"] = "Du standest, bist dann aber auf den Gegner zugegangen."
+    return sc
 
 
 @app.get("/training/situationen", response_class=HTMLResponse)
@@ -1219,7 +1257,9 @@ def quiz_page(p: str = "") -> str:
     if len(pick) < 6:  # auffüllen mit den teuersten anderen Szenen
         rest = sorted((sc for sc in scenes if sc not in pick), key=lambda sc: -(sc.get("cost") or 0))
         pick += rest[: 12 - len(pick)]
-    pick = [dict(sc) for sc in pick[:40]]  # Kopien: der Verlauf ist gecacht und wird nicht verändert
+    # Szenen mit Pro-Vergleich zuerst (Reihenfolge sonst wie gewählt); ohne Vergleich gibt es die Regel des Coaches
+    pick = sorted(pick[:40], key=lambda sc: not sc.get("pro_rates"))
+    pick = [_quiz_scene(dict(sc)) for sc in pick]  # Kopien: der Verlauf ist gecacht und wird nicht verändert
     radars = _scene_maps(pick)  # die Seite wählt daraus 12 (falsch beantwortete und neue zuerst)
     data = _json.dumps([{**sc, "lesson_title": LESSONS.get(sc["lesson"], ("?",))[0]} for sc in pick],
                        ensure_ascii=False).replace("</", "<\\/")
@@ -1231,6 +1271,7 @@ def quiz_page(p: str = "") -> str:
     quiz_open = bool(plan) and any(t["id"] == "quiz" for t in plan["tasks"]) and "quiz" not in plan["done"]
     return _env.get_template("quiz.html").render(nav_active="coach", title=LESSONS.get(lesson, ("?",))[0] if lesson else None,
                                                  n=min(12, len(pick)), data_json=data, tabs=tabs, who=names.get(sid),
+                                                 own=bool(_me()) and sid == _me(),
                                                  sid=sid, week=week, quiz_open=quiz_open, radars=radars)
 
 
@@ -1609,16 +1650,42 @@ def briefing_page(map_name: str) -> str:
     b = briefing.build(map_name, hist, goals.load(pipeline.GOALS_FILE), pro=pro)
     own = [{"map": h.get("map"), "plays": h.get("plays"), "ct_plays": h.get("ct_plays")} for h in hist]
     cfg = load_rules_config().get("playbook")
-    plan = playbook.gameplan(pro, own, map_name, cfg)
-    # Gewohnheiten über alle Maps (Kauf, nach dem Plant): nur wenn klar schlechter als Pros
-    habits = [x for side in ("t", "ct") for x in (
-        playbook.buy_reading(playbook.buy_mix(own, cfg, side), playbook.buy_mix(pro, cfg, side), side=side),
-        playbook.postplant_reading(playbook.postplant_mix(own, side), playbook.postplant_mix(pro, side), side=side),
-        playbook.firstblood_reading(playbook.firstblood_mix(own, side), playbook.firstblood_mix(pro, side), side)) if x]
+    # Empfehlung und "Stärke" erst ab KABINE_MIN Runden: 2 von 4 ist keine Stärke
+    plan = playbook.gameplan(pro, own, map_name, cfg, min_n=KABINE_MIN)
+    if plan:
+        if plan.get("t_own") and plan["t_own"]["won_pct"] <= 50:
+            plan["t_own"] = None
+        plan["pro_demos"] = sum(1 for d in pro if d.get("map") == map_name)
+        if not any(v for k, v in plan.items() if k != "pro_demos"):
+            plan = None
+    has_own = bool(b["matches"])
+    # Gewohnheiten über alle Maps (Kauf, nach dem Plant): nur wenn klar schlechter als Pros. Dieselbe Pro-Basis wie
+    # unter Fortschritt > Details (alle Pro-Demos, alle Maps). Ohne eigenes Match auf dieser Map: keine Tipps von
+    # anderen Maps, stattdessen ehrlich "noch keine Daten".
+    habits = []
+    if has_own:
+        for side in ("t", "ct"):
+            key = playbook.SIDE_KEYS[side][0]
+            demos = sum(1 for d in pro if d.get(key))
+            pb, pp, pf = playbook.buy_mix(pro, cfg, side), playbook.postplant_mix(pro, side), playbook.firstblood_mix(pro, side)
+            for text, n_pro in ((playbook.buy_reading(playbook.buy_mix(own, cfg, side), pb, side=side), pb["total"]),
+                                (playbook.postplant_reading(playbook.postplant_mix(own, side), pp, side=side), pp["total"]),
+                                (playbook.firstblood_reading(playbook.firstblood_mix(own, side), pf, side), pf["total"])):
+                if text:
+                    habits.append({"text": text, "basis": f"Eure {side.upper()}-Runden auf allen Maps. Pros: {n_pro} "
+                                                          f"{side.upper()}-Runden aus {demos} Demo{'s' if demos != 1 else ''}."})
     if habits:
         plan = {**(plan or {}), "habits": habits}
+    kab = _kabine(hist, map_name)
+    if kab and not has_own:
+        for pl in kab["players"]:
+            pl["mind"] = []  # Hinweise aus anderen Maps gehören nicht in die Kabine dieser Map
     return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
-                                                     kabine=_kabine(hist, map_name), plan=plan, map_name=map_name)
+                                                     kabine=kab, plan=plan, map_name=map_name, has_own=has_own,
+                                                     kabine_min=KABINE_MIN)
+
+
+KABINE_MIN = 5  # so viele Runden braucht eine Taktik in der Kabine für "Empfehlung" oder "Stärke"
 
 
 def _kabine(hist: list[dict], map_name: str) -> dict | None:
@@ -1886,6 +1953,8 @@ def _progress_ctx(p: str) -> dict:
     if p in sids and not _me():  # mit Steam verbunden: nur das eigene Profil
         sid = p
     prof = profile(hist, sid, pro.duel_stats(_load_pro())) if sid else None
+    if prof:
+        prof["pro_duel_demos"] = sum(1 for d in _load_pro() if d.get("duels"))
     if prof:  # Kaufentscheidungen auf T: Team-Wert aus euren Matches gegen die Pros
         from cstaktik import playbook
 
@@ -1897,7 +1966,9 @@ def _progress_ctx(p: str) -> dict:
             own_b, pro_b = playbook.buy_mix(mine, cfg, side), playbook.buy_mix(pros, cfg, side)
             if own_pp["total"] or own_b["total"]:
                 own_fb, pro_fb = playbook.firstblood_mix(mine, side), playbook.firstblood_mix(pros, side)
+                key = playbook.SIDE_KEYS[side][0]
                 prof["sides"].append({
+                    "pro_demos": sum(1 for d in pros if d.get(key)),
                     "fb": {"own": own_fb, "pro": pro_fb, "reading": playbook.firstblood_reading(own_fb, pro_fb, side)},
                     "side": side, "pp": {"own": own_pp, "pro": pro_pp,
                                          "reading": playbook.postplant_reading(own_pp, pro_pp, side=side)},
@@ -1965,15 +2036,19 @@ def _strength_weakness(p: dict) -> dict:
             for k in keys:
                 o, q = own.get(k), pro.get(k)
                 if o and q and o["n"] >= 8 and q["n"] >= 8 and abs(o["won_pct"] - q["won_pct"]) >= 15:
+                    nd = sd.get("pro_demos")
+                    basis = f"{q['n']} Runden" + (f" aus {nd} Demo{'s' if nd != 1 else ''}" if nd else "")
                     sides.append({"diff": o["won_pct"] - q["won_pct"], "title": f"{S}: {where}, {o['label']}",
-                                  "text": f"Ihr gewinnt {o['won_pct']} %, {o['won']} von {o['n']}. Pros: {q['won_pct']} %.",
+                                  "text": f"Ihr gewinnt {o['won_pct']} %, {o['won']} von {o['n']}. "
+                                          f"Pros: {q['won_pct']} % ({basis}).",
                                   "src": f"Eure {S}-Runden gegen die Pro-Demos, alle Maps.", "href": det + "#seiten"})
     if not strong:
         top = max(sides, key=lambda x: x["diff"], default=None)
         strong = top if top and top["diff"] > 0 else None
     if p.get("levers"):
         lv = p["levers"][0]
-        weak = {"title": lv["title"], "text": f"Etwa {lv['gain_s']} Runden pro Match möglich. {lv['text']}",
+        weak = {"title": lv["title"],
+                "text": lv["text"] if lv.get("thin") else f"Etwa {lv['gain_s']} Runden pro Match möglich. {lv['text']}",
                 "src": "Gerechnet aus euren letzten Matches. Eine Rechnung, keine Garantie.", "href": det + "#hebel"}
     else:
         worst = min(sure, key=lambda c: c["per_match"], default=None)
@@ -2007,7 +2082,8 @@ def _profile_summary(p: dict, a: dict | None) -> list[dict]:
     if p.get("levers"):
         lv = p["levers"][0]
         out.append({"label": "Hebel", "anchor": "hebel", "tone": "bad",
-                    "text": f"{lv['title']}: verlorene Rundenchance etwa {lv['gain_s']} Runden pro Match. {lv['text']}"})
+                    "text": f"{lv['title']}. {lv['text']}" if lv.get("thin") else
+                            f"{lv['title']}: etwa {lv['gain_s']} Runden pro Match möglich. {lv['text']}"})
     im = p.get("impact") or {}
     if im.get("ctx_reading"):
         out.append({"label": "Impact", "anchor": "impact", "tone": "", "text": im["ctx_reading"]})
@@ -2023,10 +2099,22 @@ def _profile_summary(p: dict, a: dict | None) -> list[dict]:
 
 
 @app.get("/progress/karte", response_class=HTMLResponse)
-def progress() -> str:
-    from cstaktik.report.progress import render_progress
+def progress(p: str = "") -> str:
+    """Todes-Karte und Kurven eines Spielers. Öffnet mit dem eingeloggten Spieler (verbundene SteamID); andere
+    Spieler nur ohne Steam-Verbindung (kein Login), dann per Tab. Die Seite nennt immer, wessen Daten sie zeigt."""
+    from cstaktik.report.progress import build, karte_json
 
-    return render_progress(_load_hist())
+    hist = _load_hist()
+    names = _names(hist)
+    sids = sorted({s for h in hist for s in h.get("players", {})}, key=lambda s: names.get(s, s))
+    sid = _default_sid({s: v for s, v in _players_state().items() if s in sids}, names, p) or (sids[0] if sids else None)
+    if p in sids and not _me():
+        sid = p
+    show = [sid] if sid and _mine([sid]) else []
+    data = build(hist, show, me=_me())
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(sids)]
+    return _env.get_template("karte.html").render(nav_active="progress", data=data, data_json=karte_json(data),
+                                                  tabs=tabs, sid=sid, who=names.get(sid) if show else None)
 
 
 def _run_faceit_job(job_id: str) -> None:

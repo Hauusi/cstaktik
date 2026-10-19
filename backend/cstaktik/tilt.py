@@ -67,8 +67,8 @@ def summary(hist: list[dict], sid: str) -> dict | None:
                      "impact": round(sum(imp) / len(imp), 1) if imp else None, "impact_n": len(imp),
                      "first": round(100 * sum(r["first"] for r in x) / len(x)) if x else None,
                      "untraded": round(100 * sum(r["untraded"] for r in x) / len(x)) if x else None}
-    for g in groups.values():
-        g["impact_s"] = _de(g["impact"]) if g["impact"] is not None else None
+    for g in groups.values():  # unter MIN_ROUNDS bewerteten Runden keine Zahl: ein Schnitt aus 7 Runden ist Zufall
+        g["impact_s"] = _de(g["impact"]) if g["impact"] is not None and g["impact_n"] >= MIN_ROUNDS else None
     out = {"groups": groups, "reading": None, "enough": False, "bad": False}
     a, b = groups["serie"], groups["sieg"]
     if a["n"] >= MIN_ROUNDS and b["n"] >= MIN_ROUNDS:

@@ -1,0 +1,238 @@
+{# Todes-Karte und Kurven: gemeinsamer Inhalt für die App-Seite (/progress/karte) und den Export (cli progress).
+   Erwartet ``data`` (report.progress.build) und ``data_json``. Zählweise der Fehler = die des Fokus/Auftrags
+   (Verlaufs-Feld "lessons" je Spieler, pro 10 gespielte Runden), wie auf Start, Training und Fortschritt. #}
+<style>
+#karte .tabs { display: flex; gap: 8px; margin: 18px 0 10px; flex-wrap: wrap; }
+#karte .tabs:empty { display: none; }
+#karte .tabs button { font: inherit; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer;
+  font-family: var(--cond); font-weight: 700; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; }
+#karte .tabs button.on { background: var(--orange); color: #111; border-color: var(--orange); }
+#karte .tabs i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+#karte .who { font-size: 13px; color: var(--muted); margin-top: 6px; }
+#karte .stack > * + * { margin-top: 10px; }
+#karte .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#karte .kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+#karte .kpi .lbl { font-size: 12px; color: var(--muted); }
+#karte .kpi .val { font-family: var(--cond); font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+#karte .kpi .avg { font-size: 12px; color: var(--muted); }
+#karte svg.spark { width: 100%; height: 40px; display: block; margin-top: 6px; overflow: visible; }
+#karte .badge { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+#karte .badge.besser { background: rgba(63,191,127,.15); color: var(--win); }
+#karte .badge.schlechter { background: rgba(240,86,106,.15); color: var(--loss); }
+#karte .badge.gleich { background: rgba(245,165,36,.12); color: var(--warn); }
+#karte .heat { width: 100%; aspect-ratio: 1; display: block; border-radius: 12px; background: #07090d; margin-top: 8px; }
+#karte .legend { display: flex; gap: 12px; font-size: 12px; color: var(--muted); margin: 8px 0; flex-wrap: wrap; }
+#karte .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+#karte .dbars { display: grid; gap: 6px; margin-top: 10px; }
+#karte .dbar { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; font-size: 13px; }
+#karte .dbar .track { position: relative; height: 22px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+#karte .dbar .fill { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; opacity: .85; }
+#karte .dbar .txt { position: relative; padding: 0 8px; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#karte .lesson { padding: 14px 16px; }
+#karte .lesson:first-child { border-color: var(--orange); background: linear-gradient(180deg, rgba(255,159,28,.07), var(--surface) 70%); }
+#karte .lesson .lt { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+#karte .lesson .lt b { font-family: var(--cond); font-size: 22px; text-transform: uppercase; line-height: 1.05; }
+#karte .lesson .lnow { font-size: 13px; color: var(--muted); margin-top: 4px; }
+#karte .lesson .ldrill { font-size: 13.5px; margin-top: 8px; color: #bfe8cf; }
+#karte .lesson .ldrill b { color: var(--win); }
+#karte .grid { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 13px; }
+#karte .grid th { font-weight: 600; color: var(--muted); text-align: left; padding: 4px 6px; font-size: 12px; }
+#karte .grid th.m { text-align: center; font-family: var(--cond); font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--text); }
+#karte .grid td.c { text-align: center; padding: 9px 4px; border-radius: 8px; font-weight: 700; min-width: 54px; }
+#karte .grid td.c.none { color: var(--faint); font-weight: 500; }
+#karte .grid td.l { padding: 4px 6px; line-height: 1.3; }
+#karte .gridwrap { overflow-x: auto; margin: 0 -6px; }
+#karte .insight { font-family: var(--cond); font-size: 19px; text-transform: uppercase; letter-spacing: .02em; font-weight: 650; line-height: 1.3; margin-bottom: 10px; }
+#karte .quiet { color: var(--muted); font-size: 13px; }
+@media (min-width: 960px) {
+  #karte .kpis { grid-template-columns: repeat(3, 1fr); }
+  #karte #maps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #karte #maps > * + * { margin-top: 0; }
+}
+</style>
+<div id="karte">
+  {% if not data.matches %}
+  <p class="quiet" style="margin-top:20px">Noch keine Matches im Verlauf. Nach der nächsten Auswertung erscheint hier dein Fortschritt.</p>
+  {% elif not data.players %}
+  <p class="quiet" style="margin-top:20px">Für deinen Steam-Account gibt es noch keine Daten. Verbinde ihn unter Optionen, dann erscheinen hier deine Kurven.</p>
+  {% else %}
+  <div class="tabs" id="tabs"></div>
+  <div class="who" id="who"></div>
+
+  <h2 id="lessons-h">Baustellen</h2>
+  <div class="stack" id="lessons"></div>
+
+  <h2>Fehler je Map</h2>
+  <div class="card" id="mapgrid"></div>
+
+  <h2>Zahlen</h2>
+  <div class="kpis" id="kpis"></div>
+  <div class="quiet" style="margin-top:6px">K/D wie im Scoreboard (FACEIT, Valve): auch Kills nach Rundenende zählen.</div>
+
+  <h2 id="maps-h">Wo du stirbst</h2>
+  <div class="stack" id="maps"></div>
+  {% endif %}
+</div>
+<script type="application/json" id="data">{{ data_json | safe }}</script>
+<script>
+{% raw %}
+(() => {
+const D = JSON.parse(document.getElementById('data').textContent);
+if (!D.matches.length || !D.players.length) return;
+const PCOL = ['#ff9f1c', '#6f9be8'];
+const $ = id => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const color = sid => PCOL[Math.max(0, D.players.findIndex(p => p.sid === sid)) % PCOL.length];
+const NS = 'http://www.w3.org/2000/svg';
+const callout = window.callout || (n => n || '');
+
+// Sparkline: 2px-Linie, Endpunkt mit Ring, native Tooltips pro Punkt (in echten Pixeln gezeichnet).
+function spark(values, col, fmt) {
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('class', 'spark');
+  requestAnimationFrame(() => drawSpark(svg, values, col, fmt));
+  return svg;
+}
+function drawSpark(svg, values, col, fmt) {
+  const W = svg.clientWidth || 300, H = 40, pad = 6; svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const pts = values.map((v, i) => [i, v]).filter(p => p[1] != null);
+  if (!pts.length) return;
+  const vs = pts.map(p => p[1]), lo = Math.min(...vs), hi = Math.max(...vs), n = Math.max(1, values.length - 1);
+  const X = i => pad + (W - 2 * pad) * (values.length === 1 ? .5 : i / n);
+  const Y = v => hi === lo ? H / 2 : H - pad - (H - 2 * pad) * (v - lo) / (hi - lo);
+  const add = (tag, attrs) => { const e = document.createElementNS(NS, tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); svg.appendChild(e); return e; };
+  add('line', { x1: 0, x2: W, y1: H - .5, y2: H - .5, stroke: 'rgba(255,255,255,.07)', 'stroke-width': 1 });
+  if (pts.length > 1) add('polyline', { points: pts.map(p => X(p[0]) + ',' + Y(p[1])).join(' '), fill: 'none', stroke: col, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' });
+  pts.forEach((p, k) => {
+    const last = k === pts.length - 1;
+    const c = add('circle', { cx: X(p[0]), cy: Y(p[1]), r: last ? 4 : 2.5, fill: col, stroke: '#141821', 'stroke-width': 2 });
+    const t = document.createElementNS(NS, 'title'); t.textContent = D.matches[p[0]].label + ': ' + fmt(p[1]); c.appendChild(t);
+  });
+}
+
+const fmt1 = v => String(Math.round(v * 10) / 10).replace('.', ',');
+const KPI = [
+  ['kd', 'K/D', v => v.toFixed(2).replace('.', ',')],
+  ['adr', 'ADR', v => Math.round(v)],
+  ['opening', 'Opening-Duelle (+/-)', v => (v > 0 ? '+' : '') + v],
+  ['traded', 'Tode getradet', v => v + ' %'],
+  ['moving', 'Schüsse im Laufen', v => Math.round(v) + ' %'],
+  ['hit', 'Treffer pro Schuss', v => Math.round(v) + ' %'],
+];
+const MAPLBL = m => (m || '?').replace(/^de_/, '').replace(/^./, c => c.toUpperCase());
+const TREND = { besser: '▼ besser', schlechter: '▲ schlechter', gleich: '■ gleich', wenig: '… offen' };
+
+function showLessons(p, col, own) {
+  $('lessons-h').textContent = own ? 'Deine Baustellen' : 'Baustellen von ' + p.name;
+  const box = $('lessons'); box.textContent = '';
+  if (!p.lessons.length) {
+    box.appendChild(el('p', 'quiet', 'Noch keine Fehler im Verlauf. Nach der nächsten Auswertung erscheinen sie hier.'));
+    $('mapgrid').textContent = ''; $('mapgrid').appendChild(el('p', 'quiet', 'Noch keine Daten.'));
+    return;
+  }
+  p.lessons.slice(0, 4).forEach(l => {
+    const c = el('div', 'card lesson'), top = el('div', 'lt');
+    top.append(el('b', null, l.title), el('span', 'badge ' + l.trend.state, TREND[l.trend.state]));
+    const have = l.rates.filter(v => v != null), last = l.last || {};
+    c.append(top, el('div', 'lnow num', `Letztes Match: ${last.count ?? 0}x in ${last.rounds ?? 0} Runden, ${fmt1(have[have.length - 1] ?? 0)} pro 10 Runden` + (l.rounds !== last.rounds ? ` · ${l.total}x in ${l.rounds} Runden insgesamt` : '')));
+    c.appendChild(el('div', 'lnow num', l.trend.text));
+    c.appendChild(spark(l.rates, l.trend.state === 'besser' ? '#3fbf7f' : l.trend.state === 'schlechter' ? '#f0566a' : col, v => fmt1(v) + ' pro 10 Runden'));
+    const d = el('div', 'ldrill'); d.append(el('b', null, 'Übung: '), l.drill); c.appendChild(d);
+    box.appendChild(c);
+  });
+  // Tabelle: Zeilen = Fehler, Spalten = Maps, Zelle = Rate pro 10 Runden (Farbe = Stärke, Zahl steht immer drin)
+  const g = $('mapgrid'); g.textContent = '';
+  const rows = p.lessons.slice(0, 6), maps = [...new Set(rows.flatMap(l => Object.keys(l.by_map)))].sort();
+  let worst = null;
+  rows.forEach(l => maps.forEach(m => { const c = l.by_map[m]; if (c && c.count && (!worst || c.rate > worst.rate)) worst = { ...c, m, l }; }));
+  if (worst) g.appendChild(el('div', 'insight', `Am häufigsten: „${worst.l.title}“ auf ${MAPLBL(worst.m)} (${worst.count}x in ${worst.rounds} Runden).`));
+  const max = Math.max(0.1, ...rows.flatMap(l => maps.map(m => (l.by_map[m] || {}).rate || 0)));
+  const t = el('table', 'grid num'), hr = el('tr'); hr.appendChild(el('th'));
+  maps.forEach(m => hr.appendChild(el('th', 'm', MAPLBL(m)))); t.appendChild(hr);
+  rows.forEach(l => {
+    const tr = el('tr'); tr.appendChild(el('td', 'l', l.title));
+    maps.forEach(m => {
+      const c = l.by_map[m], td = el('td', 'c');
+      if (!c) { td.classList.add('none'); td.textContent = '–'; td.title = MAPLBL(m) + ': noch nicht gespielt'; }
+      else {
+        td.textContent = fmt1(c.rate);
+        td.style.background = `rgba(240,86,106,${(0.08 + 0.7 * c.rate / max).toFixed(2)})`;
+        td.title = `${MAPLBL(m)}: ${c.count}x in ${c.rounds} Runden (${fmt1(c.rate)} pro 10 Runden)`;
+      }
+      tr.appendChild(td);
+    });
+    t.appendChild(tr);
+  });
+  const w = el('div', 'gridwrap'); w.appendChild(t); g.appendChild(w);
+  g.appendChild(el('div', 'quiet', 'Zahl = wie oft pro 10 Runden auf dieser Map. Je röter, desto häufiger. „–“ = auf der Map noch nicht gespielt.'));
+}
+function showPlayer(i) {
+  const p = D.players[i], col = PCOL[i % PCOL.length], own = !!D.me && p.sid === D.me;
+  [...$('tabs').children].forEach((b, j) => b.classList.toggle('on', j === i));
+  $('who').textContent = own ? 'Deine Daten (' + p.name + ').' : 'Daten von ' + p.name + '.';
+  showLessons(p, col, own);
+  const box = $('kpis'); box.textContent = '';
+  KPI.forEach(([key, label, fmt]) => {
+    const vals = p.series[key] || [], have = vals.filter(v => v != null);
+    const k = el('div', 'kpi'); k.appendChild(el('div', 'lbl', label));
+    k.appendChild(el('div', 'val num', have.length ? fmt(have[have.length - 1]) : '–'));
+    k.appendChild(el('div', 'avg num', have.length > 1 ? 'Ø ' + fmt(Math.round(have.reduce((a, b) => a + b, 0) / have.length * (key === 'kd' ? 100 : 1)) / (key === 'kd' ? 100 : 1)) + ' aus ' + have.length + ' Matches' : 'letztes Match'));
+    k.appendChild(spark(vals, col, fmt)); box.appendChild(k);
+  });
+}
+if (D.players.length > 1) D.players.forEach((p, i) => {
+  const b = el('button'); const dot = el('i'); dot.style.background = PCOL[i % PCOL.length];
+  b.append(dot, p.name); b.onclick = () => showPlayer(i); $('tabs').appendChild(b);
+});
+showPlayer(0);  // der eingeloggte Spieler steht immer vorn (report.progress.build)
+
+// Todes-Karte je Map: Umriss aus allen Laufwegen + Todesorte je Spieler
+$('maps-h').textContent = D.players.length > 1 ? 'Wo ihr sterbt' : 'Wo du stirbst';
+D.maps.forEach(m => {
+  const card = el('div', 'card');
+  card.appendChild(el('div', 't', m.label + ' · ' + m.matches + (m.matches === 1 ? ' Match' : ' Matches'))).style.fontWeight = 700;
+  const cv = el('canvas', 'heat'); card.appendChild(cv);
+  const lg = el('div', 'legend');
+  D.players.forEach((p, i) => { const s = el('span'); const d = el('i'); d.style.background = PCOL[i % PCOL.length]; s.append(d, p.name); lg.appendChild(s); });
+  card.appendChild(lg);
+  const bars = el('div', 'dbars'), max = Math.max(1, ...m.top.map(t => t.count));
+  m.top.forEach(t => {
+    const row = el('div', 'dbar'), tr = el('div', 'track'), f = el('div', 'fill');
+    f.style.width = (100 * t.count / max) + '%'; f.style.background = color(t.sid);
+    tr.append(f, el('div', 'txt', callout(t.place) + (D.players.length > 1 ? ' · ' + t.name : ''))); row.append(tr, el('b', 'num', t.count + 'x')); bars.appendChild(row);
+  });
+  if (m.top.length) { card.appendChild(el('div', 'quiet', 'Häufigste Todesorte')); card.appendChild(bars); }
+  $('maps').appendChild(card);
+
+  requestAnimationFrame(() => {
+    const U = D.floorUnits, cells = m.floor, dpr = Math.min(devicePixelRatio || 1, 3), W = cv.clientWidth;
+    cv.width = cv.height = Math.round(W * dpr);
+    const xs = cells.map(c => c[0]).concat(m.deaths.map(d => Math.floor(d.x / U))).filter(Number.isFinite);
+    const ys = cells.map(c => c[1]).concat(m.deaths.map(d => Math.floor(d.y / U))).filter(Number.isFinite);
+    if (!xs.length || !ys.length) return;  // ohne Positionen keine Karte
+    const x0 = Math.min(...xs) - 2, x1 = Math.max(...xs) + 3, y0 = Math.min(...ys) - 2, y1 = Math.max(...ys) + 3;
+    const span = Math.max(x1 - x0, y1 - y0), k = cv.width / span;
+    const ox = (span - (x1 - x0)) / 2, oy = (span - (y1 - y0)) / 2;
+    const P = (gx, gy) => [(gx - x0 + ox) * k, (y1 - gy + oy) * k]; // Spiel-y nach oben
+    const ctx = cv.getContext('2d'), mx = Math.max(...cells.map(c => c[2]), 1);
+    const small = document.createElement('canvas'); small.width = small.height = span;
+    const sc = small.getContext('2d'), img = sc.createImageData(span, span);
+    cells.forEach(([i, j, c]) => {
+      const sx = Math.floor(i - x0 + ox), sy = Math.floor(y1 - 1 - j + oy);
+      if (sx < 0 || sy < 0 || sx >= span || sy >= span) return;
+      const o = (sy * span + sx) * 4;
+      img.data[o] = 120; img.data[o + 1] = 135; img.data[o + 2] = 165;
+      img.data[o + 3] = Math.round(255 * (.2 + .3 * Math.log(1 + c) / Math.log(1 + mx)));
+    });
+    sc.putImageData(img, 0, 0);
+    ctx.imageSmoothingEnabled = true; ctx.filter = 'blur(' + Math.max(1, Math.round(k * .4)) + 'px)';
+    ctx.drawImage(small, 0, 0, cv.width, cv.height); ctx.filter = 'none';
+    m.deaths.forEach(d => {
+      const [px, py] = P(d.x / U, d.y / U);
+      ctx.beginPath(); ctx.arc(px, py, 5 * dpr, 0, 7); ctx.fillStyle = color(d.sid); ctx.globalAlpha = .85; ctx.fill();
+      ctx.globalAlpha = 1; ctx.lineWidth = 2 * dpr; ctx.strokeStyle = '#07090d'; ctx.stroke();
+    });
+  });
+});
+})();
+{% endraw %}
+</script>

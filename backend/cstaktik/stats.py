@@ -18,10 +18,13 @@ def player_stats(match: MatchData, trade_window_s: float) -> list[PlayerStats]:
     out = []
     for sid in sorted(match.focus_ids()):
         rounds = sum(1 for r in match.rounds if sid in r.sides)
-        my_kills = [k for k in kills if k.attacker_steamid == sid and not is_teamkill(match, k)]
-        my_deaths = [k for k in kills if k.victim_steamid == sid]
+        # K/D wie die Scoreboards von Valve und FACEIT: auch Kills nach Rundenende (Exit-Frags) sind echte Kills
+        scoreboard = kills + list(match.post_round_kills)
+        my_kills = [k for k in scoreboard if k.attacker_steamid == sid and not is_teamkill(match, k)]
+        my_deaths = [k for k in scoreboard if k.victim_steamid == sid]
+        my_deaths_in_round = [k for k in kills if k.victim_steamid == sid]
         traded = 0
-        for d in my_deaths:
+        for d in my_deaths_in_round:
             # Trade = der Killer stirbt kurz danach durch das Team des Opfers (wie history.death_rows, pro.deaths)
             if d.attacker_steamid and any(
                 x.round == d.round and x.victim_steamid == d.attacker_steamid and x.attacker_side == d.victim_side

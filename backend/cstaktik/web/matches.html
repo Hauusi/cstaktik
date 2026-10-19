@@ -29,7 +29,7 @@
     <div class="map">{{ r.map[:2] if r.map else "?" }}</div>
     <div class="meta"><b>{{ r.map or r.name }}</b>
       <span class="muted small">{% if r.new %}<span class="newb">Neu</span> {% endif %}{{ r.date }}{% if r.topic %} · Thema: {{ r.topic }}{% endif %}</span>
-      {% if r.imp %}<span class="small mimp">{% for i in r.imp %}{{ i.name }} <span class="{{ 'p' if i.pos else 'n' }}">{{ i.v }}</span>{% if i.rank %} · Platz {{ i.rank }}/{{ i.of }}{% endif %}{{ " · " if not loop.last }}{% endfor %}</span>{% endif %}</div>
+      {% if r.imp %}<span class="small mimp">{% for i in r.imp %}{{ i.name }}: Impact <span class="{{ 'p' if i.pos else 'n' }}">{{ i.v }} Runden</span>{% if i.rank %} · Platz {{ i.rank }}{% if i.of %} von {{ i.of }}{% endif %}{% endif %}{{ " · " if not loop.last }}{% endfor %}</span>{% endif %}</div>
     {% if r.won is not none %}<div class="score num"><b>{{ r.won }}:{{ r.lost }}</b><span class="rb {{ r.res }}">{{ {"w": "Sieg", "l": "Niederlage", "d": "Remis"}[r.res] }}</span></div>{% endif %}
   </a>
   {% endfor %}

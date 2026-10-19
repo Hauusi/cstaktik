@@ -13,7 +13,7 @@ def _model():
                     continue
                 wins = round(10 * ct / (ct + t) * (0.5 if p else 1))
                 rows += [{"w": "ct" if i < wins else "t", "s": [[ct, t, p]]} for i in range(10)]
-    return WinModel(rows, 8)
+    return WinModel(rows, 8, k=0)  # ohne Glättung: Rechnung der Zuschreibung exakt prüfbar
 
 
 def _match():
@@ -59,7 +59,7 @@ def test_bomb_death_and_table_mix():
     # Eco-Tabelle nur für 2v2: vorher/nachher müssen aus derselben Tabelle kommen
     rows = [{"w": "ct", "s": [[2, 2, 0]], "eq": -1}] * 2 + [{"w": "t", "s": [[2, 2, 0]], "eq": -1}] * 8
     model = WinModel(rows + [{"w": "ct" if i < 8 else "t", "s": [[1, 2, 0]]} for i in range(10)]
-                     + [{"w": "ct" if i < 5 else "t", "s": [[2, 2, 0]]} for i in range(10)], 8)
+                     + [{"w": "ct" if i < 5 else "t", "s": [[2, 2, 0]]} for i in range(10)], 8, k=0)
     assert model.prob_pair((2, 2, False), (1, 2, False), -1) == (0.35, 0.8)  # beide exakt, nicht 0.2 -> 0.8 gemischt
 
 
@@ -100,7 +100,7 @@ def test_contexts_opening_trade_clutch():
     rows = [({"rounds": 1}, {"ctx": {"opening": [-300.0, 12], "trade": [200.0, 12]},
                              "ctx_avg": {"opening": [0.0, 1.2], "trade": [0.0, 1.0], "down": [-50.0, 2]}})]
     ctx, txt = impact.contexts(rows)
-    assert ctx[0]["ctx"] == "opening" and "in Opening-Duellen. Das sind -3,0" in txt and "bei Trades" in txt
+    assert ctx[0]["ctx"] == "opening" and "in Opening-Duellen: 3,0 Runden pro Match unter dem Schnitt" in txt and "bei Trades" in txt
 
 
 def test_kabine_mind_uses_impact_context():
@@ -124,3 +124,17 @@ def test_noisy_table_never_rewards_a_death():
     m.bomb = []
     pl = impact.build(m, WinModel(rows, 8))["players"]
     assert pl.get("a", {}).get("death", 0) <= 0 and pl.get("x", {}).get("kill", 0) >= 0
+
+
+def test_kd_counts_kills_after_round_end_like_scoreboard():
+    from cstaktik.stats import player_stats
+
+    m = _match()
+    late = Kill(tick=5100, round=1, attacker_steamid="a", victim_steamid="y", victim_name="Y", victim_side="t",
+                attacker_side="ct")
+    m.kills.append(late)
+    m.split_post_round()
+    assert late in m.post_round_kills and late not in m.kills  # Lagen und Impact sehen ihn nicht
+    st = {s.steamid: s for s in player_stats(m, 3.0)}
+    assert st["a"].kills == 1 and st["a"].deaths == 1  # FACEIT/Valve zählen den Exit-Frag mit
+    assert impact.build(m, _model())["players"].get("y", {}).get("death", 0) == 0

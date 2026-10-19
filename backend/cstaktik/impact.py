@@ -11,6 +11,12 @@ Chance davor und danach nachgeschlagen; die Differenz bekommt, wer es ausgelöst
 
 Schaden ohne Kill, Granaten und Infos zählen hier nicht: Das misst das Modell nicht. Kennt das Modell eine Lage nicht
 (zu wenige Runden), bekommt das Ereignis keinen Wert statt eines geschätzten.
+
+Wie die Chancen entstehen (situation.WinModel): gezählt je Lage, dann hierarchisch geglättet. Eine genaue Lage
+(z. B. 5 gegen 3) wird zur Lage mit gleichem Spielerunterschied (+2) gezogen, diese zu 50 %. Gewicht: 8 Runden. So
+ergibt eine Zelle aus 3 Pro-Runden nicht "100 %", und ein einzelner Kill springt nicht um 35 Punkte, nur weil zwei
+benachbarte Zellen zufällig weit auseinanderliegen. Hat nur die grobe Lage genug Runden, ist der Wert "grob".
+Kills nach Rundenende (Waffe retten) bewegen keine Siegchance und zählen hier nicht, wohl aber in K/D (stats.py).
 Einheit: Prozentpunkte Siegchance; 100 Punkte = eine ganze Runde.
 """
 
@@ -218,7 +224,8 @@ def profile(hist: list[dict], sid: str) -> dict | None:
            "bars": [{"h": round(v / top, 3), "s": de(v), "map": (h.get("map") or "?").removeprefix("de_").capitalize()}
                     for (h, _), v in zip(rows, per)],
            "top1": sum(1 for r in ranks if r == 1), "ranked": len(ranks),
-           "avg_rank": round(sum(ranks) / len(ranks), 1) if ranks else None}
+           "avg_rank": round(sum(ranks) / len(ranks), 1) if ranks else None,
+           "rank_s": rank_text([(x["rank"], x.get("of")) for _, x in rows if x.get("rank")])}
     out["trend"] = None
     if n >= 6:
         old, new = rows[: n // 2], rows[n // 2:]
@@ -227,7 +234,21 @@ def profile(hist: list[dict], sid: str) -> dict | None:
         out["trend"] = "besser" if b - a >= 1.5 else "schlechter" if a - b >= 1.5 else "gleich"
         out["trend_s"] = f"{de(a)} → {de(b)} Punkte je Runde"
     out["ctx"], out["ctx_reading"] = contexts(rows)
+    out["ctx_min"] = MIN_CTX
     return out
+
+
+def rank_text(ranks: list[tuple[int, int | None]]) -> str | None:
+    """"Platz 6 von 10" (ein Match) oder "im Schnitt Platz 5,5 von 10" (mehrere). Ohne Platz: None."""
+    if not ranks:
+        return None
+    ofs = {o for _r, o in ranks if o}
+    of = f" von {ofs.pop()}" if len(ofs) == 1 else ""
+    if len(ranks) == 1:
+        return f"Platz {ranks[0][0]}{of}"
+    avg = sum(r for r, _o in ranks) / len(ranks)
+    avg_s = str(int(avg)) if avg == int(avg) else f"{avg:.1f}".replace(".", ",")
+    return f"im Schnitt Platz {avg_s}{of}"
 
 
 MIN_CTX = 10  # so viele Ereignisse braucht eine Lage für eine Aussage
@@ -261,11 +282,12 @@ def contexts(rows: list[tuple[dict, dict]]) -> tuple[list[dict], str | None]:
     parts = []
     if sure and sure[0]["per_match"] <= -0.15:
         w = sure[0]
-        parts.append(f"Am meisten Runden verlierst du {CTX_IN[w['ctx']]}. Das sind {w['per_match_s']} Runden pro Match "
-                     f"gegenüber dem Schnitt, aus {w['n']} Kills und Toden. Tipp: {CTX_TIP[w['ctx']]}")
+        parts.append(f"Am meisten Runden verlierst du {CTX_IN[w['ctx']]}: {de(-w['per_match']).lstrip('+')} Runden pro "
+                     f"Match unter dem Schnitt, aus {w['n']} Kills und Toden. Tipp: {CTX_TIP[w['ctx']]}")
     if sure and sure[-1]["per_match"] >= 0.15:
         b = sure[-1]
-        parts.append(f"Am meisten holst du {CTX_IN[b['ctx']]}. Das sind {b['per_match_s']} Runden pro Match über dem Schnitt.")
+        parts.append(f"Am meisten holst du {CTX_IN[b['ctx']]}: {de(b['per_match']).lstrip('+')} Runden pro Match über dem "
+                     f"Schnitt, aus {b['n']} Kills und Toden.")
     return out, " ".join(parts) or None
 
 

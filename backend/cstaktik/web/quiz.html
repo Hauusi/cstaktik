@@ -38,7 +38,7 @@
 <a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Situationen</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/training/situationen?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if title %}{% if who and who != "Ich" %}Fokus {{ who }}:{% else %}Dein Fokus:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situationen aus euren Matches. Erst entscheiden, dann siehst du, was passiert ist.</p>
+<p>{% if title %}{% if own or not who or who == "Ich" %}Dein Fokus:{% else %}Fokus {{ who }}:{% endif %} <b>{{ title }}</b>. {% endif %}{{ n }} echte Situation{{ "en" if n != 1 }} aus {{ "deinen" if own else "euren" }} Matches{% if who and not own %}, alle von {{ who }}{% endif %}. Erst entscheiden, dann siehst du, was passiert ist.</p>
 {% endblock %}
 {% block content %}
 {% if radars %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{% for m, img in radars.items() %}<image id="rad-{{ m }}" href="{{ img }}" width="1024" height="1024"/>{% endfor %}</defs></svg>{% endif %}
@@ -46,6 +46,7 @@
 <div class="score num" id="score"></div>
 {% if not n %}<p class="muted">Noch keine Situationen. Eure Szenen erscheinen nach der nächsten Auswertung. Für ältere Matches einmal „cstaktik pro-update“ ausführen.</p>{% endif %}
 <script type="application/json" id="data">{{ data_json|safe }}</script>
+<script>{{ callouts_js|safe }}</script>
 <script>
 (() => {
 const ALL = JSON.parse(document.getElementById('data').textContent);
@@ -60,7 +61,6 @@ const S = ALL.map((sc, i) => [prio(sc), i, sc]).sort((a, b) => a[0] - b[0] || a[
 const QUIZ_OPEN = {{ 'true' if quiz_open else 'false' }};
 const OPTS = [['gehalten', 'Position halten'], ['zurückgezogen', 'Zurückziehen'], ['Richtung Gegner', 'Richtung Gegner gehen / peeken']];
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
-const clock = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 let ok = 0, n = 0, answered = 0;
 const NS = 'http://www.w3.org/2000/svg';
 const sv = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
@@ -99,12 +99,13 @@ S.forEach((sc, i) => {
     if (!sc.view.spotted) leg.appendChild(el('span', null, '(Gegner-Sichtbarkeit nicht in der Demo)'));
     c.appendChild(leg);
   }
-  const parts = [`${clock(s.secs)}`, `${s.own} gegen ${s.enemy}`];
+  // Nur, was man in dem Moment wissen konnte: Uhr, Bombe, Spielerzahl, HP, Ort, Mitspieler, Radar
+  const parts = [sc.uhr || (s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt'), `${s.own} gegen ${s.enemy}`];
   if (s.hp != null) parts.push(s.hp >= 100 ? 'volle HP' : `${s.hp} HP`);
-  parts.push(s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt');
-  if (s.place) parts.push(`du bist in ${s.place}`);
-  if (s.mate && s.mate_d != null) parts.push(`${s.mate} ${s.mate_d} Units weg`);
-  c.append(el('div', 'lage', parts.join(' · ') + (sc.info ? ' · ' + sc.info.replace(/^Info: /, '') : '')));
+  if (s.place) parts.push(`du bist in ${callout(s.place)}`);
+  if (s.mate && s.mate_d != null) parts.push(`${s.mate} ${meters(s.mate_d)} entfernt`);
+  if (sc.lage_info) parts.push(sc.lage_info.replace(/\.$/, ''));
+  c.append(el('div', 'lage', parts.join(' · ') + '.'));
   const opts = el('div', 'opts');
   OPTS.forEach(([k, label]) => {
     const b = el('button', 'opt', label);
@@ -114,19 +115,25 @@ S.forEach((sc, i) => {
       const rates = sc.pro_rates || {}, best = sc.pro_best;
       opts.querySelectorAll('.opt').forEach((o, j) => {
         const key = OPTS[j][0], r = rates[key];
-        if (key === sc.aktion) { o.classList.add('mine'); o.appendChild(el('small', null, 'Das wurde gemacht: Tod' + (sc.cost > 0 ? `, -${sc.cost} % Rundenchance` : ''))); }
+        if (key === sc.aktion) { o.classList.add('mine'); o.appendChild(el('small', null, 'Das hast du gemacht. Danach: Tod' + (sc.cost > 0 ? `, ${sc.cost} Prozentpunkte Rundenchance weniger` : ''))); }
         if (key === best) o.classList.add('best');
-        if (r) o.appendChild(el('small', null, `Pros: ${r[1]}x, ${Math.round(100 * r[0] / r[1])} % Siege`));
+        if (r) o.appendChild(el('small', null, `Pros: ${r[0]} von ${r[1]} Runde${r[1] === 1 ? '' : 'n'} gewonnen` + (r[1] >= 5 ? ` (${Math.round(100 * r[0] / r[1])} %)` : '')));
       });
       const res = el('div', 'res');
       if (best) { n++; if (k === best) ok++; }
       save(KEY(sc), { ok: best ? k === best : null, date: Date.now() });  // ohne Pro-Vergleich kein richtig/falsch
       answered++;
+      const hasPro = Object.keys(rates).length > 0;
       const v = best ? (k === best ? el('div', 'v ok', 'Richtig. Damit gewinnen Pros diese Lage am häufigsten.') : el('div', 'v no', 'Pros gewinnen hier am häufigsten mit: ' + OPTS.find(o => o[0] === best)[1] + '.'))
-                     : el('div', 'v no', 'Kein Pro-Vergleich für diese Lage.');
+                     : hasPro ? el('div', 'v no', 'Bei den Pros kein klarer Favorit. Dafür braucht es je Option mindestens 8 Runden. Unten die Regel des Coaches.')
+                     : el('div', 'v no', 'Für diese Lage gibt es keine Pro-Runden. Unten die Regel des Coaches.');
       if (map) { map.classList.add('done');
-        if (sc.view.kplace) res.appendChild(el('div', 'kfrom', 'Der Killer kam aus ' + sc.view.kplace + ' (rote Linie).')); }
-      res.append(v, el('div', 'meta', 'Lektion: ' + sc.lesson_title), el('div', null, sc.happened));
+        const vr = sc.view.vb_rev || sc.view.vb; map.setAttribute('viewBox', `${vr[0]} ${vr[1]} ${vr[2]} ${vr[2]}`);
+        if (sc.view.kplace) res.appendChild(el('div', 'kfrom', 'Der Killer kam aus ' + callout(sc.view.kplace) + ' (rote Linie).')); }
+      res.append(v);
+      if (sc.did) res.appendChild(el('div', null, 'Du: ' + sc.did + '.' + (sc.did_note ? ' ' + sc.did_note : '')));
+      if (sc.reveal_info) res.appendChild(el('div', null, 'Radar: ' + sc.reveal_info));
+      res.append(el('div', 'meta', 'Lektion: ' + sc.lesson_title), el('div', null, sc.happened));
       const nx = el('div', 'nx'); nx.append(el('b', null, 'Nächstes Mal'), sc.next); res.appendChild(nx);
       if (sc.report) { const a = el('a', null, '▶ Szene im Replay'); a.href = `/reports/${sc.report}#s${sc.round}-${sc.from || sc.tick}`; res.appendChild(a); }
       const cards = [...document.querySelectorAll('#list .tq')];  // nächste noch offene Situation, auch weiter oben

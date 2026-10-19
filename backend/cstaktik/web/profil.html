@@ -84,7 +84,7 @@
     <div class="small muted">Je Match ein Balken, das neueste rechts.</div>
     {% endif %}
     {% if im.trend %}<div class="fl num">Trend: <span class="tr {{ im.trend }}">{{ {"besser": "besser", "schlechter": "schlechter", "gleich": "kein klarer Trend"}[im.trend] }}</span> ({{ im.trend_s }}).</div>{% endif %}
-    {% if im.ranked %}<div class="fl num">{{ im.top1 }} von {{ im.ranked }} Mal bester Spieler des Matches.</div>{% endif %}
+    {% if im.ranked %}<div class="fl num">{{ im.top1 }} von {{ im.ranked }} Mal bester Spieler des Matches.{% if im.rank_s %} {{ im.rank_s[0]|upper ~ im.rank_s[1:] }} nach Impact.{% endif %}</div>{% endif %}
     <div class="src">Letzte {{ im.n }} Match{{ "es" if im.n != 1 }}. Jeder Kill, Tod, Plant und Defuse verschiebt die Siegchance der Runde.</div>
   </section>
   {% endif %}

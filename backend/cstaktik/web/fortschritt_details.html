@@ -57,14 +57,14 @@ h2[id] { scroll-margin-top: 70px; }
   <div class="imtop"><span class="lg num" style="color:{{ '#46a758' if im.per_round > 0 else '#e5484d' if im.per_round < 0 else 'inherit' }}">{{ im.per_round_s }}</span>
     <div><b>Punkte Siegchance je Runde</b><div class="small muted">Pro Match {{ im.match_s }} Runden: Kills {{ im.kill_s }}, Tode {{ im.death_s }}{% if im.obj %}, Bombe {{ im.obj_s }}{% endif %}.</div></div>
     <svg viewBox="-4 -2 108 34" aria-hidden="true"><line x1="0" x2="100" y1="15" y2="15"/>{% if im.n > 1 %}<polyline points="{{ im.spark }}"/>{% endif %}{% for d in im.dots %}<circle cx="{{ d.x }}" cy="{{ d.y }}" r="2.6" class="{{ 'neg' if d.neg }}"/>{% endfor %}</svg></div>
-  <div class="small muted num" style="margin-top:8px">{% if im.ranked %}{{ im.top1 }} von {{ im.ranked }} Mal bester Spieler des Matches. Im Schnitt Platz {{ im.avg_rank|string|replace(".", ",") }}.{% endif %}{% if im.trend %} Trend: <span class="tr {{ im.trend }}">{{ {"besser": "besser", "schlechter": "schlechter", "gleich": "kein klarer Trend"}[im.trend] }}</span> ({{ im.trend_s }}).{% endif %}</div>
+  <div class="small muted num" style="margin-top:8px">{% if im.ranked %}{{ im.top1 }} von {{ im.ranked }} Mal bester Spieler des Matches.{% if im.rank_s %} {{ im.rank_s[0]|upper ~ im.rank_s[1:] }} nach Impact.{% endif %}{% endif %}{% if im.trend %} Trend: <span class="tr {{ im.trend }}">{{ {"besser": "besser", "schlechter": "schlechter", "gleich": "kein klarer Trend"}[im.trend] }}</span> ({{ im.trend_s }}).{% endif %}</div>
   {% if im.ctx_reading %}<div class="dread" style="margin-top:10px">{{ im.ctx_reading }}</div>{% endif %}
   {% if im.ctx %}<details class="sdet"{% if im.ctx_reading %} open{% endif %}><summary>Impact nach Lage</summary>
-  {% for c in im.ctx %}<div class="mrow"><div><b>{{ c.label }}</b> <span class="small muted num">{{ c.n }}x, im Schnitt {{ c.per_event_s }} Punkte{% if not c.enough %} · wenige Fälle{% endif %}</span></div>
-    <b class="num" style="color:{{ '#46a758' if c.per_match >= 0.15 else '#e5484d' if c.per_match <= -0.15 else 'inherit' }}">{{ c.per_match_s }}</b></div>{% endfor %}
-  <div class="small muted" style="margin-top:6px">Rechts: Runden pro Match im Vergleich zum Schnitt. 0 ist durchschnittlich.</div>
+  {% for c in im.ctx %}<div class="mrow"><div><b>{{ c.label }}</b> <span class="small muted num">{{ c.n }}x Kill oder Tod{% if not c.enough %} · zu wenige für eine Zahl{% endif %}</span></div>
+    {% if c.enough %}<b class="num" style="color:{{ '#46a758' if c.per_match >= 0.15 else '#e5484d' if c.per_match <= -0.15 else 'inherit' }}">{{ c.per_match_s }} Runden</b>{% else %}<b class="num muted">–</b>{% endif %}</div>{% endfor %}
+  <div class="small muted" style="margin-top:6px">Rechts: Runden pro Match über (+) oder unter (−) dem Schnitt. 0 ist durchschnittlich. Eine Zahl gibt es ab {{ im.ctx_min }} Kills und Toden.</div>
   <details class="how"><summary>Wie wird das gemessen?</summary>
-    <p>Rechts steht der Abstand zum Durchschnitt aller Spieler in denselben Matches, in Runden pro Match. Links steht, wie oft die Lage vorkam. Dazu, was ein Kill oder Tod dort im Schnitt bewegt.</p></details>
+    <p>Rechts steht der Abstand zum Durchschnitt aller Spieler in denselben Matches, in Runden pro Match. Links steht, wie oft die Lage vorkam.</p></details>
   </details>{% endif %}
   <a href="/highlights?p={{ p.sid }}" style="display:inline-block;margin-top:8px;color:var(--orange);font-weight:700">Beste Plays und teuerste Momente ›</a>
   <div class="small muted" style="margin-top:6px">Impact misst, wie stark du die Siegchance der Runden verschiebst.</div>
@@ -79,14 +79,15 @@ h2[id] { scroll-margin-top: 70px; }
 {% if p.levers %}
 <h2 id="hebel">Eure größten Hebel</h2>
 <div class="card lev">
-  {% for l in p.levers %}<a class="lv" href="{{ l.link }}"><span class="lg num">+{{ l.gain_s }}</span>
+  {% for l in p.levers %}<a class="lv" href="{{ l.link }}"><span class="lg num">{% if l.thin %}<span class="small muted">Tendenz</span>{% else %}+{{ l.gain_s }}{% endif %}</span>
     <div><b>{{ l.title }}</b><span class="lk2">{{ l.kind }}</span><div class="small muted">{{ l.text }}</div></div></a>{% endfor %}
-  <div class="small muted" style="margin-top:8px">Die Zahl: mögliche Runden pro Match. Eine Rechnung, keine Garantie.</div>
+  <div class="small muted" style="margin-top:8px">{% if p.levers[0].thin %}Erst ein Match: eine Tendenz, noch keine Zahl.{% else %}Die Zahl: mögliche Runden pro Match. Eine Rechnung, keine Garantie.{% endif %}</div>
   <details class="how"><summary>Wie wird das gemessen?</summary>
     <ul><li>Gerechnet aus euren letzten Matches.</li>
       <li>Bei Fehlern: die Rundenchance, die sie gekostet haben.</li>
       <li>Sonst: der Abstand zu den Pros, wenn ihr diese Runden so oft gewinnen würdet wie sie.</li>
-      <li>Hebel können sich teilweise überschneiden.</li></ul></details>
+      <li>Steckt eine Runde in mehreren Hebeln, zählt sie nur beim größten.</li>
+      <li>Aus nur einem Match gibt es höchstens einen Hebel und keine Zahl.</li></ul></details>
 </div>
 {% endif %}
 
@@ -95,7 +96,7 @@ h2[id] { scroll-margin-top: 70px; }
 <div class="card">
   {% if p.reading %}<div class="dread">{{ p.reading }}</div>{% endif %}
   {{ duelchain(d, pr, cmpbar) }}
-  <div class="small muted num" style="margin-top:10px">{{ d.n }} Duelle, {{ d.won|round|int }} % gewonnen. Gewichtet nach Fallzahl je Match.</div>
+  <div class="small muted num" style="margin-top:10px">{{ d.n }} Duelle, {{ d.won|round|int }} % gewonnen. Gewichtet nach Fallzahl je Match.{% if pr %} Pros: {{ pr.n }} Duelle aus {{ p.pro_duel_demos }} Demo{{ "s" if p.pro_duel_demos != 1 }}.{% endif %} Ein Urteil (besser oder schlechter) gibt es ab 20 eigenen Fällen.</div>
 </div>
 {% endif %}
 </div>
@@ -122,24 +123,24 @@ h2[id] { scroll-margin-top: 70px; }
   <div class="small muted" style="margin:4px 0 2px">Nach dem ersten Kill: Wie oft gewinnt ihr die Runde?</div>
   {% for k in ["for", "against"] %}{% set o = sd.fb.own.rows.get(k) %}{% set q = sd.fb.pro.rows.get(k) %}
   {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
-    <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {{ q.won_pct }} % ({{ q.n }}){% endif %}</span></div>
-    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+    <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {% if q.n >= 5 %}{{ q.won_pct }} % ({{ q.n }} Runden){% else %}nur {{ q.n }} Runde{{ "n" if q.n != 1 }}{% endif %}{% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ 'inherit' if not q or o.n < 5 or q.n < 5 else '#46a758' if o.won_pct - q.won_pct >= 10 else '#e5484d' if q.won_pct - o.won_pct >= 10 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
   {% endfor %}{% endif %}
   {% if sd.pp.own.total %}
   <div class="small muted" style="margin:12px 0 2px">{{ "Nach dem Plant: Siege je nach Spielerzahl" if sd.side == "t" else "Retake: Siege je nach Spielerzahl beim Plant" }}</div>
   {% for k in ["up", "even", "down"] %}{% set o = sd.pp.own.rows.get(k) %}{% set q = sd.pp.pro.rows.get(k) %}
   {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
-    <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {{ q.won_pct }} % ({{ q.n }}){% endif %}</span></div>
-    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+    <span class="small muted num">{% if o %}Ihr {{ o.won }} von {{ o.n }}{% else %}Ihr noch keine Runde{% endif %}{% if q %} · Pros {% if q.n >= 5 %}{{ q.won_pct }} % ({{ q.n }} Runden){% else %}nur {{ q.n }} Runde{{ "n" if q.n != 1 }}{% endif %}{% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ 'inherit' if not q or o.n < 5 or q.n < 5 else '#46a758' if o.won_pct - q.won_pct >= 10 else '#e5484d' if q.won_pct - o.won_pct >= 10 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
   {% endfor %}{% endif %}
   {% if sd.buys.own.total %}
   <div class="small muted" style="margin:12px 0 2px">Kauf: wie oft und wie erfolgreich</div>
   {% for k in ["eco", "force", "full"] %}{% set o = sd.buys.own.buys.get(k) %}{% set q = sd.buys.pro.buys.get(k) %}
   {% if o or q %}<div class="mrow"><div><b>{{ (o or q).label }}</b>
-    <span class="small muted num">Ihr {{ o.share if o else 0 }} % der Runden{% if o %}, {{ o.won }}/{{ o.n }} gewonnen{% endif %}{% if q %} · Pros {{ q.share }} %, {{ q.won_pct }} % gewonnen{% endif %}</span></div>
-    {% if o %}<b class="num" style="color:{{ '#46a758' if q and o.won_pct - q.won_pct >= 10 else '#e5484d' if q and q.won_pct - o.won_pct >= 10 and o.n >= 5 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
+    <span class="small muted num">Ihr {{ o.share if o else 0 }} % der Runden{% if o %}, {{ o.won }}/{{ o.n }} gewonnen{% endif %}{% if q %} · Pros {{ q.share }} %{% if q.n >= 5 %}, {{ q.won_pct }} % gewonnen ({{ q.n }} Runden){% else %}, nur {{ q.n }} Runde{{ "n" if q.n != 1 }}{% endif %}{% endif %}</span></div>
+    {% if o %}<b class="num" style="color:{{ 'inherit' if not q or o.n < 5 or q.n < 5 else '#46a758' if o.won_pct - q.won_pct >= 10 else '#e5484d' if q.won_pct - o.won_pct >= 10 else 'inherit' }}">{{ o.won_pct }} %</b>{% endif %}</div>{% endif %}
   {% endfor %}{% endif %}
-  <div class="small muted num" style="margin-top:8px">Basis: {{ sd.pp.own.total }} eigene {{ S }}-Runden mit Plant und {{ sd.buys.own.total }} mit Kaufwerten, alle Maps. Pistolenrunden zählen nicht. Kauf ist die Ausrüstung der 5 {{ S }} beim Rundenstart. Eco geht bis {{ p.buy_cfg.eco_max }}, Force bis {{ p.buy_cfg.force_max }}.</div>
+  <div class="small muted num" style="margin-top:8px">Basis: {{ sd.pp.own.total }} eigene {{ S }}-Runden mit Plant und {{ sd.buys.own.total }} mit Kaufwerten, alle Maps. Pros: {{ sd.buys.pro.total }} {{ S }}-Runden aus {{ sd.pro_demos }} Demo{{ "s" if sd.pro_demos != 1 }}. Pistolenrunden zählen nicht. Kauf ist die Ausrüstung der 5 {{ S }} beim Rundenstart. Eco geht bis {{ p.buy_cfg.eco_max }}, Force bis {{ p.buy_cfg.force_max }}.</div>
   </details>
 </div>
 {% endfor %}
@@ -152,9 +153,9 @@ h2[id] { scroll-margin-top: 70px; }
   {% for k in ["serie", "sonst", "sieg"] %}{% set g = tl.groups[k] %}
   <div class="mrow"><div><b>{{ g.label }}</b>
     <span class="small muted num">{{ g.n }} Runden{% if g.n %} · als Erster gestorben {{ g.first }} % · ohne Trade gestorben {{ g.untraded }} %{% endif %}</span></div>
-    {% if g.impact_s %}<b class="num" style="color:{{ '#46a758' if g.impact > 0 else '#e5484d' if g.impact < 0 else 'inherit' }}">{{ g.impact_s }}</b>{% endif %}</div>
+    {% if g.impact_s %}<b class="num" style="color:{{ '#46a758' if g.impact > 0 else '#e5484d' if g.impact < 0 else 'inherit' }}">{{ g.impact_s }} Punkte</b>{% else %}<b class="num muted">–</b>{% endif %}</div>
   {% endfor %}
-  <div class="small muted" style="margin-top:8px">Rechts: Impact je Runde in Punkten Siegchance. Pistolenrunden zählen nicht. Ein Unterschied ist ein Zusammenhang, kein Beweis.</div>
+  <div class="small muted" style="margin-top:8px">Rechts: Impact je Runde in Punkten Siegchance, ab 25 Runden je Gruppe. Pistolenrunden zählen nicht. Ein Unterschied ist ein Zusammenhang, kein Beweis.</div>
   </details>
 </div>
 {% endif %}
@@ -165,8 +166,8 @@ h2[id] { scroll-margin-top: 70px; }
   {% if c.reading %}<div class="dread">{{ c.reading }}</div>{% else %}<div class="small muted">{% if c.exp_n < 5 %}Noch zu wenige Clutches mit Pro-Vergleich. Eine Bewertung gibt es ab 5.{% else %}Nichts Auffälliges.{% endif %}</div>{% endif %}
   <details class="sdet"{% if c.reading %} open{% endif %}><summary>Alle Werte</summary>
   {% for r in c.rows %}<div class="mrow"><div><b>{{ r.label }}</b>
-    <span class="small muted num">{% if r.n %}Du {{ r.won }} von {{ r.n }}{% else %}Du noch keiner{% endif %}{% if r.pro_pct is not none %} · Pros {{ r.pro_pct }} % ({{ r.pro_n }}){% endif %}</span></div>
-    {% if r.n %}<b class="num" style="color:{{ '#46a758' if r.pro_pct is not none and r.won_pct - r.pro_pct >= 10 else '#e5484d' if r.pro_pct is not none and r.pro_pct - r.won_pct >= 10 and r.n >= 5 else 'inherit' }}">{{ r.won_pct }} %</b>{% endif %}</div>
+    <span class="small muted num">{% if r.n %}Du {{ r.won }} von {{ r.n }}{% else %}Du noch keiner{% endif %}{% if r.pro_pct is not none %} · Pros {{ r.pro_pct }} % ({{ r.pro_n }} Clutches){% endif %}</span></div>
+    {% if r.n %}<b class="num" style="color:{{ 'inherit' if r.pro_pct is none or r.n < 5 else '#46a758' if r.won_pct - r.pro_pct >= 10 else '#e5484d' if r.pro_pct - r.won_pct >= 10 else 'inherit' }}">{{ r.won_pct }} %</b>{% endif %}</div>
   {% endfor %}
   <div class="small muted num" style="margin-top:8px">{{ c.n }} Clutches, {{ c.won }} gewonnen, {{ c.kills }} Kills.{% if c.lost %} Von {{ c.lost }} verlorenen hast du {{ c.saved }} überlebt und die Waffe gerettet.{% endif %}{% if c.t_plant.n %} Als T ohne gelegte Bombe hast du sie {{ c.t_plant.planted }} von {{ c.t_plant.n }} Mal noch gelegt.{% if c.t_plant.pro_pct is not none %} Pros: {{ c.t_plant.pro_pct }} %.{% endif %}{% endif %} Pro-Quoten stammen aus den Pro-Demos, alle Maps.</div>
   </details>
@@ -185,7 +186,7 @@ h2[id] { scroll-margin-top: 70px; }
 <div class="card">
 {% for mt in p.matches %}<div class="mrow"><span>{{ mt.label }}</span><span class="num"><b style="color:{{ '#46a758' if mt.won > mt.lost else '#e5484d' if mt.lost > mt.won else 'inherit' }}">{{ mt.won }}:{{ mt.lost }}</b>{% if mt.report %} · <a href="/reports/{{ mt.report }}" style="color:var(--orange)">Report ›</a>{% endif %}</span></div>{% endfor %}
 </div>
-<a class="more-link" href="/progress/karte">Todes-Karte und alle Kurven ›</a>
+<a class="more-link" href="/progress/karte?p={{ p.sid }}">Todes-Karte und alle Kurven ›</a>
 <a class="more-link" href="/spieler">Spieler einstellen ›</a>
 </div>
 </div>

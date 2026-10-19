@@ -21,7 +21,7 @@ def test_briefing_from_history():
     b = briefing.build("de_mirage", hs, {"active": [{"title": "Z", "tip": "T", "target_pct": 10}]})
     assert b["matches"] == 2 and b["goals"][0]["title"] == "Z"
     # Ich stirbt 3x pro Match in SynthMid als CT -> 6x, alle als Erster
-    assert any("Ich: 6x in SynthMid gestorben, von " in n["text"] and "Davon 6x als Erster" in n["text"]
+    assert any("Ich: 6x in Synth Mid gestorben, von " in n["text"] and "Davon 6x als Erster" in n["text"]
                and n["side"] == "CT" and "meist ohne Trade" in n["tip"] for n in b["notes"])
     empty = briefing.build("de_inferno", hs, {"active": []})
     assert empty["matches"] == 0 and empty["notes"] == [] and empty["watch"] == []
@@ -41,7 +41,7 @@ def test_start_page_and_briefing_route():
     assert "Letztes Match" in home and 'class="gnav"' in home and 'href="/training#vorbereitung"' in home
     assert "/briefing/de_mirage" in c.get("/training").text  # Kabine: unter "Vor dem Match" im Training
     b = c.get("/briefing/de_mirage")
-    assert b.status_code == 200 and "Kabine Mirage" in b.text and "SynthMid" in b.text
+    assert b.status_code == 200 and "Kabine Mirage" in b.text and "Synth Mid" in b.text
     assert c.get("/briefing/..%2Fetc").status_code in (400, 404)
 
 

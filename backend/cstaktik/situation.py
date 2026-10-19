@@ -13,14 +13,18 @@ Bombe gelegt, Abstand zum nächsten lebenden Mitspieler, Utility im Inventar, Au
 ``bomb_time_s``), weil die Demo sie nicht direkt liefert; so im Text gekennzeichnet.
 
 Gewinnchance: Häufigkeit, mit der eine Seite eine Runde aus einer Lage (CT lebend, T lebend, Bombe
-gelegt) gewonnen hat, gezählt über eure Matches, Pro-Demos und dieses Match. Zu wenige Runden für eine
-Lage: grobere Lage (Differenz + Bombe), sonst keine Zahl. Kein Modell, keine Annahmen, nur Zählen.
+gelegt) gewonnen hat, gezählt über eure anderen Matches und die Pro-Demos. Kleine Zellen werden zur gröberen Lage
+(nur Spielerunterschied) und weiter zu 50 % gezogen (siehe ``WinModel``), damit 3 Runden nicht "100 %" ergeben.
+Zu wenige Runden auch für die grobe Lage: keine Zahl.
 """
 
 from __future__ import annotations
 
 from collections import Counter
 
+from cstaktik.callouts import clock as game_clock
+from cstaktik.callouts import meters
+from cstaktik.callouts import place as callout
 from cstaktik.model import Finding, MatchData
 from cstaktik.rules.base import PositionIndex, dist
 
@@ -76,19 +80,36 @@ def eq_bucket(rnd) -> int | None:
     return 1 if ct - t > EQ_DIFF else -1 if t - ct > EQ_DIFF else 0
 
 
-class WinModel:
-    """Gezählte Gewinnquoten je Lage. ``prob`` liefert None, wenn zu wenige Runden vorliegen."""
+PRIOR_K = 8  # Gewicht der nächstgröberen Stufe, in "Runden": so viele Runden braucht eine Lage, um halb zu zählen
+ROOT_P = 0.5  # oberste Stufe: ohne Daten ist jede Lage offen
 
-    def __init__(self, rounds: list[dict], min_n: int = 8):
+
+class WinModel:
+    """Gewinnquoten je Lage, hierarchisch geglättet (Empirical Bayes, Beta-Prior mit Gewicht ``k`` Runden).
+
+    Stufen, von grob nach fein, jede wird zur vorigen hin gezogen:
+    1. 50 % (ohne Daten ist jede Lage offen),
+    2. nur der Spielerunterschied: Differenz CT minus T (-3..+3), Bombe gelegt, beide Seiten leben,
+    3. die genaue Lage: lebende CT, lebende T, Bombe gelegt,
+    4. dazu die Ausrüstung der Runde (nur, wenn diese Zelle selbst ``min_n`` Runden hat).
+    Schätzung je Stufe: (CT-Siege + k * Wert der Stufe darüber) / (Runden + k). Eine Zelle mit 3 Runden und 3 CT-Siegen
+    wird so nicht zu 100 %, sondern bleibt nahe am Wert für denselben Spielerunterschied.
+    Mindestzahlen: Hat die genaue Lage ``min_n`` Runden, gilt der Wert als belastbar; hat nur die Stufe
+    "Spielerunterschied" genug, ist er ``grob`` (so in Texten gekennzeichnet); sonst gibt es keine Zahl.
+    Entschiedene Lagen (eine Seite tot, ohne gelegte Bombe) sind fest 0 oder 100 %."""
+
+    def __init__(self, rounds: list[dict], min_n: int = 8, k: float = PRIOR_K):
         self.min_n = min_n
+        self.k = k
         self.exact: dict[tuple, list[int]] = {}
         self.coarse: dict[tuple, list[int]] = {}
         self.with_eq: dict[tuple, list[int]] = {}
         self.rounds = len(rounds)
+        self.last_eq = False
         for rd in rounds:
             seen_e, seen_c, seen_q = set(), set(), set()
             for ct, t, p in rd["s"]:
-                ke, kc = (ct, t, p), (max(-3, min(3, ct - t)), p, min(ct, t) > 0)
+                ke, kc = (ct, t, p), _coarse_key(ct, t, p)
                 keys = [(ke, self.exact, seen_e), (kc, self.coarse, seen_c)]
                 if rd.get("eq") is not None:
                     keys.append(((ct, t, p, rd["eq"]), self.with_eq, seen_q))
@@ -100,65 +121,61 @@ class WinModel:
                     c[0] += rd["w"] == "ct"
                     c[1] += 1
 
+    def _shrink(self, cell: list[int] | None, prior: float) -> float:
+        w, n = cell if cell else (0, 0)
+        return (w + self.k * prior) / (n + self.k)
+
+    def estimate(self, ct: int, t: int, planted: bool, eq: int | None = None) -> dict | None:
+        """CT-Siegchance einer Lage: {"p", "n", "rough", "level"} oder None (zu wenige Runden).
+        ``n``: Runden der genauen Lage (bei ``rough`` die der Stufe Spielerunterschied), 0 bei entschiedenen Lagen."""
+        if ct == 0:
+            return {"p": 0.0, "n": 0, "rough": False, "level": "fixed"}
+        if t == 0 and not planted:
+            return {"p": 1.0, "n": 0, "rough": False, "level": "fixed"}
+        co = self.coarse.get(_coarse_key(ct, t, int(planted)))
+        ex = self.exact.get((ct, t, int(planted)))
+        n_co, n_ex = (co[1] if co else 0), (ex[1] if ex else 0)
+        if n_ex < self.min_n and n_co < self.min_n:
+            return None
+        p = self._shrink(ex, self._shrink(co, ROOT_P))
+        level = "exact" if n_ex >= self.min_n else "coarse"
+        if eq is not None:
+            q = self.with_eq.get((ct, t, int(planted), eq))
+            if q and q[1] >= self.min_n:
+                p, level = self._shrink(q, p), "eq"
+        rough = level == "coarse"
+        return {"p": p, "n": n_co if rough else n_ex, "rough": rough, "level": level}
+
     def prob(self, side: str, ct: int, t: int, planted: bool, eq: int | None = None) -> tuple[float, int, bool] | None:
         """(Gewinnchance der Seite 0..1, Anzahl Runden, grob?) oder None. Mit ``eq`` (Ausrüstungs-Stufe der Runde)
-        zuerst die Lage mit gleicher Ausrüstung, sofern genug Runden; ``self.last_eq`` sagt, ob sie genutzt wurde."""
-        self.last_eq = False
-        if eq is not None and ct and t:
-            c = self.with_eq.get((ct, t, int(planted), eq))
-            if c and c[1] >= self.min_n:
-                self.last_eq = True
-                p_ct = c[0] / c[1]
-                return (p_ct if side == "ct" else 1 - p_ct), c[1], False
-        if ct == 0 or t == 0:  # entschieden (außer Bombe/Defuse): klare Grenzfälle
-            if ct == 0:
-                return (0.0 if side == "ct" else 1.0), 0, False
-            if not planted:
-                return (1.0 if side == "ct" else 0.0), 0, False
-        c = self.exact.get((ct, t, int(planted)))
-        coarse = False
-        if not c or c[1] < self.min_n:
-            c = self.coarse.get((max(-3, min(3, ct - t)), int(planted), min(ct, t) > 0))
-            coarse = True
-        if not c or c[1] < self.min_n:
+        zusätzlich die Lage mit gleicher Ausrüstung, sofern genug Runden; ``self.last_eq`` sagt, ob sie genutzt wurde."""
+        e = self.estimate(ct, t, planted, eq)
+        self.last_eq = bool(e and e["level"] == "eq")
+        if e is None:
             return None
-        p_ct = c[0] / c[1]
-        return (p_ct if side == "ct" else 1 - p_ct), c[1], coarse
-
-
-    def _at_n(self, level: str, ct: int, t: int, planted: bool, eq: int | None) -> tuple[float, int] | None:
-        """(CT-Siegchance, Runden) aus genau einer Tabelle; entschiedene Lagen sind fest (0 Runden)."""
-        if ct == 0:
-            return 0.0, 0
-        if t == 0 and not planted:
-            return 1.0, 0
-        if level == "eq":
-            c = self.with_eq.get((ct, t, int(planted), eq)) if eq is not None and t else None
-        elif level == "exact":
-            c = self.exact.get((ct, t, int(planted)))
-        else:
-            c = self.coarse.get((max(-3, min(3, ct - t)), int(planted), min(ct, t) > 0))
-        return (c[0] / c[1], c[1]) if c and c[1] >= self.min_n else None
-
-    def _at(self, level: str, ct: int, t: int, planted: bool, eq: int | None) -> float | None:
-        r = self._at_n(level, ct, t, planted, eq)
-        return None if r is None else r[0]
+        return (e["p"] if side == "ct" else 1 - e["p"]), e["n"], e["rough"]
 
     def pair_detail(self, before: tuple, after: tuple, eq: int | None = None) -> dict | None:
-        """Wie ``prob_pair``, mit Tabelle (``level``: eq/exact/coarse) und Rundenzahlen je Seite."""
-        for level in ("eq", "exact", "coarse"):
-            if level == "eq" and eq is None:
-                continue
-            b, a = self._at_n(level, *before, eq), self._at_n(level, *after, eq)
-            if b is not None and a is not None:
-                return {"before": b[0], "after": a[0], "n_before": b[1], "n_after": a[1], "level": level}
-        return None
+        """Vorher/Nachher eines Ereignisses (CT-Sicht) mit Rundenzahlen. Ausrüstung nur, wenn BEIDE Lagen sie mit genug
+        Runden haben: sonst würde eine Eco-Zelle gegen eine Zelle ohne Ausrüstung verglichen und das Vorzeichen kippen.
+        ``level``: eq | exact | coarse (mindestens eine Seite nur grob) | fixed."""
+        b, a = self.estimate(*before, eq), self.estimate(*after, eq)
+        if b is None or a is None:
+            return None
+        if eq is not None and (b["level"] == "eq") != (a["level"] == "eq") and "fixed" not in (b["level"], a["level"]):
+            b, a = self.estimate(*before, None), self.estimate(*after, None)
+        levels = {b["level"], a["level"]} - {"fixed"}
+        level = "coarse" if "coarse" in levels else "eq" if "eq" in levels else "exact" if levels else "fixed"
+        return {"before": b["p"], "after": a["p"], "n_before": b["n"], "n_after": a["n"], "level": level}
 
     def prob_pair(self, before: tuple, after: tuple, eq: int | None = None) -> tuple[float, float] | None:
-        """CT-Siegchance vor und nach einem Ereignis aus DERSELBEN Tabelle (mit Ausrüstung, exakt, grob).
-        Gemischte Tabellen können das Vorzeichen umdrehen (z. B. Eco-Runde: 5v5 mit, 4v5 ohne Ausrüstung)."""
+        """CT-Siegchance vor und nach einem Ereignis, beide aus derselben Schätzung (siehe ``pair_detail``)."""
         d = self.pair_detail(before, after, eq)
         return None if d is None else (d["before"], d["after"])
+
+
+def _coarse_key(ct: int, t: int, p: int) -> tuple:
+    return (max(-3, min(3, ct - t)), int(p), min(ct, t) > 0)
 
 
 # ---------------------------------------------------------------- Lage zu einem Zeitpunkt
@@ -370,7 +387,7 @@ def info_text(info: dict | None, killer_name: str | None, rnd_freeze: int, tr: i
     parts = [f"{info['seen_now']} Gegner auf dem Radar sichtbar." if info["seen_now"] else "Kein Gegner auf dem Radar."]
     if killer_name:
         if info["killer_seen"] is not None:
-            parts.append(f"{killer_name} war ab {_clock((info['killer_seen'] - rnd_freeze) / tr)} sichtbar.")
+            parts.append(f"{killer_name} war ab {game_clock((info['killer_seen'] - rnd_freeze) / tr)} sichtbar.")
         else:
             parts.append(f"{killer_name} war vorher nicht gesichtet, also eine Überraschung.")
     return "Info: " + " ".join(parts)
@@ -381,17 +398,19 @@ def lage_text(snap: dict, kind: str, nades: list[str]) -> str:
     if snap["hp"] is not None:
         parts.append(f"du hast {snap['hp']} HP")
     parts.append("Bombe liegt" if snap["planted"] else "Bombe nicht gelegt")
-    parts.append(f"noch ca. {_clock(snap['time_left'])}")
+    parts.append(f"noch ca. {_clock(snap['time_left'])}" + (" bis zur Explosion" if snap["planted"] else ""))
     extra = []
     if snap["mate"] and snap["mate_d"] is not None:
-        extra.append(f"{snap['mate']} ist {snap['mate_d']} Units weg.")
+        extra.append(f"{snap['mate']} ist {meters(snap['mate_d'])} weg.")
     elif snap["own"] == 1:
         extra.append("Kein Mitspieler lebt mehr.")
     if nades:
         extra.append("Du hattest " + ", ".join(f"{n}x {k}" if n > 1 else k for k, n in Counter(nades).items()) + ".")
-    where = f" in {snap['place']}" if snap["place"] else ""
+    where = f" in {callout(snap['place'])}" if snap["place"] else ""
     act = f"gehst{where} los" if kind == "bewegt" else f"hältst{where} Position"
-    return " ".join([f"{_clock(snap['secs'])}: Du {act}. Lage: " + ", ".join(parts) + "."] + extra)
+    # Spieluhr wie in CS (1:55 abwärts), nach dem Plant der Bombentimer
+    uhr = f"Bombe 0:{snap['time_left']:02d}" if snap["planted"] else game_clock(snap["secs"])
+    return " ".join([f"{uhr}: Du {act}. Lage: " + ", ".join(parts) + "."] + extra)
 
 
 def enrich(match: MatchData, findings: list[Finding], model: WinModel | None, cfg: dict,
