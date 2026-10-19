@@ -121,7 +121,7 @@ def _pooled(matches: list[dict], lid: str, sid: str | None) -> tuple[float, int,
 def update(state: dict, summary: dict, top_lessons: list[str], target_factor: float = 0.6,
            done_after: int = 2, sid: str | None = None, past: list[dict] | None = None,
            min_check_rounds: int = 12, min_master_rounds: int = 40, min_count: int = 3,
-           pool_matches: int = 5) -> dict:
+           pool_matches: int = 5, settled: set[str] | None = None) -> dict:
     """Prüft den laufenden Auftrag gegen dieses Match und setzt bei Bedarf einen neuen.
 
     Statistisch ehrlich, damit "gemeistert" nicht Glück ist:
@@ -131,6 +131,10 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
       (weder für noch gegen die Serie).
     - Gemeistert: ``done_after`` Matches in Folge unter dem Ziel und zusammen mindestens ``min_master_rounds`` Runden.
     - Ein gemeisterter Auftrag kommt zurück, wenn die Rate wieder auf den alten Ausgangswert steigt (Rückfall).
+    - Kurs (course.py): ``top_lessons`` sind die Baustellen in Kursreihenfolge, die erste passende wird der neue
+      Auftrag. ``settled``: Lektionen, die laut den letzten Matches sitzen. Sitzt die laufende Lektion inzwischen
+      (nach mindestens ``done_after`` geprüften Matches), ohne dass die Serie voll ist, endet der Auftrag als "sitzt"
+      (nicht "gemeistert") und der Kurs geht weiter.
     ``past``: frühere Verlaufs-Einträge (ohne dieses Match), älteste zuerst.
     Rückgabe (für den Report): {"check": {...} | None, "focus": {...} | None, "new": bool, "mastered": str | None}.
     Dieselbe Demo zweimal auszuwerten zählt nicht doppelt."""
@@ -139,7 +143,7 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
 
     past = [h for h in (past or []) if h.get("id") != mid]
     mine = [h for h in past + [summary] if sid is None or sid in h.get("players", {})]
-    out = {"check": None, "focus": None, "new": False, "mastered": None}
+    out = {"check": None, "focus": None, "new": False, "mastered": None, "settled": None}
     f = state.get("focus")
     if f and f.get("lesson") not in LESSONS:  # Lektion gibt es nicht mehr (alte Datei): Auftrag neu wählen
         state["focus"] = f = None
@@ -176,6 +180,14 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
                 state.setdefault("done", []).append(f)
                 out["mastered"] = f["lesson"]
                 state["focus"] = f = None
+    if f and settled and f.get("lesson") in settled and \
+            sum(1 for m in f.get("matches", []) if m.get("met") is not None) >= done_after:
+        # erst nach so vielen geprüften Matches wie für "gemeistert": sonst endet ein Auftrag nach einem guten Match
+        f["status"] = "sitzt"
+        f["done_at"] = summary.get("analyzed_at")
+        state.setdefault("done", []).append(f)
+        out["settled"] = f["lesson"]
+        state["focus"] = f = None
     if not state.get("focus"):
         recent = state.get("done", [])[-3:]
         for lid in top_lessons:
@@ -210,8 +222,10 @@ def update(state: dict, summary: dict, top_lessons: list[str], target_factor: fl
 
 
 def update_all(state: dict, summary: dict, tops: dict[str, list[str]], target_factor: float = 0.6,
-               done_after: int = 2, past: list[dict] | None = None, **kw) -> dict[str, dict]:
-    """Eigener Auftrag je Fokus-Spieler. ``tops``: steamid -> Lektionen dieses Spielers, wichtigste zuerst.
+               done_after: int = 2, past: list[dict] | None = None, settled: dict[str, set] | None = None,
+               **kw) -> dict[str, dict]:
+    """Eigener Auftrag je Fokus-Spieler. ``tops``: steamid -> Lektionen dieses Spielers, wichtigste zuerst
+    (im Kurs: Baustellen in Kursreihenfolge, course.plan_for). ``settled``: steamid -> Lektionen, die sitzen.
     Alter gemeinsamer Auftrag (Version davor) wird beim ersten Mal für jeden Spieler übernommen."""
     players = state.setdefault("players", {})
     legacy = state.get("focus")
@@ -220,7 +234,8 @@ def update_all(state: dict, summary: dict, tops: dict[str, list[str]], target_fa
         if sid not in players:
             players[sid] = {"focus": json.loads(json.dumps(legacy)) if legacy else None,
                             "done": list(state.get("done", [])), "drills": []}
-        res = update(players[sid], summary, tops.get(sid, []), target_factor, done_after, sid=sid, past=past, **kw)
+        res = update(players[sid], summary, tops.get(sid, []), target_factor, done_after, sid=sid, past=past,
+                     settled=(settled or {}).get(sid), **kw)
         res["name"] = (summary.get("players", {}).get(sid) or {}).get("name", sid)
         out[sid] = res
     if legacy is not None:

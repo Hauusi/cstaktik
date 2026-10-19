@@ -34,6 +34,18 @@
 {% block content %}
 {% if p %}
 <div class="pgrid">
+  {# 0. Kurs-Fortschritt #}
+  {% if kurs %}
+  <section class="card" id="kurs" data-block="kurs">
+    <div class="kick">Dein Kurs</div>
+    <div class="big num">{{ kurs.done }} von {{ kurs.total }}</div>
+    <div class="fl">Lektionen geschafft.{% if kurs.settled %} {{ "Eine weitere sitzt" if kurs.settled == 1 else kurs.settled ~ " weitere sitzen" }} laut deinen Matches schon.{% endif %}</div>
+    {% if kurs.current %}<div class="fl">Gerade dran ist <b>{{ kurs.current.title }}</b>{% if kurs.current.stage %} aus der Stufe {{ kurs.current.stage }}{% endif %}. {{ kurs.current.progress }}</div>
+    {% else %}<div class="fl">Gerade ist keine Lektion eine Baustelle.</div>{% endif %}
+    <a class="more" href="{% if kurs.current %}/kurs/{{ kurs.current.id }}{% else %}/{% endif %}{% if tabs|length > 1 %}?p={{ p.sid }}{% endif %}" style="display:inline-flex;align-items:center;min-height:40px;margin-top:6px;color:var(--orange);font-weight:700">{{ "Lektion öffnen ›" if kurs.current else "Zum Kurs ›" }}</a>
+    <div class="src">Gezählt aus deinen letzten Matches, Grenzen je Lektion in den Coach-Regeln.</div>
+  </section>
+  {% endif %}
   {# 1. Fokus-Verlauf #}
   <section class="card auf" id="fokus" data-block="fokus-verlauf">
     <div class="kick">Fokus-Verlauf</div>

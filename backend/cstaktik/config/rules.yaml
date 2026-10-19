@@ -147,6 +147,23 @@ goals:
   pool_matches: 5
   min_count: 3
 
+# Kurs (course.py): Einstufung jeder Lektion aus den eigenen Matches des Spielers. Coach-Richtlinie, keine
+# Messung an Pros: Gezählt wird, wie oft der Fehler einer Lektion pro 10 gespielten Runden vorkommt
+# (Verlauf: lessons[sid], über die letzten window_matches Matches zusammen).
+# - "Baustelle": mehr als die Grenze UND mindestens goals.min_count Vorkommen
+# - "sitzt": höchstens die Grenze, mit mindestens min_rounds Runden
+# - "noch offen": weniger als min_rounds Runden (zu wenig Daten für eine Aussage)
+# Die aktuelle Lektion ist die erste Baustelle in Kursreihenfolge (Grundlagen zuerst), außer ein Auftrag läuft schon.
+course:
+  window_matches: 5
+  min_rounds: 20            # etwa ein volles Match
+  max_per_10: 1.0           # Grenze für die meisten Lektionen: etwa jeder sechste Tod
+  per_lesson:               # Lagen, die auch in guten Runden oft vorkommen, bekommen mehr Spielraum
+    seen_first: 1.5
+    utility: 1.5
+    alone: 1.5
+    outnumbered: 1.5
+
 mechanics:
   # Schuss gilt als "bewegt", wenn schneller als das (Units/s, aus velocity im Schuss-Tick).
   # Heuristik: im Laufen streuen Waffen stark. Am echten Spiel kalibrieren.

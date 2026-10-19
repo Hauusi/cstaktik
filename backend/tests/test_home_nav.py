@@ -3,7 +3,7 @@
 import re
 
 from fastapi.testclient import TestClient
-from synth import ME
+from synth import BRO, ME
 
 from cstaktik import accounts, api, coaching, history, pipeline
 from cstaktik.coach_voice import LESSONS
@@ -36,33 +36,61 @@ def _login():
     return c
 
 
-def test_home_shows_only_new_match_and_focus():
+def test_home_is_the_course_new_match_lesson_and_path():
+    from cstaktik import course_texts
+
     _entry("m1", "2999-01-01T10:00")
     _entry("m2", "2999-01-02T10:00")
     _focus()
     home = _login().get("/").text
     blocks = re.findall(r'data-block="([a-z-]+)"', home)
-    assert blocks == ["new", "fokus"]  # genau zwei Blöcke, in dieser Reihenfolge
-    assert "Neues Match ansehen" in home and "2 neue Matches" in home
-    assert home.index('href="/m/m2.html"') < home.index('href="/m/m1.html"')  # neuestes oben, das andere kompakt
-    assert "Dein Fokus fürs nächste Match" in home and LESSONS["utility"][0] in home
-    assert TEACH["utility"]["mantra"] in home and TEACH["utility"]["in_game"] in home
-    assert "Übungen für deinen Fokus" in home and "/training/plan?p=" in home and "&back=home" in home
-    assert "1 gemeistert" in home and "1 von 2 Matches in Folge geschafft" in home
-    assert 'href="/training#vorbereitung"' in home and "Alle Übungen" in home
-    # nicht mehr auf der Startseite: Hebel, Kabine, Situations-Training, Heute-Karte, Auftrag-Begriffe
+    assert blocks == ["new", "lesson", "path"]  # neues Match, aktuelle Lektion, Lernpfad
+    assert "2 neue Matches" in home and 'href="/m/m2.html"' in home and 'href="/m/m1.html"' not in home
+    # aktuelle Lektion = laufender Auftrag, mit Fortschritt als Satz und Knopf zur Lektion
+    assert "Deine aktuelle Lektion" in home and course_texts.LESSONS["utility"]["title"] in home
+    assert "1 von 2 Matches in Folge geschafft." in home and 'href="/kurs/utility"' in home and "Lektion öffnen" in home
+    # Lernpfad: alle Stufen und Lektionen, jede antippbar, mit Status
+    for st in course_texts.STAGES:
+        assert st["title"] in home
+    for lid in course_texts.LESSONS:
+        assert f'href="/kurs/{lid}"' in home
+    path = home[home.index('data-block="path"'):]
+    assert re.search(r'href="/kurs/alone"><span class="lt">[^<]+</span><span class="chip geschafft">geschafft', path)
+    assert re.search(r'href="/kurs/utility"><span class="lt">[^<]+</span><span class="chip aktuell">aktuell', path)
+    assert "Du hast <b class=\"num\">1 von 12</b> Lektionen geschafft." in home
+    # kleine Links bleiben, der Rest ist weg
+    assert 'href="/training#vorbereitung"' in home and 'href="/training#tools"' in home
     body = re.sub(r"<style>.*?</style>|<script>.*?</script>", "", home, flags=re.S)  # nur sichtbarer Inhalt
-    for gone in ("Größter Hebel", "/briefing/", "Situations-Training", "Heute ·", "Auftrag", "Wochenplan", "Thema:"):
+    for gone in ("Größter Hebel", "/briefing/", "Situations-Training", "Heute ·", "Auftrag", "Wochenplan", "Thema:",
+                 "Dein Fokus fürs nächste Match", "Letztes Match", "·"):
         assert gone not in body, gone
-    assert "Demo hochladen" in home  # ohne automatischen Download bleibt das Hochladen (eingeklappt)
+    assert "Demo selbst hochladen" in home
 
 
-def test_home_without_new_match_shows_last_line():
+def test_home_without_new_match_shows_lesson_and_path():
     _entry("m1", "2026-01-01T10:00")  # vor dem ersten Login: gilt als gesehen
     _focus()
     home = _login().get("/").text
-    assert re.findall(r'data-block="([a-z-]+)"', home) == ["last", "fokus"]
-    assert "Letztes Match:" in home and 'href="/m/m1.html"' in home and "Neues Match ansehen" not in home
+    assert re.findall(r'data-block="([a-z-]+)"', home) == ["lesson", "path"]
+    assert 'href="/m/' not in home
+
+
+def test_home_course_per_player_isolated():
+    """Jeder Bruder sieht seinen eigenen Kurs: eigene aktuelle Lektion, eigener Stand."""
+    _entry("m1", "2026-01-01T10:00")
+    coaching.save({"players": {ME: {"focus": FOCUS, "done": [], "drills": []},
+                               BRO: {"focus": {**FOCUS, "lesson": "crosshair", "matches": []}, "done": [],
+                                     "drills": []}}}, pipeline.COACHING_FILE)
+    me = _login().get("/").text
+    assert 'class="cur"' in me and 'href="/kurs/utility"' in me
+    assert re.search(r'href="/kurs/crosshair"><span class="lt">[^<]+</span><span class="chip offen">', me)
+    accounts.add_user("Bruder", "Geheim-12345")
+    accounts.link_steamid("Bruder", BRO)
+    b = TestClient(api.app)
+    b.post("/login", data={"name": "Bruder", "password": "Geheim-12345"}, headers=O)
+    bro = b.get("/").text
+    assert re.search(r'href="/kurs/crosshair"><span class="lt">[^<]+</span><span class="chip aktuell">', bro)
+    assert "1 von 2 Matches in Folge geschafft." not in bro
 
 
 def test_nav_has_three_tabs_and_settings_icon():
@@ -70,10 +98,10 @@ def test_nav_has_three_tabs_and_settings_icon():
         page = TestClient(api.app).get(path).text
         nav = re.search(r'<nav class="gnav".*?</nav>', page, re.S).group(0)
         tabs = re.findall(r'<a href="([^"]+)"[^>]*>.*?</svg>([^<]+)</a>', nav, re.S)
-        assert tabs == [("/", "Coach"), ("/matches", "Matches"), ("/progress", "Fortschritt")], path
+        assert tabs == [("/", "Kurs"), ("/matches", "Matches"), ("/progress", "Fortschritt")], path
         assert 'href="/mehr" aria-label="Einstellungen"' in page, path
     nav = re.search(r'<nav class="gnav".*?</nav>', TestClient(api.app).get("/training").text, re.S).group(0)
-    assert re.search(r'href="/"\s+class="on"', nav)  # Training gehört zum Coach
+    assert re.search(r'href="/"\s+class="on"', nav)  # Training gehört zum Kurs
     assert 'hset on' in TestClient(api.app).get("/mehr").text
 
 
@@ -84,6 +112,9 @@ def test_progress_top_cards_and_details_page():
     top = c.get(f"/progress?p={ME}").text
     assert "Fokus-Verlauf" in top and LESSONS["utility"][0] in top and "Gemeistert: <b>" + LESSONS["alone"][0] in top
     assert "Impact-Trend" in top and "Alle Details" in top
+    # oben: Kurs-Fortschritt (geschafft von gesamt, aktuelle Lektion mit Stufe)
+    assert top.index('data-block="kurs"') < top.index('data-block="fokus-verlauf"')
+    assert ">1 von 12</div>" in top and "Gerade dran ist <b>Erst Utility, dann Duell</b> aus der Stufe Granaten." in top
     for detail in ("Eure größten Hebel", "Fehler im Verlauf", 'id="maps"', "Letzte Matches"):
         assert detail not in top
     det = c.get(f"/progress/details?p={ME}").text
