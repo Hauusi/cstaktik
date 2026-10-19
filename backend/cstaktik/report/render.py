@@ -631,6 +631,10 @@ def render_report(
     recur: tuple | None = None, past: list[dict] | None = None, leads: dict | None = None,
 ) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
+    from cstaktik import callouts
+
+    callouts.register(env)
+    env.globals["callouts_js"] = callouts.JS
     return env.get_template("report.html").render(**build_context(match, result, maps_dirs, goal_check, pro_clips,
                                                                   memory, focus, recur, past, leads))
 

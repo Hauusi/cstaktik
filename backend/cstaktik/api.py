@@ -183,6 +183,8 @@ app.mount("/reports", StaticFiles(directory=pipeline.REPORTS_DIR, html=True), na
 _env = Environment(loader=FileSystemLoader([Path(__file__).parent / "web", Path(__file__).parent / "report" / "templates"]),
                    autoescape=select_autoescape(["html"]))
 _env.globals["font_css"] = lambda: __import__("cstaktik.fonts", fromlist=["font_css"]).font_css()
+__import__("cstaktik.callouts", fromlist=["register"]).register(_env)
+_env.globals["callouts_js"] = __import__("cstaktik.callouts", fromlist=["JS"]).JS
 
 
 class _GoalCfg:
