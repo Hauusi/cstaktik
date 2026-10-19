@@ -41,9 +41,9 @@
   <div class="ktitle">{{ a.title }}</div>
   <div class="kmantra">„{{ a.mantra }}“</div>
   <div class="kline"><b>Im Match:</b> {{ a.in_game }}</div>
-  {% for side, k in a.angles.items() %}<div class="kline"><b>{{ side }}: meist erschossen aus {{ k.place }}.</b> {{ k.n }}x, das sind {{ k.share }} % deiner {{ side }}-Tode hier. Dorthin vorzielen.</div>{% endfor %}
-  {% for side, k in a.seen_at.items() %}<div class="kline"><b>{{ side }}: In {{ k.place }} sieht er dich zuerst.</b> {{ k.n }}x. Dort nicht offen stehen. Erst Utility nutzen oder anders hinstellen.</div>{% endfor %}
-  {% if a.top_place %}<div class="kline"><b>Achtung in {{ a.top_place[0] }}.</b> Dort passieren {{ a.top_place[1] }} deiner Szenen zu diesem Fokus auf {{ b.label }}.</div>{% endif %}
+  {% for side, k in a.angles.items() %}<div class="kline"><b>{{ side }}: meist erschossen aus {{ k.place|callout }}.</b> {{ k.n }}x, das sind {{ k.share }} % deiner {{ side }}-Tode hier. Dorthin vorzielen.</div>{% endfor %}
+  {% for side, k in a.seen_at.items() %}<div class="kline"><b>{{ side }}: In {{ k.place|callout }} sieht er dich zuerst.</b> {{ k.n }}x. Dort nicht offen stehen. Erst Utility nutzen oder anders hinstellen.</div>{% endfor %}
+  {% if a.top_place %}<div class="kline"><b>Achtung in {{ a.top_place[0]|callout }}.</b> Dort passieren {{ a.top_place[1] }} deiner Szenen zu diesem Fokus auf {{ b.label }}.</div>{% endif %}
   {% if a.points %}<div class="kline muted">{{ a.points|length }} Szene{{ "n" if a.points|length != 1 }} auf {{ b.label }}. Die Punkte stehen auf der Karte.</div>{% endif %}
   {% for m in a.mind %}<div class="kline"><b>Im Kopf:</b> {{ m }}</div>{% endfor %}
   <div class="kline muted">Vorher üben: {{ a.routine.title }}, {{ a.routine.minutes }} Min.{% if a.drills %} Bisher {{ a.drills }}x gemacht.{% endif %}</div>
@@ -51,22 +51,25 @@
 {% endfor %}
 {% endif %}
 
+{% if not has_own %}
+<div class="note sec"><b>Noch keine eigenen Daten zu {{ b.label }}.</b> Hinweise aus euren Matches erscheinen hier nach dem ersten Match auf {{ b.label }}.{% if not plan %} Auch die Pro-Demos haben für {{ b.label }} noch keine Taktik mit mindestens {{ kabine_min }} Runden.{% endif %}</div>
+{% endif %}
 {% if plan %}
 <h2>Matchplan</h2>
 <div class="card mplan">
   {% if plan.t_pro %}<a class="mp" href="/playbook/{{ map_name }}#{{ plan.t_pro.id }}"><span class="mk t">T</span><div><b>{{ "Pro-Empfehlung: " if plan.t_pro.why == "best" else "Pros spielen hier am häufigsten: " }}{{ plan.t_pro.name }}</b>
-    <span>Pros gewinnen damit {{ plan.t_pro.won_pct }} %, {{ plan.t_pro.won }} von {{ plan.t_pro.n }}{% if plan.t_pro.common %}. Granaten: {% for c in plan.t_pro.common[:3] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
+    <span>Pros gewinnen damit {{ plan.t_pro.won_pct }} %, {{ plan.t_pro.won }} von {{ plan.t_pro.n }}{% if plan.t_pro.common %}. Granaten: {% for c in plan.t_pro.common[:3] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to|callout }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
   {% if plan.t_own %}<a class="mp" href="/playbook/{{ map_name }}?who=ihr#{{ plan.t_own.id }}"><span class="mk t">T</span><div><b>Eure Stärke: {{ plan.t_own.name }}</b>
     <span>Ihr gewinnt {{ plan.t_own.won_pct }} %, {{ plan.t_own.won }} von {{ plan.t_own.n }}. Dabei bleiben. Ansehen ›</span></div></a>{% endif %}
   {% if plan.t_weak %}<div class="mp"><span class="mk no">!</span><div><b>Weniger: {{ plan.t_weak.label }}</b>
     <span>Ihr gewinnt nur {{ plan.t_weak.won_pct }} % eurer {{ plan.t_weak.label }}-Runden, {{ plan.t_weak.won }} von {{ plan.t_weak.n }}.</span></div></div>{% endif %}
   {% if plan.compare %}<div class="mp"><span class="mk">≠</span><div><span>{{ plan.compare }}</span></div></div>{% endif %}
   {% if plan.ct_pro %}<a class="mp" href="/playbook/{{ map_name }}?side=ct#{{ plan.ct_pro.id }}"><span class="mk ct">CT</span><div><b>{{ "Pro-Empfehlung" if plan.ct_pro.why == "best" else "Häufigste Pro-Aufstellung" }}: {{ plan.ct_pro.name }}</b>
-    <span>Pros halten damit {{ plan.ct_pro.won_pct }} %, {{ plan.ct_pro.won }} von {{ plan.ct_pro.n }}{% if plan.ct_pro.util %}. Früh: {% for c in plan.ct_pro.util[:2] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
+    <span>Pros halten damit {{ plan.ct_pro.won_pct }} %, {{ plan.ct_pro.won }} von {{ plan.ct_pro.n }}{% if plan.ct_pro.util %}. Früh: {% for c in plan.ct_pro.util[:2] %}{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} {{ c.to|callout }}{{ ", " if not loop.last }}{% endfor %}{% endif %}. Ansehen ›</span></div></a>{% endif %}
   {% if plan.ct_weak %}<a class="mp" href="/playbook/{{ map_name }}?who=ihr&side=ct#{{ plan.ct_weak.id }}"><span class="mk no">!</span><div><b>Eure Aufstellung {{ plan.ct_weak.name }} hält schlecht</b>
     <span>Gehalten: {{ plan.ct_weak.won_pct }} %, {{ plan.ct_weak.won }} von {{ plan.ct_weak.n }}. Ansehen ›</span></div></a>{% endif %}
-  {% for h in plan.habits or [] %}<div class="mp"><span class="mk no">!</span><div><span>{{ h }}</span></div></div>{% endfor %}
-  <div class="small muted">Nur Taktiken und Aufstellungen mit mindestens 3 Runden. Siegquoten aus wenigen Runden sind Tendenzen.</div>
+  {% for h in plan.habits or [] %}<div class="mp"><span class="mk no">!</span><div><span>{{ h.text }}</span><span class="small" style="display:block;color:var(--faint)">{{ h.basis }}</span></div></div>{% endfor %}
+  <div class="small muted">Nur Taktiken und Aufstellungen mit mindestens {{ kabine_min }} Runden.{% if plan.pro_demos %} Pro-Werte für {{ b.label }} aus {{ plan.pro_demos }} Pro-Demo{{ "s" if plan.pro_demos != 1 }}.{% endif %} Siegquoten aus wenigen Runden sind Tendenzen.</div>
 </div>
 {% endif %}
 {% if kabine and kabine.has_points %}
@@ -100,7 +103,7 @@
 </div><div class="col">
 {% if b.win_spots %}
 <h2>Wo ihr in Siegrunden steht</h2>
-{% for w in b.win_spots %}<div class="note"><span class="side {{ w.side }}">{{ w.side }}</span>{{ w.name }}: In Siegrunden nach {{ w.at }} meist in <b>{{ w.place }}</b> <span class="empty num">· {{ w.n }} von {{ w.total }}</span></div>{% endfor %}
+{% for w in b.win_spots %}<div class="note"><span class="side {{ w.side }}">{{ w.side }}</span>{{ w.name }}: In Siegrunden nach {{ w.at }} meist in <b>{{ w.place|callout }}</b> <span class="empty num">· {{ w.n }} von {{ w.total }}</span></div>{% endfor %}
 {% endif %}
 
 {% if b.notes %}

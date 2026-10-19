@@ -64,7 +64,7 @@ def test_training_pages_and_drill_done():
     assert "Dein Fokus fürs nächste Match" in home and "Nie allein in ein Duell" in home
     assert "Übungen für deinen Fokus" in home and "&back=home" in home  # Wochenplan als Checkliste auf der Startseite
     t = c.get("/training/situationen").text
-    assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situationen" in t
+    assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situation " in t
     hub = c.get("/training").text
     assert "Übungen für deinen Fokus" in hub and "Zu zweit peeken" in hub and "Situations-Training" in hub
     assert "1 eigene Szenen zu deinem Fokus" in hub and 'id="vorbereitung"' in hub

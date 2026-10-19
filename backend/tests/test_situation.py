@@ -60,8 +60,8 @@ def test_snapshot_text_category_and_action():
     f = _finding(m)
     enrich(m, [f], None, CFG)
     e = f.evidence
-    assert e["entscheidung"].startswith("0:14: Du gehst in SynthA los. Lage: 4 gegen 5, du hast 20 HP, Bombe nicht gelegt")
-    assert "Bruder ist 2050 Units weg." in e["entscheidung"] and "Du hattest Smoke, Flash." in e["entscheidung"]
+    assert e["entscheidung"].startswith("1:41: Du gehst in Synth A los. Lage: 4 gegen 5, du hast 20 HP, Bombe nicht gelegt")
+    assert "Bruder ist 52 m weg." in e["entscheidung"] and "Du hattest Smoke, Flash." in e["entscheidung"]
     assert e["situation"] == "Allein vorrücken (CT)" and e["aktion"] == "Richtung Gegner"
     assert abs(f.overlay["decision"][2] - (m.rounds[0].freeze_end_tick + 14 * TR)) <= TR // 4  # Glättung: 1 Sample
 
@@ -70,7 +70,7 @@ def test_win_model_counts_and_cost():
     # 10 Runden: aus 4v5 gewinnt CT 4x, aus 3v5 nie
     rounds = [{"w": "ct" if i < 4 else "t", "s": [[5, 5, 0], [4, 5, 0]] + ([[3, 5, 0]] if i >= 4 else [])}
               for i in range(10)]
-    model = WinModel(rounds, min_n=5)
+    model = WinModel(rounds, min_n=5, k=0)
     assert model.prob("ct", 4, 5, False)[0] == 0.4
     assert model.prob("ct", 3, 5, False) == (0.0, 6, False)
     assert model.prob("ct", 2, 5, False) is None or model.prob("ct", 2, 5, False)[2]  # nur grob
@@ -99,7 +99,7 @@ def test_info_from_spotted():
     m.kills[-1].attacker_name = "Gegner1"
     f = _finding(m)
     enrich(m, [f], None, CFG)
-    assert f.evidence["info"] == "Info: Kein Gegner auf dem Radar. Gegner1 war ab 0:16 sichtbar."
+    assert f.evidence["info"] == "Info: Kein Gegner auf dem Radar. Gegner1 war ab 1:39 sichtbar."  # Spieluhr: 1:55 - 0:16
 
     for p in m.positions:
         p.spotted = None
@@ -232,7 +232,7 @@ def test_coach_intro_memory_praise():
 def test_win_model_uses_equipment_when_enough_rounds():
     rounds = ([{"w": "ct", "s": [[5, 5, 0], [4, 5, 0]], "eq": 1} for _ in range(8)]
               + [{"w": "t", "s": [[5, 5, 0], [4, 5, 0]], "eq": -1} for _ in range(8)])
-    m = WinModel(rounds, min_n=5)
+    m = WinModel(rounds, min_n=5, k=0)
     assert m.prob("ct", 4, 5, False)[0] == 0.5
     assert m.prob("ct", 4, 5, False, eq=1)[0] == 1.0 and m.last_eq
     assert m.prob("ct", 4, 5, False, eq=-1)[0] == 0.0
@@ -258,7 +258,7 @@ def test_pair_detail_uses_one_table():
     from cstaktik.situation import WinModel
 
     rows = [{"w": "t", "s": [[5, 5, 0], [5, 4, 0]], "eq": -1}] * 10 + [{"w": "ct", "s": [[5, 5, 0], [4, 5, 0]]}] * 10
-    d = WinModel(rows).pair_detail((5, 5, False), (4, 5, False), -1)
+    d = WinModel(rows, k=0).pair_detail((5, 5, False), (4, 5, False), -1)
     assert d["level"] == "exact" and (d["before"], d["after"]) == (0.5, 1.0) and d["n_after"] == 10
 
 
@@ -271,3 +271,19 @@ def test_death_never_shows_negative_cost():
     f = _finding(m)
     enrich(m, [f], model, CFG)
     assert "cost_pct" not in f.evidence and "chance" not in f.evidence
+
+
+def test_win_model_shrinks_small_cells():
+    # 2 Pro-Demos: 5v3 nur 3x gesehen, alle gewonnen. Ohne Glättung "100 %", mit Glättung nahe der Stufe +2.
+    rounds = ([{"w": "ct", "s": [[5, 5, 0], [5, 4, 0], [5, 3, 0]]} for _ in range(3)]
+              + [{"w": "ct" if i < 6 else "t", "s": [[5, 5, 0], [4, 4, 0], [4, 2, 0]]} for i in range(9)])
+    m = WinModel(rounds, min_n=8)
+    p, n, rough = m.prob("ct", 5, 3, False)
+    assert 0.6 < p < 0.9 and rough and n == 12  # Spielerunterschied +2: 9 von 12, zur Mitte gezogen
+    assert m.prob("ct", 5, 5, False)[2] is False  # 12 Runden genaue Lage: belastbar
+    assert m.prob("ct", 3, 1, True) is None  # weder Lage noch Spielerunterschied gesehen: keine Zahl
+    raw = WinModel(rounds, min_n=1, k=0).prob("ct", 5, 3, False)[0]
+    assert raw == 1.0 and p < raw
+    # Zwei Kills bewegen die Chance nicht mehr auf 100 %, nur weil eine Zelle 3 Runden hat
+    d = m.pair_detail((5, 5, False), (5, 3, False))
+    assert d["level"] == "coarse" and d["after"] - d["before"] < 0.3

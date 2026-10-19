@@ -1,14 +1,24 @@
-{# Vergleichsbalken: eigener Wert gegen Pros. Rot/Grün nur bei klarem Abstand (tol) und mind. 10 Fällen. #}
+{# Vergleichsbalken: eigener Wert gegen Pros.
+   Urteil (Rot/Grün, "besser"/"schlechter") nur bei klarem Abstand (tol) und mind. 20 Fällen.
+   Großer Abstand bei weniger Fällen: Richtung nennen, aber "zu wenige Fälle für ein Urteil" (nie "etwa gleich").
+   "etwa gleich" nur, wenn der Abstand unter tol/2 liegt und mindestens 10 Fälle da sind. #}
 {% macro cmpbar(label, mine, pro, unit, lower_better=false, maxv=100, tol=8, n=none) -%}
 {%- if mine is not none -%}
 {%- set top = ([mine, pro or 0, maxv]|max) * (1.15 if maxv < 100 or unit != " %" else 1) -%}
 {%- set diff = none if pro is none else ((pro - mine) if lower_better else (mine - pro)) -%}
-{%- set good = none if diff is none or (diff|abs) < tol or (n is not none and n < 10) else diff > 0 -%}
+{%- set sure = n is none or n >= 20 -%}
+{%- set good = none if diff is none or (diff|abs) < tol or not sure else diff > 0 -%}
+{%- set dir = none if diff is none else (("schneller" if diff > 0 else "langsamer") if unit == " ms" else ("besser" if diff > 0 else "schlechter")) -%}
+{%- if diff is none -%}{%- set verdict = "" -%}
+{%- elif good is not none -%}{%- set verdict = dir -%}
+{%- elif (diff|abs) < tol / 2 -%}{%- set verdict = "etwa gleich" if n is none or n >= 10 else "zu wenige Fälle für ein Urteil" -%}
+{%- elif sure -%}{%- set verdict = "etwas " ~ dir ~ ", kein klarer Unterschied" -%}
+{%- else -%}{%- set verdict = dir ~ ", zu wenige Fälle für ein Urteil" -%}{%- endif -%}
 <div class="cbar">
   <div class="cb-h"><span>{{ label }}{% if n is not none %} <i class="cb-n">({{ n|int }})</i>{% endif %}</span><b class="num">{{ mine|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}</b></div>
   <div class="cb-t"><div class="cb-m {{ 'ok' if good else 'no' if good is not none else '' }}" style="width:{{ [100 * mine / top, 100]|min|round(1) }}%"></div>
     {%- if pro is not none %}<div class="cb-p" style="left:{{ [100 * pro / top, 100]|min|round(1) }}%"></div>{% endif %}</div>
-  {%- if pro is not none %}<div class="cb-l num">Pros {{ pro|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }}{{ (" · zu wenige Fälle" if n is not none and n < 10 else " · etwa gleich") if good is none else (" · besser" if good else " · schlechter") }}</div>{% endif %}
+  {%- if pro is not none %}<div class="cb-l num">Pros {{ pro|round(1)|string|replace(".0", "")|replace(".", ",") }}{{ unit }} · {{ verdict }}</div>{% endif %}
 </div>
 {%- endif -%}
 {%- endmacro %}

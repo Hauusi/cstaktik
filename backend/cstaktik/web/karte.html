@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Todes-Karte{{ " · " ~ who if who }} · cstaktik{% endblock %}
+{% block head %}<script>{{ callouts_js|safe }}</script>{% endblock %}
+{% block hero %}
+<a class="back" href="/progress{% if sid %}?p={{ sid }}{% endif %}" style="display:inline-block;margin-top:14px">‹ Fortschritt</a>
+<h1 style="margin-top:6px">Todes-Karte und Kurven{% if who %} · {{ who }}{% endif %}</h1>
+{% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/progress/karte?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<p class="num">{% if data.matches %}{{ data.matches|length }} Match{{ "es" if data.matches|length != 1 }} ausgewertet. Fehler gezählt wie im Fokus: pro 10 gespielte Runden.{% else %}Noch keine Matches.{% endif %}</p>
+{% endblock %}
+{% block content %}
+{% include "karte_core.html" %}
+{% endblock %}

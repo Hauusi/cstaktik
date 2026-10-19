@@ -78,14 +78,18 @@ def _lessons(histories: list[dict], sid: str) -> list[dict]:
             by_map[m][0] += h["lessons"].get(sid, {}).get(lid, 0)
             by_map[m][1] += _player_rounds(h, sid)
         total = sum(h["lessons"].get(sid, {}).get(lid, 0) for h in hs)
+        last = {"count": counts[-1][0], "rounds": counts[-1][1]} if counts else None
         out.append({"id": lid, "title": LESSONS[lid][0], "drill": LESSONS[lid][2], "total": total, "rates": rates,
+                    "rounds": sum(r for _n, r in counts), "last": last,
                     "trend": count_trend(counts),
                     "by_map": {m: {"rate": round(10 * c / r, 1), "count": c, "rounds": r} for m, (c, r) in by_map.items()}})
     out.sort(key=lambda x: -x["total"])
     return out
 
 
-def build(histories: list[dict]) -> dict:
+def build(histories: list[dict], sids: list[str] | None = None, me: str | None = None) -> dict:
+    """Daten für die Todes-Karte. ``sids``: nur diese Spieler, in dieser Reihenfolge (None = alle). ``me``: der
+    eingeloggte Spieler; er steht immer vorn, damit die Seite mit seinen Daten öffnet."""
     matches = [
         {"label": _label(h), "map": h.get("map"), "won": h.get("won", 0), "lost": h.get("lost", 0),
          "rounds": h.get("rounds", 0), "report": h.get("report_file")}
@@ -96,8 +100,13 @@ def build(histories: list[dict]) -> dict:
         for sid, p in h.get("players", {}).items():
             names[sid] = p["name"]
 
+    order = [s for s in (sids if sids is not None else list(names)) if s in names]
+    if me in order:
+        order.remove(me)
+        order.insert(0, me)
     players = []
-    for sid, name in names.items():
+    for sid in order:
+        name = names[sid]
         series = defaultdict(list)
         titles: set[str] = set()
         for h in histories:
@@ -142,23 +151,29 @@ def build(histories: list[dict]) -> dict:
         for h in hs:
             for i, j, c in h.get("floor", []):
                 floor[(i, j)] += c
-        deaths = [d for h in hs for d in h.get("deaths", [])]
+        deaths = [d for h in hs for d in h.get("deaths", []) if d.get("sid") in order]
         places = Counter((d["sid"], d["place"]) for d in deaths if d.get("place"))
         top = [{"name": names.get(s, s), "sid": s, "place": p, "count": c} for (s, p), c in places.most_common(8)]
         maps.append({"map": m, "label": m.removeprefix("de_").capitalize(), "matches": len(hs),
                      "floor": [[i, j, c] for (i, j), c in floor.items()], "deaths": deaths, "top": top})
     from cstaktik.history import FLOOR_UNITS
 
-    return {"matches": matches, "players": players, "maps": maps, "floorUnits": FLOOR_UNITS}
+    return {"matches": matches, "players": players, "maps": maps, "floorUnits": FLOOR_UNITS, "me": me}
+
+
+def karte_json(data: dict) -> str:
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
 
 
 def render_progress(histories: list[dict]) -> str:
+    """Export als eigene HTML-Datei (cli progress), alle Spieler. In der App: Route /progress/karte."""
     env = Environment(loader=FileSystemLoader(TEMPLATES), autoescape=select_autoescape(["html"]))
     data = build(histories)
-    data_json = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    from cstaktik.callouts import JS
     from cstaktik.fonts import font_css
 
-    return env.get_template("progress.html").render(data=data, data_json=data_json, font_css=font_css())
+    return env.get_template("progress.html").render(data=data, data_json=karte_json(data), font_css=font_css(),
+                                                    callouts_js=JS)
 
 
 # ---------------------------------------------------------------- Spielerprofil (Seite "Fortschritt")

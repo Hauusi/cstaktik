@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections import Counter
 
+from cstaktik.callouts import place as callout
 from cstaktik.coach import CAUSES
 from cstaktik.reference import pro_spots, pro_utility, winning_spots
 
@@ -34,11 +35,12 @@ def build(map_name: str, histories: list[dict], goals_state: dict, min_count: in
         untraded = Counter((d["sid"], d["place"]) for h in hs for d in h.get("deaths", [])
                            if d.get("side") == side and d.get("place") and d.get("traded") is False)
         all_side = Counter(d["sid"] for h in hs for d in h.get("deaths", []) if d.get("side") == side)
-        for (sid, place), n in deaths.most_common(4):
+        for (sid, raw), n in deaths.most_common(4):
             if n < min_count:
                 break
-            f = firsts.get((sid, place), 0)
-            u = untraded.get((sid, place), 0)
+            place = callout(raw)
+            f = firsts.get((sid, raw), 0)
+            u = untraded.get((sid, raw), 0)
             # Tipp aus dem, was dort am häufigsten schiefging (statt eines Standard-Satzes)
             if u * 2 > n:
                 tip = f"In {place} stirbst du meist ohne Trade. Spiel dort nur mit Mitspieler in Reichweite oder fall früher zurück."
