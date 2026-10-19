@@ -136,15 +136,16 @@ def by_round(match: MatchData) -> dict[str, list[list]]:
     from cstaktik.mechanics import is_teamkill
 
     out: dict[str, list[list]] = {}
+    scoreboard = list(match.kills) + list(match.post_round_kills)  # wie stats: auch Kills nach Rundenende
     for sid in sorted(match.focus_ids()):
         rows = []
         for r in match.rounds:
             side = r.sides.get(sid)
             if side is None:
                 continue
-            k = sum(1 for x in match.kills if x.round == r.num and x.attacker_steamid == sid
+            k = sum(1 for x in scoreboard if x.round == r.num and x.attacker_steamid == sid
                     and not is_teamkill(match, x))
-            d = sum(1 for x in match.kills if x.round == r.num and x.victim_steamid == sid)
+            d = sum(1 for x in scoreboard if x.round == r.num and x.victim_steamid == sid)
             dmg = sum(x.dmg for x in match.damages if x.round == r.num and x.attacker_steamid == sid
                       and x.victim_steamid != sid and r.sides.get(x.victim_steamid) != side)
             rows.append([r.num, side, None if r.winner is None else r.winner == side, k, d,

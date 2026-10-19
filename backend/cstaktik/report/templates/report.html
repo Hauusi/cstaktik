@@ -783,7 +783,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
     {% set good_t = real_t|selectattr("n", "ge", 2)|selectattr("won_pct", "ge", 60)|list %}
     {% set bad_t = real_t|selectattr("n", "ge", 2)|selectattr("won_pct", "le", 34)|list %}
     {% if good_t %}{% set g = good_t[0] %}{% set _ = take.append(("Taktik", "Weiter so: " ~ g.name ~ ". " ~ g.won ~ " von " ~ g.n ~ " gewonnen.", none)) %}{% endif %}
-    {% if bad_t %}{% set b = bad_t[0] %}{% set _ = take.append(("Taktik", "Nicht wiederholen: " ~ b.name ~ ". Nur " ~ b.won ~ " von " ~ b.n ~ " gewonnen" ~ (", Pros gewinnen damit " ~ b.pro.won_pct ~ " %. Ablauf im Playbook vergleichen." if b.pro else ". Im Playbook eine Pro-Taktik für diesen Bombsite ansehen."), none)) %}{% endif %}
+    {% if bad_t and bad_t[0].n >= 5 %}{% set b = bad_t[0] %}{% set _ = take.append(("Taktik", "Nicht wiederholen: " ~ b.name ~ ". Nur " ~ b.won ~ " von " ~ b.n ~ " gewonnen" ~ (", Pros gewinnen damit " ~ b.pro.won_pct ~ " %. Ablauf im Playbook vergleichen." if b.pro else ". Im Playbook eine Pro-Taktik für diesen Bombsite ansehen."), none)) %}{% endif %}
   {% endif %}
   {% if take %}
   <section class="takeaway">

@@ -245,7 +245,7 @@ def test_report_renders_tactics_section(tmp_path, monkeypatch):
     monkeypatch.setattr(render, "_tactics", lambda match: fake)
     html = render.render_report(m, analyze(m, load_rules_config()), maps_dirs=[tmp_path])
     assert "Eure Taktiken heute" in html and "Pros 60 % (5 Runden)" in html and '"tac":"B-Rush über Apartments"' in html
-    assert "Zum Mitnehmen" in html and "Nicht wiederholen: B-Rush über Apartments. Nur 1 von 3 gewonnen, Pros gewinnen damit 60 %" in html
+    assert "Zum Mitnehmen" in html and "Nicht wiederholen" not in html  # 1 von 3 Runden: zu wenig für ein Urteil
 
 
 def test_weekplan_gets_pro_tactic_task():

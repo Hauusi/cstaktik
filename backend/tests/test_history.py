@@ -73,7 +73,7 @@ def test_run_writes_history_and_progress_route(tmp_path, monkeypatch):
                     "plant": True}]
     files[0].write_text(json.dumps(h))
     top = TestClient(api.app).get(f"/progress?p={ME}").text  # Fortschritt: drei Karten, Details verlinkt
-    assert "Impact-Trend" in top and "Punkte Siegchance je Runde" in top and "0 von 1 Mal bester Spieler" in top
+    assert "Impact-Trend" in top and "Runden pro Match" in top and "Mal bester Spieler" not in top  # erst ab 3 Matches
     assert f'href="/progress/details?p={ME}"' in top and "Clutch · als Letzter übrig" not in top
     page = TestClient(api.app).get(f"/progress/details?p={ME}").text
     assert "Clutch · als Letzter übrig" in page and "1 gegen 2" in page and "Du 1 von 1" in page

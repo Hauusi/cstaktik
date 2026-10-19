@@ -2178,7 +2178,7 @@ def _strength_weakness(p: dict) -> dict:
                 if o and q and o["n"] >= 8 and q["n"] >= 8 and abs(o["won_pct"] - q["won_pct"]) >= 15:
                     nd = sd.get("pro_demos")
                     basis = f"{q['n']} Runden" + (f" aus {nd} Demo{'s' if nd != 1 else ''}" if nd else "")
-                    sides.append({"diff": o["won_pct"] - q["won_pct"], "title": f"{S}: {where}, {o['label']}",
+                    sides.append({"diff": o["won_pct"] - q["won_pct"], "title": f"{S}: {o['label']}" if lbl == "Nach dem ersten Kill" else f"{S}: {where}, {o['label']}",
                                   "text": f"Ihr gewinnt {o['won_pct']} %, {o['won']} von {o['n']}. "
                                           f"Pros: {q['won_pct']} % ({basis}).",
                                   "src": f"Eure {S}-Runden gegen die Pro-Demos, alle Maps.", "href": det + "#seiten"})
