@@ -20,7 +20,10 @@ def test_placement_statuses_and_path_order():
     pl = course.placement(hist, "a")
     # 40 Runden: Utility 2,0 > 1,5 und Fadenkreuz 1,25 > 1,0 sind Baustellen; allein 0,5 sitzt
     assert pl["utility"]["status"] == pl["crosshair"]["status"] == "baustelle"
-    assert pl["alone"]["status"] == "sitzt" and pl["moving_shot"]["status"] == "sitzt"
+    # gute Werte aus nur 40 Runden: noch nicht "sitzt", erst ab settle_rounds (etwa drei Matches)
+    assert pl["alone"]["status"] == "offen" and pl["moving_shot"]["status"] == "offen"
+    three = hist + [_m("m3", {"utility": 4, "crosshair": 2, "alone": 1})]
+    assert course.placement(three, "a")["alone"]["status"] == "sitzt"
     assert pl["utility"]["rate"] == 2.0 and pl["utility"]["n"] == 8 and pl["utility"]["rounds"] == 40
     # Grundlagen zuerst: Fadenkreuz (Schießen) vor Utility (Granaten), obwohl Utility häufiger ist
     assert course.baustellen(hist, "a") == ["crosshair", "utility"]
@@ -118,7 +121,7 @@ def test_lesson_page_five_parts_in_sentences():
     # andere Lektion ohne Pro-Daten: Teil 3 fällt weg, Status als Satz
     other = c.get(f"/kurs/moving_shot?p={ME}").text
     assert re.findall(r'data-part="([a-z-]+)"', other) == ["verstehen", "bei-dir", "ueben", "pruefen"]
-    assert "sitzt diese Lektion schon" in other
+    assert "Bisher sieht es hier gut aus" in other and "nach etwa drei Matches" in other
 
 
 def test_lesson_drill_tick_and_per_player_isolation():

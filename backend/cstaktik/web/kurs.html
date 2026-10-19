@@ -66,6 +66,8 @@
   {% elif row.status == "baustelle" %}
   <p>Diese Lektion kommt noch. In {{ "deinem letzten Match" if pl.matches == 1 else "deinen letzten " ~ pl.matches ~ " Matches" }} kam der Fehler {{ pl.n }} Mal in {{ pl.rounds }} Runden vor, das sind {{ pl.rate|string|replace(".", ",") }} pro 10 Runden. Der Kurs nimmt sie dran, sobald die Lektionen davor sitzen.</p>
   {% if current %}<p>Gerade dran ist <a href="/kurs/{{ current.id }}{% if tabs %}?p={{ sid }}{% endif %}">{{ current.title }}</a>.</p>{% endif %}
+  {% elif pl.rate is not none and pl.rate <= pl.threshold %}
+  <p>Bisher sieht es hier gut aus: Der Fehler kam {{ "einmal" if pl.n == 1 else "keinmal" if pl.n == 0 else pl.n ~ " Mal" }} in {{ pl.rounds }} Runden vor. Ob die Lektion wirklich sitzt, zeigt sich aber erst nach etwa drei Matches.</p>
   {% else %}
   <p>Für diese Lektion reichen deine Daten noch nicht. Bisher hat der Coach {{ pl.rounds }} Runden von dir gezählt{% if pl.n %}, darin kam der Fehler {{ pl.n }} Mal vor{% endif %}. Für eine Einstufung braucht er etwa ein volles Match mehr.</p>
   {% endif %}
@@ -122,7 +124,7 @@
     {% if d.minutes %}<p class="dm">Plane dafür etwa {{ d.minutes }} Minuten ein.</p>{% endif %}
     {% if d.where %}<p class="dm"><b>Wo:</b> {{ d.where|trim(".") }}.</p>{% endif %}
     <ol>{% for st in d.steps %}<li>{{ st }}</li>{% endfor %}</ol>
-    {% if d.done %}<p class="dd"><b>Die Übung sitzt, wenn:</b> {{ d.done }}</p>{% endif %}
+    {% if d.done %}<p class="dd">{{ d.done }}</p>{% endif %}
     {% if sid %}
     <form action="/training/done?p={{ sid }}&lesson={{ lesson }}&back=kurs" method="post"><button class="btn2" type="submit">Übung gemacht</button></form>
     {% if ticked %}<p class="ok">Eingetragen. Der Coach vergleicht später, ob der Fehler nach Übungen seltener wird.</p>

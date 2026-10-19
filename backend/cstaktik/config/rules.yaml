@@ -156,7 +156,8 @@ goals:
 # Die aktuelle Lektion ist die erste Baustelle in Kursreihenfolge (Grundlagen zuerst), außer ein Auftrag läuft schon.
 course:
   window_matches: 5
-  min_rounds: 20            # etwa ein volles Match
+  min_rounds: 20            # etwa ein volles Match: ab hier kann eine Lektion Baustelle sein
+  settle_rounds: 60         # erst nach etwa drei Matches gilt eine Lektion als "sitzt schon"
   max_per_10: 1.0           # Grenze für die meisten Lektionen: etwa jeder sechste Tod
   per_lesson:               # Lagen, die auch in guten Runden oft vorkommen, bekommen mehr Spielraum
     seen_first: 1.5

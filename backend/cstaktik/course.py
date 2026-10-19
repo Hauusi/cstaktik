@@ -30,6 +30,7 @@ def settings(config: dict | None = None) -> dict:
     c = dict(cfg.get("course") or {})
     g = cfg.get("goals") or {}
     return {"window_matches": int(c.get("window_matches", 5)), "min_rounds": int(c.get("min_rounds", 20)),
+            "settle_rounds": int(c.get("settle_rounds", 60)),
             "max_per_10": float(c.get("max_per_10", 1.0)), "per_lesson": dict(c.get("per_lesson") or {}),
             "min_count": int(g.get("min_count", 3)), "done_after": int(g.get("done_after", 2))}
 
@@ -79,8 +80,8 @@ def placement(hist: list[dict], sid: str, cfg: dict | None = None) -> dict[str, 
             status = "offen"
         elif rate > thr:
             status = "baustelle" if n >= cfg["min_count"] else "offen"
-        else:
-            status = "sitzt"
+        else:  # "sitzt" erst nach mehreren Matches: ein gutes Match ist noch kein Beleg
+            status = "sitzt" if rounds >= cfg["settle_rounds"] else "offen"
         out[lid] = {"status": status, "rate": None if rate is None else round(rate, 1), "n": n, "rounds": rounds,
                     "matches": used, "threshold": thr}
     return out
