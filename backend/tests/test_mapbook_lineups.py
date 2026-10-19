@@ -59,7 +59,7 @@ def test_mapbook_rates_spots_and_compares_with_pros():
     assert con["verdict"] == "problem" and "Hier stirbst du oft als Erster: in 4 von 8 Runden." in con["why"]
     assert con["pro"]["share"] == 33 and con["pro"]["n"] == 4  # 4 von 12 Pro-Runden
     assert con["lineups"] and con["lineups"][0]["to"] == "Mid"
-    assert ct["spots"][1]["verdict"] == "offen"  # Jungle: nur 1 Runde
+    assert ct["rare"] == [{"place": "Jungle", "n": 1}] and len(ct["spots"]) == 1  # Jungle: nur 1 Runde, nur Liste
     assert ct["pro_spots"][0]["place"] == "Jungle"
     assert mapbook.worst_spot(book)["place"] == "Connector"
     assert book["sides"]["t"]["spots"] == []
@@ -77,7 +77,7 @@ def test_weekplan_tasks_toggle_and_check():
     key, plan, changed = weekplan.ensure(slot, ctx, day)
     assert key == "2026-W42" and changed
     kinds = [t["kind"] for t in plan["tasks"]]
-    assert kinds == ["Übung", "Map-Buch", "Lineup", "Situationen", "Übung"]
+    assert kinds == ["Übung", "Map-Buch", "Lineup", "Situationen"]  # die Übung nur einmal, ohne Wiederholung
     assert "Connector" in plan["tasks"][1]["title"] and plan["tasks"][1]["link"].startswith("/mapbook/de_mirage?p=me")
     assert weekplan.toggle(slot, key, plan["tasks"][0]["id"]) is True
     assert weekplan.ensure(slot, ctx, day)[2] is False  # gleiche Woche, gleicher Auftrag: bleibt
@@ -109,7 +109,8 @@ def test_mapbook_and_lineup_pages():
     mb = c.get("/mapbook/de_mirage?p=me").text
     assert "Map-Buch Mirage" in mb and "Connector" in mb and "Anpassen" in mb and "/lineups/de_mirage?l=" in mb
     lp = c.get("/lineups/de_mirage").text
-    assert "Connector → Mid" in lp and "setpos " in lp and "Kopieren" in lp
+    assert "Smoke auf Mid" in lp and "Wurf: Connector" in lp and "setpos " in lp and "Kopieren" in lp
+    assert "gewonnen" not in lp and "CT-Seite: zuerst lernen" in lp
     assert "Kein Lineup" in c.get("/lineups/de_mirage?side=t").text
     assert c.get("/mapbook/..%2Fx").status_code in (400, 404)
 

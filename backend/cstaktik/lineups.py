@@ -14,6 +14,8 @@ from __future__ import annotations
 import math
 import statistics
 
+from cstaktik import callouts
+
 KIND_DE = {"smoke": "Smoke", "flash": "Flash", "molotov": "Molotov", "he": "HE"}
 POS_UNITS = 48  # Wurfstelle gleich
 ANGLE_DEG = 3.0  # Blick gleich
@@ -89,11 +91,44 @@ def build(pro: list[dict], map_name: str, min_n: int = 2) -> list[dict]:
             "from": rep.get("from"), "to": rep.get("to"), "n": len(c), "demos": len({g["demo"] for g in c}),
             "won": round(100 * sum(bool(g.get("won")) for g in c) / len(c)),
             "t": round(statistics.median(g["t"] for g in c)),
+            "clock": callouts.clock(round(statistics.median(g["t"] for g in c))),
+            "from_c": callouts.place(rep.get("from")) or "?", "to_c": callouts.place(rep.get("to")) or "?",
             "x": x, "y": y, "z": z, "yaw": yaw, "pitch": pitch, "tx": rep["tx"], "ty": rep["ty"],
             "spread": round(spread), "tech": technique(c),
             "cmd": f"setpos {x:.2f} {y:.2f} {z:.2f};setang {pitch:.2f} {yaw:.2f} 0",
         })
     out.sort(key=lambda l: (-l["n"], -l["demos"]))
+    return out
+
+
+def dedupe(items: list[dict]) -> list[dict]:
+    """Gleicher Wurf (Seite, Art, Wurfort, Landeort) aus leicht anderer Stelle: nur der häufigste bleibt.
+    Er bekommt die Ids der übrigen (``alt_ids``, für Links von anderen Seiten) und ihre Würfe (``alt_n``)."""
+    out: dict[tuple, dict] = {}
+    for x in sorted(items, key=lambda l: (-l["n"], -l["demos"])):
+        k = (x["side"], x["kind"], x.get("from"), x.get("to"))
+        if k in out:
+            out[k]["alt_ids"].append(x["id"])
+            out[k]["alt_n"] += x["n"]
+        else:
+            out[k] = {**x, "alt_ids": [], "alt_n": 0}
+    return list(out.values())
+
+
+def organize(items: list[dict], core_n: int = 5) -> list[dict]:
+    """Lineup-Seite je Seite (T zuerst): die ``core_n`` meistgeworfenen als Kern, der Rest nach Landeort gruppiert."""
+    out = []
+    for side in ("t", "ct"):
+        sel = [x for x in dedupe(items) if x["side"] == side]
+        if not sel:
+            continue
+        core, rest = sel[:core_n], sel[core_n:]
+        groups: dict[str, list] = {}
+        for x in rest:
+            groups.setdefault(x["to_c"], []).append(x)
+        out.append({"side": side, "label": side.upper(), "core": core, "n": len(sel),
+                    "groups": [{"to": to, "rows": g, "n": sum(x["n"] for x in g)}
+                               for to, g in sorted(groups.items(), key=lambda kv: -sum(x["n"] for x in kv[1]))]})
     return out
 
 

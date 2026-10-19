@@ -1,4 +1,4 @@
-"""Lehrplan je Coach-Lektion: Prinzip (warum), Merksatz, Übungsroutine, Ansage fürs Match.
+"""Lehrplan je Coach-Lektion: Prinzip (warum), Merksatz, was als Fehler zählt, Übungsroutine, Ansage fürs Match.
 
 Allgemeines CS-Wissen, als Ratschlag formuliert. Keine Zahlen über dich, die stehen in den Analysen.
 Übungen nennen nur Dinge, die es sicher gibt (Deathmatch, Offline-Server mit Bots, Retake-Server,
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 TEACH: dict[str, dict] = {
     "no_shot_close": {
+        "fault": "Ein Tod auf kurze Distanz, ohne dass du geschossen hast.",
         "principle": ("Wer einen Winkel hält, muss nur klicken. Wer reinläuft, muss erst finden, zielen und klicken. "
                       "Deshalb verliert der Laufende fast immer. Außer sein Fadenkreuz ist schon dort, wo der Kopf "
                       "auftaucht."),
@@ -22,6 +23,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "no_shot_far": {
+        "fault": "Ein Tod auf einer langen, offenen Linie, ohne dass du geschossen hast.",
         "principle": ("Lange Linien gehören dem, der sie hält, meist mit AWP oder Rifle. Wer sie offen kreuzt, gibt "
                       "ihm einen freien Schuss. Eine Smoke oder ein anderer Weg nimmt ihm diesen Vorteil."),
         "mantra": "Lange Linie? Smoke oder anderer Weg.",
@@ -33,6 +35,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "blind": {
+        "fault": "Ein Tod, während du geblendet warst.",
         "principle": ("Eine Flash wirkt nur, wenn du hinschaust. Wegdrehen kostet einen Augenblick. Geblendet "
                       "stehen bleiben kostet die Runde. Wer wegdreht und zurückgeht, kann danach traden."),
         "mantra": "Flash hören, wegdrehen, zurück.",
@@ -44,6 +47,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "alone": {
+        "fault": "Ein Tod, den keiner traden konnte, weil kein Mitspieler in der Nähe war.",
         "principle": ("In CS gewinnt das Team, das seine Tode tradet. Stirbst du allein, seid ihr einer weniger. "
                       "Ohne Gegenleistung. Ist ein Mitspieler in Reichweite, verliert der Gegner fast immer auch "
                       "einen Spieler."),
@@ -57,6 +61,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "utility": {
+        "fault": "Ein Tod, obwohl du noch Flash, Smoke oder Molotov dabei hattest.",
         "principle": ("Granaten machen ein faires Duell unfair, zu deinen Gunsten. Wer mit Granaten stirbt, "
                       "hat bezahlt und nichts bekommen."),
         "mantra": "Granate raus, bevor du rausgehst.",
@@ -67,6 +72,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "low_hp": {
+        "fault": "Ein Tod in einem neuen Duell, das du mit wenig HP gesucht hast.",
         "principle": "Mit wenig HP reicht dem Gegner ein Treffer. Dann zählen Info und Trade, nicht das nächste Duell.",
         "mantra": "Unter 50 HP: Info, nicht Duell.",
         "in_game": "Mit wenig HP zurückfallen. Callen, wo der Gegner ist. Auf den Trade deines Mitspielers spielen.",
@@ -77,6 +83,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "moving_shot": {
+        "fault": "Ein verlorenes Duell, in dem du aus der Bewegung geschossen hast.",
         "principle": ("In CS2 streuen Schüsse aus der Bewegung stark. Wer zum Schießen stoppt, trifft. "
                       "Wer im Laufen schießt, verliert gegen jeden, der steht."),
         "mantra": "Stopp, dann Schuss.",
@@ -88,6 +95,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "moving": {
+        "fault": "Ein Tod, während du in einen Winkel gelaufen bist.",
         "principle": "Wer in einen gehaltenen Winkel läuft, ist ein bewegtes Ziel ohne eigenen Schuss.",
         "mantra": "Vor dem Winkel stoppen.",
         "in_game": "Vor jedem Winkel kurz stoppen, aufschneiden, erst dann rein.",
@@ -97,6 +105,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "outnumbered": {
+        "fault": "Ein Tod in einem Einzelduell, das du in Unterzahl gesucht hast.",
         "principle": ("In Unterzahl gewinnst du keine Einzelduelle. Ihr gewinnt nur zusammen. Oder ihr lasst "
                       "die Zeit für euch arbeiten."),
         "mantra": "Unterzahl heißt zusammen oder Zeit.",
@@ -108,6 +117,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "crosshair": {
+        "fault": "Ein Duell, bei dessen Start dein Fadenkreuz deutlich neben dem Gegner lag.",
         "principle": ("Ein Duell ist oft entschieden, bevor jemand schießt. Wessen Fadenkreuz schon auf dem Kopf "
                       "liegt, muss nur klicken. Jedes Grad Nachziehen kostet Zeit. Die nutzt der Gegner."),
         "mantra": "Fadenkreuz wartet schon da.",
@@ -118,6 +128,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "angle": {
+        "fault": "Ein Tod aus einer Richtung, in die du nicht geschaut hast. Mehrere Winkel waren offen.",
         "principle": ("Du kannst nur in eine Richtung schauen. Zeigen zwei oder drei Winkel auf dich, verlierst du. "
                       "Der Gegner kommt aus dem Winkel, den du gerade nicht prüfst."),
         "mantra": "Ein Winkel pro Spieler.",
@@ -129,6 +140,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "seen_first": {
+        "fault": "Ein Tod, bei dem der Gegner dich zuerst gesehen hat.",
         "principle": ("Ein Duell beginnt, wenn einer den anderen sieht. Wer zuerst sieht, hat Zeit zu zielen. "
                       "Der andere muss erst reagieren. Das holst du nicht mit Aim auf. Es hängt davon ab, wo du "
                       "stehst und wie du in den Winkel kommst."),
@@ -142,6 +154,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "duel": {
+        "fault": "Ein verlorenes Duell, obwohl die Lage in Ordnung war.",
         "principle": "Die Lage war in Ordnung. Das Duell selbst ging verloren. Das trainierst du mit Aim, nicht mit Taktik.",
         "mantra": "Aim warm, Kopf ruhig.",
         "in_game": "Vorzielen auf Kopfhöhe, ruhig bleiben.",

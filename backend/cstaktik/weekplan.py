@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
+from cstaktik import callouts
 from cstaktik.coaching import now_local
 
 MATCHES_PER_WEEK = 2
@@ -33,87 +34,126 @@ def week_range(key: str) -> tuple[date, date]:
 
 def tasks_for(ctx: dict) -> list[dict]:
     """ctx: lesson, routine, map, map_label, spot (Map-Buch-Zeile + side) | None, lineup | None, scenes, sid,
-    tactic (Pro-Empfehlung aus dem Playbook) | None."""
+    tactic (Pro-Empfehlung aus dem Playbook) | None, positions (eigene Standard-Spots je Seite aus dem Map-Buch),
+    pos_lineups (Pro-Lineups von diesen Spots), fault (was als Fehler zählt), in_game (Ansage fürs Match).
+
+    Die Übung kommt einmal vor (kein "Wiederholung"-Eintrag, kein zweites Aufwärmen): konkret mit deinen Spots."""
     r = ctx["routine"]
     sid, m = ctx["sid"], ctx.get("map")
-    out = [{"id": f"routine1:{ctx['lesson']}", "kind": "Übung", "title": r["title"], "minutes": r["minutes"],
-            "steps": r["steps"]}]
+    pos = ctx.get("positions") or []
+    pls = ctx.get("pos_lineups") or []
+    steps = list(r["steps"])
+    if pos:
+        where = ", ".join(f"{p['side'].upper()} {callouts.place(p['place'])} ({p['n']} Runden)" for p in pos)
+        steps.append(f"Deine Standard-Spots auf {ctx.get('map_label')} laut Map-Buch: {where}. Übe genau dort.")
+    if pls:
+        steps.append("Offline-Server mit sv_cheats 1 und Bots aus. Pro-Lineup unten kopieren, in die Konsole, "
+                     "werfen. Danach 5x ohne Befehl von Hand anstellen.")
+    routine = {"id": f"routine1:{ctx['lesson']}", "kind": "Übung", "title": r["title"], "minutes": r["minutes"],
+               "steps": steps}
+    if m and pos:
+        routine["positions"] = [{"side": p["side"].upper(), "place": callouts.place(p["place"]), "n": p["n"],
+                                 "link": f"/mapbook/{m}?p={sid}#spot-{p['side']}-{p['place']}"} for p in pos]
+    if ctx.get("fault"):
+        routine["fault"] = ctx["fault"]
+    if ctx.get("in_game"):
+        routine["in_game"] = ctx["in_game"]
+    if m and pls:
+        routine["lineups"] = [{"label": f"{lu['kind_de']} von {lu['from_c']} auf {lu['to_c']}", "cmd": lu["cmd"],
+                               "tech": lu["tech"]["label"], "clock": lu["clock"], "n": lu["n"],
+                               "link": f"/lineups/{m}?l={lu['id']}&p={sid}"} for lu in pls[:2]]
+    out = [routine]
     if m and ctx.get("spot"):
         s = ctx["spot"]
+        place = callouts.place(s["place"])
+        at = s.get("at") or "1:35"
         do = []
         if s.get("alt"):
             a = s["alt"]
-            do.append(f"Stell dich in den nächsten {s['side'].upper()}-Runden nach {s.get('at') or '0:20'} nach "
-                      f"{a['place']} statt {s['place']}. Pros stehen dort in {a['share']} % der Runden und gewinnen "
-                      f"{a['won_pct']} %.")
+            do.append(f"Stell dich in den nächsten {s['side'].upper()}-Runden bei {at} auf der Uhr nach "
+                      f"{callouts.place(a['place'])} statt {place}. Pros stehen dort in {a['share']} % der Runden "
+                      f"({a['n']} Runden) und gewinnen {a['won_pct']} %.")
         if s.get("lineups"):
             lu = s["lineups"][0]
-            do.append(f"Oder bleib dort. Wirf aber vorher die Pro-{lu['kind_de']} von {s['place']} nach {lu['to'] or '?'}.")
+            do.append(f"Oder bleib dort. Wirf aber vorher die Pro-{lu['kind_de']} von {place} auf "
+                      f"{callouts.place(lu.get('to')) or '?'}.")
         if not do:
             do.append("Schau im Map-Buch, was an diesem Spot schiefgeht. Ändere dann Timing oder Position.")
         # Erfolgskriterium nach dem Auslöser: als Erster gestorben oder ohne Trade gestorben
         if (s.get("untraded") or 0) > s["first"]:
-            check = (f"Erfolg: Tode ohne Trade von {s['place']} aus steigen nicht weiter. "
+            check = (f"Erfolg: Tode ohne Trade von {place} aus steigen nicht weiter. "
                      f"Jetzt sind es {s['untraded']} von {s['n']} Runden.")
         else:
-            check = (f"Erfolg: Tode als Erster von {s['place']} aus steigen nicht weiter. "
+            check = (f"Erfolg: Tode als Erster von {place} aus steigen nicht weiter. "
                      f"Jetzt sind es {s['first']} von {s['n']} Runden.")
         out.append({"id": f"spot:{m}:{s['side']}:{s['place']}", "kind": "Map-Buch",
-                    "title": f"{ctx['map_label']} {s['side'].upper()}: {s['place']} klären",
+                    "title": f"{ctx['map_label']} {s['side'].upper()}: {place} klären",
                     "steps": s["why"] + do + [check],
                     "link": f"/mapbook/{m}?p={sid}#spot-{s['side']}-{s['place']}"})
     elif m:
         out.append({"id": f"mapbook:{m}", "kind": "Map-Buch", "title": f"Map-Buch {ctx['map_label']} durchsehen",
-                    "steps": ["Sieh dir deine Spots und ihre Bewertung an."], "link": f"/mapbook/{m}?p={sid}"})
-    if m and ctx.get("lineup"):
-        lu = ctx["lineup"]
+                    "steps": ["Sieh dir deine Spots und ihre Bewertung an.",
+                              *(["Am wichtigsten sind deine Standard-Spots: "
+                                 + ", ".join(f"{p['side'].upper()} {callouts.place(p['place'])}" for p in pos)
+                                 + ". Lies dort, von wo du erschossen wirst."] if pos else [])],
+                    "link": f"/mapbook/{m}?p={sid}"})
+    lu = ctx.get("lineup")
+    if m and lu and not any(lu["id"] == x["id"] for x in pls[:2]):
         out.append({"id": f"lineup:{lu['id']}", "kind": "Lineup",
-                    "title": f"{lu['kind_de']} lernen: {lu['from'] or '?'} → {lu['to'] or '?'}",
+                    "title": f"{lu['kind_de']} lernen: {callouts.place(lu.get('from')) or '?'} → "
+                             f"{callouts.place(lu.get('to')) or '?'}",
                     "steps": ["Starte einen eigenen Server mit sv_cheats 1. Setz die Position mit dem Befehl.",
                               (f"Wirf 10x. Sie sitzt, wenn sie im Kreis auf der Karte landet. Pros streuen "
-                               f"höchstens {lu['spread']} Units."),
+                               f"höchstens {callouts.meters(lu['spread'])}."),
                               "Stell dich dann 5x ohne Befehl von Hand an.",
-                              f"Im Match werfen Pros sie meist bei {lu['t'] // 60}:{lu['t'] % 60:02d} Rundenzeit."],
+                              f"Im Match werfen Pros sie meist bei {callouts.clock(lu['t'])} auf der Uhr."],
                     "link": f"/lineups/{m}?l={lu['id']}&p={sid}"})
     if m and ctx.get("tactic"):
         t = ctx["tactic"]
         nades = ", ".join(f"{ {'smoke': 'Smoke', 'flash': 'Flash', 'molotov': 'Molotov'}.get(c['kind'], c['kind'])} "
-                          f"auf {c['to']}" for c in t.get("common", [])[:4])
+                          f"auf {callouts.place(c['to'])}" for c in t.get("common", [])[:4])
         out.append({"id": f"tactic:{m}:{t['id']}", "kind": "Playbook", "title": f"Pro-Taktik: {t['name']}",
                     "steps": [(f"Spielt sie im Playbook ab. Pros gewinnen damit {t['won_pct']} %, {t['won']} von "
                                f"{t['n']} Runden."),
                               *([f"Granaten-Set: {nades}. Die Lineups dazu sind dort verlinkt."] if nades else []),
-                              "Sprecht zu zweit ab, wer welchen Weg nimmt und wer welche Granate wirft.",
+                              ("Jeder übernimmt eine Rolle. Unter der Karte steht je Spieler sein Weg und seine "
+                               "Granaten mit Uhrzeit."),
                               ("Spielt sie im nächsten Match auf T mindestens einmal genau so. Der Report zeigt sie "
                                "dann unter 'Eure Taktiken heute'.")],
                     "link": f"/playbook/{m}#{t['id']}"})
     if ctx.get("scenes"):
-        out.append({"id": "quiz", "kind": "Situationen", "title": "Situations-Training",
-                    "steps": ["Entscheide bei jeder Szene zuerst. Löse sie erst danach auf."], "link": f"/training/situationen?p={sid}"})
-    out.append({"id": f"routine2:{ctx['lesson']}", "kind": "Übung", "title": f"{r['title']} (Wiederholung)",
-                "minutes": r["minutes"],
-                "steps": ["Wie die erste Übung oben.",
-                          "Spiel diesmal direkt danach ein Match. Der Auftrag-Check zeigt, ob es dort klappt."]})
+        out.append({"id": "quiz", "kind": "Situationen", "title": "Situations-Training", "auto": True,
+                    "steps": ["Entscheide bei jeder Szene zuerst. Löse sie erst danach auf.",
+                              "Hakt sich von selbst ab, sobald alle Szenen entschieden sind."],
+                    "link": f"/training/situationen?p={sid}"})
     return out
 
 
+PLAN_V = 3  # Version der Aufgaben-Texte: ältere Pläne derselben Woche werden neu gebaut, Häkchen bleiben
+
+
 def ensure(slot: dict, ctx: dict, today: date | None = None) -> tuple[str, dict, bool]:
-    """Plan der aktuellen Woche; neu bauen, wenn er fehlt oder der Auftrag gewechselt hat (Häkchen bleiben,
-    soweit die Aufgabe gleich ist). Rückgabe: (Woche, Plan, geändert)."""
+    """Plan der aktuellen Woche; neu bauen, wenn er fehlt, der Auftrag gewechselt hat oder die Aufgaben veraltet
+    sind (Häkchen bleiben, soweit die Aufgabe gleich ist). Rückgabe: (Woche, Plan, geändert)."""
     key = week_key(today or local_today())
     weeks = slot.setdefault("weeks", {})
     plan = weeks.get(key)
-    if plan and plan.get("lesson") == ctx["lesson"]:
+    if plan and plan.get("lesson") == ctx["lesson"] and plan.get("v") == PLAN_V:
         # Taktik-Aufgabe nachreichen, wenn es beim Anlegen des Plans noch keine Pro-Empfehlung gab
         new = [t for t in tasks_for(ctx) if t["kind"] == "Playbook"]
         if new and not any(t["id"].startswith("tactic:") for t in plan["tasks"]):
-            plan["tasks"].insert(len(plan["tasks"]) - 1, new[0])
+            plan["tasks"].append(new[0])
             return key, plan, True
         return key, plan, False
     done = (plan or {}).get("done", {})
+    same = plan and plan.get("lesson") == ctx["lesson"]
     tasks = tasks_for(ctx)
-    weeks[key] = plan = {"lesson": ctx["lesson"], "created": now_local(),
-                         "tasks": tasks, "done": {t["id"]: done[t["id"]] for t in tasks if t["id"] in done}}
+    if same:  # nur neue Texte: Taktik-Aufgaben behalten, die nicht mehr empfohlen sind, aber schon gespielt wurden
+        tasks += [t for t in plan["tasks"] if t["id"].startswith("tactic:") and t["id"] not in {x["id"] for x in tasks}
+                  and t.get("played")]
+    weeks[key] = plan = {"lesson": ctx["lesson"], "created": (plan or {}).get("created") if same else now_local(),
+                         "v": PLAN_V, "tasks": tasks,
+                         "done": {t["id"]: done[t["id"]] for t in tasks if t["id"] in done}}
     return key, plan, True
 
 

@@ -10,10 +10,17 @@ from __future__ import annotations
 
 from collections import Counter
 
+from cstaktik import callouts
 from cstaktik import lineups as lu
 from cstaktik.reference import STEP_S
 
 SIDE_DE = {"ct": "CT", "t": "T"}
+
+
+def aim_spot(place: str | None) -> bool:
+    """Taugt der Ort als Ziel fürs Vorzielen? Ein ganzer Bombsite oder Spawn ist zu groß ("aus A-Site vorzielen"
+    hilft nicht). Dann wird lieber nichts gesagt."""
+    return bool(place) and not place.startswith(("Bombsite", "TSpawn", "CTSpawn"))
 
 
 def _pct(a: int, b: int) -> int | None:
@@ -75,7 +82,7 @@ def build(hist: list[dict], pro: list[dict], map_name: str, sid: str, cfg: dict)
     b = round(cfg.get("at_s", 20) / STEP_S)
     own = _own(hist, map_name, sid, b)
     pros = _pro(pro, map_name, b)
-    lines = lu.build(pro, map_name)
+    lines = lu.dedupe(lu.build(pro, map_name))  # gleicher Wurf von leicht anderer Stelle nur einmal
     sides = {}
     for side in ("ct", "t"):
         po = pros[side]
@@ -87,27 +94,31 @@ def build(hist: list[dict], pro: list[dict], map_name: str, sid: str, cfg: dict)
                    "untraded": e["untraded"] if e["trade_known"] else None,
                    "untraded_pct": _pct(e["untraded"], e["n"]) if e["trade_known"] else None,
                    "death_places": e["death_places"].most_common(3),
-                   "killer_places": [kp for kp in e["killer_places"].most_common(3) if kp[1] >= 2],
+                   "killer_places": [kp for kp in e["killer_places"].most_common() if kp[1] >= 2 and aim_spot(kp[0])][:3],
                    "rounds": e["rounds"][-6:][::-1]}
             row.update(_verdict(row, cfg))
             ps = po["spots"].get(place)
             if pro_ok:
-                row["pro"] = {"share": _pct(ps["n"] if ps else 0, po["total"]),
+                row["pro"] = {"share": _pct(ps["n"] if ps else 0, po["total"]), "total": po["total"],
                               "won_pct": _pct(ps["won"], ps["n"]) if ps and ps["n"] >= 3 else None,
                               "first_pct": _pct(ps["first"], ps["first_known"]) if ps and ps["first_known"] >= 3 else None,
-                              "n": ps["n"] if ps else 0}
+                              "first_n": ps["first_known"] if ps else 0, "n": ps["n"] if ps else 0}
             row["lineups"] = [l for l in lines if l["side"] == side and l["from"] == place][:3]
             spots.append(row)
         alt = []
         if pro_ok:
             for place, ps in sorted(po["spots"].items(), key=lambda kv: -kv[1]["n"])[:5]:
-                alt.append({"place": place, "share": _pct(ps["n"], po["total"]), "n": ps["n"],
+                alt.append({"place": place, "share": _pct(ps["n"], po["total"]), "n": ps["n"], "first_n": ps["first_known"],
                             "won_pct": _pct(ps["won"], ps["n"]) if ps["n"] >= 3 else None,
                             "first_pct": _pct(ps["first"], ps["first_known"]) if ps["first_known"] >= 3 else None,
                             "lineups": sum(1 for l in lines if l["side"] == side and l["from"] == place)})
-        sides[side] = {"label": SIDE_DE[side], "spots": spots, "pro_spots": alt, "pro_rounds": po["total"],
+        # Spots mit zu wenig Runden: keine eigene Karte, nur eine kurze Liste
+        few = cfg.get("min_rounds", 3)
+        sides[side] = {"label": SIDE_DE[side], "spots": [x for x in spots if x["n"] >= few],
+                       "rare": [{"place": x["place"], "n": x["n"]} for x in spots if x["n"] < few],
+                       "pro_spots": alt, "pro_rounds": po["total"],
                        "rounds": sum(s["n"] for s in spots), **angles(hist, map_name, sid, side)}
-    return {"map": map_name, "label": map_name.removeprefix("de_").capitalize(), "at": lu.clock(b * STEP_S),
+    return {"map": map_name, "label": map_name.removeprefix("de_").capitalize(), "at": callouts.clock(b * STEP_S),
             "sides": sides, "matches": sum(1 for h in hist if h.get("map") == map_name),
             "n_lineups": len(lines)}
 
@@ -117,7 +128,7 @@ def angles(hist: list[dict], map_name: str, sid: str, side: str) -> dict:
     Orte der Killer. Das ist die persönliche Liste der Winkel, die vorgezielt werden müssen."""
     shots = [d for h in hist if h.get("map") == map_name for d in h.get("deaths", [])
              if d.get("sid") == sid and d.get("side") == side and d.get("ax") is not None and d.get("x") is not None]
-    top = Counter(d["aplace"] for d in shots if d.get("aplace")).most_common(4)
+    top = Counter(d["aplace"] for d in shots if aim_spot(d.get("aplace"))).most_common(4)
     # wer sah im tödlichen Duell zuerst: wo der Gegner dich zuerst sah (nur Tode mit bekannter Sichtung)
     known = [d for d in shots if d.get("seen")]
     late = [d for d in known if d["seen"] == "gegner"]

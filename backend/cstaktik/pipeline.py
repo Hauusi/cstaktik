@@ -634,6 +634,10 @@ def run_pro(path: Path, progress: Progress | None = None, use_cache: bool = True
         match = parse_demo(path, set(), config["parser"], lambda st, f: report(st, 0.85 * f))
     summary = pro.summarize(match, config["coach"]["trade_window_s"])
     pro.save(summary, PRO_DIR)
+    from cstaktik import maps
+    from cstaktik.report import radar
+
+    maps.ensure_map(summary["map"], radar.LOCAL_MAPS_DIR)  # Radarbild auch für Maps ohne eigenes Match (Playbook)
     if not rerender:
         return {"map": summary["map"], "rounds": summary["rounds"], "players": len(match.players),
                 "nades": len(summary["nades"]), "reports": 0}

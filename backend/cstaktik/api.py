@@ -1288,16 +1288,23 @@ def _plan_ctx(hist: list[dict], pro_all: list[dict], sid: str, focus: dict) -> d
     maps = _player_maps(hist, sid)
     m = maps[0] if maps else None
     spot = lineup = None
+    positions, pos_lineups = [], []
+    want = {"utility": "flash", "no_shot_far": "smoke", "no_shot_close": "flash"}.get(focus["lesson"])
     if m:
         book = mapbook.build(hist, pro_all, m, sid, cfg)
         spot = mapbook.worst_spot(book)
+        # eigene Standard-Spots: je Seite die 2 häufigsten mit genug Runden; Pro-Lineups von genau dort
+        for side, sd in book["sides"].items():
+            for row in sorted(sd["spots"], key=lambda r: -r["n"])[:2]:
+                positions.append({"side": side, "place": row["place"], "n": row["n"]})
+                pos_lineups += row.get("lineups") or []
+        pos_lineups.sort(key=lambda l: (l["kind"] != want if want else False, -l["n"]))
         cands = (spot or {}).get("lineups") or []
         if not cands:
             side = (spot or {}).get("side")
             allx = lineups.build(pro_all, m)
             cands = [l for l in allx if side is None or l["side"] == side] or allx
         # passend zum Auftrag: Utility-Auftrag -> Flash, lange Linien -> Smoke
-        want = {"utility": "flash", "no_shot_far": "smoke", "no_shot_close": "flash"}.get(focus["lesson"])
         cands = sorted(cands, key=lambda l: l["kind"] != want) if want else cands
         lineup = cands[0] if cands else None
     scenes = sum(1 for sc in _all_scenes(hist) if sc.get("sid") == sid)
@@ -1312,7 +1319,8 @@ def _plan_ctx(hist: list[dict], pro_all: list[dict], sid: str, focus: dict) -> d
     t = TEACH[focus["lesson"]]
     return {"sid": sid, "lesson": focus["lesson"], "routine": t["routine"], "map": m,
             "map_label": m.removeprefix("de_").capitalize() if m else None, "spot": spot, "lineup": lineup,
-            "scenes": scenes, "tactic": tactic}
+            "scenes": scenes, "tactic": tactic, "positions": positions, "pos_lineups": pos_lineups,
+            "fault": t.get("fault"), "in_game": t.get("in_game")}
 
 
 @app.get("/training", response_class=HTMLResponse)
@@ -1320,6 +1328,7 @@ def training_page(p: str = "") -> str:
     """Trainings-Zentrale: Wochenplan je Spieler, Map-Buch, Lineups, Situationen."""
     from cstaktik import coaching, weekplan
     from cstaktik.coach_voice import LESSONS
+    from cstaktik.curriculum import TEACH
 
     hist = _load_hist()
     names = _names(hist)
@@ -1353,6 +1362,7 @@ def training_page(p: str = "") -> str:
         prep=prep, briefing_maps=briefing_maps, n_history=len(hist),
         nav_active="coach", tabs=tabs, sid=sid, who=names.get(sid), plan=plan, week=key, chk=chk, past=past[:4],
         title=LESSONS.get(focus["lesson"], ("?",))[0] if focus else None, maps=_player_maps(hist, sid) or ["de_mirage"],
+        fault=(TEACH.get(focus["lesson"]) or {}).get("fault") if focus else None,
         pro_maps=sorted({d.get("map") for d in _load_pro() if d.get("map")}), hub=_map_hub(hist, sid))
 
 
@@ -1413,12 +1423,10 @@ def mapbook_page(map_name: str, p: str = "") -> str:
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(focus_ids)]
     img = None
     if book:  # Schusslinien aufs Radarbild umrechnen
-        from cstaktik.model import MatchData
-        from cstaktik.report.radar import build_radar
-
-        radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
+        radar = _page_radar(map_name, [q for sd in book["sides"].values() for l in sd["lines"]
+                                       for q in ((l[0], l[1]), (l[2], l[3]))])
         img = radar.image_data_uri
-        if img:
+        if img or radar.note:
             for sd in book["sides"].values():
                 sd["px"] = [[*radar.to_px(l[0], l[1]), *radar.to_px(l[2], l[3]), l[4] if len(l) > 4 else None]
                             for l in sd["lines"]]
@@ -1437,6 +1445,32 @@ def mapbook_page(map_name: str, p: str = "") -> str:
                                                     label=map_name.removeprefix("de_").capitalize())
 
 
+_MAP_TRIED: set[str] = set()
+
+
+def _page_radar(map_name: str, points: list | None = None):
+    """Radar für Playbook, Lineups und Map-Buch. Fehlt das Radarbild (Pro-Demo ohne eigenes Match dieser Map), wird
+    es einmal je Map nachgeladen. Klappt das nicht: Kalibrierung aus den Punkten der Seite (Welt x/y), kein Bild.
+    Dann zeigt die Seite die Wege auf neutralem Grund mit dem Hinweis "Keine Karte für diese Map"."""
+    from cstaktik import maps
+    from cstaktik.model import MatchData
+    from cstaktik.report import radar as rmod
+
+    mk = lambda: rmod.build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))  # noqa: E731
+    r = mk()
+    if r.image_data_uri is None and map_name not in _MAP_TRIED:
+        _MAP_TRIED.add(map_name)
+        if maps.ensure_map(map_name, rmod.LOCAL_MAPS_DIR, timeout=8) is None:
+            r = mk()
+    if r.image_data_uri is None and points:
+        xs, ys = [p[0] for p in points], [p[1] for p in points]
+        pad = 200.0
+        span = max(max(xs) - min(xs), max(ys) - min(ys)) + 2 * pad
+        r = rmod.Radar(1024, None, "Keine Karte für diese Map", min(xs) - pad - (span - 2 * pad - (max(xs) - min(xs))) / 2,
+                       max(ys) + pad + (span - 2 * pad - (max(ys) - min(ys))) / 2, span / 1024)
+    return r
+
+
 @app.get("/playbook", response_class=HTMLResponse)
 def playbook_index() -> RedirectResponse:
     maps = sorted({d.get("map") for d in _load_pro() if d.get("map")})
@@ -1449,8 +1483,6 @@ def playbook_page(map_name: str, who: str = "", side: str = "") -> str:
     import json as _json
 
     from cstaktik import playbook
-    from cstaktik.model import MatchData
-    from cstaktik.report.radar import build_radar
 
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
@@ -1465,15 +1497,24 @@ def playbook_page(map_name: str, who: str = "", side: str = "") -> str:
     book = playbook.build(own if who == "ihr" else pro, map_name, cfg)
     mix = {"pro": playbook.style_mix(pro, map_name, cfg), "ihr": playbook.style_mix(own, map_name, cfg)}
     mix["text"] = playbook.compare(mix["ihr"], mix["pro"])
-    radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
+    from cstaktik import callouts
+    from cstaktik import lineups as lu
+
+    # Granaten-Set und Rollen mit Lineups verknüpfen: gleiche Art, Seite und Landeort, häufigster Wurf zuerst
+    lines = lu.build(pro, map_name)
+    src_pts = [q for d in (own if who == "ihr" else pro) if d.get("map") == map_name
+               for key in ("plays", "ct_plays") for p in d.get(key) or []
+               for q in ([v for pts in (p.get("paths") or {}).values() for v in pts] + [v[:2] for v in (p.get("pos") or {}).values()])]
+    radar = _page_radar(map_name, src_pts)
     img = radar.image_data_uri
+
     def draw(ex: dict) -> dict | None:
-        """Eine Runde fürs Radar: Laufwege, Granaten, Plant, Schlüsselmomente, Ausschnitt."""
+        """Eine Runde fürs Radar: Laufwege, Granaten, Plant, Schlüsselmomente, Rollen, Ausschnitt."""
         px = lambda x, y: [round(v, 1) for v in radar.to_px(x, y)]  # noqa: E731
         paths = [[px(*q) for q in pts] for pts in (ex.get("paths") or {}).values()]
         nades = [{"kind": n["kind"], "t": n["t"], "to": n.get("to"),
                   "a": px(*(n["p"][:2] if n.get("p") else (n["fx"], n["fy"]))), "b": px(n["tx"], n["ty"])}
-                 for n in ex["nades"]]
+                 for n in playbook.drawn_nades(ex)]
         plant = px(*ex["plant"]) if ex.get("plant") else None
         pts = [q for p in paths for q in p] + [q for n in nades for q in (n["a"], n["b"])] + ([plant] if plant else [])
         if not pts:
@@ -1490,21 +1531,16 @@ def playbook_page(map_name: str, who: str = "", side: str = "") -> str:
                     it["p"] = paths[sids.index(it["sid"])][-1]
         return {"paths": paths, "nades": nades, "plant": plant, "step": playbook.PATH_STEP_S, "events": evs,
                 "plant_t": ex.get("plant_t"), "vb": [round(x0), round(y0), round(size)], "sw": round(size / 400, 2),
-                "r": ex["r"], "demo": ex.get("demo"), "won": ex["won"], "via": ex.get("via_all") or []}
+                "r": ex["r"], "demo": ex.get("demo"), "won": ex["won"],
+                "via": [callouts.place(v) for v in ex.get("via_all") or []], "roles": playbook.roles(ex, lines)}
 
-    for tac in book["tactics"]:
-        if img:  # bis zu 8 Runden je Taktik zum Durchblättern, die Beispielrunde zuerst
-            tac["draws"] = [d for d in (draw(r) for r in tac["rounds"][:8]) if d]
+    for tac in book["tactics"]:  # bis zu 8 Runden je Taktik zum Durchblättern, die Beispielrunde zuerst
+        tac["draws"] = [d for d in (draw(r) for r in tac["rounds"][:8]) if d]
     if side not in ("t", "ct"):  # ohne Wahl: T, außer es gibt nur CT-Runden (z. B. ihr habt nur CT gespielt)
         src = own if who == "ihr" else pro
         has_t = any(d.get("map") == map_name and d.get("plays") for d in src)
         has_ct = any(d.get("map") == map_name and d.get("ct_plays") for d in src)
         side = "ct" if has_ct and not has_t else "t"
-    from cstaktik import lineups as lu
-
-    # Granaten-Set mit Lineups verknüpfen: gleiche Art, Seite und Landeort, häufigster Wurf zuerst
-    lines = lu.build(pro, map_name)
-
     def link(items: list[dict], sd: str) -> None:
         for c in items:
             hit = next((x for x in lines if x["side"] == sd and x["kind"] == c["kind"] and x.get("to") == c.get("to")), None)
@@ -1518,7 +1554,7 @@ def playbook_page(map_name: str, who: str = "", side: str = "") -> str:
         units = (cfg or {}).get("zone_units", playbook.CT_DEFAULTS["zone_units"])
         for st in ct["setups"]:
             st["draws"] = []
-            for r in st["rounds"][:8] if img else []:
+            for r in st["rounds"][:8]:
                 pts = [radar.to_px(v[0], v[1]) + (r["zones"][sid], v[2]) for sid, v in r["pos"].items()]
                 nades = [{"kind": n["kind"], "to": n.get("to"), "t": n["t"],
                           "a": radar.to_px(*(n["p"][:2] if n.get("p") else (n["fx"], n["fy"]))),
@@ -1528,49 +1564,51 @@ def playbook_page(map_name: str, who: str = "", side: str = "") -> str:
                                     "plant_site": r.get("plant_site")})
         for st in ct["setups"]:
             link(st["util"], "ct")
-        ct["zones_px"] = {k: [*radar.to_px(*v), units / radar.scale] for k, v in ct["centers"].items()} if img else {}
+        ct["zones_px"] = {k: [*radar.to_px(*v), units / radar.scale] for k, v in ct["centers"].items()}
     maps = sorted({d.get("map") for d in pro + own if d.get("map")} | {map_name})
     data = _json.dumps({t["id"]: t.get("draws") for t in book["tactics"]} if side == "t" else
                        {"zones": ct["zones_px"], **{st["id"]: st["draws"] for st in ct["setups"]}},
                        ensure_ascii=False).replace("</", "<\\/")
-    return _env.get_template("playbook.html").render(nav_active="coach", book=book, img=img, maps=maps,
+    return _env.get_template("playbook.html").render(nav_active="coach", book=book, img=img, maps=maps, no_map=not img,
                                                      map_name=map_name, data=data, who=who, mix=mix, side=side, ct=ct,
                                                      label=map_name.removeprefix("de_").capitalize())
 
 
 @app.get("/lineups/{map_name}", response_class=HTMLResponse)
 def lineups_page(map_name: str, side: str = "", kind: str = "", l: str = "", p: str = "") -> str:
-    import json as _json
-
+    """Lineups einer Map: je Seite die meistgeworfenen zuerst, der Rest nach Landeort eingeklappt."""
     from cstaktik import lineups
-    from cstaktik.model import MatchData
-    from cstaktik.report.radar import build_radar
 
     if not re.fullmatch(r"[a-z0-9_]+", map_name):
         raise HTTPException(400, "Ungültiger Mapname.")
     allx = lineups.build(_load_pro(), map_name)
-    if l and not any(x["id"] == l for x in allx):
-        l = ""
     sel = [x for x in allx if (not side or x["side"] == side) and (not kind or x["kind"] == kind)]
-    if l:  # gewähltes Lineup zuerst
-        sel.sort(key=lambda x: x["id"] != l)
-    radar = build_radar(MatchData(map_name=map_name, tickrate=64, tickrate_source="-", players=[], rounds=[]))
-    for x in sel:
-        if radar.image_data_uri:
-            x["px"], x["py"] = radar.to_px(x["x"], x["y"])
-            x["tpx"], x["tpy"] = radar.to_px(x["tx"], x["ty"])
-            lo_x, hi_x = min(x["px"], x["tpx"]), max(x["px"], x["tpx"])
-            lo_y, hi_y = min(x["py"], x["tpy"]), max(x["py"], x["tpy"])
-            size = max(hi_x - lo_x, hi_y - lo_y) + 160
-            size = max(size, 320)
-            cx, cy = (lo_x + hi_x) / 2, (lo_y + hi_y) / 2
-            x["vb"] = f"{cx - size / 2:.0f} {cy - size / 2:.0f} {size:.0f} {size:.0f}"
-            x["sw"] = round(size / 300, 2)  # Strichstärke passend zum Ausschnitt
-    data = _json.dumps(sel, ensure_ascii=False).replace("</", "<\\/")
+    sides = lineups.organize(sel)
+    flat = [x for sd in sides for x in sd["core"] + [y for g in sd["groups"] for y in g["rows"]]]
+    # Link auf einen zusammengelegten Wurf (anderer Seite oder älterer Link): auf den gezeigten umlenken
+    l = next((x["id"] for x in flat if l and (x["id"] == l or l in x["alt_ids"])), "")
+    radar = _page_radar(map_name, [q for x in flat for q in ((x["x"], x["y"]), (x["tx"], x["ty"]))])
+    for x in flat:
+        x["px"], x["py"] = radar.to_px(x["x"], x["y"])
+        x["tpx"], x["tpy"] = radar.to_px(x["tx"], x["ty"])
+        lo_x, hi_x = min(x["px"], x["tpx"]), max(x["px"], x["tpx"])
+        lo_y, hi_y = min(x["py"], x["tpy"]), max(x["py"], x["tpy"])
+        size = max(max(hi_x - lo_x, hi_y - lo_y) + 200, 320)
+        cx, cy = (lo_x + hi_x) / 2, (lo_y + hi_y) / 2
+        h = max(size * .7, hi_y - lo_y + 200)  # flacher als quadratisch: am Handy weniger Scrollen
+        x["vb"] = f"{cx - size / 2:.0f} {cy - h / 2:.0f} {size:.0f} {h:.0f}"
+        x["sw"] = round(size / 300, 2)  # Strichstärke und Schrift passend zum Ausschnitt
+        # Beschriftung innen halten: Text links vom Punkt, wenn er rechts im Ausschnitt liegt
+        x["fanchor"] = "end" if x["px"] > cx else "start"
+        x["tanchor"] = "end" if x["tpx"] > cx else "start"
+    for sd in sides:
+        for g in sd["groups"]:
+            g["open"] = any(x["id"] == l for x in g["rows"])
     return _env.get_template("lineups.html").render(
-        nav_active="coach", items=sel, data_json=data, img=radar.image_data_uri, map_name=map_name,
-        label=map_name.removeprefix("de_").capitalize(), side=side, kind=kind, sel=l, total=len(allx),
-        kinds=lineups.KIND_DE, sid=re.sub(r"[^0-9]", "", p), n_demos=sum(1 for d in _load_pro() if d.get("map") == map_name))
+        nav_active="coach", sides=sides, img=radar.image_data_uri, map_name=map_name,
+        label=map_name.removeprefix("de_").capitalize(), side=side, kind=kind, sel=l, total=len(lineups.dedupe(allx)),
+        n_shown=len(flat), kinds=lineups.KIND_DE, sid=re.sub(r"[^0-9]", "", p),
+        n_demos=sum(1 for d in _load_pro() if d.get("map") == map_name))
 
 
 def _baustellen(hist: list[dict]) -> list[dict]:

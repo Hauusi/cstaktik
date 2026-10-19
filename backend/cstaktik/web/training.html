@@ -14,6 +14,17 @@
 .hubm .hb a { display: grid; gap: 1px; padding: 9px 11px; border-radius: 11px; background: var(--surface-2); border: 1px solid var(--line); }
 .hubm .hb a b { font-size: 14px; } .hubm .hb a span { font-size: 11.5px; color: var(--muted); }
 .tool.sit { display: block; }
+.task details > summary { min-height: 40px; display: flex; align-items: center; }
+.task { grid-template-columns: 44px minmax(0, 1fr); } .task .tl > div { min-width: 0; }
+.task form { grid-row: 1 / span 20; } .task > :not(form) { grid-column: 2; min-width: 0; }
+.task .go { display: inline-flex; align-items: center; min-height: 40px; }
+.task .fault { font-size: 13.5px; margin-top: 4px; color: #d7dce5; }
+.task .ig { font-size: 13.5px; margin-top: 4px; }
+.task .tl { margin-top: 8px; display: grid; gap: 8px; }
+.task .tl .lh { font-size: 13.5px; } .task .tl .lh a { color: var(--orange); }
+.task .tl .cmd { margin-top: 4px; }
+.fdef { font-size: 13.5px; color: #d7dce5; margin-top: 6px; }
+.hubm .hb a { min-height: 44px; }
 </style>{% endblock %}
 {% block content %}
 <div class="cols">
@@ -25,6 +36,7 @@
   <div><b class="{{ 'ok' if chk.matches >= chk.need }}">{{ chk.matches }}/{{ chk.need }}</b><span>Matches</span></div>
   <div><b class="{{ '' if chk.met is none else ('ok' if chk.met else 'no') }}">{{ chk.rate|string|replace(".", ",") if chk.rate is not none else "–" }}</b><span>Fehler / 10 Runden</span>{% if chk.target is defined %}<span style="display:block">Ziel ≤ {{ chk.target|string|replace(".", ",") }}</span>{% endif %}</div>
 </div>
+{% if fault %}<div class="fdef"><b>Als Fehler zählt:</b> {{ fault }}</div>{% endif %}
 <div class="small muted num" style="margin-top:6px">Diese Woche: {{ chk.count }}x in {{ chk.rounds }} Runden.{% if chk.met is defined and chk.met is none %} Ein Urteil gibt es ab {{ goal_cfg.min_master_rounds }} Runden.{% endif %}</div>
 <div style="margin-top:10px">
 {% for t in plan.tasks %}{% set d = t.id in plan.done %}
@@ -34,7 +46,11 @@
   <div class="tt">{{ t.title }}</div>
   {% if t.played is defined and t.played.n %}<div class="small num" style="color:var(--win)">Diese Woche {{ t.played.n }} Runde{{ "n" if t.played.n != 1 }} gespielt, {{ t.played.won }} gewonnen. Automatisch abgehakt.</div>
   {% elif t.played is defined %}<div class="small muted">Noch nicht gespielt. Hakt sich ab, sobald ihr sie im Match spielt.</div>{% endif %}
-  <div>{% if t.steps %}<details><summary>So geht's</summary><ol>{% for s in t.steps %}<li>{{ s }}</li>{% endfor %}</ol></details>{% endif %}
+  {% if t.auto and not d %}<div class="small muted">Hakt sich ab, sobald alle Szenen entschieden sind.</div>{% endif %}
+  {% if t.positions %}<div class="small" style="margin-top:4px">Deine Spots: {% for p in t.positions %}<a href="{{ p.link }}" style="color:var(--orange)">{{ p.side }} {{ p.place }}</a> <span class="muted num">({{ p.n }} Runden)</span>{{ " · " if not loop.last }}{% endfor %}</div>{% endif %}
+  {% if t.lineups %}<div class="tl">{% for l in t.lineups %}<div><div class="lh"><a href="{{ l.link }}">{{ l.label }} ›</a> <span class="muted num">· {{ l.tech }} · bei {{ l.clock }} · {{ l.n }}x von Pros</span></div>
+    <div class="cmd"><code>{{ l.cmd }}</code><button type="button" data-cmd="{{ l.cmd }}">Kopieren</button></div></div>{% endfor %}</div>{% endif %}
+  <div>{% if t.steps %}<details><summary>So geht's</summary><ol>{% for s in t.steps %}<li>{{ s }}</li>{% endfor %}</ol>{% if t.in_game %}<div class="ig"><b>Im Match:</b> {{ t.in_game }}</div>{% endif %}</details>{% endif %}
     {% if t.link %}<a class="go" href="{{ t.link }}">Öffnen ›</a>{% endif %}</div>
 </div>
 {% endfor %}
@@ -60,7 +76,9 @@
 {% if n_history %}
 <h2 id="vorbereitung">Vor dem Match · 10 Min</h2>
 <section class="card prep">
-  {% if prep %}
+  {% if prep and plan %}
+  <div class="small"><b>Aufwärmen, {{ prep.routine.minutes }} Min:</b> die Übung „{{ prep.routine.title }}“{% if prep.drills %} ({{ prep.drills }}x bisher){% endif %} <a href="#plan" style="color:var(--orange);display:inline-flex;align-items:center;min-height:40px">oben ›</a></div>
+  {% elif prep %}
   <details class="pre" open style="margin-top:0;padding-top:0;border-top:0"><summary><span class="pk">Aufwärmen · {{ prep.routine.minutes }} Min</span> <b>{{ prep.routine.title }}</b></summary>
     <ol>{% for st in prep.routine.steps %}<li>{{ st }}</li>{% endfor %}</ol>
     <div class="small"><b>Im Match:</b> {{ prep.in_game }}</div>
@@ -90,4 +108,13 @@
 </div>
 </div>
 </div>
+{% endblock %}
+{% block script %}
+<script>
+document.querySelectorAll('[data-cmd]').forEach(b => b.onclick = async () => {
+  try { await navigator.clipboard.writeText(b.dataset.cmd); b.textContent = 'Kopiert'; }
+  catch (_) { const r = document.createRange(); r.selectNodeContents(b.previousElementSibling); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Markiert'; }
+  setTimeout(() => { b.textContent = 'Kopieren'; }, 1500);
+});
+</script>
 {% endblock %}

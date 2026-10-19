@@ -1,4 +1,4 @@
-{# CT-Seite des Playbooks: Aufstellungen nach 20 s (Zonen A / Mitte / B aus den Plant-Positionen) #}
+{# CT-Seite des Playbooks: Aufstellungen bei 1:35 auf der Uhr (20 s nach Rundenstart) (Zonen A / Mitte / B aus den Plant-Positionen) #}
 {% if not ct.setups %}
 <div class="card empty" style="margin-top:20px">
   {% if map_name == "de_nuke" %}Auf Nuke liegen A und B übereinander. Die Zonen-Einteilung nutzt nur die Karte von oben und wäre hier falsch. Deshalb gibt es für Nuke keine CT-Aufstellungen.
@@ -18,10 +18,10 @@
   <div class="pmeta num">{{ s.n }} Runden · {{ s.share }} % aller CT-Runden · {{ s.won }} gewonnen{% if s.t_went %} · T planten {% for k, v in s.t_went|dictsort %}{{ v }}x {{ k }}{{ ", " if not loop.last }}{% endfor %}{% endif %}{% if s.n < 5 %} · wenige Runden, Siegquote schwankt{% endif %}</div>
   {% if s.draws %}
   {% if s.draws|length > 1 %}<div class="prnd"><button class="pprev" type="button" aria-label="Vorige Runde">‹</button><span class="rlbl num"></span><button class="pnext" type="button" aria-label="Nächste Runde">›</button></div>{% endif %}
-  <svg class="cmap" viewBox="0 0 1024 1024" data-id="{{ s.id }}"><use href="#pbrad" opacity=".85"/><g class="ctg"></g></svg>
+  <svg class="cmap{{ ' blank' if not img }}" viewBox="0 0 1024 1024" data-id="{{ s.id }}">{% if img %}<use href="#pbrad" opacity=".85"/>{% endif %}<g class="ctg"></g></svg>
   {% endif %}
-  {% if s.util %}<div class="pset">{% for c in s.util %}<{{ 'a' if c.lineup else 'span' }}{% if c.lineup %} class="lu" href="/lineups/{{ map_name }}?l={{ c.lineup }}" title="Lineup ansehen"{% endif %}><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to }} <b class="num">{{ c.n }}/{{ s.n }}</b>{% if c.lineup %} ›{% endif %}</{{ 'a' if c.lineup else 'span' }}>{% endfor %}</div>{% endif %}
-  <details><summary>Wie liest man das?</summary><p>Die Zahlen zeigen, wie viele CT nach 20 s wo stehen: nah an A, in der Mitte oder nah an B. Mitte heißt Rotation und Info-Positionen.</p><p>Ein Stack sind 4 oder mehr CT auf einem Bombsite. Er riskiert den anderen Bombsite, um einen sicher zu halten.</p><p>„T planten“ zeigt, wohin die T gegen diese Aufstellung gegangen sind.</p></details>
+  {% if s.util %}<div class="pset">{% for c in s.util %}<{{ 'a' if c.lineup else 'span' }}{% if c.lineup %} class="lu" href="/lineups/{{ map_name }}?l={{ c.lineup }}" title="Lineup ansehen"{% endif %}><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to|callout }} <b class="num">&nbsp;{{ c.n }}/{{ s.n }}</b>{% if c.lineup %} ›{% endif %}</{{ 'a' if c.lineup else 'span' }}>{% endfor %}</div>{% endif %}
+  <details><summary>Wie liest man das?</summary><p>Die Zahlen zeigen, wie viele CT bei 1:35 auf der Uhr wo stehen: nah an A, in der Mitte oder nah an B. Mitte heißt Rotation und Info-Positionen.</p><p>Ein Stack sind 4 oder mehr CT auf einem Bombsite. Er riskiert den anderen Bombsite, um einen sicher zu halten.</p><p>„T planten“ zeigt, wohin die T gegen diese Aufstellung gegangen sind.</p></details>
   <div class="pex" data-who="{{ who }}"></div>
 </article>
 {% endfor %}

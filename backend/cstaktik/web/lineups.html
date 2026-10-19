@@ -5,62 +5,84 @@
 .lgrid { display: grid; gap: 12px; }
 @media (min-width: 960px) { .lgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .lgrid > * { min-width: 0; }
-.lu { background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.lu { background: var(--surface); border: 1px solid var(--line); overflow: hidden; scroll-margin-top: 12px; }
 .lu.sel { border-color: var(--orange); }
-.lu svg.mini { display: block; width: 100%; aspect-ratio: 1; background: #07090d; }
+.lu svg.mini { display: block; width: 100%; height: auto; background: #07090d; }
+.lu svg.mini.blank { background: #12151c; }
+.lu svg.mini text { font-family: Barlow, system-ui, sans-serif; font-weight: 700; paint-order: stroke; stroke: #07090d; }
 .lu .bd { padding: 12px 14px 14px; }
 .lu .k { font-family: var(--cond); font-weight: 700; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
 .lu .tt { font-family: var(--cond); font-weight: 800; font-size: 22px; text-transform: uppercase; line-height: 1.1; }
-.lu .meta { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+.lu .how { display: inline-block; margin-top: 8px; padding: 6px 12px; border-radius: 999px; font-weight: 800; font-size: 15px;
+  background: rgba(255,154,31,.14); border: 1px solid rgba(255,154,31,.5); color: var(--text); }
 .lu dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 10px 0 0; font-size: 14px; }
 .lu dt { color: var(--muted); } .lu dd { margin: 0; }
 .note { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.lsec { margin: 22px 0 10px; }
+.lgrp { margin-top: 10px; background: var(--surface); border: 1px solid var(--line); }
+.lgrp > summary { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px;
+  font-size: 15px; color: var(--text); font-weight: 700; }
+.lgrp > summary span { font-weight: 500; font-size: 13px; color: var(--muted); }
+.lgrp > .lgrid { padding: 0 10px 10px; }
+a.back { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; }
+details.how > summary { min-height: 40px; display: flex; align-items: center; }
+.filters a { min-height: 40px; display: inline-flex; align-items: center; }
 </style>
 {% endblock %}
-{% block hero %}
-<a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
-<h1>Lineups {{ label }}</h1>
-<p>{{ total }} Würfe, die Pros in {{ n_demos }} Demo{{ "s" if n_demos != 1 }} mindestens zweimal gleich geworfen haben.</p>
-{% endblock %}
-{% block content %}
-{% if img %}<svg width="0" height="0" style="position:absolute"><defs><image id="rad" href="{{ img }}" width="1024" height="1024"/></defs></svg>{% endif %}
-<div class="filters">
-  <a href="?kind={{ kind }}&p={{ sid }}" class="{{ 'on' if not side }}">Beide Seiten</a><a href="?side=ct&kind={{ kind }}&p={{ sid }}" class="{{ 'on' if side == 'ct' }}">CT</a><a href="?side=t&kind={{ kind }}&p={{ sid }}" class="{{ 'on' if side == 't' }}">T</a>
-</div>
-<div class="filters">
-  <a href="?side={{ side }}&p={{ sid }}" class="{{ 'on' if not kind }}">Alle</a>{% for k, v in kinds.items() %}<a href="?side={{ side }}&kind={{ k }}&p={{ sid }}" class="{{ 'on' if kind == k }}">{{ v }}</a>{% endfor %}
-</div>
-<p class="note">So übst du: eigener Server mit <code>sv_cheats 1</code>, Befehl in die Konsole, werfen.</p>
-<details class="how" style="margin:-6px 0 12px"><summary>Wie wird das gemessen?</summary>
-  <p>Sprung und Laufen sind aus dem Tempo gemessen.{% if items and items[0].tech.duck is none %} Ducken liefert diese Demo nicht.{% endif %} Ob links oder rechts geworfen wurde, verrät die Demo nicht.</p></details>
-{% if items %}
-<div class="lgrid">
-{% for l in items %}
+{% macro card(l) %}
 <div class="lu {{ 'sel' if l.id == sel }}" id="{{ l.id }}">
-  {% if img and l.vb is defined %}
-  <svg class="mini" viewBox="{{ l.vb }}"><use href="#rad"/>
+  <svg class="mini{{ ' blank' if not img }}" viewBox="{{ l.vb }}" role="img" aria-label="{{ l.kind_de }} von {{ l.from_c }} auf {{ l.to_c }}">{% if img %}<use href="#rad"/>{% endif %}
     <line x1="{{ l.px }}" y1="{{ l.py }}" x2="{{ l.tpx }}" y2="{{ l.tpy }}" stroke="#ff9f1c" stroke-width="{{ l.sw }}" stroke-dasharray="{{ l.sw * 3 }} {{ l.sw * 2 }}"/>
-    <circle cx="{{ l.px }}" cy="{{ l.py }}" r="{{ l.sw * 3 }}" fill="#ff9f1c"/>
-    <circle cx="{{ l.tpx }}" cy="{{ l.tpy }}" r="{{ l.sw * 6 }}" fill="none" stroke="#e9e6df" stroke-width="{{ l.sw }}"/>
+    <circle cx="{{ l.px }}" cy="{{ l.py }}" r="{{ l.sw * 3.5 }}" fill="#ff9f1c"/>
+    <circle cx="{{ l.tpx }}" cy="{{ l.tpy }}" r="{{ l.sw * 7 }}" fill="none" stroke="#e9e6df" stroke-width="{{ l.sw }}"/>
+    <text x="{{ l.px + (-1 if l.fanchor == 'end' else 1) * l.sw * 7 }}" y="{{ l.py + l.sw * 4 }}" text-anchor="{{ l.fanchor }}" font-size="{{ l.sw * 13 }}" stroke-width="{{ l.sw * 3 }}" fill="#ff9f1c">Wurf: {{ l.from_c }}</text>
+    <text x="{{ l.tpx + (-1 if l.tanchor == 'end' else 1) * l.sw * 10 }}" y="{{ l.tpy + l.sw * 4 }}" text-anchor="{{ l.tanchor }}" font-size="{{ l.sw * 13 }}" stroke-width="{{ l.sw * 3 }}" fill="#e9e6df">{{ l.to_c }}</text>
   </svg>
-  {% endif %}
   <div class="bd">
-    <div class="k">{{ l.kind_de }} · {{ l.side|upper }} · {{ l.n }}x von Pros ({{ l.demos }} Demo{{ "s" if l.demos != 1 }})</div>
-    <div class="tt">{{ l.from or "?" }} → {{ l.to or "?" }}</div>
+    <div class="k">{{ l.kind_de }} · {{ l.side|upper }} · {{ l.n }}x von Pros in {{ l.demos }} Demo{{ "s" if l.demos != 1 }}</div>
+    <div class="tt">{{ l.kind_de }} auf {{ l.to_c }}</div>
+    <div class="how">{{ l.tech.label }}</div>
     <dl class="num">
-      <dt>Wurf</dt><dd>{{ l.tech.label }}{% if l.tech.speed and l.tech.move %} ({{ l.tech.speed }} Units/s){% endif %}</dd>
-      <dt>Rundenzeit</dt><dd>meist bei {{ (l.t // 60)|int }}:{{ "%02d"|format((l.t % 60)|int) }}</dd>
-      <dt>Landung</dt><dd>alle Würfe innerhalb {{ l.spread }} Units</dd>
-      <dt>Runden</dt><dd>{{ l.won }} % davon gewonnen</dd>
+      <dt>Wurfstelle</dt><dd>{{ l.from_c }}</dd>
+      <dt>Wann</dt><dd>meist bei {{ l.clock }} auf der Uhr</dd>
+      <dt>Landung</dt><dd>alle {{ l.n }} Würfe innerhalb {{ l.spread|meters }}</dd>
+      {% if l.alt_n %}<dt>Varianten</dt><dd>{{ l.alt_n }} weitere Würfe auf dasselbe Ziel von leicht anderer Stelle</dd>{% endif %}
     </dl>
     <div class="cmd"><code>{{ l.cmd }}</code><button type="button" data-cmd="{{ l.cmd }}">Kopieren</button></div>
   </div>
 </div>
-{% endfor %}
+{% endmacro %}
+{% block hero %}
+<a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
+<h1>Lineups {{ label }}</h1>
+<p>{{ total }} Würfe, die Pros in {{ n_demos }} Demo{{ "s" if n_demos != 1 }} mindestens zweimal gleich geworfen haben. Oben die meistgeworfenen je Seite.</p>
+{% endblock %}
+{% block content %}
+{% if img %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><image id="rad" href="{{ img }}" width="1024" height="1024"/></defs></svg>
+{% elif n_shown %}<p class="note">Keine Karte für diese Map. Wurf und Landung sind auf neutralem Grund gezeichnet.</p>{% endif %}
+<div class="filters">
+  <a href="?kind={{ kind }}&p={{ sid }}" class="{{ 'on' if not side }}">Beide Seiten</a><a href="?side=t&kind={{ kind }}&p={{ sid }}" class="{{ 'on' if side == 't' }}">T</a><a href="?side=ct&kind={{ kind }}&p={{ sid }}" class="{{ 'on' if side == 'ct' }}">CT</a>
 </div>
+<div class="filters">
+  <a href="?side={{ side }}&p={{ sid }}" class="{{ 'on' if not kind }}">Alle</a>{% for k, v in kinds.items() %}<a href="?side={{ side }}&kind={{ k }}&p={{ sid }}" class="{{ 'on' if kind == k }}">{{ v }}</a>{% endfor %}
+</div>
+<p class="note">So übst du: eigener Server mit <code>sv_cheats 1</code>. Befehl in die Konsole, dann werfen.</p>
+<details class="how" style="margin:-6px 0 12px"><summary>Wie wird das gemessen?</summary>
+  <p>Wurfstelle, Blick und Landung stammen aus den Pro-Demos. Sprung und Laufen sind aus dem Tempo gemessen. In welche Richtung gelaufen wurde und ob links oder rechts geworfen wurde, verrät die Demo nicht.</p></details>
+{% for sd in sides %}
+<h2 class="lsec">{{ sd.label }}-Seite: zuerst lernen <span class="small muted num">· {{ sd.core|length }} von {{ sd.n }}</span></h2>
+<div class="lgrid">{% for l in sd.core %}{{ card(l) }}{% endfor %}</div>
+{% if sd.groups %}
+<h2 class="lsec">{{ sd.label }}-Seite: weitere nach Ziel</h2>
+{% for g in sd.groups %}
+<details class="lgrp"{% if g.open %} open{% endif %}><summary>{{ g.to }} <span>{{ g.rows|length }} Lineup{{ "s" if g.rows|length != 1 }} · {{ g.n }} Würfe</span></summary>
+  <div class="lgrid">{% for l in g.rows %}{{ card(l) }}{% endfor %}</div>
+</details>
+{% endfor %}
+{% endif %}
 {% else %}
 <div class="card empty">{% if total %}Kein Lineup für diesen Filter.{% else %}Noch keine Lineups für {{ label }}. Dafür braucht es Pro-Demos dieser Map, geparst mit der aktuellen Version. Einmal <code>cstaktik pro-update</code> ausführen. <a href="/pro" style="color:var(--orange)">Pro-Demos ›</a>{% endif %}</div>
-{% endif %}
+{% endfor %}
 {% endblock %}
 {% block script %}
 <script>

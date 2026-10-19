@@ -25,6 +25,12 @@
 .atop { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 10px; }
 .atop > div { padding: 8px 10px; background: var(--surface-2); display: flex; justify-content: space-between; gap: 8px; }
 .prot th { padding: 7px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+a.back { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; }
+details.how > summary { min-height: 40px; display: flex; align-items: center; }
+.chips a { display: inline-flex; align-items: center; min-height: 40px; }
+.sidebar .mapbtn { min-height: 40px; display: inline-flex; align-items: center; }
+.rare { margin-top: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; }
+.rare b.h { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
 .prot th { font-family: var(--cond); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 </style>
 {% endblock %}
@@ -32,7 +38,7 @@
 <a class="back" href="/training{% if sid %}?p={{ sid }}{% endif %}">‹ Training</a>
 <h1>Map-Buch {{ label }}</h1>
 {% if tabs|length > 1 %}<div class="ptabs">{% for t in tabs %}<a href="/mapbook/{{ map_name }}?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
-<p>{% if book %}{{ who }} · {{ book.matches }} Match{{ "es" if book.matches != 1 }} auf {{ label }}. Ein Spot ist, wo du nach {{ book.at }} Rundenzeit stehst.{% else %}Noch keine Matches auf {{ label }}.{% endif %}</p>
+<p>{% if book %}{{ who }} · {{ book.matches }} Match{{ "es" if book.matches != 1 }} auf {{ label }}. Ein Spot ist, wo du bei {{ book.at }} auf der Uhr stehst.{% else %}Noch keine Matches auf {{ label }}.{% endif %}</p>
 {% endblock %}
 {% block content %}
 {% if img %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><image id="mbrad" href="{{ img }}" width="1024" height="1024"/></defs></svg>{% endif %}
@@ -44,10 +50,10 @@
 <h2 id="side-{{ side }}">{{ sd.label }}-Seite · {{ sd.rounds }} Runden</h2>
 {% if sd.deaths_with_pos %}
 <div class="card angles">
-  <div class="ah">Von hier wirst du erschossen <span class="small muted num">· {{ sd.deaths_with_pos }} Tode</span></div>
-  {% if img and sd.px %}
-  <svg class="amap" viewBox="{{ sd.vb or '0 0 1024 1024' }}" role="img" aria-label="Schusslinien Killer zu dir">
-    <use href="#mbrad" opacity=".8"/>
+  <div class="ah">Von hier wirst du erschossen <span class="small muted num">· {{ sd.deaths_with_pos }} Tode mit Position</span></div>
+  {% if sd.px %}
+  <svg class="amap" viewBox="{{ sd.vb or '0 0 1024 1024' }}" role="img" aria-label="Schusslinien Killer zu dir"{% if not img %} style="background:#12151c"{% endif %}>
+    {% if img %}<use href="#mbrad" opacity=".8"/>{% endif %}
     {% set w = sd.sw or 1 %}
     {% for l in sd.px %}<line x1="{{ l[0] }}" y1="{{ l[1] }}" x2="{{ l[2] }}" y2="{{ l[3] }}" class="sl" stroke-width="{{ 2.2 * w }}"/>
     <circle cx="{{ l[0] }}" cy="{{ l[1] }}" r="{{ 5 * w }}" class="kp"/><circle cx="{{ l[2] }}" cy="{{ l[3] }}" r="{{ 4.5 * w }}" class="dp{{ ' late' if l[4] == 'gegner' }}"/>{% endfor %}
@@ -55,52 +61,53 @@
   <div class="small muted" style="margin-top:6px"><span style="color:#e5484d">●</span> Killer · <span style="color:#e9e6df">●</span> wo du gestorben bist{% if sd.seen %} · <span style="color:#ff9f1c">●</span> dort hat er dich zuerst gesehen{% endif %}</div>
   {% endif %}
   {% if sd.killer_top %}
-  <div class="atop">{% for k in sd.killer_top %}<div><b>{{ k.place }}</b><span class="num">{{ k.n }}x · {{ k.share }} %</span></div>{% endfor %}</div>
-  <div class="small" style="margin-top:6px">Diese Winkel vorzielen, bevor du sie betrittst oder hältst. Fadenkreuz auf Kopfhöhe an die Kante, aus der er kommt.</div>
+  <div class="atop">{% for k in sd.killer_top %}<div><b>{{ k.place|callout }}</b><span class="num">{{ k.n }} von {{ sd.deaths_with_pos }}</span></div>{% endfor %}</div>
+  <div class="small" style="margin-top:6px">Von dort kam der Killer. Bevor du diesen Winkel betrittst oder hältst: Fadenkreuz auf Kopfhöhe an die Kante, aus der er kommt.</div>
   {% endif %}
   {% if sd.seen and sd.seen.known >= 3 %}
-  <div class="seenline">Bei <b class="num">{{ sd.seen.opp }} von {{ sd.seen.known }}</b> Toden hat er dich zuerst gesehen{% if sd.seen.me %}, {{ sd.seen.me }}x du ihn{% endif %}.
-    {% if sd.seen.places %}Am häufigsten in {% for p in sd.seen.places %}<b>{{ p.place }}</b> ({{ p.n }}x){{ ", " if not loop.last }}{% endfor %}. Dort stehst du sichtbar, bevor du selbst etwas siehst. Anders hinstellen oder erst mit Utility rein.{% endif %}</div>
+  <div class="seenline">Wer hat zuerst gesehen? Bekannt bei <b class="num">{{ sd.seen.known }} von {{ sd.deaths_with_pos }}</b> Toden. Davon hat er dich <b class="num">{{ sd.seen.opp }}x</b> zuerst gesehen{% if sd.seen.me %}, du ihn {{ sd.seen.me }}x{% endif %}.
+    {% if sd.seen.places %}Am häufigsten in {% for p in sd.seen.places %}<b>{{ p.place|callout }}</b> ({{ p.n }}x){{ ", " if not loop.last }}{% endfor %}. Dort stehst du sichtbar, bevor du selbst etwas siehst. Anders hinstellen oder erst mit Utility rein.{% endif %}</div>
   {% endif %}
 </div>
 {% endif %}
 {% for s in sd.spots %}
 <div class="spot {{ s.verdict }}" id="spot-{{ side }}-{{ s.place }}">
-  <div class="hd"><span class="pl">{{ s.place }}</span><span class="vtag {{ s.verdict }}">{{ {"problem": "Anpassen", "stark": "Halten", "okay": "Okay", "offen": "Zu wenig Daten", "tendenz": "Tendenz"}[s.verdict] }}</span></div>
+  <div class="hd"><span class="pl">{{ s.place|callout }}</span><span class="vtag {{ s.verdict }}">{{ {"problem": "Anpassen", "stark": "Halten", "okay": "Okay", "offen": "Zu wenig Daten", "tendenz": "Tendenz"}[s.verdict] }}</span></div>
   {% set pw = s.pro.won_pct if s.pro is defined else none %}{% set pf = s.pro.first_pct if s.pro is defined else none %}
   <div class="cbar">
     <div class="cb-h"><span>Runden gewonnen</span><b class="num">{{ s.won_pct }} %</b></div>
     <div class="cb-t"><div class="cb-m {{ '' if pw is none or (s.won_pct - pw)|abs < 10 else 'ok' if s.won_pct > pw else 'no' }}" style="width:{{ s.won_pct }}%"></div>
       {% if pw is not none %}<div class="cb-p" style="left:{{ pw }}%"></div>{% endif %}</div>
-    {% if pw is not none %}<div class="cb-l num">Pros an diesem Spot {{ pw }} %</div>{% endif %}
+    {% if pw is not none %}<div class="cb-l num">Pros an diesem Spot {{ pw }} %, aus {{ s.pro.n }} Runden</div>{% endif %}
   </div>
   <div class="cbar">
     <div class="cb-h"><span>Als Erster gestorben</span><b class="num">{{ s.first_pct }} %</b></div>
     <div class="cb-t"><div class="cb-m {{ '' if pf is none or (s.first_pct - pf)|abs < 10 else 'ok' if s.first_pct < pf else 'no' }}" style="width:{{ s.first_pct }}%"></div>
       {% if pf is not none %}<div class="cb-p" style="left:{{ pf }}%"></div>{% endif %}</div>
-    {% if pf is not none %}<div class="cb-l num">Pros {{ pf }} % · weniger ist besser</div>{% endif %}
+    {% if pf is not none %}<div class="cb-l num">Pros {{ pf }} %, aus {{ s.pro.first_n }} Runden · weniger ist besser</div>{% endif %}
   </div>
   <div class="small muted num" style="margin-top:8px">{{ s.n }} Runden · {{ s.first }}x als Erster tot{% if s.untraded is not none %} · {{ s.untraded }}x ohne Trade{% endif %}</div>
   <ul class="why">{% for w in s.why if s.verdict in ("tendenz", "offen") %}<li>{{ w }}</li>{% endfor %}
     {% if s.verdict == "problem" %}{% set alt = sd.pro_spots|rejectattr("place", "equalto", s.place)|selectattr("won_pct")|sort(attribute="won_pct", reverse=True)|first %}
-    {% if alt %}<li><b>Stattdessen:</b> Nach {{ book.at }} in {{ alt.place }} stehen. Pros gewinnen dort {{ alt.won_pct }} %.{% if s.lineups %} Oder vorher die {{ s.lineups[0].kind_de }} nach {{ s.lineups[0].to }} werfen.{% endif %}</li>{% endif %}{% endif %}
-    {% if s.killer_places %}<li><b>Erschossen aus:</b> {% for p, n in s.killer_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}. Dorthin vorzielen.</li>
-    {% elif s.death_places %}<li>Gestorben in: {% for p, n in s.death_places %}{{ p }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}</li>{% endif %}</ul>
+    {% if alt %}<li><b>Stattdessen:</b> Bei {{ book.at }} in {{ alt.place|callout }} stehen. Pros gewinnen dort {{ alt.won_pct }} %, aus {{ alt.n }} Runden.{% if s.lineups %} Oder vorher die {{ s.lineups[0].kind_de }} auf {{ s.lineups[0].to_c }} werfen.{% endif %}</li>{% endif %}{% endif %}
+    {% if s.killer_places %}<li><b>Erschossen aus:</b> {% for p, n in s.killer_places %}{{ p|callout }} ({{ n }} von {{ s.died }} Toden){{ ", " if not loop.last }}{% endfor %}. Fadenkreuz vorher dorthin.</li>
+    {% elif s.death_places %}<li>Gestorben in: {% for p, n in s.death_places %}{{ p|callout }} ({{ n }}x){{ ", " if not loop.last }}{% endfor %}</li>{% endif %}</ul>
   {% if s.pro is defined %}
   <div class="prol"><b class="h">Pros auf {{ label }} ({{ sd.label }})</b>
-    {% if s.pro.n %}Pros stehen nach {{ book.at }} in {{ s.pro.share }} % der Runden hier.
-    {% else %}Kein Pro stand in euren Pro-Demos nach {{ book.at }} hier.{% endif %}
-    {% if s.lineups %}<div class="chips">{% for l in s.lineups %}<a href="/lineups/{{ map_name }}?l={{ l.id }}&p={{ sid }}">{{ l.kind_de }} → {{ l.to or "?" }} ({{ l.n }}x)</a>{% endfor %}</div>{% endif %}
+    {% if s.pro.n %}Pros stehen bei {{ book.at }} in {{ s.pro.share }} % der Runden hier, {{ s.pro.n }} von {{ s.pro.total }}.
+    {% else %}Kein Pro stand in euren Pro-Demos bei {{ book.at }} hier ({{ s.pro.total }} Runden).{% endif %}
+    {% if s.lineups %}<div class="chips">{% for l in s.lineups %}<a href="/lineups/{{ map_name }}?l={{ l.id }}&p={{ sid }}">{{ l.kind_de }} → {{ l.to_c }} ({{ l.n }}x)</a>{% endfor %}</div>{% endif %}
   </div>
   {% endif %}
   <div class="chips">{% for r in s.rounds %}{% if r.report %}<a class="{{ 'W' if r.won else 'L' }}" href="/reports/{{ r.report }}#r{{ r.round }}">{{ r.date[8:10] }}.{{ r.date[5:7] }}. R{{ r.round }}</a>{% endif %}{% endfor %}</div>
 </div>
-{% else %}<div class="card empty">Noch keine Runden auf dieser Seite.</div>{% endfor %}
+{% else %}{% if not sd.rare %}<div class="card empty">Noch keine Runden auf dieser Seite.</div>{% endif %}{% endfor %}
+{% if sd.rare %}<div class="rare"><b class="h">Selten, unter {{ cfg.min_rounds }} Runden. Noch keine Bewertung.</b>{% for r in sd.rare %}{{ r.place|callout }} <span class="num muted">{{ r.n }}x</span>{{ " · " if not loop.last }}{% endfor %}</div>{% endif %}
 {% if sd.pro_spots %}
-<h2>So stehen Pros nach {{ book.at }} · {{ sd.pro_rounds }} Pro-Runden</h2>
+<h2>So stehen Pros bei {{ book.at }} · {{ sd.pro_rounds }} Pro-Runden</h2>
 <div class="card"><table class="prot num">
-  <tr><th>Spot</th><th>Anteil</th><th>Siege</th><th>Erster tot</th><th>Lineups</th></tr>
-  {% for p in sd.pro_spots %}<tr><td><b>{{ p.place }}</b></td><td>{{ p.share }} %</td><td>{{ p.won_pct ~ " %" if p.won_pct is not none else "–" }}</td><td>{{ p.first_pct ~ " %" if p.first_pct is not none else "–" }}</td><td>{% if p.lineups %}<a href="/lineups/{{ map_name }}?side={{ side }}&p={{ sid }}" style="color:var(--orange)">{{ p.lineups }}</a>{% else %}–{% endif %}</td></tr>{% endfor %}
+  <tr><th>Spot</th><th>Runden</th><th>Siege</th><th>Erster tot</th><th>Lineups</th></tr>
+  {% for p in sd.pro_spots %}<tr><td><b>{{ p.place|callout }}</b></td><td>{{ p.n }} ({{ p.share }} %)</td><td>{{ p.won_pct ~ " %" if p.won_pct is not none else "–" }}</td><td>{{ (p.first_pct ~ " % (" ~ p.first_n ~ ")") if p.first_pct is not none else "–" }}</td><td>{% if p.lineups %}<a href="/lineups/{{ map_name }}?side={{ side }}&p={{ sid }}" style="color:var(--orange)">{{ p.lineups }}</a>{% else %}–{% endif %}</td></tr>{% endfor %}
 </table></div>
 {% elif sd.spots %}
 <p class="small muted">Den Pro-Vergleich gibt es ab {{ cfg.min_pro_rounds }} Pro-Runden auf dieser Map und Seite. <a href="/pro" style="color:var(--orange)">Pro-Demos hochladen ›</a></p>

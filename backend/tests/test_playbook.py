@@ -57,23 +57,23 @@ def test_rush_eco_pistol_default():
     slow = {s: [(0, "TSpawn", 0, 0), (10, "Mid", 5 + 50 * i, 5), (70, "BombsiteB", 9, 9)] for i, s in enumerate(T)}
     p = playbook.plays(_match(10, slow, plant_s=80, equip=5000))[0]
     k = playbook.classify(p, {})
-    assert k["style"] == "group" and k["name"] == "Zusammen Mid, spät auf B" and k["via"] == ["Mid"]
+    assert k["style"] == "group" and k["name"] == "Gemeinsam über Mid, spät auf B" and k["via"] == ["Mid"]
     # erst nach 20 s verteilt, nach 30 s laufen 4 gemeinsam über Palace: auch kein Default
     late = {s: [(0, "TSpawn", 0, 0), (10, pl, x, y), (28, "Palace", 3000 + 40 * i, 0), (70, "BombsiteB", 9, 9)]
             for i, (s, (pl, x, y)) in enumerate(spots.items())}
     late["t5"] = [(0, "TSpawn", 0, 0), (10, "Mid", 0, 0), (70, "BombsiteB", 9, 9)]
     p2 = playbook.plays(_match(11, late, plant_s=80, equip=5000))[0]
-    assert playbook.classify(p2, {})["name"] == "Zusammen Palace, spät auf B"
+    assert playbook.classify(p2, {})["name"] == "Gemeinsam über Palace, spät auf B"
     # hintereinander denselben Weg (nie 4 im Umkreis), einer Mitte: kein Default
     line = {s: [(0, "TSpawn", 0, 0), (10, "TRamp", 400 * i, 0), (25, "Palace", 4000 + 400 * i, 0),
                 (45, "PalaceInterior", 9000 + 400 * i, 0), (70, "BombsiteA", 9, 9)] for i, s in enumerate(T[:4])}
     line["t5"] = [(0, "TSpawn", 0, 0), (10, "Mid", -3000, 3000), (70, "BombsiteA", 9, 9)]
     p3 = playbook.plays(_match(12, line, plant_s=80, equip=5000))[0]
     k3 = playbook.classify(p3, {})
-    assert k3["style"] == "group" and k3["name"] == "Zusammen Palace, spät auf A"
+    assert k3["style"] == "group" and k3["name"] == "Gemeinsam über Palace, spät auf A"
     # ältere Daten ohne Orte: Name ohne Ort
     p.pop("places")
-    assert playbook.classify(p, {})["name"] == "Zusammen, spät auf B"
+    assert playbook.classify(p, {})["name"] == "Gemeinsam, spät auf B"
 
 
 def test_build_groups_rounds_and_finds_common_nades():
@@ -114,7 +114,7 @@ def test_events_merge_close_moments():
           "deaths": [{"t": 31, "side": "ct", "place": "Jungle", "first": True}]}
     ev = playbook.events(ex)
     assert [e["t"] for e in ev] == [28, 31, 36, 46]
-    assert [i["text"] for i in ev[0]["items"]] == ["Smoke von TSpawn auf CT", "Smoke auf Jungle"]
+    assert [i["text"] for i in ev[0]["items"]] == ["Smoke von T-Spawn auf CT", "Smoke auf Jungle"]
     assert ev[1]["items"][0]["text"] == "CT fällt in Jungle (Opening)" and ev[3]["items"][0]["text"] == "Bombe liegt"
 
 

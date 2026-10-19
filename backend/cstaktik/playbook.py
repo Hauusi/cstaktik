@@ -6,7 +6,7 @@ Ankunft am Bombsite, Plant (Ort, Zeit), Ausrüstung der Teams. Daraus wird je Ru
 - Kauf: Pistolenrunde (erste Runde je Halbzeit), Eco, Force oder Full Buy (Team-Ausrüstung, Schwellen in rules.yaml).
 - Ziel: Bombsite des Plants, sonst der Bombsite, den die T zuerst erreicht haben.
 - Tempo: Rush (Ankunft bis ``rush_s``), Execute (bis ``late_s``), spät (danach).
-- Spät: Default nur, wenn die T sich über die Map verteilen. "Zusammen", wenn mindestens ``group_min`` von ihnen
+- Spät: Default nur, wenn die T sich über die Map verteilen. "Gemeinsam", wenn mindestens ``group_min`` von ihnen
   zwischen ``group_from`` und ``group_to`` s überwiegend als Gruppe laufen (jeder höchstens ``group_gap`` Units vom
   nächsten, also auch hintereinander auf demselben Weg). Beispiele: alle 5 Mitte, 4 gemeinsam über Palace.
 
@@ -20,6 +20,8 @@ from __future__ import annotations
 import statistics
 from collections import Counter
 
+from cstaktik.callouts import clock as gclock
+from cstaktik.callouts import place as callout
 from cstaktik.model import MatchData
 
 PATH_STEP_S = 2
@@ -39,9 +41,9 @@ STYLE_TEXT = {
                            "Flashes blenden beim Reinlaufen, Molotovs räumen Ecken. Dann gehen alle zusammen rein."),
     "default": ("Default", "Erst kontrolliert ihr die Map und sammelt Infos, verteilt auf mehrere Orte. Der Bombsite "
                            "wird spät gewählt, oft nach einem Pick oder einer Info."),
-    "group": ("Zusammen", "Das Team spielt die erste Phase gemeinsam an einem Ort, meist um ihn zu übernehmen. Der "
-                          "Bombsite wird erst danach gewählt. Anders als beim Default fehlen Infos aus den übrigen "
-                          "Bereichen. Dafür seid ihr beim ersten Kontakt eher in Überzahl."),
+    "group": ("Gemeinsam", "Mindestens 4 T laufen die erste Phase zusammen über einen Ort und wählen den Bombsite "
+                           "erst danach. Anders als beim Default fehlen Infos aus den übrigen Bereichen. Dafür seid "
+                           "ihr beim ersten Kontakt eher in Überzahl."),
     "eco": ("Eco-Push", "Mit wenig Geld gewinnt man selten ein faires Duell. Deshalb drückt ihr zusammen und schnell "
                         "auf einen Ort. Sucht Überzahl im ersten Kontakt und hebt die Waffen der Gegner auf."),
     "pistol": ("Pistolenrunde", "Die erste Runde der Halbzeit. Alle haben nur Pistolen, Utility ist knapp und wertvoll. "
@@ -159,12 +161,12 @@ def classify(p: dict, cfg: dict) -> dict:
         style = "pistol"
     main = main_via(p.get("approach") or {}, style)
     # Eco und Pistole werden nur nach Bombsite gruppiert: Name ohne Weg, sonst trüge die Gruppe den Weg der ersten Runde
-    via = " + ".join(main) if main and style not in ("eco", "pistol") else None
+    via = " + ".join(callout(v) for v in main) if main and style not in ("eco", "pistol") else None
     if style == "default":
         name = f"Default, spät auf {site}" if site else "Default ohne Bombsite"
     elif style == "group":
         main = [together] if together else []
-        name = (f"Zusammen {together}" if together else "Zusammen") + (f", spät auf {site}" if site else "")
+        name = (f"Gemeinsam über {callout(together)}" if together else "Gemeinsam") + (f", spät auf {site}" if site else "")
     else:
         name = f"{site}-{STYLE_TEXT[style][0]}" + (f" über {via}" if via else "")
     return {"buy": buy, "tempo": tempo, "style": style, "via": main, "via_all": groups, "name": name}
@@ -227,7 +229,7 @@ def grouped(p: dict, c: dict) -> str | None:
 
 
 def group_key(p: dict, k: dict) -> tuple:
-    """Gruppe einer T-Runde: Taktikart, Bombsite, Hauptzugänge (bei Split, Execute, Rush; bei Zusammen der Ort)."""
+    """Gruppe einer T-Runde: Taktikart, Bombsite, Hauptzugänge (bei Split, Execute, Rush; bei Gemeinsam der Ort)."""
     return k["style"], p.get("site"), tuple(k["via"]) if k["style"] in ("split", "execute", "rush", "group") else ()
 
 
@@ -248,15 +250,21 @@ def events(ex: dict) -> list[dict]:
     """Schlüsselmomente einer Beispielrunde für die Wiedergabe: Granaten, Ankunft, Kills, Plant (Rundenzeit s).
     Momente bis 1,5 s Abstand werden zusammengefasst, damit die Wiedergabe nicht ständig stockt."""
     raw = []
-    for i, n in enumerate(ex.get("nades", [])):
-        src = f" von {n['from']}" if n.get("from") else ""
-        raw.append({"t": n["t"], "text": f"{KIND_DE.get(n['kind'], n['kind'])}{src} auf {n.get('to') or '?'}",
+    sids = list(ex.get("paths") or {})
+    nades = drawn_nades(ex)
+    who = throwers(ex, nades)
+    for i, n in enumerate(nades):
+        src = f" von {callout(n['from'])}" if n.get("from") else ""
+        by = f"Spieler {who[i] + 1}: " if who[i] is not None else ""
+        raw.append({"t": n["t"], "text": f"{by}{KIND_DE.get(n['kind'], n['kind'])}{src} auf {callout(n.get('to')) or '?'}",
                     "nade": i, "kind": "nade"})
     if ex.get("arrive") is not None and ex.get("site"):
-        raw.append({"t": ex["arrive"], "text": f"Erste T am Bombsite {ex['site']}", "kind": "arrive"})
+        raw.append({"t": ex["arrive"], "text": f"Erste T auf {ex['site']}-Site", "kind": "arrive"})
     for x in ex.get("deaths", []):
-        who = "T" if x["side"] == "t" else "CT"
-        raw.append({"t": x["t"], "text": f"{who} fällt{' in ' + x['place'] if x.get('place') else ''}"
+        side = "T" if x["side"] == "t" else "CT"
+        if x["side"] == "t" and x.get("sid") in sids:
+            side = f"Spieler {sids.index(x['sid']) + 1}"
+        raw.append({"t": x["t"], "text": f"{side} fällt{' in ' + callout(x['place']) if x.get('place') else ''}"
                                          f"{' (Opening)' if x.get('first') else ''}",
                     "kind": "death", "side": x["side"], "sid": x.get("sid")})
     if ex.get("plant_t") is not None:
@@ -269,6 +277,109 @@ def events(ex: dict) -> list[dict]:
         else:
             out.append({"t": e["t"], "items": [e]})
     return out
+
+
+def drawn_nades(ex: dict) -> list[dict]:
+    """Granaten, die in der Wiedergabe gezeichnet werden: alle T-Granaten der Runde bis zum Plant (ohne HE).
+    Ältere Daten ohne ``round_nades``: das Granaten-Fenster um die Ankunft."""
+    return [n for n in ex.get("round_nades", ex.get("nades", [])) if n["kind"] != "he"]
+
+
+THROWER_UNITS = 220  # Wurfstelle so nah am Laufweg eines Spielers (zur Wurfzeit): er hat geworfen
+
+
+def _at(path: list, t: float) -> tuple[float, float] | None:
+    """Position auf einem Laufweg (alle PATH_STEP_S s) zur Rundenzeit t, linear dazwischen."""
+    f = t / PATH_STEP_S
+    k = int(f)
+    if not path or k >= len(path) or f < 0:
+        return None
+    a, b = path[k], path[min(k + 1, len(path) - 1)]
+    r = f - k
+    return a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r
+
+
+def throwers(ex: dict, nades: list[dict]) -> list[int | None]:
+    """Wer hat geworfen? Die Demo-Zusammenfassung speichert den Werfer nicht. Er wird aus den Laufwegen bestimmt:
+    der Spieler, der zur Wurfzeit am nächsten an der Wurfstelle stand (höchstens THROWER_UNITS). Sonst None."""
+    paths = list((ex.get("paths") or {}).values())
+    out = []
+    for n in nades:
+        x, y = (n["p"][0], n["p"][1]) if n.get("p") else (n.get("fx"), n.get("fy"))
+        best = None
+        if x is not None:
+            for i, p in enumerate(paths):
+                q = _at(p, n["t"])
+                if q is None:
+                    continue
+                d = ((q[0] - x) ** 2 + (q[1] - y) ** 2) ** .5
+                if d <= THROWER_UNITS and (best is None or d < best[0]):
+                    best = (d, i)
+        out.append(best[1] if best else None)
+    return out
+
+
+def route(places: list) -> str | None:
+    """Weg eines Spielers in Callouts: Orte, an denen er mindestens 2 Messpunkte war, und der letzte Ort.
+    Der Start im T-Spawn fällt weg. Höchstens 4 Orte ("Palace → A-Site")."""
+    runs: list[list] = []
+    for pl in places:
+        name = callout(pl) if pl else None
+        if not name:
+            continue
+        if runs and runs[-1][0] == name:
+            runs[-1][1] += 1
+        else:
+            runs.append([name, 1])
+    if not runs:
+        return None
+    keep = [r[0] for i, r in enumerate(runs) if r[1] >= 2 or i == len(runs) - 1]
+    seq = [x for i, x in enumerate(keep) if i == 0 or x != keep[i - 1]]
+    while len(seq) > 1 and seq[0] in ("T-Spawn", "T Spawn"):
+        seq = seq[1:]
+    if len(seq) > 4:
+        seq = seq[:3] + [seq[-1]]
+    return " → ".join(seq)
+
+
+def roles(ex: dict, lines: list[dict] | None = None) -> list[dict]:
+    """Die 5 Rollen einer Runde zum Nachspielen: je Spieler Weg (Callouts), seine Granaten mit Uhrzeit im Spiel und
+    Lineup (gleiche Art, Wurf- und Landestelle nah an einem Pro-Lineup), ob und wo er gefallen ist."""
+    sids = list(ex.get("paths") or {})
+    nades = drawn_nades(ex)
+    who = throwers(ex, nades)
+    plant = ex.get("plant_t")
+    out = []
+    for i, sid in enumerate(sids):
+        died = next((k for k in ex.get("deaths", []) if k.get("sid") == sid and k.get("side") == "t"), None)
+        out.append({"i": i, "route": route((ex.get("places") or {}).get(sid) or []),
+                    "died": {"clock": gclock(died["t"], plant), "place": callout(died.get("place"))} if died else None,
+                    "nades": []})
+    for j, (n, w) in enumerate(zip(nades, who)):
+        if w is None:
+            continue
+        out[w]["nades"].append({"idx": j, "kind": n["kind"], "kind_de": KIND_DE.get(n["kind"], n["kind"]),
+                                "to": callout(n.get("to")), "clock": gclock(n["t"], plant),
+                                "lineup": lineup_for(n, lines or []), "t": n["t"]})
+    for r in out:
+        r["nades"].sort(key=lambda n: n["t"])
+    return out
+
+
+def lineup_for(n: dict, lines: list[dict], pos_units: float = 100, land_units: float = 160) -> str | None:
+    """Pro-Lineup zu einem Wurf: gleiche Art und Seite, Wurf- und Landestelle nah dran. Ohne Wurfstelle: keins."""
+    if not n.get("p"):
+        return None
+    x, y = n["p"][0], n["p"][1]
+    best = None
+    for lu in lines:
+        if lu["kind"] != n["kind"] or lu["side"] != n.get("side", "t"):
+            continue
+        d = ((lu["x"] - x) ** 2 + (lu["y"] - y) ** 2) ** .5
+        if d <= pos_units and ((lu["tx"] - n["tx"]) ** 2 + (lu["ty"] - n["ty"]) ** 2) ** .5 <= land_units:
+            if best is None or d < best[0]:
+                best = (d, lu["id"])
+    return best[1] if best else None
 
 
 def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: int = 2) -> dict:
@@ -295,7 +406,8 @@ def build(pro: list[dict], map_name: str, cfg: dict | None = None, min_rounds: i
             src = p["kills"] if "kills" in p else [x for x in deaths if x.get("r") == p["r"]]
             kills = [{"t": x["t"], "side": x["side"], "place": x.get("place"), "sid": x.get("sid"), "first": x.get("first")}
                      for x in src if x.get("t") is not None and x["t"] <= stop]
-            groups.setdefault(key, []).append({**p, **k, "nades": mine, "deaths": kills, "demo": d.get("source_file")})
+            groups.setdefault(key, []).append({**p, **k, "nades": mine, "deaths": kills, "demo": d.get("source_file"),
+                                               "round_nades": [n for n in nades if n["t"] <= stop]})
     tactics = []
     no_site = sum(len(rows) for (style, site, _v), rows in groups.items() if site is None)
     for (style, site, via), rows in groups.items():
@@ -337,12 +449,26 @@ def style_mix(sources: list[dict], map_name: str, cfg: dict | None = None) -> di
     rows = [classify(p, c) | {"won": p["won"]} for d in sources if d.get("map") == map_name
             for p in d.get("plays") or [] if p.get("site") and "won" in p]
     out = {}
+    counts = {st: sum(r["style"] == st for r in rows) for st in STYLE_TEXT}
+    shares = shares_100(counts)
     for st in STYLE_TEXT:
         sel = [r for r in rows if r["style"] == st]
         if sel:
-            out[st] = {"label": STYLE_TEXT[st][0], "n": len(sel), "share": round(100 * len(sel) / len(rows)),
+            out[st] = {"label": STYLE_TEXT[st][0], "n": len(sel), "share": shares[st],
                        "won": sum(r["won"] for r in sel), "won_pct": round(100 * sum(r["won"] for r in sel) / len(sel))}
     return {"total": len(rows), "styles": out}
+
+
+def shares_100(counts: dict) -> dict:
+    """Anteile in ganzen Prozent, die zusammen genau 100 ergeben (größter Rest bekommt den Rundungspunkt)."""
+    total = sum(counts.values())
+    if not total:
+        return {k: 0 for k in counts}
+    raw = {k: 100 * v / total for k, v in counts.items()}
+    out = {k: int(v) for k, v in raw.items()}
+    for k in sorted(raw, key=lambda k: -(raw[k] - out[k]))[:100 - sum(out.values())]:
+        out[k] += 1
+    return out
 
 
 def compare(own: dict, pro: dict, min_rounds: int = 10, min_style: int = 4) -> str | None:

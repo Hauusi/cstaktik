@@ -73,6 +73,7 @@
 .pset a.lu { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; background: rgba(255,154,31,.1); border: 1px solid rgba(255,154,31,.45); }
 .pset i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .play details { margin: 0; } .play details p { margin: 6px 0 0; font-size: 14px; color: #cfd5de; }
+.cmap.blank { background: #12151c; }
 .cmap { display: block; width: 100%; height: auto; border-radius: 12px; background: #07090d; }
 .cmap .zone { fill: none; stroke-width: calc(1.5px * var(--sw)); stroke-dasharray: calc(6px * var(--sw)) calc(5px * var(--sw)); opacity: .7; }
 .cmap .zl { font-weight: 800; text-anchor: middle; dominant-baseline: middle; opacity: .55; }
@@ -87,14 +88,32 @@
 .pex { font-size: 12.5px; color: var(--faint); }
 .plegend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .plegend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+.prnd button { width: 44px; height: 44px; }
+.pset span, .pset a.lu { display: inline-flex; align-items: center; min-height: 40px; }
+.play details > summary, .mixc details > summary, .proled > summary { min-height: 40px; display: flex; align-items: center; }
+.nomap { font-size: 13px; color: var(--muted); padding: 8px 12px; border-radius: 10px; background: var(--surface-2); border: 1px dashed var(--line); }
+.pmap.blank { background: #12151c; }
+.proles { display: grid; gap: 6px; }
+.proles .rh { font-size: 13px; color: var(--muted); }
+.prole { display: grid; grid-template-columns: 14px 1fr; gap: 2px 8px; padding: 8px 10px; border-radius: 11px; background: var(--surface-2);
+  border: 1px solid var(--line); cursor: pointer; min-height: 40px; text-align: left; font: inherit; color: var(--text); width: 100%; }
+.prole.on { border-color: var(--orange); background: rgba(255,154,31,.08); }
+.prole > i { width: 12px; height: 12px; border-radius: 50%; margin-top: 4px; grid-row: 1 / span 9; }
+.prole > :not(i) { grid-column: 2; }
+.prole b { font-size: 14px; } .prole .rt { font-size: 13.5px; }
+.prole .rn { font-size: 13px; color: #cfd5de; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.prole .rn a { color: var(--orange); display: inline-flex; align-items: center; min-height: 32px; }
+.prole .rd { font-size: 12.5px; color: var(--muted); }
+.mxnote { font-size: 13px; color: var(--muted); }
 </style>{% endblock %}
 {% block hero %}
 <h1>Playbook {{ label }}</h1>
-<p>{% if side == "ct" %}{{ "Eure " if who == "ihr" else "Pro-" }}CT-Aufstellungen nach {{ 20 }} s. Wer steht wo, welche Granaten fliegen früh, wie oft wird die Runde gehalten?{% elif who == "ihr" %}Eure T-Runden, erkannt wie bei den Pros. {{ book.tactics|length }} Taktik{{ "en" if book.tactics|length != 1 }} aus {{ book.rounds }} Runden.{% elif book.tactics %}{{ book.tactics|length }} T-Taktiken aus {{ book.demos }} Pro-Demo{{ "s" if book.demos != 1 }} und {{ book.rounds }} T-Runden. Genau so, wie Pros sie gespielt haben.{% else %}Taktiken entstehen aus euren Pro-Demos dieser Map.{% endif %}</p>
+<p>{% if side == "ct" %}{{ "Eure " if who == "ihr" else "Pro-" }}CT-Aufstellungen bei 1:35 auf der Uhr. Wer steht wo, welche Granaten fliegen früh, wie oft wird die Runde gehalten?{% elif who == "ihr" %}Eure T-Runden, erkannt wie bei den Pros. {{ book.tactics|length }} Taktik{{ "en" if book.tactics|length != 1 }} aus {{ book.rounds }} Runden.{% elif book.tactics %}{{ book.tactics|length }} T-Taktiken aus {{ book.demos }} Pro-Demo{{ "s" if book.demos != 1 }} und {{ book.rounds }} T-Runden. Genau so, wie Pros sie gespielt haben.{% else %}Taktiken entstehen aus euren Pro-Demos dieser Map.{% endif %}</p>
 <div class="ptabs">{% for m in maps %}<a href="/playbook/{{ m }}?who={{ who }}&side={{ side }}" class="{{ 'on' if m == map_name }}">{{ m.removeprefix("de_")|capitalize }}</a>{% endfor %}</div>
 {% endblock %}
 {% block content %}
 {% if img %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><image id="pbrad" href="{{ img }}" width="1024" height="1024"/></defs></svg>{% endif %}
+{% if no_map %}<div class="nomap" style="margin-top:14px">Keine Karte für diese Map. Die Wege sind auf neutralem Grund gezeichnet.</div>{% endif %}
 <div class="segs"><div class="seg"><a href="/playbook/{{ map_name }}?side={{ side }}" class="{{ 'on' if who == 'pro' }}">Pros</a><a href="/playbook/{{ map_name }}?who=ihr&side={{ side }}" class="{{ 'on' if who == 'ihr' }}">Ihr</a></div>
 <div class="seg"><a href="/playbook/{{ map_name }}?who={{ who }}" class="{{ 'on' if side == 't' }}">T-Seite</a><a href="/playbook/{{ map_name }}?who={{ who }}&side=ct" class="{{ 'on' if side == 'ct' }}">CT-Seite</a></div></div>
 {% if side == "ct" %}{% include "playbook_ct.html" %}{% else %}
@@ -102,7 +121,7 @@
 <div class="card mixc">
   <div class="mxh">Was auf T gespielt wird <span>Anteil der T-Runden · Siegquote</span></div>
   {% if mix.text %}<div class="dread">{{ mix.text }}</div>{% endif %}
-  {% for st, lbl in [("default", "Default"), ("execute", "Execute"), ("split", "Split"), ("rush", "Rush"), ("eco", "Eco-Push"), ("pistol", "Pistolenrunde")] %}
+  {% for st, lbl in [("default", "Default"), ("group", "Gemeinsam"), ("execute", "Execute"), ("split", "Split"), ("rush", "Rush"), ("eco", "Eco-Push"), ("pistol", "Pistolenrunde")] %}
   {% set o = mix.ihr.styles.get(st) %}{% set q = mix.pro.styles.get(st) %}
   {% if o or q %}
   <div class="mxr">
@@ -111,6 +130,7 @@
     <div class="mxb"><i class="pro" style="width:{{ q.share if q else 0 }}%"></i><em class="num">Pros {{ q.share if q else 0 }} %{% if q %} · {{ q.won_pct }} % gew. ({{ q.n }}){% endif %}</em></div>
   </div>
   {% endif %}{% endfor %}
+  {% if mix.ihr.styles.group or mix.pro.styles.group %}<div class="mxnote"><b>Gemeinsam:</b> Mindestens 4 T laufen die erste Phase zusammen über einen Ort. Den Bombsite wählen sie erst danach.</div>{% endif %}
   <div class="pex">{{ mix.ihr.total }} eigene T-Runden, {{ mix.pro.total }} Pro-T-Runden auf {{ label }}.{% if mix.ihr.total < 10 %} Eine Einschätzung gibt es erst ab 10 eigenen Runden.{% endif %}</div>
 </div>
 {% endif %}
@@ -128,7 +148,7 @@
   {% for st in book.tactics|map(attribute="style")|unique %}<button data-f="style:{{ st }}">{{ (book.tactics|selectattr("style", "equalto", st)|first).style_label }}</button>{% endfor %}
 </div>
 {% if book.no_site %}<div class="pex" style="margin-top:8px">{{ book.no_site }} T-Runden ohne Bombsite zählen nicht als Taktik. Dort waren alle T tot, bevor einer ankam.</div>{% endif %}
-<div class="plegend" style="margin-top:8px"><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:transparent;border:2px solid #ff5a6e;border-radius:2px"></i>Plant</span><span>Linien: Laufwege der 5 T</span></div>
+<div class="plegend" style="margin-top:8px"><span><i style="background:#c8ced8"></i>Smoke</span><span><i style="background:#ff6b2c"></i>Molotov</span><span><i style="background:#fff3a8"></i>Flash</span><span><i style="background:transparent;border:2px solid #ff5a6e;border-radius:2px"></i>Plant</span><span>Linien: Laufwege der 5 T. Zeiten: Uhr im Spiel.</span></div>
 <div class="plays">
 {% for t in book.tactics %}
 <article class="card play" data-site="{{ t.site or '' }}" data-style="{{ t.style }}" id="{{ t.id }}">
@@ -136,21 +156,23 @@
     {% for b, n in t.buys.items() %}<span class="pchip">{{ {"full": "Full Buy", "force": "Force", "eco": "Eco", "pistol": "Pistole"}[b] }} {{ n }}x</span>{% endfor %}
     <span class="pwin num">{{ t.won_pct }} %<small>gewonnen</small></span></div>
   <h3 class="pn">{{ t.name }}</h3>
-  <div class="pmeta num">{{ t.n }} Runden · {{ t.share }} % aller T-Runden · {{ t.won }} gewonnen{% if t.arrive is not none %} · am Bombsite nach {{ t.arrive }} s{% endif %}{% if t.plant_t is not none %} · {{ t.plants }}x Plant nach {{ t.plant_t }} s{% endif %}{% if t.n < 5 %} · wenige Runden, Siegquote schwankt{% endif %}</div>
-  {% if t.draws and img %}{% set d = t.draws[0] %}
+  <div class="pmeta num">{{ t.n }} Runden · {{ t.share }} % aller T-Runden · {{ t.won }} gewonnen{% if t.arrive is not none %} · auf der Site meist bei {{ t.arrive|clock }}{% endif %}{% if t.plant_t is not none %} · {{ t.plants }}x Plant, meist bei {{ t.plant_t|clock }}{% endif %}{% if t.n < 5 %} · wenige Runden, Siegquote schwankt{% endif %}</div>
+  {% if t.draws %}{% set d = t.draws[0] %}
   {% if t.draws|length > 1 %}<div class="prnd"><button class="pprev" type="button" aria-label="Vorige Runde">‹</button>
     <span class="rlbl num"></span><button class="pnext" type="button" aria-label="Nächste Runde">›</button></div>{% endif %}
-  <svg class="pmap" viewBox="{{ d.vb[0] }} {{ d.vb[1] }} {{ d.vb[2] }} {{ d.vb[2] }}" style="--sw:{{ d.sw }}" data-id="{{ t.id }}">
-    <use href="#pbrad" opacity=".85"/>
+  <svg class="pmap{{ ' blank' if not img }}" viewBox="{{ d.vb[0] }} {{ d.vb[1] }} {{ d.vb[2] }} {{ d.vb[2] }}" style="--sw:{{ d.sw }}" data-id="{{ t.id }}">
+    {% if img %}<use href="#pbrad" opacity=".85"/>{% endif %}
     <g class="paths"></g><g class="nades"></g><g class="dots"></g><g class="plant"></g><g class="hl"></g>
   </svg>
   <div class="pctl"><button class="pplay" type="button">▶ Abspielen</button><div class="ptrack"><i></i></div><span class="ptime">0:00</span></div>
   <div class="pcap"><span class="hint">Die Wiedergabe hält bei jeder Granate, jedem Kill und beim Plant. Punkte auf der Zeitleiste springen direkt dorthin.</span></div>
+  <details class="proled"><summary>Rollen: wer läuft wo, wer wirft was</summary>
+    <div class="proles"><div class="rh">Tippe einen Spieler an. Dann siehst du nur seinen Weg. So kannst du eine Rolle übernehmen.</div></div></details>
   {% endif %}
-  {% if t.common %}<div class="pset">{% for c in t.common %}<{{ 'a' if c.lineup else 'span' }}{% if c.lineup %} class="lu" href="/lineups/{{ map_name }}?l={{ c.lineup }}" title="Lineup ansehen"{% endif %}><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to }} <b class="num">{{ c.n }}/{{ t.n }}</b>{% if c.lineup %} ›{% endif %}</{{ 'a' if c.lineup else 'span' }}>{% endfor %}</div>
+  {% if t.common %}<div class="pset">{% for c in t.common %}<{{ 'a' if c.lineup else 'span' }}{% if c.lineup %} class="lu" href="/lineups/{{ map_name }}?l={{ c.lineup }}" title="Lineup ansehen"{% endif %}><i style="background:{{ {'smoke': '#c8ced8', 'molotov': '#ff6b2c', 'flash': '#fff3a8'}[c.kind] }}"></i>{{ {"smoke": "Smoke", "molotov": "Molotov", "flash": "Flash"}[c.kind] }} → {{ c.to|callout }} <b class="num">&nbsp;{{ c.n }}/{{ t.n }}</b>{% if c.lineup %} ›{% endif %}</{{ 'a' if c.lineup else 'span' }}>{% endfor %}</div>
   {% else %}<div class="pmeta">Kein festes Granaten-Set. Die Pros haben hier jedes Mal andere Granaten geworfen.</div>{% endif %}
   <details><summary>Was ist ein {{ t.style_label }}?</summary><p>{{ t.explain }}</p></details>
-  <div class="pex" data-who="{{ who }}">Gezeichnet: Runde {{ t.example.r }}{% if t.example.demo %} {{ "vom" if who == "ihr" else "aus" }} {{ t.example.demo }}{% endif %}, {{ "gewonnen" if t.example.won else "verloren" }}. Granaten: 20 s vor bis 5 s nach Ankunft am Bombsite.</div>
+  <div class="pex" data-who="{{ who }}">Gezeichnet: Runde {{ t.example.r }}{% if t.example.demo %} {{ "vom" if who == "ihr" else "aus" }} {{ t.example.demo }}{% endif %}, {{ "gewonnen" if t.example.won else "verloren" }}. Gezeichnet sind alle T-Granaten bis zum Plant. Das typische Set zählt Granaten von 20 s vor bis 5 s nach der Ankunft auf der Site.</div>
 </article>
 {% endfor %}
 </div>
@@ -163,7 +185,9 @@ const DATA = {{ data|safe }};
 const COLORS = ['#ff9a1f', '#ffd166', '#5b9dff', '#34c77b', '#c084fc'];
 const NS = 'http://www.w3.org/2000/svg';
 const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
-const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+{{ callouts_js|safe }}
+const KIND = {smoke: 'Smoke', flash: 'Flash', molotov: 'Molotov', he: 'HE'};
+const MAP = {{ map_name|tojson }};
 document.querySelectorAll('.pmap').forEach(svg => {
   const list = DATA[svg.dataset.id]; if (!list || !list.length) return;
   const card = svg.closest('.play'), lbl = card.querySelector('.rlbl'), pex = card.querySelector('.pex');
@@ -176,7 +200,7 @@ document.querySelectorAll('.pmap').forEach(svg => {
     if (lbl) lbl.innerHTML = `<b>Runde ${cur + 1} von ${list.length}</b> · R${d.r} · ${res}`;
     const src = d.demo ? (pex.dataset.who === 'ihr' ? ' vom ' : ' aus ') + d.demo : '';
     pex.textContent = `Gezeichnet: Runde ${d.r}${src}, ${d.won ? 'gewonnen' : 'verloren'}.` + (d.via.length ? ` Zugänge: ${d.via.join(', ')}.` : '')
-      + ' Granaten: 20 s vor bis 5 s nach Ankunft am Bombsite.';
+      + ' Gezeichnet sind alle T-Granaten bis zum Plant.';
   }
   const pv = card.querySelector('.pprev'), nx = card.querySelector('.pnext');
   if (pv) pv.onclick = () => open(cur - 1);
@@ -185,6 +209,8 @@ document.querySelectorAll('.pmap').forEach(svg => {
 });
 
 function load(svg, d) {
+  // Uhr im Spiel: 1:55 abwärts, nach dem Plant Bombentimer
+  const fmt = s => d.plant_t != null && s >= d.plant_t ? 'Bombe 0:' + String(Math.max(0, Math.round(40 - (s - d.plant_t)))).padStart(2, '0') : gclock(s);
   const sw = d.sw, gP = svg.querySelector('.paths'), gN = svg.querySelector('.nades'), gD = svg.querySelector('.dots');
   [gP, gN, gD, svg.querySelector('.plant'), svg.querySelector('.hl')].forEach(g => g.replaceChildren());
   svg.setAttribute('viewBox', `${d.vb[0]} ${d.vb[1]} ${d.vb[2]} ${d.vb[2]}`); svg.style.setProperty('--sw', sw);
@@ -259,7 +285,37 @@ function load(svg, d) {
   cap.classList.remove('hot');
   cap.replaceChildren(Object.assign(document.createElement('span'), {className: 'hint',
     textContent: 'Die Wiedergabe hält bei jeder Granate, jedem Kill und beim Plant. Punkte auf der Zeitleiste springen direkt dorthin.'}));
-  bar.style.width = '0'; tm.textContent = '0:00'; setBtn();
+  bar.style.width = '0'; tm.textContent = fmt(0); setBtn();
+  // Rollen: je Spieler Weg, Granaten mit Uhrzeit und Lineup, Tod. Antippen zeigt nur diesen Weg.
+  const box = card.querySelector('.proles');
+  if (box) {
+    box.querySelectorAll('.prole').forEach(x => x.remove());
+    let solo = -1;
+    const rows = (d.roles || []).map((r, i) => {
+      const row = document.createElement('div'); row.className = 'prole'; row.setAttribute('role', 'button'); row.tabIndex = 0;
+      const dot = document.createElement('i'); dot.style.background = COLORS[i % 5];
+      const head = document.createElement('b'); head.textContent = 'Spieler ' + (i + 1);
+      const rt = document.createElement('div'); rt.className = 'rt'; rt.textContent = r.route || 'Weg unbekannt';
+      row.append(dot, head, rt);
+      if (r.nades.length) {
+        const rn = document.createElement('div'); rn.className = 'rn';
+        r.nades.forEach(n => {
+          const txt = `${n.kind_de} → ${n.to || '?'} bei ${n.clock}`;
+          const a = document.createElement(n.lineup ? 'a' : 'span'); a.textContent = txt + (n.lineup ? ' ›' : '');
+          if (n.lineup) { a.href = `/lineups/${MAP}?l=${encodeURIComponent(n.lineup)}`; a.onclick = e => e.stopPropagation(); }
+          rn.append(a);
+        });
+        row.append(rn);
+      } else { const rn = document.createElement('div'); rn.className = 'rd'; rn.textContent = 'Keine Granate in dieser Runde.'; row.append(rn); }
+      if (r.died) { const rd = document.createElement('div'); rd.className = 'rd'; rd.textContent = `Fällt bei ${r.died.clock}${r.died.place ? ' in ' + r.died.place : ''}.`; row.append(rd); }
+      const pick = () => { solo = solo === i ? -1 : i;
+        rows.forEach((x, j) => x.classList.toggle('on', j === solo));
+        lines.forEach((l, j) => l.classList.toggle('dim', solo >= 0 && j !== solo));
+        dots.forEach((c, j) => c.style.opacity = solo >= 0 && j !== solo ? .25 : ''); };
+      row.onclick = pick; row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } };
+      box.append(row); return row;
+    });
+  }
   return pause;
 }
 document.querySelectorAll('.cmap').forEach(svg => {
@@ -287,7 +343,7 @@ document.querySelectorAll('.cmap').forEach(svg => {
     if (lbl) lbl.innerHTML = `<b>Runde ${cur + 1} von ${list.length}</b> · R${d.r} · ` + (d.won ? '<span class="w">gehalten</span>' : '<span class="l">verloren</span>');
     const src = d.demo ? (pex.dataset.who === 'ihr' ? ' vom ' : ' aus ') + d.demo : '';
     pex.textContent = `Gezeichnet: Runde ${d.r}${src}, CT ${d.won ? 'gewonnen' : 'verloren'}` + (d.plant_site ? `, T planten auf ${d.plant_site}` : ', kein Plant')
-      + '. Punkte: CT nach 20 s, die Farbe zeigt die Zone. Granaten: CT bis 35 s.';
+      + '. Punkte: CT bei 1:35 auf der Uhr, die Farbe zeigt die Zone. Granaten: CT bis 1:20.';
   }
   const pv = card.querySelector('.pprev'), nx = card.querySelector('.pnext');
   if (pv) pv.onclick = () => open(cur - 1);
