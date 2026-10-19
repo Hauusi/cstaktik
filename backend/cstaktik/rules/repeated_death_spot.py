@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from cstaktik.callouts import meters, place as callout
 from cstaktik.model import Finding, Kill, MatchData
 from cstaktik.rules.base import dist
 
@@ -32,7 +33,7 @@ def _clusters(deaths: list[Kill], radius: float) -> list[tuple[str, list[Kill]]]
                 group.append(no_place[j])
                 used.add(j)
         x, y = round(k.victim_pos.x), round(k.victim_pos.y)
-        groups.append((f"Umkreis {round(radius)} Units um ({x}, {y})", group))
+        groups.append((f"Umkreis von {meters(radius)}", group))
     return groups
 
 
@@ -57,10 +58,11 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                     steamid=sid,
                     player_name=match.name_of(sid),
                     severity="hoch" if len(group) >= 3 else "mittel",
-                    text=f"{len(group)}x als {side.upper()} in {place} gestorben. Runden: {', '.join(map(str, rounds))}.",
+                    text=f"{len(group)}x als {side.upper()} in {callout(place)} gestorben. Runden: {', '.join(map(str, rounds))}.",
                     tip="Die Position ist gelesen. Wechsle den Spot, time anders oder spiel ihn nur mit Utility.",
                     evidence={
                         "ort": place,
+                        "seite": side,
                         "tode": len(group),
                         "runden": rounds,
                         "ticks": [k.tick for k in group],

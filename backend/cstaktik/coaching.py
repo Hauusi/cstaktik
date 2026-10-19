@@ -20,6 +20,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from cstaktik.callouts import meters, place
 from cstaktik.model import MatchData
 from cstaktik.rules.base import PositionIndex, dist
 
@@ -267,8 +268,12 @@ def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: i
         rnd = match.round_by_num(r)
         if rnd is None or rnd.freeze_end_tick is None:
             return ""
-        s = max(0, int((tick - rnd.freeze_end_tick) / tr))
-        return f"{s // 60}:{s % 60:02d}"
+        from cstaktik.callouts import clock as gclock
+
+        # Uhr im Spiel (1:55 abwärts, nach dem Plant Bombentimer)
+        plant = next((x.tick for x in sorted(match.bomb, key=lambda x: x.tick) if x.round == r and x.event == "plant"), None)
+        return gclock((tick - rnd.freeze_end_tick) / tr,
+                      None if plant is None else (plant - rnd.freeze_end_tick) / tr)
 
     my_kills = [k for k in match.kills if k.attacker_steamid in focus and k.victim_side != k.attacker_side]
     for k in sorted(my_kills, key=lambda k: (k.round, k.tick)):
@@ -290,7 +295,7 @@ def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: i
                     if best is None or d < best[0]:
                         best = (d, m)
             if best and best[0] <= trade_units:
-                text = (f"{name} nimmt das Duell mit {match.name_of(best[1])} {round(best[0])} Units daneben "
+                text = (f"{name} nimmt das Duell mit {match.name_of(best[1])} {meters(best[0])} daneben "
                         f"und gewinnt es.")
         elif lid == "utility":
             nade = next((g for g in match.grenades if g.round == k.round and g.thrower_steamid == k.attacker_steamid
@@ -304,10 +309,10 @@ def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: i
             # aus den Duell-Daten: vorgezielt (kleine Abweichung) bzw. gestoppt beim ersten Schuss
             d = next((d for d in match.duels if d.tick == k.tick and d.winner == k.attacker_steamid), None)
             if d is not None and lid in ("no_shot_close", "crosshair") and d.w_err is not None and d.w_err < 10:
-                text = (f"{name} hat {k.victim_place or 'den Spot'} vorgezielt: Fadenkreuz {str(d.w_err).replace('.', ',')}° "
+                text = (f"{name} hat {place(k.victim_place) or 'den Spot'} vorgezielt: Fadenkreuz {str(d.w_err).replace('.', ',')}° "
                         f"neben dem Gegner" + (", zuerst geschossen" if d.w_react_ms == 0 else "") + ". Kill.")
             elif d is not None and lid == "moving" and d.w_speed is not None and d.w_speed < 40:
-                text = f"{name} steht beim ersten Schuss ({d.w_speed} Units/s) und gewinnt das Duell."
+                text = f"{name} steht beim ersten Schuss still und gewinnt das Duell."
         elif lid == "seen_first":
             from cstaktik.duels import side_of
 
@@ -316,12 +321,12 @@ def bright_spots(match: MatchData, lid: str, trade_units: float = 1000, max_n: i
             if v and v["seen"] == "ich" and (v["seen_ms"] is None or v["seen_ms"] >= 300):
                 lead = f" ({str(round(v['seen_ms'] / 1000, 1)).replace('.', ',')} s früher)" if v["seen_ms"] else ""
                 text = (f"{name} sieht {match.name_of(k.victim_steamid)} zuerst{lead}"
-                        + (f" in {k.victim_place}" if k.victim_place else "") + " und gewinnt das Duell.")
+                        + (f" in {place(k.victim_place)}" if k.victim_place else "") + " und gewinnt das Duell.")
         elif lid == "moving_shot":
             last = max((s for s in match.shots if s.steamid == k.attacker_steamid and s.round == k.round
                         and s.tick <= k.tick), key=lambda s: s.tick, default=None)
             if last is not None and last.speed is not None and last.speed < 40:
-                text = f"{name} steht beim Schuss ({round(last.speed)} Units/s) und trifft."
+                text = f"{name} steht beim Schuss still und trifft."
         elif lid == "no_shot_far":
             def near_line(u) -> bool:  # Smoke liegt zwischen Schütze und Opfer (Abstand zur Schusslinie)
                 a, v = k.attacker_pos, k.victim_pos

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from cstaktik.callouts import clock as _gclock, meters as _m, place as _pl
 from cstaktik.model import Finding
 
 # id -> (Lektion, warum das kostet, Übung fürs nächste Match)
@@ -62,6 +63,21 @@ LESSONS = {
              "Die Lage war nicht das Problem. Das Duell selbst ging verloren.",
              "Aim und Peek-Timing im Deathmatch trainieren."),
 }
+# Wie ein Tod dieser Lektion in Worten zählt ("11 von 19 Toden mit Flash oder Molotov in der Tasche")
+DEATH_PHRASE = {
+    "no_shot_close": "ohne einen Schuss, Gegner auf kurze Distanz",
+    "no_shot_far": "ohne einen Schuss, über eine lange Linie",
+    "blind": "geblendet",
+    "alone": "ohne Mitspieler in Trade-Reichweite",
+    "utility": "mit Flash oder Molotov in der Tasche",
+    "low_hp": "mit wenig HP in einem neuen Duell",
+    "moving_shot": "mit dem letzten Schuss aus der Bewegung",
+    "moving": "im Laufen",
+    "outnumbered": "in Unterzahl im Einzelduell",
+    "crosshair": "mit dem Fadenkreuz deutlich neben dem Gegner",
+    "angle": "aus einem Winkel, in den du nicht geschaut hast",
+    "seen_first": "weil der Gegner dich zuerst gesehen hat",
+}
 LABEL_TO_LESSON = {"Geblendet": "blind", "Allein, kein Trade": "alone", "Utility nicht genutzt": "utility",
                    "Wenig HP": "low_hp", "Im Laufen geschossen": "moving_shot", "Im Laufen": "moving",
                    "Unterzahl": "outnumbered", "Duell verloren": "duel"}
@@ -69,11 +85,22 @@ ACTION_SHORT = {"gehalten": "halten", "zurückgezogen": "zurückziehen", "Richtu
 ACTION_NOUN = {"gehalten": "Halten", "zurückgezogen": "Rückzug", "Richtung Gegner": "Peek Richtung Gegner"}
 
 
-def _clock(s: float | None) -> str | None:
-    if s is None:
-        return None
-    s = max(0, int(s))
-    return f"{s // 60}:{s % 60:02d}"
+def _clock(s: float | None, plant_s: float | None = None) -> str | None:
+    """Uhr im Spiel (1:55 abwärts, nach dem Plant Bombentimer) aus Sekunden seit Rundenstart."""
+    return _gclock(s, plant_s) or None
+
+
+def _at(when: str | None) -> str:
+    """"Bei 1:05 " bzw. "Bei 0:23 auf dem Bombentimer " (leer ohne Zeit)."""
+    if not when:
+        return ""
+    if when.startswith("Bombe "):
+        return f"Bei {when.removeprefix('Bombe ')} auf dem Bombentimer "
+    return f"Bei {when} "
+
+
+def _ms(speed: float) -> str:
+    return f"{speed * 0.0254:.1f} m/s".replace(".", ",")
 
 
 CROSSHAIR_BAD_DEG = 20.0  # ab dieser Abweichung im Kontakt-Moment gilt das Fadenkreuz als "nicht vorgehalten"
@@ -115,11 +142,12 @@ def lesson_ids(fx: dict, main: str, close_units: int = 600) -> list[str]:
     return out
 
 
-def _lage_sentence(snap: dict | None) -> str | None:
+def _lage_sentence(snap: dict | None, fx: dict | None = None) -> str | None:
     if not snap:
         return None
-    when = _clock(snap.get("secs"))
-    where = f" {snap['place']}" if snap.get("place") else ""
+    plant = (fx or {}).get("plant_s")
+    when = _clock(snap.get("secs"), plant if snap.get("planted") else None)
+    where = f" {_pl(snap['place'])}" if snap.get("place") else ""
     verb = f"gehst du{(' in' + where) if where else ''} los" if snap.get("kind") == "bewegt" \
         else f"hältst du{where or ' deine Position'}"
     bits = [f"{snap['own']} gegen {snap['enemy']}"]
@@ -127,19 +155,19 @@ def _lage_sentence(snap: dict | None) -> str | None:
     if hp is not None:
         bits.append("volle HP" if hp >= 100 else f"nur {hp} HP" if hp < 50 else f"{hp} HP")
     if snap.get("mate") and snap.get("mate_d") is not None:
-        bits.append(f"{snap['mate']} {snap['mate_d']} Units neben dir" if snap["mate_d"] <= _trade_units()
-                    else f"{snap['mate']} {snap['mate_d']} Units weg")
+        bits.append(f"{snap['mate']} {_m(snap['mate_d'])} neben dir" if snap["mate_d"] <= _trade_units()
+                    else f"{snap['mate']} {_m(snap['mate_d'])} weg")
     elif snap.get("own") == 1:
         bits.append("du bist der Letzte")
-    return f"Bei {when} {verb}: " + ", ".join(bits) + "."
+    return f"{_at(when) or 'Da '}{verb}: " + ", ".join(bits) + "."
 
 
 def _death_sentence(fx: dict) -> str:
     when = fx.get("when")
     att = fx.get("attacker") or "der Gegner"
-    src = f" aus {fx['aplace']}" if fx.get("aplace") else ""
-    dist = f", {fx['a_dist']} Units entfernt" if fx.get("a_dist") is not None else ""
-    pre = f"Bei {when} " if when else ""
+    src = f" aus {_pl(fx['aplace'])}" if fx.get("aplace") else ""
+    dist = f", {_m(fx['a_dist'])} entfernt" if fx.get("a_dist") is not None else ""
+    pre = _at(when)
     if fx.get("blind_by"):
         return (f"{fx['blind_by']} flasht dich. {str(fx.get('blind_ago')).replace('.', ',')} s später erwischt dich {att}{src}.")
     if fx.get("no_shot"):
@@ -158,8 +186,10 @@ def _duel_sentence(fx: dict) -> str | None:
     parts = []
     seen, ms = d.get("seen"), d.get("seen_ms")
     if seen == "gegner":
+        # "du ihn gar nicht" nur, wenn du auch nicht geschossen hast (sonst widerspricht der Satz danach)
+        never = ms is None and d.get("react") is None and not d.get("tts")
         parts.append(f"{att[:1].upper() + att[1:]} hat dich zuerst gesehen"
-                     + (f", {_de2(-ms / 1000)} s vor dir." if ms is not None else ", du ihn gar nicht."))
+                     + (f", {_de2(-ms / 1000)} s vor dir." if ms is not None else ", du ihn gar nicht." if never else "."))
     elif seen == "ich":
         parts.append("Du hast ihn zuerst gesehen" + (f", {_de2(ms / 1000)} s vor ihm." if ms is not None else ".")
                      + (" Trotzdem hast du verloren." if d.get("won") is False else ""))
@@ -184,7 +214,7 @@ def _duel_sentence(fx: dict) -> str | None:
                                                      else " Die erste Kugel ging daneben." if d.get("hit") is False else ""))
     elif d.get("react") is not None:
         parts.append(f"Dein erster Schuss kam {d['react']} ms nach seinem."
-                     + (f" Du warst dabei mit {d['speed']} Units/s unterwegs." if d.get("speed") and d["speed"] > 80 else ""))
+                     + (f" Du warst dabei mit {_ms(d['speed'])} unterwegs." if d.get("speed") and d["speed"] > 80 else ""))
     return " ".join(parts) or None
 
 
@@ -207,7 +237,7 @@ def _info_sentence(info: dict | None, fx: dict) -> str | None:
 
 def _next(lid: str, fx: dict, snap: dict | None, aktion: str | None = None) -> str:
     nades = fx.get("nades") or []
-    aplace = fx.get("aplace")
+    aplace = _pl(fx.get("aplace")) or None
     held = _held(snap, aktion)
     if lid == "no_shot_close" and held:
         return ("Beim Halten das Fadenkreuz auf die Kante legen" + (f" Richtung {aplace}" if aplace else "")
@@ -238,10 +268,10 @@ def _next(lid: str, fx: dict, snap: dict | None, aktion: str | None = None) -> s
     if lid == "moving_shot":
         return "Vor dem Schuss stoppen (Counter-Strafe). Dann schießen."
     if lid == "angle":
-        return (f"Stell dich so, dass nur ein Winkel auf dich zeigt. {fx.get('aplace') or 'Diese Richtung'} "
+        return (f"Stell dich so, dass nur ein Winkel auf dich zeigt. {aplace or 'Diese Richtung'} "
                 "muss ein Mitspieler oder eine Smoke abdecken, nicht du nebenbei.")
     if lid == "seen_first":
-        place = (snap or {}).get("place")
+        place = _pl((snap or {}).get("place")) or None
         return (f"{'In ' + place if place else 'Hier'} nicht an der offenen Kante warten. Geh einen Schritt tiefer "
                 f"oder auf einen Off-Angle. Dann sieht {'der Gegner aus ' + aplace if aplace else 'er'} dich erst, "
                 "wenn du ihn schon im Fadenkreuz hast.")
@@ -286,7 +316,7 @@ def _why(lid: str, fx: dict, snap: dict | None, aktion: str | None) -> str | Non
     """Warum es in DIESER Szene gekostet hat, passend zu dem, was die Daten zeigen (statt eines festen Satzes,
     der z. B. 'reinlaufen' unterstellt, obwohl gehalten wurde). None = allgemeiner Satz der Lektion passt."""
     att = fx.get("attacker") or "der Gegner"
-    src = f" aus {fx['aplace']}" if fx.get("aplace") else ""
+    src = f" aus {_pl(fx['aplace'])}" if fx.get("aplace") else ""
     d = fx.get("duel") or {}
     err = d.get("err")
     held = _held(snap, aktion)
@@ -302,14 +332,16 @@ def _why(lid: str, fx: dict, snap: dict | None, aktion: str | None) -> str | Non
         mate, md = fx.get("mate"), fx.get("mate_dist")
         # Abstand nur nennen, wenn der Lage-Satz davor ihn nicht schon nennt
         said = bool(snap) and snap.get("mate_d") is not None
-        far = "" if said else (f" {mate} war {md} Units weg." if mate and md is not None
+        far = "" if said else (f" {mate} war {_m(md)} weg." if mate and md is not None
                                else " Kein Mitspieler war in Reichweite.")
         if held:
             return f"Du hast allein gehalten.{far} Nach dem ersten Kontakt konnte dich niemand traden."
         return f"Du bist ins Duell gegangen.{far} Dein Tod blieb ohne Antwort."
     if lid == "seen_first":
         ms = d.get("seen_ms")
-        lead = f"{_de2(-ms / 1000)} s früher gesehen als du ihn" if ms is not None else "gesehen, du ihn gar nicht"
+        never = ms is None and d.get("react") is None and not d.get("tts")
+        lead = (f"{_de2(-ms / 1000)} s früher gesehen als du ihn" if ms is not None
+                else "gesehen, du ihn gar nicht" if never else "zuerst gesehen")
         if held:
             return f"Du hast gehalten. Trotzdem hat {att}{src} dich {lead}. Deine Stelle war für ihn zuerst einsehbar."
         return f"Du bist in seine Sicht gelaufen. {att[:1].upper() + att[1:]}{src} hat dich {lead}."
@@ -323,7 +355,7 @@ def voice(f: Finding, close_units: int = 600) -> dict | None:
     if f.rule_id != "death_review" or not fx:
         return None
     lid = lesson_id(fx, close_units)
-    happened = [s for s in (_lage_sentence(f.evidence.get("snap")), _death_sentence(fx), _duel_sentence(fx),
+    happened = [s for s in (_lage_sentence(f.evidence.get("snap"), fx), _death_sentence(fx), _duel_sentence(fx),
                             _info_sentence(f.evidence.get("info_raw"), fx)) if s]
     if fx.get("traded"):
         happened.append("Immerhin wurdest du getradet.")

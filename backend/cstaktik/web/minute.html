@@ -17,10 +17,16 @@ body.story-page .hero { display: none; }
 .sx-score.w { color: var(--win); } .sx-score.l { color: var(--loss); } .sx-score.d { color: var(--text); }
 .word { font-family: var(--cond); font-weight: 800; font-size: 22px; letter-spacing: .14em; text-transform: uppercase; }
 .word.w { color: var(--win); } .word.l { color: var(--loss); } .word.d { color: var(--muted); }
-.imp { display: flex; align-items: baseline; gap: 10px; margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
-.imp b { font-family: var(--cond); font-weight: 800; font-size: 44px; line-height: 1; }
-.imp b.p { color: var(--win); } .imp b.n { color: var(--loss); }
-.imp span { color: var(--muted); font-size: 15px; line-height: 1.3; }
+.kd { display: flex; gap: 22px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.kd div { display: flex; flex-direction: column; }
+.kd b { font-family: var(--cond); font-weight: 800; font-size: 40px; line-height: 1; }
+.kd span { margin-top: 2px; color: var(--muted); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; }
+.sides { margin-top: 14px; font-size: 15px; line-height: 1.6; }
+.sides div { display: flex; gap: 10px; } .sides i { font-style: normal; color: var(--muted); min-width: 78px; }
+.imp { margin-top: 16px; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.imp b { color: var(--text); font-weight: 700; } .imp b.p { color: var(--win); } .imp b.n { color: var(--loss); }
+.pocket { margin-top: 12px; padding: 10px 12px; border-left: 3px solid var(--accent); background: rgba(255,159,28,.08);
+  border-radius: 6px; font-size: 15px; line-height: 1.4; }
 .line { margin-top: 16px; color: var(--muted); font-size: 15px; }
 .stamp { display: inline-block; margin-top: 18px; padding: 8px 14px; font-family: var(--cond); font-weight: 800; font-size: 26px;
   letter-spacing: .08em; text-transform: uppercase; border: 2px solid currentColor; border-radius: 4px; }
@@ -97,9 +103,14 @@ html.js .sx-h { font-size: 40px; }
     {% else %}
     <div class="sx-h" role="heading" aria-level="1">Match ausgewertet</div>
     {% endif %}
+    {% if r.stats %}{% set s = r.stats %}
+    <div class="kd num"><div><b>{{ s.k }}/{{ s.d }}</b><span>Kills/Tode</span></div>
+      {% if s.adr is not none %}<div><b>{{ s.adr }}</b><span>ADR</span></div>{% endif %}
+      {% if s.hs is not none %}<div><b>{{ s.hs }} %</b><span>Headshot-Kills</span></div>{% endif %}</div>
+    {% endif %}
+    {% if r.sides %}<div class="sides num">{% for x in r.sides %}<div><i>{{ x.label }}</i>{{ x.won }}:{{ x.lost }} Runden · {{ x.k }}/{{ x.d }} K/T</div>{% endfor %}</div>{% endif %}
     {% if r.imp %}
-    <div class="imp"><b class="num {{ 'p' if r.imp.pos else 'n' }}">{{ r.imp.total }}</b>
-      <span>Runden Impact{% if r.imp.rank and r.imp.of %}<br>Platz {{ r.imp.rank }} von {{ r.imp.of }} im Match{% endif %}</span></div>
+    <div class="imp">Impact <b class="num {{ 'p' if r.imp.pos else 'n' }}">{{ r.imp.total }}</b>{% if r.imp.rank and r.imp.of %} · Platz {{ r.imp.rank }} von {{ r.imp.of }}{% endif %}. {{ r.imp.meaning }}</div>
     {% endif %}
     {% if r.today and r.today.line %}<div class="line num">{{ r.today.line }}</div>{% endif %}
     <div class="hint">Tippen oder wischen</div>
@@ -114,8 +125,8 @@ html.js .sx-h { font-size: 40px; }
     {% elif c.met is none %}<div class="stamp na">Zu wenig Runden</div>
     {% elif c.met %}<div class="stamp ok">Geschafft</div>
     {% else %}<div class="stamp no">Nicht geschafft</div>{% endif %}
-    <div class="facts num">Heute {{ c.rate }} pro 10 Runden. Ziel: höchstens {{ c.target }}.
-      {% if c.count is not none and c.rounds %}<div class="muted">{{ c.count }}x in {{ c.rounds }} Runden.{% if c.met is none %} Zählt nicht.{% endif %}</div>{% endif %}
+    <div class="facts num">{% if c.today %}{{ c.today }}{% elif c.count is not none and c.rounds %}{{ c.count }}x in {{ c.rounds }} Runden.{% endif %}{% if c.max is defined and c.max is not none %} Ziel war höchstens {{ c.max }}.{% endif %}
+      {% if c.met is none %}<div class="muted">Zu wenige Runden, dieses Match zählt nicht.</div>{% endif %}
       {% if c.need and c.streak is not none and not c.mastered %}<div class="muted">Serie: {{ c.streak }} von {{ c.need }} Matches im Ziel.</div>{% endif %}
     </div>
   </section>
@@ -129,6 +140,9 @@ html.js .sx-h { font-size: 40px; }
     {% if r.topic.mantra %}<div class="mantra">„{{ r.topic.mantra }}“</div>{% endif %}
     {% if r.scenes %}{% set sc = r.scenes[0] %}
     {% if sc.text %}<div class="facts">{{ sc.text }}</div>{% endif %}
+    {% if sc.nades %}<div class="pocket">In der Tasche beim Tod: {{ sc.nades|join(", ") }}.</div>{% endif %}
+    {% if r.util_late %}<div class="facts muted">{{ r.util_late }}</div>{% endif %}
+    {% if r.spot %}<div class="facts muted">Muster: {{ r.spot }}</div>{% endif %}
     <a class="cta" href="{{ sc.href }}">▶ Runde {{ sc.round }} ansehen</a>
     {% endif %}
   </section>
@@ -137,6 +151,7 @@ html.js .sx-h { font-size: 40px; }
     <div class="k">Die eine Szene</div>
     <div class="sx-h" role="heading" aria-level="2">Sauber gespielt</div>
     <div class="facts">{{ r.quiet }}</div>
+    {% if r.spot %}<div class="facts muted">Muster: {{ r.spot }}</div>{% endif %}
   </section>
   {% endif %}
 
@@ -146,7 +161,9 @@ html.js .sx-h { font-size: 40px; }
     <div class="k">Nächstes Match</div>
     <div class="sx-h" role="heading" aria-level="2">{{ n.title }}</div>
     {% if n.in_game %}<div class="say">{{ n.in_game }}</div>{% elif n.mantra %}<div class="mantra">„{{ n.mantra }}“</div>{% endif %}
-    {% if n.target %}<div class="cap num">Ziel: höchstens {{ n.target }}x pro 10 Runden.</div>{% endif %}
+    {% if n.today and not r.check %}<div class="facts num">Heute: {{ n.today }}</div>{% endif %}
+    {% if n.max is defined %}<div class="facts num"><b>Nächstes Match: höchstens {{ n.max }}.</b>
+      <div class="muted">Gerechnet auf {{ n.max_rounds }} Runden wie heute.</div></div>{% endif %}
     <button class="cta" type="button" id="deal" data-lesson="{{ n.lesson }}" hidden>Abgemacht</button>
     {% if r.practice %}<div class="cap num">{{ r.practice.text }}</div>{% endif %}
   </section>

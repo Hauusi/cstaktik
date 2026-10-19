@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from cstaktik.mechanics import is_gun, is_teamkill, weapon_key, weapon_label
 from cstaktik.model import Finding, MatchData
+from cstaktik.callouts import clock, meters, place as callout
 from cstaktik.rules.base import PositionIndex, dist, round_time_s
 
 RULE_ID = "death_review"
@@ -39,11 +40,24 @@ def _speed(idx: PositionIndex, rnd: int, sid: str, tick: int, tickrate: int) -> 
     return dist(a.pos, b.pos) / ((b.tick - a.tick) / tickrate)
 
 
-def _clock(seconds: float | None) -> str | None:
-    if seconds is None:
-        return None
-    s = max(0, int(seconds))
-    return f"{s // 60}:{s % 60:02d}"
+def _plant_s(match: MatchData, rnd: int) -> float | None:
+    """Sekunden seit Rundenstart bis zum Plant (None ohne Plant): danach zeigt die Uhr im Spiel den Bombentimer."""
+    t = next((b.tick for b in sorted(match.bomb, key=lambda b: b.tick) if b.round == rnd and b.event == "plant"), None)
+    return None if t is None else round_time_s(match, rnd, t)
+
+
+def _clock(match: MatchData, rnd: int, tick: int) -> str | None:
+    """Uhr im Spiel (zählt von 1:55 herunter, nach dem Plant Bombentimer), wie man sie in CS sieht."""
+    return clock(round_time_s(match, rnd, tick), _plant_s(match, rnd)) or None
+
+
+def _m(units: float | None) -> str:
+    return meters(units)
+
+
+def _ms(speed: float) -> str:
+    """Laufgeschwindigkeit in m/s (aus Units/s)."""
+    return f"{speed * 0.0254:.1f} m/s".replace(".", ",")
 
 
 def _nade_name(item: str) -> str:
@@ -90,8 +104,8 @@ def _other_death(match: MatchData, k, sid: str, name: str) -> Finding:
                                             "Warte nicht im Feuer oder an bekannten HE-Spots.")
     else:
         title, tip = what, f"Kein Duell ({what})."
-    place = k.victim_place or "unbekanntem Ort"
-    when = _clock(round_time_s(match, k.round, k.tick))
+    place = callout(k.victim_place) or "unbekanntem Ort"
+    when = _clock(match, k.round, k.tick)
     return Finding(rule_id="death_other", title=f"Tod: {title}", round=k.round, tick=k.tick, steamid=sid,
                    player_name=name, severity="niedrig",
                    text=f"{name} stirbt" + (f" bei {when}" if when else "") + f" in {place} durch {what}"
@@ -131,7 +145,8 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
         now_diff = (len(mates) + 1) - len(enemies)
         attacker = k.attacker_name or "?"
         a_dist = round(dist(k.attacker_pos, k.victim_pos)) if k.attacker_pos and k.victim_pos else None
-        place = k.victim_place or "unbekanntem Ort"
+        place = callout(k.victim_place) or "unbekanntem Ort"
+        aplace = callout(k.attacker_place) or None
 
         facts: list[str] = []
         issues: dict[str, str] = {}  # Label -> konkreter Tipp
@@ -209,11 +224,11 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
             if not my_shots:
                 facts.append("kein eigener Schuss vor dem Tod")
                 if a_dist is not None and a_dist < cfg["close_units"]:
-                    tip = (f"{k.attacker_place or 'Der Gegner'} war nah, nur {a_dist} Units. Ziel die Ecke vorher "
+                    tip = (f"{aplace or 'Der Gegner'} war nah, nur {_m(a_dist)}. Ziel die Ecke vorher "
                            "vor oder prüf sie mit Flash oder Molotov. Lauf nicht einfach hinein.")
                 else:
-                    src_place = k.attacker_place or "dieser Position"
-                    tip = (f"Langer Blick aus {src_place}" + (f", {a_dist} Units" if a_dist else "")
+                    src_place = aplace or "dieser Position"
+                    tip = (f"Langer Blick aus {src_place}" + (f", {_m(a_dist)}" if a_dist else "")
                            + ". Kreuz diese Linie nicht offen. Setz eine Smoke oder nimm einen anderen Weg.")
                 if {"Smoke", "Flash"} & set(nade_names):
                     tip += f" Du hattest {_list_de([n for n in nade_names if n in ('Smoke', 'Flash')])} dabei."
@@ -223,14 +238,14 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                 last = my_shots[-1]
                 if (last.speed is not None and mech.get("moving_shot_speed_units_s", 80) < last.speed
                         <= cfg["max_plausible_speed_units_s"]):
-                    facts.append(f"letzter Schuss im Laufen ({round(last.speed)} Units/s)")
-                    issues["Im Laufen geschossen"] = (f"Dein letzter Schuss kam bei {round(last.speed)} Units/s. "
+                    facts.append(f"letzter Schuss im Laufen ({_ms(last.speed)})")
+                    issues["Im Laufen geschossen"] = (f"Dein letzter Schuss kam im Laufen ({_ms(last.speed)}). "
                                                       "Stopp vor dem Schuss mit Counter-Strafe, dann schieß.")
         else:
             unchecked.append("Schüsse")
             speed = _speed(idx, k.round, sid, k.tick, tr)
             if speed is not None and cfg["moving_speed_units_s"] < speed <= cfg["max_plausible_speed_units_s"]:
-                facts.append(f"in Bewegung ({round(speed)} Units/s)")
+                facts.append(f"in Bewegung ({_ms(speed)})")
                 issues["Im Laufen"] = "Stopp vor dem Schuss mit Counter-Strafe. Lauf nicht offen in Winkel."
 
         # Mitspieler / Trade
@@ -247,12 +262,13 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
         if near:
             d, m, smp = min(near, key=lambda x: x[0])
             near_m, near_d, near_place = m, round(d), smp.place
-            facts.append(f"nächster Mitspieler {match.name_of(m)}: {round(d)} Units" + (f" in {smp.place}" if smp.place else ""))
+            facts.append(f"beim Tod nächster Mitspieler {match.name_of(m)}: {_m(d)}"
+                         + (f" in {callout(smp.place)}" if smp.place else ""))
             overlay = {"line": [[k.victim_pos.x, k.victim_pos.y], [smp.pos.x, smp.pos.y]],
-                       "label": f"{round(d)} Units zu {match.name_of(m)}"}
+                       "label": f"{_m(d)} zu {match.name_of(m)}"}
             if d > cfg["trade_distance_units"] and not traded:
-                issues["Allein, kein Trade"] = (f"{match.name_of(m)} war {round(d)} Units weg"
-                                                + (f" in {smp.place}" if smp.place else "")
+                issues["Allein, kein Trade"] = (f"{match.name_of(m)} war {_m(d)} weg"
+                                                + (f" in {callout(smp.place)}" if smp.place else "")
                                                 + " und konnte nicht nachziehen. Nimm oder halte Duelle nur dort, "
                                                 "wo ein Mitspieler nachziehen kann.")
         if mates and not near:
@@ -297,15 +313,15 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
         sev = "hoch" if len(ordered) >= 2 else "mittel" if ordered else "niedrig"
 
         # Ein Satz, was passiert ist
-        when = _clock(round_time_s(match, k.round, k.tick))
+        when = _clock(match, k.round, k.tick)
         parts = [f"{name} stirbt" + (f" bei {when}" if when else "") + f" in {place}"]
         if hp is not None and hp < 100:
             parts[0] += f" mit {hp} HP"
         if blind:
             parts[0] += ", geblendet,"
         parts.append(f"gegen {attacker}" + (f" ({weapon_label(k.weapon)})" if k.weapon else "")
-                     + (f" aus {k.attacker_place}" if k.attacker_place else "")
-                     + (f", {a_dist} Units" if a_dist is not None else ""))
+                     + (f" aus {aplace}" if aplace else "")
+                     + (f", {_m(a_dist)}" if a_dist is not None else ""))
         if match.shots and not my_shots:
             parts.append("ohne einen Schuss abzugeben")
         text = " ".join(parts[:2]) + (f", {parts[2]}" if len(parts) > 2 else "") + "."
@@ -325,6 +341,7 @@ def run(match: MatchData, cfg: dict) -> list[Finding]:
                           **({"ungenutzt": unused} if unused else {}),
                           # strukturierte Fakten für die Coach-Texte (coach_voice.py)
                           "f": {"label": label, "issues": ordered, "place": k.victim_place, "when": when,
+                                "secs": round_time_s(match, k.round, k.tick), "plant_s": _plant_s(match, k.round),
                                 "attacker": k.attacker_name, "aplace": k.attacker_place, "a_dist": a_dist,
                                 "weapon": weapon_label(k.weapon) if k.weapon else None, "hp": hp,
                                 "no_shot": bool(match.shots) and not my_shots, "shots": len(my_shots),

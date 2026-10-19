@@ -195,12 +195,14 @@ def test_minute_page_content_and_visibility():
     page = a.get("/m/m1.html").text
     # Story: Ergebnis, Fokus, die eine Szene, nächstes Match, fertig (in dieser Reihenfolge)
     assert _steps(page) == ["ergebnis", "fokus", "szene", "naechstes", "fertig"]
-    assert "13:7" in page and "Sieg" in page and "+2,5</b>" in page and "Runden Impact" in page
+    assert "13:7" in page and "Sieg" in page and "+2,5</b>" in page and "etwa 2,5 Runden gebracht" in page
     assert "Platz 2 von 10" in page
-    assert "1,7 pro 10 Runden" in page and "Nicht geschafft" in page and "Serie: 0 von 2" in page
+    # in Worten: Tode und Runden statt "pro 10 Runden"
+    assert "1x in 6 Runden. Ziel war höchstens 0." in page and "pro 10 Runden" not in page
+    assert "Nicht geschafft" in page and "Serie: 0 von 2" in page
     assert LESSONS["utility"][0] in page and TEACH["utility"]["mantra"] in page
     assert page.count('href="/reports/m1.html#s') == 1 and 'href="/reports/m1.html#s3-400"' in page  # eine Szene
-    assert TEACH["utility"]["in_game"] in page and "höchstens 1,0x pro 10 Runden" in page
+    assert TEACH["utility"]["in_game"] in page and "Nächstes Match: höchstens 2." in page
     assert 'id="deal" data-lesson="utility"' in page and 'data-mine="1"' in page and f'data-sid="{ME}"' in page
     assert "Ganzer Report" in page and "Zur Startseite" in page
     assert a.post("/training/deal", json={"sid": ME, "lesson": "utility", "report": "m1.html"},
@@ -238,7 +240,8 @@ def test_minute_story_quiet_without_topic():
     h = {"report_file": "q1.html", "players": {ME: {"name": "Ich"}}, "lead_by": {ME: None},
          "focus_check": {ME: {"check": None, "focus": {"lesson": "blind", "target": 0.8}}}}
     v = api._minute_player(h, ME)
-    assert v["next"]["lesson"] == "blind" and v["next"]["target"] == "0,8" and "check" not in v
+    assert v["next"]["lesson"] == "blind" and "check" not in v and "max" not in v["next"]  # ohne Rundenzahl kein Ziel
+    assert api._minute_player({**h, "rounds": 25}, ME)["next"]["max"] == 2  # 0,8 pro 10 Runden bei 25 Runden
 
 
 def _both_entry():
@@ -314,3 +317,94 @@ def test_one_off_lesson_is_no_topic():
     h["lessons"] = {"1": {"flash": 2}}
     history.set_leads(h)
     assert h["lead"] == "flash" and h["lead_by"]["1"] == "flash"
+
+
+def _story_entry():
+    """Muster aus dem Audit: 30 Runden mit Overtime, Thema Utility, Szenen mit Haupt- und Nebenfehler."""
+    rows = []
+    for n in range(1, 31):  # T 1-12, CT 13-24, Overtime 25-30
+        side = "t" if n <= 12 or 25 <= n <= 27 else "ct"
+        rows.append([n, side, n in (3, 7, 10) or 13 <= n <= 23 or n in (26, 27), 1 if n % 2 else 0,
+                     1 if n % 3 else 0, 50])
+    kills, deaths = sum(r[3] for r in rows), sum(r[4] for r in rows)
+    sc = {"sid": ME, "tick": 500, "from": 400, "happened": "x", "lessons": ["utility"]}
+    util = {"smoke": 19, "flash": 12, "he": 14, "molotov": 12}
+    return {"report_file": "s.html", "rounds": 30,
+            "players": {ME: {"name": "Ich", "kills": kills, "deaths": deaths, "adr": 63.9, "rounds": 30, "utility": util}},
+            "score_by": {ME: [14, 16]}, "by_round": {ME: rows}, "mech": {ME: {"hs_pct": 41.2}},
+            "impact": {ME: {"total": -60, "rank": 6, "of": 10}}, "lead_by": {ME: "utility"},
+            "lessons": {ME: {"utility": 11, "alone": 2}}, "util_stats": {ME: {"pre": 0.63}},
+            "focus_check": {ME: {"check": None, "new": True, "focus": {"lesson": "utility", "target": 2.2}}},
+            "deaths": [{"sid": ME, "place": "Apartments", "side": "t", "round": r} for r in (5, 7, 9, 11)],
+            "scenes": [{**sc, "round": 7, "lesson": "alone", "lessons": ["alone", "utility"], "cost": 35,
+                        "own": 5, "enemy": 3},
+                       {**sc, "round": 3, "lesson": "utility", "cost": 40, "own": 5, "enemy": 3, "nades": ["Smoke"]},
+                       {**sc, "round": 12, "lesson": "utility", "cost": 31, "own": 1, "enemy": 2,
+                        "nades": ["Flash", "Molotov"]}]}
+
+
+def test_minute_story_in_player_language():
+    h = _story_entry()
+    v = api._minute_player(h, ME)
+    # Ergebnis: zuerst was Spieler kennen (K/D, ADR, HS), dann T/CT und Overtime
+    assert v["stats"] == {"k": 15, "d": 20, "adr": 64, "hs": 41}
+    assert [(x["label"], x["won"], x["lost"]) for x in v["sides"]] == [("T-Seite", 3, 9), ("CT-Seite", 11, 1),
+                                                                     ("Overtime", 2, 4)]
+    assert sum(x["k"] for x in v["sides"]) == 15 and sum(x["d"] for x in v["sides"]) == 20
+    assert v["imp"]["meaning"] == "Deine Kills und Tode haben eurem Team zusammen etwa 0,6 Runden gekostet."
+    # Szene: Hauptfehler Utility in einer verlorenen Runde; nicht der Lurk-Tod (Nebenfehler), und der Tod in Überzahl
+    # in einer gewonnenen Runde kostet wenig, auch wenn die Siegchance kurz sank
+    assert [x["round"] for x in v["scenes"]] == [12, 3]
+    assert v["scenes"][0]["nades"] == ["Flash", "Molotov"]
+    assert v["util_late"].startswith("Du wirfst viel, aber zu spät: 57 Granaten in 30 Runden.")
+    assert v["spot"] == "4x als T in Apartments gestorben (Runde 5, 7, 9, 11)."
+    # Ziel in Toden statt "pro 10 Runden"
+    assert v["next"]["today"] == "11 von 20 Toden mit Flash oder Molotov in der Tasche."
+    assert v["next"]["max"] == 6 and v["next"]["max_rounds"] == 30
+    # Summen passen nicht zu K/D: lieber keine Aufteilung
+    bad = {**h, "players": {ME: {**h["players"][ME], "kills": 99}}}
+    assert api._minute_player(bad, ME)["sides"] is None
+    # wenig geworfen: kein "zu spät"
+    few = {**h, "players": {ME: {**h["players"][ME], "utility": {"flash": 10}}}}
+    assert api._minute_player(few, ME)["util_late"] is None
+
+
+def test_minute_story_page_shows_plain_numbers():
+    pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    history.save({**_story_entry(), "id": "s1", "map": "de_mirage", "analyzed_at": "2026-10-01T10:00"},
+                 pipeline.HISTORY_DIR)
+    page = TestClient(api.app).get("/m/s.html").text
+    assert "15/20" in page and "Kills/Tode" in page and "41 %" in page
+    assert "T-Seite</i>3:9 Runden" in page and "Overtime</i>2:4 Runden" in page
+    assert "In der Tasche beim Tod: Flash, Molotov." in page and "Du wirfst viel, aber zu spät" in page
+    assert "Nächstes Match: höchstens 6." in page and "pro 10 Runden" not in page
+    assert "Muster: 4x als T in Apartments gestorben" in page
+
+
+def test_seen_first_sentence_does_not_contradict_the_shot():
+    from cstaktik.coach_voice import _duel_sentence
+
+    shot = _duel_sentence({"attacker": "g1", "duel": {"seen": "gegner", "seen_ms": None, "react": 203}})
+    assert "G1 hat dich zuerst gesehen." in shot and "gar nicht" not in shot and "203 ms nach seinem" in shot
+    never = _duel_sentence({"attacker": "g1", "duel": {"seen": "gegner", "seen_ms": None}})
+    assert "du ihn gar nicht" in never
+
+
+def test_report_rounds_tab_and_one_definition():
+    import tempfile
+    from pathlib import Path
+
+    from cstaktik.report.render import render_report
+
+    m, result = _match_with_lessons()
+    html = render_report(m, result, maps_dirs=[Path(tempfile.mkdtemp())])
+    data = json.loads(re.search(r'<script type="application/json" id="data">(.*?)</script>', html, re.S).group(1))
+    own = [r for r in data["rounds"] if not r.get("pro")]
+    # Runden-Reiter: Kauf je Seite und je Fokus-Spieler Kills, Tod, Schaden (gleich gezählt wie K/D)
+    assert set(own[0]["buy"]) == {"t", "ct"} and own[0]["buy"]["t"] in ("pistol", "eco", "force", "full", None)
+    for st in result.stats:
+        assert sum((r.get("me") or {}).get(st.steamid, [0, 0, 0])[0] for r in own) == st.kills
+        assert sum((r.get("me") or {}).get(st.steamid, [0, 0, 0])[1] for r in own) == st.deaths
+    assert "(deaktiviert)" not in html and "<span class=\"t\">Tod ohne Schaden" not in html  # aus bzw. doppelt
+    assert '<details class="tech"><summary>Technik</summary>Werte aus der Demo, geparst mit awpy' in html
+    assert "function callout(" in html and "function gclock(" in html  # Callouts und Spieluhr im Replay

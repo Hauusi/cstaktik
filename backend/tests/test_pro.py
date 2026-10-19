@@ -180,8 +180,8 @@ def test_pro_clip_found_and_in_report():
     clips = pro_clips(m, res.findings, [pm])
     f = next(f for f in res.findings if f.rule_id == "death_review" and f.round == 2)
     assert len(clips) == 1 and f.overlay["pro_clip"] == 0
-    assert ("in SynthMid um 0:20. Der Gegner kam wie bei dir aus SynthPalace. Runde gewonnen: überlebt, "
-            "tötet 1 Gegner aus SynthPalace") in f.evidence["pro_clip"]
+    assert ("in Synth Mid bei 1:35. Der Gegner kam wie bei dir aus Synth Palace. Runde gewonnen: überlebt, "
+            "tötet 1 Gegner aus Synth Palace") in f.evidence["pro_clip"]
 
     d = build_payload(m, res, pro_clips=clips)
     pr = d["rounds"][-1]

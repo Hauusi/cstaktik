@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections import defaultdict
 from statistics import mean
 
+from cstaktik.callouts import meters
 from cstaktik.mechanics import mechanics
 from cstaktik.model import AnalysisResult, MatchData
 from cstaktik.rules.base import PositionIndex, dist
@@ -304,9 +305,9 @@ def duo(match: MatchData, cfg: dict) -> dict | None:
     t, p = together, apart
     if t["rounds"] and p["rounds"]:
         sentence = (f"Zusammen gewinnt ihr {t['won']} von {t['rounds']} Runden, getrennt {p['won']} von {p['rounds']}. "
-                    f"Zusammen heißt: unter {cfg['duo_close_units']} Units Abstand.")
+                    f"Zusammen heißt: unter {meters(cfg['duo_close_units'])} Abstand.")
     else:
-        sentence = f"Ø Abstand zwischen euch: {round(mean(dists_all))} Units."
+        sentence = f"Ø Abstand zwischen euch: {meters(mean(dists_all))}."
     return {
         "names": names,
         "avg_distance": round(mean(dists_all)),

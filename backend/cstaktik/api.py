@@ -912,50 +912,111 @@ def _focus_entry(fc: dict | None, sid: str) -> dict | None:
     return v if isinstance(v, dict) else None
 
 
+REGULATION_ROUNDS = 24  # MR12: danach Overtime
+
+
+def _minute_sides(h: dict, sid: str) -> list[dict] | None:
+    """T/CT-Aufteilung aus Sicht des Spielers (Runden, Kills, Tode) plus Overtime. Nur wenn die Summen zu seinen
+    Kills und Toden im Verlauf passen (sonst lieber nichts zeigen)."""
+    rows = (h.get("by_round") or {}).get(sid)
+    p = (h.get("players") or {}).get(sid) or {}
+    if not rows or sum(r[3] for r in rows) != p.get("kills") or sum(r[4] for r in rows) != p.get("deaths"):
+        return None
+    out = []
+    for label, pick in (("T-Seite", lambda r: r[0] <= REGULATION_ROUNDS and r[1] == "t"),
+                        ("CT-Seite", lambda r: r[0] <= REGULATION_ROUNDS and r[1] == "ct"),
+                        ("Overtime", lambda r: r[0] > REGULATION_ROUNDS)):
+        rs = [r for r in rows if pick(r)]
+        if rs:
+            out.append({"label": label, "won": sum(1 for r in rs if r[2]), "lost": sum(1 for r in rs if r[2] is False),
+                        "k": sum(r[3] for r in rs), "d": sum(r[4] for r in rs)})
+    return out
+
+
+def _de(x: float) -> str:
+    return f"{x:.1f}".replace(".", ",")
+
+
 def _minute_player(h: dict, sid: str) -> dict:
-    """Ein Spieler in "Dein Match in 60 Sekunden": nur Werte, die im Verlaufs-Eintrag stehen. Fehlt etwas, bleibt
-    das Feld leer und die Seite lässt den Block weg."""
+    """Ein Spieler in der Match-Story: nur Werte, die im Verlaufs-Eintrag stehen. Fehlt etwas, bleibt das Feld leer
+    und die Seite lässt den Block weg. Zahlen in Worten des Spielers (Tode, Runden), nicht als Raten."""
     from cstaktik import history
-    from cstaktik.coach_voice import LESSONS
+    from cstaktik.coach_voice import DEATH_PHRASE, LESSONS
     from cstaktik.curriculum import TEACH
     from cstaktik.impact import de
 
     sc = history.score(h, sid)
-    out = {"sid": sid, "name": ((h.get("players") or {}).get(sid) or {}).get("name", sid)}
+    p = (h.get("players") or {}).get(sid) or {}
+    out = {"sid": sid, "name": p.get("name", sid)}
     if sc:  # ohne Ergebnis aus seiner Sicht keins zeigen
         won, lost = sc
         out.update(won=won, lost=lost, res="w" if won > lost else "l" if lost > won else "d",
                    result="Sieg" if won > lost else "Niederlage" if lost > won else "Unentschieden")
+    if p.get("kills") is not None and p.get("deaths") is not None:
+        hs = ((h.get("mech") or {}).get(sid) or {}).get("hs_pct")
+        out["stats"] = {"k": p["kills"], "d": p["deaths"], "adr": None if p.get("adr") is None else round(p["adr"]),
+                        "hs": None if hs is None else round(hs)}
+    out["sides"] = _minute_sides(h, sid)
     imp = (h.get("impact") or {}).get(sid)
     if imp and imp.get("total") is not None:
-        out["imp"] = {"total": de(imp["total"] / 100), "pos": imp["total"] > 0, "rank": imp.get("rank"),
-                      "of": imp.get("of")}
+        v = imp["total"] / 100
+        meaning = ("Deine Kills und Tode haben eurem Team zusammen etwa {} Runden gebracht." if v > 0.05 else
+                   "Deine Kills und Tode haben eurem Team zusammen etwa {} Runden gekostet." if v < -0.05 else
+                   "Deine Kills und Tode haben sich etwa ausgeglichen.").format(_de(abs(v)))
+        out["imp"] = {"total": de(v), "pos": v > 0, "rank": imp.get("rank"), "of": imp.get("of"), "meaning": meaning}
+    rounds = h.get("rounds") or p.get("rounds")
+    deaths = p.get("deaths")
+
+    def plain(lid: str, count: int | None, target) -> dict:
+        """"11 von 19 Toden mit Flash oder Molotov in der Tasche." und das Ziel als Anzahl Tode in so vielen Runden."""
+        o = {}
+        if count is not None and deaths and lid in DEATH_PHRASE:
+            o["today"] = f"{count} von {deaths} Toden {DEATH_PHRASE[lid]}."
+        if target is not None and rounds:
+            o["max"] = int(float(target) * rounds / 10)
+            o["max_rounds"] = rounds
+        return o
+
+    lessons_today = (h.get("lessons") or {}).get(sid) or {}
     fc = _focus_entry(h.get("focus_check"), sid) or {}
     c = fc.get("check")
+    fo = fc.get("focus") or {}
     if c and c.get("rate") is not None and c.get("target") is not None:
-        de1 = lambda x: str(x).replace(".", ",")  # noqa: E731
-        out["check"] = {"title": c.get("title"), "rate": de1(c["rate"]), "target": de1(c["target"]),
-                        "count": c.get("count"), "rounds": c.get("rounds"), "met": c.get("met"),
-                        "streak": c.get("streak"), "need": c.get("need"), "mastered": bool(fc.get("mastered"))}
+        cl = fo.get("lesson")
+        out["check"] = {"title": c.get("title"), "met": c.get("met"), "streak": c.get("streak"), "need": c.get("need"),
+                        "mastered": bool(fc.get("mastered")), "count": c.get("count"), "rounds": c.get("rounds")}
+        if cl in DEATH_PHRASE and c.get("count") is not None and deaths:
+            out["check"]["today"] = f"{c['count']} von {deaths} Toden {DEATH_PHRASE[cl]}."
+        if c.get("rounds"):
+            out["check"]["max"] = int(float(c["target"]) * c["rounds"] / 10)
     lid = history.lead(h, sid)
+    won_round = {r[0]: r[2] for r in (h.get("by_round") or {}).get(sid) or []}
+    won_round.update({x[0]: x[2] for x in (history._seq_by(h).get(sid) or [])})
     if lid in LESSONS and lid != "duel":
         out["topic"] = {"id": lid, "title": LESSONS[lid][0], "mantra": (TEACH.get(lid) or {}).get("mantra")}
-        own = [sc for sc in h.get("scenes") or [] if sc.get("sid") == sid
-               and sc.get("round") is not None and sc.get("tick") is not None]
-        scs = [sc for sc in own if sc.get("lesson") == lid or lid in (sc.get("lessons") or [])]
-        if not scs and not any("lessons" in sc for sc in own):
-            # ältere Einträge kennen nur die Haupt-Lektion je Szene: das Thema kann eine Neben-Lektion sein,
-            # dann seine teuersten Szenen
-            scs = own
-        scs.sort(key=lambda sc: -(sc.get("cost") or 0))
-        out["scenes"] = [{"round": sc["round"], "text": sc.get("happened"), "cost": sc.get("cost"),
-                          "href": f"/reports/{h['report_file']}#s{sc['round']}-{sc.get('from') or sc['tick']}"}
-                         for sc in scs[:2]]
+        own = [x for x in h.get("scenes") or [] if x.get("sid") == sid
+               and x.get("round") is not None and x.get("tick") is not None]
+        main = [x for x in own if x.get("lesson") == lid]  # Hauptfehler dieses Todes
+        side = [x for x in own if x.get("lesson") != lid and lid in (x.get("lessons") or [])]
+        if not main and not side and not any("lessons" in x for x in own):
+            side = own  # ältere Einträge kennen nur die Haupt-Lektion je Szene: dann seine teuersten Szenen
+
+        def low_cost(x) -> bool:  # Tod in Überzahl, Runde trotzdem gewonnen: kostet wenig, kein Aufmacher
+            return bool(won_round.get(x["round"])) and (x.get("own") or 0) > (x.get("enemy") or 0)
+
+        scs = sorted(main, key=lambda x: (low_cost(x), -(x.get("cost") or 0))) + \
+            sorted(side, key=lambda x: (low_cost(x), -(x.get("cost") or 0)))
+        out["scenes"] = [{"round": x["round"], "text": x.get("happened"), "cost": x.get("cost"),
+                          "nades": x.get("nades") if lid == "utility" else None,
+                          "href": f"/reports/{h['report_file']}#s{x['round']}-{x.get('from') or x['tick']}"}
+                         for x in scs[:2]]
+        if lid == "utility":
+            out["util_late"] = _util_late(h, sid)
     elif sid in (h.get("lead_by") or {}) or (h.get("lessons") or {}).get(sid) is not None:
         # seine Lektionen sind ausgewertet, aber kein Fehler kam mehrmals vor: das ist die Aussage
         out["quiet"] = "Kein Fehler kam mehrmals vor. Heute gibt es kein Thema."
+    out["spot"] = _minute_spot(h, sid)  # konkretes Muster (Todesort) zur Szene
     # Nächstes Match: der laufende Fokus (gilt über mehrere Matches), sonst das heutige Thema
-    fo = fc.get("focus") or {}
     if fo.get("lesson") in LESSONS and fo.get("lesson") in TEACH:
         nid = fo["lesson"]
     else:
@@ -964,8 +1025,49 @@ def _minute_player(h: dict, sid: str) -> dict:
         t = TEACH[nid]
         target = fo.get("target") if fo.get("lesson") == nid else None
         out["next"] = {"lesson": nid, "title": LESSONS[nid][0], "in_game": t.get("in_game"), "mantra": t.get("mantra"),
-                       "target": None if target is None else str(target).replace(".", ",")}
+                       **plain(nid, lessons_today.get(nid, 0) if sid in (h.get("lessons") or {}) else None, target)}
     return out
+
+
+SPOT_MIN = 3  # so oft am selben Ort (gleiche Seite) gestorben: ein Muster, das man ansprechen kann
+
+
+def _minute_spot(h: dict, sid: str) -> str | None:
+    """Häufigster Todesort aus den Tod-Zeilen des Verlaufs: "4x als T in Apartments gestorben (Runde 5, 7, 9, 11)."."""
+    from collections import defaultdict
+
+    from cstaktik.callouts import place
+
+    by = defaultdict(list)
+    for d in h.get("deaths") or []:
+        if d.get("sid") == sid and d.get("place") and d.get("side"):
+            by[(d["side"], d["place"])].append(d["round"])
+    if not by:
+        return None
+    (side, pl), rs = max(by.items(), key=lambda kv: (len(kv[1]), -min(kv[1])))
+    if len(rs) < SPOT_MIN:
+        return None
+    return f"{len(rs)}x als {side.upper()} in {place(pl)} gestorben (Runde {', '.join(map(str, sorted(rs)))})."
+
+
+UTIL_LOTS_PER_ROUND = 1.5  # ab so vielen Granaten je Runde wirft er "viel"
+UTIL_LATE_SHARE = 0.5  # vor dem ersten Duell höchstens dieser Anteil davon: "zu spät"
+
+
+def _util_late(h: dict, sid: str) -> str | None:
+    """"Du wirfst viel, aber zu spät": viele Granaten im Match, aber wenige vor dem ersten Duell der Runde
+    (``util_stats.pre`` je Runde). Nur wenn beide Werte da sind und klar auseinanderliegen."""
+    p = (h.get("players") or {}).get(sid) or {}
+    thrown = sum((p.get("utility") or {}).get(k, 0) for k in ("smoke", "flash", "he", "molotov"))
+    rounds = p.get("rounds") or h.get("rounds")
+    pre = ((h.get("util_stats") or {}).get(sid) or {}).get("pre")
+    if not rounds or pre is None or not thrown:
+        return None
+    per = thrown / rounds
+    if per < UTIL_LOTS_PER_ROUND or pre > per * UTIL_LATE_SHARE:
+        return None
+    return (f"Du wirfst viel, aber zu spät: {thrown} Granaten in {rounds} Runden. Vor dem ersten Duell der Runde "
+            f"waren es nur {_de(pre)} pro Runde.")
 
 
 @app.get("/m/{report_file}", response_class=HTMLResponse)

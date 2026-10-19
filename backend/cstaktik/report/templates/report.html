@@ -94,7 +94,7 @@ h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: v
 .stage canvas { width: 100%; height: 100%; display: block; }
 .hud { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; }
 .hud .pill { background: rgba(7,9,13,.75); color: var(--text); }
-.feed { position: absolute; right: 8px; top: 8px; display: grid; gap: 4px; justify-items: end; max-width: 70%; pointer-events: none; }
+.feed { position: absolute; right: 8px; bottom: 8px; display: grid; gap: 4px; justify-items: end; max-width: 70%; pointer-events: none; }
 .feed div { font-size: 11.5px; padding: 3px 8px; border-radius: 8px; background: rgba(7,9,13,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .feed .mine { outline: 1px solid var(--loss); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
@@ -349,6 +349,19 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
 .arow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .arow:first-of-type { border-top: 0; } .arow b { display: block; font-size: 15.5px; }
 .arow span { font-size: 13px; color: var(--muted); } .arow .scenes { margin: 0; flex: none; }
+.spots, .aimtip { margin-top: 16px; padding: 14px; border: 1px solid var(--line); background: var(--surface); }
+.sprow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; }
+.sprow + .sprow { border-top: 1px solid var(--line); }
+.sprow b { display: block; font-size: 15.5px; } .sprow .who, .am .who { display: block; font-size: 12.5px; color: var(--muted); }
+.sprow .scenes { margin: 0; flex: none; gap: 4px; }
+.am + .am { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.am > div { margin-top: 4px; font-size: 14.5px; line-height: 1.45; }
+.am .ig b { display: block; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--orange); }
+.am .scenes { align-items: center; margin-top: 8px; } .am .scenes .quiet { font-size: 12.5px; margin-right: 4px; }
+details.more { margin-top: 18px; } details.more > summary { cursor: pointer; padding: 12px 14px; border: 1px solid var(--line);
+  background: var(--surface); font-weight: 700; list-style: none; } details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: " ›"; color: var(--muted); } details.more[open] > summary::after { content: " ⌄"; }
+details.tech { margin: 28px 2px 0; color: var(--faint); font-size: 12px; } details.tech summary { cursor: pointer; }
 .praise { margin-top: 14px; padding: 12px; border-left: 3px solid var(--win); background: rgba(70,167,88,.07); font-size: 14.5px; }
 .praise b { display: block; color: var(--win); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
 .ctas { margin-top: 18px; }
@@ -437,11 +450,10 @@ footer { margin-top: 28px; color: var(--faint); font-size: 12px; }
   max-width: 640px; width: 100%; margin: 0 auto; }
 .dbf-back { flex: 1; height: 50px; border: 1px solid var(--line); color: var(--muted); font: 700 16px var(--cond); letter-spacing: .1em; text-transform: uppercase; }
 .dbf-next { flex: 2; height: 50px; background: var(--orange); color: #111; font: 800 17px var(--cond); letter-spacing: .12em; text-transform: uppercase; }
-.dbf-return { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(72px + env(safe-area-inset-bottom)); z-index: 60;
-  padding: 12px 20px; background: var(--orange); color: #111; font: 800 16px var(--cond); letter-spacing: .1em; text-transform: uppercase;
-  box-shadow: 0 6px 24px rgba(0,0,0,.6); white-space: nowrap; }
+/* im Fluss unter der Karte, nicht schwebend: verdeckt keinen Text */
+.dbf-return { display: block; width: 100%; margin: 0 0 10px; padding: 12px 20px; border: 0; background: var(--orange); color: #111;
+  font: 800 16px var(--cond); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; }
 .dbf-return[hidden] { display: none; }
-@media (min-width: 960px) { .dbf-return { bottom: calc(14px + env(safe-area-inset-bottom)); } }
 .duelcmp { margin-top: 16px; padding: 14px; border: 1px solid var(--line); background: var(--surface); }
 .dp + .dp { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .dp .who { font-weight: 700; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
@@ -509,7 +521,12 @@ div.frow { display: block; cursor: default; } div.frow .fr-x { margin-top: 4px; 
 .trow2 .tr { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
 .rchip2 { padding: 2px 8px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; cursor: pointer; color: var(--text); }
 .trow2 .tw { font-size: 22px; font-weight: 800; } .trow2 .tw.ok { color: var(--win); } .trow2 .tw.no { color: var(--loss); }
+.rrow .rtags { margin-top: 4px; } .rrow .rtac.buy { margin-left: 0; color: var(--text); }
+.rrow .rme { margin-top: 6px; font-size: 13.5px; color: var(--text); }
+.rchip .dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--orange); }
+.rlegend2 { margin: 4px 2px 0; font-size: 12px; color: var(--muted); }
 .rrow .rtac { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; background: var(--surface-2); color: var(--muted); }
+.rrow .rtags .rtac:first-child { margin-left: 0; }
 .cbar { margin-top: 10px; }
 .cbar .cb-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; color: var(--muted); }
 .cbar .cb-h b { color: var(--text); font-size: 16px; }
@@ -576,7 +593,8 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
     <div class="sh"><span class="n cond">01</span><span class="t cond">Der eine Punkt</span></div>
     <div class="big cond">{{ l.lesson }}</div>
     <div class="stats">
-      <div><b class="cond">{{ l.count }}x</b><span>{% if l.main is defined and l.main != l.count %}dabei, {{ l.main }}x als Hauptfehler{% else %}passiert{% endif %}</span></div>
+      {% set nd = deaths_by[sid] if sid else deaths_by.values()|sum %}
+      <div><b class="cond">{{ l.count }}{% if nd %}/{{ nd }}{% endif %}</b><span>{% if nd and death_phrase[l.id] %}Tode {{ death_phrase[l.id] }}{% else %}Tode mit diesem Fehler{% endif %}</span></div>
       {% if l.of_matches is defined and l.of_matches > 1 %}<div><b class="cond {{ 'red' if l.seen_in >= 2 }}">{{ l.seen_in }}/{{ l.of_matches }}</b><span>Matches mit diesem Fehler</span></div>{% endif %}
       {% if l.cost and l.cost >= 30 %}<div><b class="cond red">≈{{ "%.1f"|format(l.cost / 100)|replace(".", ",") }}</b><span>Runden gekostet{% if l.rough %} (grob){% endif %}</span></div>{% endif %}
       <div><b class="cond">{{ (l.players[0] if l.players|length == 1 else l.players|length ~ " Spieler") if l.players else "–" }}</b><span>{{ "wer" if l.players|length == 1 else "betroffen" }}</span></div>
@@ -605,7 +623,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   <section class="also">
     <div class="sh"><span class="t cond">Außerdem</span></div>
     {% for o in ls[1:] %}
-    <div class="arow"><div><b>{{ o.lesson }}</b><span class="num">{{ o.count }}x{% if o.cost %} · ≈{{ "%.1f"|format(o.cost / 100)|replace(".", ",") }} Runden{% endif %}</span></div>
+    <div class="arow"><div><b>{{ o.lesson }}</b><span class="num">{{ o.count }} {{ "Tod" if o.count == 1 else "Tode" }}{% if o.cost %} · ≈{{ "%.1f"|format(o.cost / 100)|replace(".", ",") }} Runden gekostet{% endif %}</span></div>
       <div class="scenes sm">{% for sc in (o.scenes|unique(attribute="round")|list)[:3] %}<button class="costgo cond" data-round="{{ sc.round }}" data-tick="{{ sc.from or sc.tick }}">R{{ sc.round }}</button>{% endfor %}</div></div>
     {% endfor %}
   </section>
@@ -641,7 +659,6 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   <div class="dbf-body" id="dbfBody"></div>
   <div class="dbf-nav"><button class="dbf-back" id="dbfBack">‹ Zurück</button><button class="dbf-next" id="dbfNext">Weiter ›</button></div>
 </div>
-<button class="dbf-return" id="dbfRet" hidden>‹ Zurück zum Debrief</button>
 <main>
 <nav class="rtabs" id="rtabs" aria-label="Bereiche" role="tablist">
   <button data-tab="coach" class="on" role="tab" aria-selected="true">Coach</button><button data-tab="replay" role="tab" aria-selected="false">Replay</button><button data-tab="analyse" role="tab" aria-selected="false">Analyse</button><button data-tab="runden" role="tab" aria-selected="false">Runden</button>
@@ -674,14 +691,14 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
       <div class="arow2"><div class="atitle cond">{{ c.title }}</div><div class="astamp cond">{{ "Geschafft" if c.met else "Zu wenig Runden" if c.met is none else "Nicht geschafft" }}</div></div>
       {% if a.focus and not a.new %}<div class="mantra cond" style="font-size:17px;margin-top:4px">„{{ teach[a.focus.lesson].mantra }}“</div>{% endif %}
       {% if a.focus and a.focus.matches|length > 1 %}{% with a = a.focus %}{% include "auftrag_chart.html" %}{% endwith %}
-      <div class="num" style="margin-top:6px;font-size:13.5px;color:var(--muted)">Heute <b style="color:var(--text)">{{ c.rate|string|replace(".", ",") }}</b> pro 10 Runden · {{ c.count }}x in {{ c.rounds }} Runden{% if c.drills is defined and c.drills is not none %} · vorher {{ c.drills }}x geübt{% endif %}</div>
+      <div class="num" style="margin-top:6px;font-size:13.5px;color:var(--muted)">Heute <b style="color:var(--text)">{{ c.count }}</b> solche Tode in {{ c.rounds }} Runden · Ziel höchstens {{ (c.target * c.rounds / 10)|int }}{% if c.drills is defined and c.drills is not none %} · vorher {{ c.drills }}x geübt{% endif %}</div>
       {% else %}
       {% set top = [c.rate, c.target, c.baseline or 0]|max * 1.15 or 1 %}
       <div class="rmeter" aria-label="Rate gegen Ziel">
         <div class="rbar {{ 'ok' if c.met else 'no' if c.met is not none else '' }}" style="width:{{ (100 * c.rate / top)|round(1) }}%"></div>
         <div class="rtick" style="left:{{ (100 * c.target / top)|round(1) }}%"><span>Ziel {{ c.target|string|replace(".", ",") }}</span></div>
       </div>
-      <div class="rlegend num"><b>{{ c.rate|string|replace(".", ",") }}</b> pro 10 Runden · {{ c.count }}x in {{ c.rounds }} Runden{% if c.drills is defined and c.drills is not none %} · vorher {{ c.drills }}x geübt{% endif %}
+      <div class="rlegend num">Heute <b>{{ c.count }}</b> solche Tode in {{ c.rounds }} Runden · Ziel höchstens {{ (c.target * c.rounds / 10)|int }}{% if c.drills is defined and c.drills is not none %} · vorher {{ c.drills }}x geübt{% endif %}
         <span class="sdots">{% for i in range(c.need) %}<i class="{{ 'on' if i < c.streak }}"></i>{% endfor %}</span></div>
       {% endif %}
       {% if a.mastered %}<div class="amaster">Gemeistert. {{ c.need }} Matches in Folge unter dem Ziel, insgesamt {{ c.streak_rounds }} Runden. Das sitzt.</div>
@@ -708,7 +725,33 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   {# je Spieler sein Thema: nur sichtbar, wenn der Report persönlich geöffnet wird (window.__ME) #}
   {% for m in lessons_by if m.lead %}<div class="mp-me" data-sid="{{ m.sid }}" hidden>{{ mainpoint(m.lessons, m.bright, m.sid) }}</div>{% endfor %}
 
-  {% if praise %}<section class="praise"><b class="cond">Gut gemacht</b>{% for p in praise %}<div>{{ p }}</div>{% endfor %}</section>{% endif %}
+  {% if praise %}<section class="praise"><b class="cond">Gut gemacht</b>{% for p in praise %}<div{% if p.sid %} data-sid="{{ p.sid }}"{% endif %}>{{ p.text }}</div>{% endfor %}</section>{% endif %}
+
+  {# Muster aus der Demo, konkret: wo er immer wieder stirbt #}
+  {% if spots %}
+  <section class="spots">
+    <div class="sh"><span class="t cond" data-me-text="Dein Muster">Eure Muster</span></div>
+    {% for e in spots %}<div class="sp" data-sid="{{ e.sid }}">
+      {% for x in e.rows[:2] %}<div class="sprow"><div><b>{{ x.n }}x als {{ x.side }} in {{ x.place }} gestorben</b>
+        <span class="who">{{ e.name }} · Runde {{ x.rounds|join(", ") }}</span></div>
+        <span class="scenes sm">{% for r in x.rounds[:4] %}<button class="rchip2 cond" data-round="{{ r }}">R{{ r }}</button>{% endfor %}</span></div>{% endfor %}
+      {% if e.rows[0].n >= 3 %}<div class="anote">Die Gegner kennen den Spot. Wechsle ihn, komm später oder geh nur mit Utility hin.</div>{% endif %}
+    </div>{% endfor %}
+  </section>
+  {% endif %}
+
+  {# Aim: nur wenn die Duell-Werte klar schlechter sind als bei Pros, mit Übung und den Runden dazu #}
+  {% if aim %}
+  <section class="aimtip">
+    <div class="sh"><span class="t cond">Aim</span></div>
+    {% for a in aim %}<div class="am" data-sid="{{ a.sid }}">
+      <div class="who cond">{{ a.name }} · {{ a.title }}</div>
+      <div>{{ a.fact }}</div>
+      <div class="ig"><b class="cond">Übung</b>{{ a.drill }}</div>
+      {% if a.rounds %}<div class="scenes sm"><span class="quiet">Duelle so verloren:</span>{% for r in a.rounds %}<button class="rchip2 cond" data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>{% endif %}
+    </div>{% endfor %}
+  </section>
+  {% endif %}
   {# Aufträge, die nicht schon oben im Auftrag-Check stehen (neu oder ohne Check in diesem Match) #}
   {% set nexts = auftraege|selectattr("focus")|rejectattr("check")|list + auftraege|selectattr("focus")|selectattr("new")|selectattr("check")|list %}
   {% if nexts %}
@@ -719,7 +762,8 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
       <div class="who cond">{{ a.name }} · {{ "neu" if a.new else "bleibt" }}</div>
       <div class="atitle cond">{{ nf.title }}</div>
       <div class="mantra cond">„{{ teach[nf.lesson].mantra }}“</div>
-      <div class="anote num">Ziel: höchstens {{ nf.target|string|replace(".", ",") }} pro 10 Runden. Start: {{ nf.baseline|string|replace(".", ",") }}{% if nf.baseline_n %}, also {{ nf.baseline_n }}x in {{ nf.baseline_rounds }} Runden{% endif %}.</div>
+      {% set nr = match.rounds|length %}
+      <div class="anote num">{% if nf.baseline_n and nf.baseline_rounds %}Bisher {{ nf.baseline_n }} solche Tode in {{ nf.baseline_rounds }} Runden. {% endif %}<b>Nächstes Match: höchstens {{ (nf.target * nr / 10)|int }}</b> bei {{ nr }} Runden.</div>
     </div>
     {% endfor %}
   </section>
@@ -731,7 +775,9 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   {# Fazit wie am Ende einer Besprechung: höchstens ein Punkt je Thema, nur aus Werten, die oben schon stehen #}
   {% set take = [] %}
   {% for a in auftraege if a.focus %}{% set _ = take.append(("Auftrag", a.name ~ ": „" ~ teach[a.focus.lesson].mantra ~ "“", a.sid)) %}{% endfor %}
-  {% if duel_cmp %}{% for d in duel_cmp.players if d.reading %}{% set _ = take.append(("Duell", d.name ~ ": " ~ d.reading, d.sid)) %}{% endfor %}{% endif %}
+  {% set aim_sids = aim|map(attribute="sid")|list %}
+  {% if duel_cmp %}{% for d in duel_cmp.players if d.reading and d.sid not in aim_sids %}{% set _ = take.append(("Duell", d.name ~ ": " ~ d.reading, d.sid)) %}{% endfor %}{% endif %}
+  {% for a in aim %}{% set _ = take.append(("Aim", a.name ~ ": " ~ a.drill, a.sid)) %}{% endfor %}
   {% if tactics %}
     {% set real_t = tactics.t|rejectattr("name", "equalto", "Default ohne Bombsite")|list %}
     {% set good_t = real_t|selectattr("n", "ge", 2)|selectattr("won_pct", "ge", 60)|list %}
@@ -750,6 +796,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
 
 <div class="tab" data-tab="replay" hidden>
   <nav class="rounds" id="rounds" aria-label="Runden"></nav>
+  <div class="rlegend2">Strich unten: grün gewonnen, rot verloren. Punkt: Coach-Hinweis in der Runde.</div>
 
   <section class="card replay" aria-label="2D-Replay">
     <div class="rhead"><b id="rtitle">Runde</b><span><button id="rback" class="vbtn" hidden>‹ Zurück zu deinem Tod</button> <span id="rres" class="res"></span></span></div>
@@ -761,6 +808,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
       <div class="feed" id="feed"></div>
     </div>
     <div class="rside">
+    <button class="dbf-return" id="dbfRet" hidden>‹ Zurück zum Debrief</button>
     <div class="quiz" id="quiz" hidden aria-live="polite"></div>
     <div class="coach" id="coach" aria-live="polite"></div>
     <div class="timeline" id="tl"><div class="bar"></div><div class="fill" id="tlfill"></div><input type="range" id="scrub" min="0" max="1" step="1" aria-label="Zeit"></div>
@@ -828,18 +876,22 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   {% if util_cmp and (util_cmp.lineups or util_cmp.flash or util_cmp.pre is not none) %}{% set u = util_cmp %}
   <section class="duelcmp utilcmp">
     <div class="sh"><span class="t cond">Utility{% if u.lineups or u.flash_pro or u.pre_pro is not none %} gegen Pros{% endif %}</span></div>
-    {% if u.flash and u.has_blinds %}
-    {{ cmpbar("Flashes, die wirken", u.flash.good_pct, u.flash_pro.good_pct if u.flash_pro else none, " %", false, 100, 10, u.flash.n) }}
-    {{ cmpbar("Gegner blind je Flash", u.flash.avg_enemy_s, u.flash_pro.avg_enemy_s if u.flash_pro else none, " s", false, 3, 0.4) }}
-    {% if u.flash.team %}<div class="small" style="margin-top:8px;color:var(--loss)">{{ u.flash.team }}x eigene Leute geblendet, je mindestens 1 s.</div>{% endif %}
+    {# fürs Team zusammen; persönlich (window.__ME) dieselben Werte nur für den eigenen Spieler, wie in der Match-Story #}
+    {% for sid, fl, pre in [(none, u.flash, u.pre)] + util_by %}
+    <div class="{{ 'mp-me' if sid else 'mp-team' }}"{% if sid %} data-sid="{{ sid }}" hidden{% endif %}>
+    {% if fl and u.has_blinds %}
+    {{ cmpbar("Flashes, die wirken", fl.good_pct, u.flash_pro.good_pct if u.flash_pro else none, " %", false, 100, 10, fl.n) }}
+    {{ cmpbar("Gegner blind je Flash", fl.avg_enemy_s, u.flash_pro.avg_enemy_s if u.flash_pro else none, " s", false, 3, 0.4) }}
+    {% if fl.team %}<div class="small" style="margin-top:8px;color:var(--loss)">{{ fl.team }}x eigene Leute geblendet, je mindestens 1 s.</div>{% endif %}
     {% endif %}
-    {% if u.pre is not none %}{{ cmpbar("Utility vor dem ersten Duell, je Spieler und Runde", u.pre, u.pre_pro, "", false, 2, 0.2) }}{% endif %}
+    {% if pre is not none %}{{ cmpbar("Utility vor dem ersten Duell, je Runde" if sid else "Utility vor dem ersten Duell, je Spieler und Runde", pre, u.pre_pro, "", false, 2, 0.2) }}{% endif %}
+    </div>{% endfor %}
     {% if u.lineups %}
     <div class="lk cond" style="margin-top:12px">Smokes und Mollys gegen Pros</div>
     {% for n in u.lineups[:8] %}
-    <div class="lrow {{ 'ok' if n.ok else 'no' }}">
-      <div><b>{{ "Smoke" if n.kind == "smoke" else "Molotov" }} → {{ n.to }}</b><span>{{ n.who }} · R{{ n.r }}{% if n.pro_from %} · Pros werfen meist aus {{ n.pro_from }}{% endif %}</span></div>
-      <div class="ldist cond">{{ "sitzt" if n.ok else n.dist ~ " Units daneben" }}</div>
+    <div class="lrow {{ 'ok' if n.ok else 'no' }}"{% if n.sid %} data-sid="{{ n.sid }}"{% endif %}>
+      <div><b>{{ "Smoke" if n.kind == "smoke" else "Molotov" }} → {{ n.to|callout }}</b><span>{{ n.who }} · R{{ n.r }}{% if n.pro_from %} · Pros werfen meist aus {{ n.pro_from|callout }}{% endif %}</span></div>
+      <div class="ldist cond">{{ "sitzt" if n.ok else (n.dist|meters) ~ " daneben" }}</div>
       <button class="costgo cond" data-round="{{ n.r }}" data-tick="{{ n.tick }}">▶</button>
     </div>
     {% endfor %}
@@ -848,6 +900,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   </section>
   {% endif %}
 
+  <details class="more"><summary>Mehr Analyse: Taktiken, Ursachen, Mechanik, Muster</summary>
   {% if tactics %}{% set tc = tactics %}
   <section class="duelcmp tacs">
     <div class="sh"><span class="t cond">Eure Taktiken heute</span></div>
@@ -869,7 +922,8 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   {% if debrief.causes %}
   <h2>Warum verloren</h2>
   <div class="stack">
-    {% for c in debrief.causes %}
+    {# "Ohne Schuss gestorben" steht einmal, in der Mechanik als "Tode ohne Schuss" #}
+    {% for c in debrief.causes if c.id != "no_shot" %}
     <div class="cause">
       <div class="crank">{{ loop.index }}</div>
       <div class="cbody">
@@ -893,8 +947,9 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   <div class="card duo">
     <div class="duo-s">{{ d.sentence }}</div>
     <div class="kpis num" style="margin-top:10px">
-      <div class="kpi"><b>{{ d.avg_distance }}</b><span>Ø Abstand (Units)</span></div>
-      {% for n, v in d.trades.items() %}<div class="kpi"><b>{{ v }}</b><span>{{ n }} tradet</span></div>{% endfor %}
+      <div class="kpi"><b>{{ d.avg_distance|meters }}</b><span>Ø Abstand</span></div>
+      {% set dn = d.trades.keys()|list %}
+      {% for n, v in d.trades.items() %}<div class="kpi"><b>{{ v }}</b><span>{{ n }} rächt {{ dn[1] if n == dn[0] else dn[0] }}</span></div>{% endfor %}
       {% set fd = d.died_first.items()|list %}
       <div class="kpi"><b>{{ fd[0][1] }}–{{ fd[1][1] }}</b><span>zuerst tot</span></div>
     </div>
@@ -907,7 +962,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   <h2>Mechanik</h2>
   <div class="stack">
     {% for m in debrief.mechanics %}
-    <div class="card">
+    <div class="card" data-sid="{{ m.steamid }}">
       <b>{{ m.name }}</b> <span class="quiet num">· {{ m.shots }} Schüsse</span>
       <div class="kpis num" style="margin-top:8px">
         <div class="kpi {% if m.moving_pct is not none and m.moving_pct >= mech_cfg.goal_moving_pct %}bad{% endif %}"><b>{{ (m.moving_pct|round|int) if m.moving_pct is not none else "–" }}{% if m.moving_pct is not none %}%{% endif %}</b><span>im Laufen</span></div>
@@ -922,7 +977,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
       {% if m.no_shot_rounds %}<div class="rlinks">{% for r in m.no_shot_rounds[:8] %}<button data-round="{{ r }}">R{{ r }}</button>{% endfor %}</div>{% endif %}
     </div>
     {% endfor %}
-    <p class="quiet" style="margin:0 2px">„Im Laufen“ heißt: beim Schuss schneller als {{ mech_cfg.moving_shot_speed_units_s }} Units/s. Treffer heißt: Schaden direkt nach dem Schuss.</p>
+    <p class="quiet" style="margin:0 2px">„Im Laufen“ heißt: beim Schuss schneller als {{ "%.1f"|format(mech_cfg.moving_shot_speed_units_s * 0.0254)|replace(".", ",") }} m/s. Treffer heißt: Schaden direkt nach dem Schuss. „Tode ohne Schuss“: kein eigener Schuss in den 3 s vor dem Tod.</p>
   </div>
   {% endif %}
 
@@ -931,7 +986,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   <h2>Utility-Wirkung</h2>
   <div class="stack">
     {% for u in debrief.utility %}
-    <div class="card">
+    <div class="card" data-sid="{{ u.steamid }}">
       <b>{{ u.name }}</b>
       <div class="kpis num" style="margin-top:8px">
         <div class="kpi"><b>{{ u.thrown.flash }}</b><span>Flashes</span></div>
@@ -952,13 +1007,13 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   <h2>Spieler</h2>
   <div class="players">
     {% for p in stats %}
-    <div class="pcard">
+    <div class="pcard" data-sid="{{ p.steamid }}">
       <h3>{{ p.name }}</h3>
       <div class="kpis num">
         <div class="kpi"><b>{{ p.kills }}–{{ p.deaths }}</b><span>K–D</span></div>
         <div class="kpi"><b>{{ p.adr if p.adr is not none else "–" }}</b><span>ADR</span></div>
         <div class="kpi"><b>{{ p.opening_kills }}–{{ p.opening_deaths }}</b><span>Opening</span></div>
-        <div class="kpi"><b>{% if p.deaths %}{{ (100 * p.traded_deaths / p.deaths)|round|int }}%{% else %}–{% endif %}</b><span>getradet</span></div>
+        <div class="kpi"><b>{% if p.deaths %}{{ (100 * p.traded_deaths / p.deaths)|round|int }}%{% else %}–{% endif %}</b><span>Tode getradet</span></div>
       </div>
       <div class="nades num">Utility geworfen:
         <span><i style="background:#c8ced8"></i>{{ p.utility_thrown.get("smoke", 0) }} Smoke</span>
@@ -974,7 +1029,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   <h2>Muster im Match</h2>
   <div class="stack">
     {% for f in patterns %}
-    <div class="f {{ f.severity }}">
+    <div class="f {{ f.severity }}"{% if f.steamid %} data-sid="{{ f.steamid }}"{% endif %}>
       <div class="top"><span class="t">{{ f.title }}</span><span class="who">{{ f.player_name or "Team" }}</span></div>
       <div class="txt">{{ f.text }}</div>
       <div class="tip"><b>Tipp</b> · {{ f.tip }}</div>
@@ -992,6 +1047,7 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
     {% if radar_note %}<li>{{ radar_note }}</li>{% endif %}
   </ul></div>
   {% endif %}
+  </details>
 
 </div>
 
@@ -1000,9 +1056,9 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   <div class="rlist" id="rlist"></div>
 </div>
 
-  <footer>Werte aus der Demo, geparst mit awpy. Pro-Vergleiche aus euren Pro-Demos. Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
+  <details class="tech"><summary>Technik</summary>Werte aus der Demo, geparst mit awpy. Pro-Vergleiche aus euren Pro-Demos. Tickrate {{ match.tickrate }} ({{ match.tickrate_source }}).
   {% if match.source_sha256 %}SHA-256 {{ match.source_sha256[:12] }}…{% endif %}
-  Schwellen der Regeln: config/rules.yaml.</footer>
+  Schwellen der Regeln: config/rules.yaml.</details>
 </main>
 
 <script>
@@ -1014,15 +1070,21 @@ details.how { margin-top: 4px; } details.how summary { text-decoration: underlin
   document.querySelectorAll('.mp-me[data-sid="' + me + '"]').forEach(function (e) { e.hidden = false; });
   document.querySelectorAll('.mp-team').forEach(function (e) { e.remove(); });
   // Abschnitte, deren Zeilen alle anderen Spielern gehörten, ganz entfernen (keine leeren Überschriften)
-  [['.auftraege', '.auftrag'], ['.nextfocus', '.nf, .anote'], ['.takeaway', '.tk'], ['.glance', '.gl'], ['.duelcmp:not(.imp):not(.utilcmp)', '.dp']]
+  [['.auftraege', '.auftrag'], ['.nextfocus', '.nf, .anote'], ['.takeaway', '.tk'], ['.glance', '.gl'], ['.duelcmp:not(.imp):not(.utilcmp)', '.dp'],
+   ['.spots', '.sp'], ['.aimtip', '.am'], ['.praise', 'div']]
     .forEach(function (p) { document.querySelectorAll(p[0]).forEach(function (s) { if (!s.querySelector(p[1])) s.remove(); }); });
   document.querySelectorAll('[data-me-text]').forEach(function (e) { e.textContent = e.dataset.meText; }); })();
 </script>
 <script type="application/json" id="data">{{ data_json | safe }}</script>
 <script>
+{{ callouts_js|safe }}
+// Text mit Navmesh-Namen (z. B. Taktik-Etiketten "A-Execute über PalaceInterior") in Callouts übersetzen
+function calloutText(t) { return t ? String(t).replace(/[A-Za-z_]+/g, w => /[a-z][A-Z]|^[A-Z][a-z]+[A-Z]/.test(w) || CALLOUTS[w] ? callout(w) : w) : t; }
 {% raw %}
 (() => {
 const D = JSON.parse(document.getElementById('data').textContent);
+// persönlich (window.__ME): im Replay nur eigene Befunde und Team-Befunde (die Coach-Texte sprechen mit "du")
+if (window.__ME) D.rounds.forEach(r => { r.f = r.f.filter(id => !D.findings[id].sid || D.findings[id].sid === window.__ME); });
 const TR = D.tickrate, SIZE = D.size;
 const CSSV = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const COL = { ct: CSSV('--ct') || '#5d79ae', t: CSSV('--t') || '#de9b35' };
@@ -1133,7 +1195,7 @@ const isErr = f => f.sev !== 'gut';
 // Touren: Schlüsselmomente (Coach-Auswahl) und alle Fehler. Jeder Halt: Runde + Tick.
 const TOURS = {
   key: (D.moments || []).map(m => ({ ri: D.rounds.findIndex(r => r.n === m.round), tick: m.tick, from: m.from, title: m.title, text: m.text, f: m.finding })).filter(x => x.ri >= 0),
-  all: D.rounds.flatMap((r, ri) => r.f.map(id => F[id]).filter(f => f.tick != null && isErr(f)).sort((a, b) => a.tick - b.tick)
+  all: D.rounds.flatMap((r, ri) => r.f.map(id => F[id]).filter(f => f.tick != null && isErr(f) && (!window.__ME || !f.sid || f.sid === window.__ME)).sort((a, b) => a.tick - b.tick)
     .map(f => ({ ri, tick: f.tick, title: f.title, text: f.text }))),
 };
 const stopOf = () => S.tour ? TOURS[S.tour.name][S.tour.i] : null;
@@ -1164,7 +1226,10 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const name = sid => (D.players[sid] && D.players[sid].name) || '?';
 const isFocus = sid => !!(D.players[sid] && D.players[sid].focus) || (D.rounds[S.ri] && D.rounds[S.ri].hl === sid);
 const R = () => D.rounds[S.ri];
-const fmt = t => { const s = Math.max(0, Math.floor((t - (R().rt0 != null ? R().rt0 : R().t0)) / TR)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+// Uhr wie im Spiel: 1:55 abwärts, nach dem Plant der Bombentimer (40 s)
+const fmt = t => { const r = R(), base = r.rt0 != null ? r.rt0 : r.t0, pl = (r.bomb || []).find(b => b.ev === 'plant');
+  if (pl && t >= pl.t) return 'Bombe 0:' + String(Math.max(0, Math.round(40 - (t - pl.t) / TR))).padStart(2, '0');
+  return gclock(Math.max(0, (t - base) / TR)); };
 
 // ---- Rundenleiste
 const strip = $('rounds');
@@ -1172,9 +1237,8 @@ D.rounds.forEach((r, i) => {
   if (r.pro) return; // Pro-Szenen liegen hinten und erscheinen nicht in der Rundenleiste
   const b = el('button', 'rchip num' + (r.out ? ' ' + r.out : ''), String(r.n));
   b.setAttribute('aria-label', 'Runde ' + r.n);
-  const nErr = r.f.filter(id => isErr(F[id])).length, nGood = r.f.length - nErr;
-  if (nErr) b.appendChild(el('span', 'badge', String(nErr)));
-  else if (nGood) b.appendChild(el('span', 'badge good', '★'));
+  // Punkt oben rechts: in dieser Runde gibt es einen Coach-Hinweis (Legende unter der Leiste)
+  if (r.f.some(id => isErr(F[id]))) { b.appendChild(el('span', 'dot')); b.setAttribute('aria-label', 'Runde ' + r.n + ', mit Coach-Hinweis'); }
   b.onclick = () => selectRound(i);
   strip.appendChild(b);
 });
@@ -1256,7 +1320,7 @@ function draw() {
   if (D.places) { // Ortsnamen aus der Demo (Schwerpunkt der Positionen)
     ctx.font = `600 ${9.5 * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.6)'; ctx.fillStyle = D.img ? 'rgba(235,240,250,.7)' : 'rgba(200,210,230,.45)';
-    D.places.forEach(p => { if (D.img) ctx.strokeText(p.n, p.x, p.y); ctx.fillText(p.n, p.x, p.y); });
+    D.places.forEach(p => { const n = callout(p.n); if (D.img) ctx.strokeText(n, p.x, p.y); ctx.fillText(n, p.x, p.y); });
   }
 
   // Utility-Flächen (Smoke/Molotov mit Restdauer, Flash/HE als Zündeffekt)
@@ -1437,10 +1501,22 @@ function draw() {
     }
     ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, 7); ctx.fillStyle = COL[team] || '#888'; ctx.fill();
     ctx.lineWidth = (f ? 2.5 : 1.5) * u; ctx.strokeStyle = f ? '#fff' : '#07090d'; ctx.stroke();
-    const label = f ? name(sid) : name(sid).slice(0, 8);
-    ctx.font = `${f ? 700 : 500} ${(f ? 11.5 : 10) * u}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(label, p.x, p.y - rad - 3 * u);
-    ctx.fillStyle = f ? '#fff' : 'rgba(238,241,246,.75)'; ctx.fillText(label, p.x, p.y - rad - 3 * u);
+    ctx.globalAlpha = 1;
+  }
+  // Namen in zweitem Durchgang: Fokus-Spieler zuerst; überlappt ein Name einen schon gesetzten, steht er unter dem
+  // Punkt, sonst fällt er weg (keine gestapelten Namen)
+  const boxes = [];
+  for (const [sid, p] of [...drawn].reverse()) {
+    const f = isFocus(sid), rad = (f ? 7.5 : 6) * u, label = f ? name(sid) : name(sid).slice(0, 8);
+    ctx.font = `${f ? 700 : 500} ${(f ? 11.5 : 10) * u}px system-ui`; ctx.textAlign = 'center';
+    const w = ctx.measureText(label).width, h = (f ? 12 : 10.5) * u;
+    const tries = [[p.y - rad - 3 * u, 'bottom', p.y - rad - 3 * u - h], [p.y + rad + 3 * u, 'top', p.y + rad + 3 * u]];
+    const ok = tries.find(([, , top]) => !boxes.some(b => p.x - w / 2 < b[2] && p.x + w / 2 > b[0] && top < b[3] && top + h > b[1]));
+    if (!ok) continue;
+    const [y, base, top] = ok; boxes.push([p.x - w / 2, top, p.x + w / 2, top + h]);
+    ctx.globalAlpha = dimA(sid); ctx.textBaseline = base;
+    ctx.lineWidth = 3 * u; ctx.strokeStyle = 'rgba(7,9,13,.85)'; ctx.strokeText(label, p.x, y);
+    ctx.fillStyle = f ? '#fff' : 'rgba(238,241,246,.75)'; ctx.fillText(label, p.x, y);
     ctx.globalAlpha = 1;
   }
 
@@ -1510,7 +1586,7 @@ function draw() {
     // Gefahr: von wo der Killer kam
     if (kd && kd.ax != null && ovf.rule === 'death_review') {
       mkCircle(kd.ax, kd.ay, 13 * u, '#e5484d', u, 11);
-      mkLabel('Von hier' + (fx && fx.aplace ? ': ' + fx.aplace : ''), kd.ax, kd.ay - 16 * u, '#e5484d', u);
+      mkLabel('Von hier' + (fx && fx.aplace ? ': ' + callout(fx.aplace) : ''), kd.ax, kd.ay - 16 * u, '#e5484d', u);
       if (kd.vx != null) mkArrow(kd.ax, kd.ay, kd.vx, kd.vy, 'rgba(229,72,77,.75)', u, 5, 12 * u);
     }
     // Abstand zum nächsten Mitspieler (Trade-Reichweite)
@@ -1747,19 +1823,38 @@ document.querySelectorAll('#rtabs button').forEach(b => b.onclick = () => { show
 // Rundenleiste klebt direkt unter den Reitern
 const setTabsH = () => document.documentElement.style.setProperty('--tabs-h', $('rtabs').offsetHeight + 'px');
 setTabsH(); addEventListener('resize', setTabsH);
+const BUY = { pistol: 'Pistole', eco: 'Eco', force: 'Force', full: 'Full Buy' };
 function buildRoundList() {
   const box = $('rlist'); if (!box) return;
+  const me = window.__ME;
+  // Sicht: eingeloggt der eigene Spieler, sonst die Fokus-Seite. Laufender Spielstand nach jeder Runde.
+  let won = 0, lost = 0;
   D.rounds.forEach((r, i) => {
     if (r.pro) return;
-    const fs = r.f.map(id => F[id]).sort((a, b) => isErr(b) - isErr(a));
-    const row = el('button', 'rrow ' + (r.out || ''));
+    const flip = me && r.teams[me] && r.side && r.teams[me] !== r.side;
+    const out = flip ? (r.out === 'W' ? 'L' : r.out === 'L' ? 'W' : r.out) : r.out;
+    const side = me && r.teams[me] ? r.teams[me] : r.side;
+    if (out === 'W') won++; else if (out === 'L') lost++;
+    const fs = r.f.map(id => F[id]).filter(f => !me || !f.sid || f.sid === me).sort((a, b) => isErr(b) - isErr(a));
+    const row = el('button', 'rrow ' + (out || ''));
     const head = el('div', 'rh');
-    head.append(el('b', 'cond', 'Runde ' + r.n), el('span', 'rs', (r.side ? r.side.toUpperCase() + ' · ' : '') + (r.out === 'W' ? 'Gewonnen' : r.out === 'L' ? 'Verloren' : '')));
-    if (r.tac) head.append(el('span', 'rtac', r.tac));
+    head.append(el('b', 'cond', 'Runde ' + r.n), el('span', 'rs num', (side ? side.toUpperCase() + ' · ' : '') + (out === 'W' ? 'Gewonnen' : out === 'L' ? 'Verloren' : '') + ' · ' + won + ':' + lost));
     row.appendChild(head);
+    const tags = el('div', 'rtags');
+    const buy = r.buy && side ? BUY[r.buy[side]] : null;
+    if (buy) tags.append(el('span', 'rtac buy', buy));
+    if (r.tac) tags.append(el('span', 'rtac', calloutText(r.tac)));
+    if (tags.children.length) row.appendChild(tags);
+    // eigene Zeile: Kills, Tod, Schaden (gleich gezählt wie K/D und ADR)
+    Object.entries(r.me || {}).filter(([sid]) => !me || sid === me).forEach(([sid, [k, d, dmg]]) => {
+      const who = me ? 'Du' : name(sid);
+      row.appendChild(el('div', 'rme num', `${who}: ${k} ${k === 1 ? 'Kill' : 'Kills'} · ${d ? 'gestorben' : 'überlebt'}`
+        + (dmg != null ? ` · ${dmg} Schaden` : '')));
+    });
     if (fs.length) {
       const ul = el('div', 'rf');
-      fs.slice(0, 3).forEach(f => ul.appendChild(el('div', 'ri ' + f.sev, f.title + (f.who ? ' · ' + f.who : ''))));
+      fs.slice(0, 3).forEach(f => { const cv = f.evidence && f.evidence.coach;
+        ul.appendChild(el('div', 'ri ' + f.sev, (cv ? cv.lesson : f.title.replace(/^Tod: /, '')) + (f.who && !me ? ' · ' + f.who : ''))); });
       if (fs.length > 3) ul.appendChild(el('div', 'ri more', '+' + (fs.length - 3) + ' weitere'));
       row.appendChild(ul);
     } else row.appendChild(el('div', 'rf quiet', 'Nichts aufgefallen'));
@@ -1843,7 +1938,7 @@ function story() {
   if (r.pro) { box.append(el('b', null, 'Pro-Szene: '), r.desc || ''); return; }
   const parts = [];
   const fk = r.kills.find(k => k.a && r.teams[k.a] !== r.teams[k.v]);
-  if (fk) parts.push(['Erster Kill', `${name(fk.a)} › ${name(fk.v)}${fk.pl ? ' (' + fk.pl + ')' : ''} ${fmt(fk.t)}`]);
+  if (fk) parts.push(['Erster Kill', `${name(fk.a)} › ${name(fk.v)}${fk.pl ? ' (' + callout(fk.pl) + ')' : ''} ${fmt(fk.t)}`]);
   const pl = r.bomb.find(b => b.ev === 'plant'); if (pl) parts.push(['Bombe', 'gelegt ' + fmt(pl.t)]);
   const df = r.bomb.find(b => b.ev === 'defuse'); if (df) parts.push(['Bombe', 'entschärft ' + fmt(df.t)]);
   const mine = r.kills.filter(k => isFocus(k.a) && r.teams[k.a] !== r.teams[k.v]).length;
@@ -1887,13 +1982,15 @@ else if (TOURS.all.length) { $('tourBtn').hidden = false; $('tourBtn').firstChil
 
 // ---- Training "Was machst du?": im Entscheidungsmoment anhalten, Option wählen, dann Auflösung
 const QOPTS = [['gehalten', 'Position halten'], ['zurückgezogen', 'Zurückziehen'], ['Richtung Gegner', 'Richtung Gegner gehen / peeken']];
-const QUIZ = D.findings.filter(f => f.rule === 'death_review' && f.evidence && f.evidence.snap && f.ov && f.ov.decision && f.evidence.aktion)
+// persönlich (window.__ME) nur die eigenen Szenen: die Karte spricht mit "du"
+const QUIZ = D.findings.filter(f => f.rule === 'death_review' && f.evidence && f.evidence.snap && f.ov && f.ov.decision && f.evidence.aktion
+                                   && (!window.__ME || f.sid === window.__ME))
   .sort((a, b) => (b.evidence.cost_pct || 0) - (a.evidence.cost_pct || 0)).slice(0, 10);
 function quizLage(f) {
   const s = f.evidence.snap, parts = [`${s.own} gegen ${s.enemy}`];
   if (s.hp != null) parts.push(`du ${s.hp} HP`);
   parts.push(s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt');
-  if (s.mate_d != null) parts.push(`nächster Mitspieler ${s.mate_d} Units weg`);
+  if (s.mate_d != null) parts.push(`nächster Mitspieler ${meters(s.mate_d)} weg`);
   return parts.join(' · ') + (f.evidence.info ? ' · ' + f.evidence.info.replace(/^Info: /, '') : '');
 }
 function quizShow(i) {
@@ -1989,7 +2086,7 @@ function sceneMap(f) {
     if (D.places) {
       g.font = `600 ${10 * u}px system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.lineWidth = 3 * u; g.strokeStyle = 'rgba(7,9,13,.7)'; g.fillStyle = 'rgba(235,240,250,.7)';
-      D.places.forEach(p => { g.strokeText(p.n, p.x, p.y); g.fillText(p.n, p.x, p.y); });
+      D.places.forEach(p => { const n = callout(p.n); g.strokeText(n, p.x, p.y); g.fillText(n, p.x, p.y); });
     }
     pts.forEach(o => {
       if (!o.mine && !reveal) return;
@@ -2022,7 +2119,7 @@ function dbBuild() {
       b.append(el('div', 'k', c.name), el('div', null, c.title));
       b.firstChild.style.color = 'var(--muted)'; b.lastChild.style.cssText = 'font:800 22px var(--cond);text-transform:uppercase';
       b.append(el('div', null, (c.drills != null ? (c.drills ? `Vorher ${c.drills}x geübt. ` : 'Vorher nicht geübt. ') : '')
-                               + `Heute ${c.count}x in ${c.rounds} Runden. Das sind ${String(c.rate).replace('.', ',')} pro 10 Runden, Ziel höchstens ${String(c.target).replace('.', ',')}.`));
+                               + `Heute ${c.count} solche Tode in ${c.rounds} Runden. Ziel war höchstens ${Math.floor(c.target * c.rounds / 10)}.`));
       b.append(el('div', 'stamp ' + (c.met ? 'ok' : c.met == null ? '' : 'no'), c.mastered ? 'Gemeistert' : c.met == null ? 'Zu wenig Runden' : c.met ? `Geschafft · ${c.streak}/${c.need}` : 'Nicht geschafft'));
       d.appendChild(b);
     });
@@ -2048,7 +2145,7 @@ function dbBuild() {
     if (ev && ev.snap && ev.aktion) st.push(() => {
       const d = el('div'), s = ev.snap; d.append(el('div', 'k', `Deine Szene · R${sc.round} · erst entscheiden`), el('h3', null, 'Was machst du?'));
       const parts = [`${s.own} gegen ${s.enemy}`, s.hp != null ? (s.hp >= 100 ? 'volle HP' : s.hp + ' HP') : null,
-                     s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt', s.mate && s.mate_d != null ? `${s.mate} ${s.mate_d} Units weg` : null].filter(Boolean);
+                     s.planted ? 'Bombe liegt' : 'Bombe nicht gelegt', s.mate && s.mate_d != null ? `${s.mate} ${meters(s.mate_d)} weg` : null].filter(Boolean);
       const map = sceneMap(f); if (map) d.appendChild(map);
       d.appendChild(el('p', null, parts.join(' · ') + (ev.info ? ' · ' + ev.info.replace(/^Info: /, '') : '')));
       const opts = el('div'); let done = false;
@@ -2111,7 +2208,8 @@ function dbBuild() {
       const b = el('div', 'box');
       b.append(el('div', 'k', n.name + (n.new ? ' · neuer Auftrag' : ' · Auftrag bleibt')), el('div', 'mantra', '„' + n.mantra + '“'));
       b.firstChild.style.color = 'var(--muted)'; b.lastChild.style.marginTop = '4px';
-      b.appendChild(el('p', null, n.title + ': höchstens ' + String(n.target).replace('.', ',') + 'x pro 10 Runden.')).style.marginTop = '6px';
+      const nr = D.rounds.filter(r => !r.pro).length;
+      b.appendChild(el('p', null, `${n.title}: im nächsten Match höchstens ${Math.floor(n.target * nr / 10)} solche Tode (bei ${nr} Runden wie heute).`)).style.marginTop = '6px';
       // Auftrag weicht vom heutigen Hauptpunkt ab: sagen, warum (der Auftrag läuft über mehrere Matches)
       if (DB.lesson && n.lesson !== DB.lesson.id && !n.new)
         b.appendChild(el('p', 'quiet', `Heute war „${DB.lesson.title}“ der wichtigste Punkt. Dein Auftrag bleibt trotzdem „${n.title}“, bis er über mehrere Matches sitzt.`));
