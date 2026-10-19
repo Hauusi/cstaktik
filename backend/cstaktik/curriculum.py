@@ -61,7 +61,7 @@ TEACH: dict[str, dict] = {
         ]},
     },
     "utility": {
-        "fault": "Ein Tod, obwohl du noch Flash, Smoke oder Molotov dabei hattest.",
+        "fault": "Ein Tod, obwohl du noch eine Flash oder Molotov dabei hattest.",
         "principle": ("Granaten machen ein faires Duell unfair, zu deinen Gunsten. Wer mit Granaten stirbt, "
                       "hat bezahlt und nichts bekommen."),
         "mantra": "Granate raus, bevor du rausgehst.",
