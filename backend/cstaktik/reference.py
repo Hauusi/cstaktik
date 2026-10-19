@@ -408,19 +408,21 @@ def pro_clips(match: MatchData, findings: list[Finding], pro_matches: list[Match
                           "t0": max(pr.freeze_end_tick, moment - CLIP_BEFORE_S * ptr),
                           "t1": min(pr.end_tick, moment + CLIP_AFTER_S * ptr)})
         pname = next((p.name for p in pm.players if p.steamid == sid), "Pro")
-        mm, ss = divmod(int((moment - pr.freeze_end_tick) / pm.tickrate), 60)
+        from cstaktik.callouts import clock as _gclock, place as _pl
+
+        when = _gclock((moment - pr.freeze_end_tick) / pm.tickrate)  # Uhr im Spiel (Pro-Szenen liegen vor dem Plant)
         did = ["überlebt"]
         if info["nades"]:
             did.append("vorher " + ", ".join(NADE_NAMES[k] for k in info["nades"]) + " geworfen")
         if info["dir_kills"]:
-            did.append(f"tötet {info['dir_kills']} Gegner aus {aplace}")
+            did.append(f"tötet {info['dir_kills']} Gegner aus {_pl(aplace)}")
         if info["kills"] > info["dir_kills"]:
             n = info["kills"] - info["dir_kills"]
             did.append(f"{n} weitere{'r' if n == 1 else ''} Kill{'s' if n != 1 else ''}")
         if info["team_kills"]:
-            did.append(f"Team tötet {info['team_kills']} aus {aplace}")
-        f.evidence["pro_clip"] = (f"{pname} ({side.upper()}) in {place} um {mm}:{ss:02d}. Der Gegner kam wie bei dir "
-                                  f"aus {aplace}. Runde gewonnen: " + ", ".join(did) + ".")
+            did.append(f"Team tötet {info['team_kills']} aus {_pl(aplace)}")
+        f.evidence["pro_clip"] = (f"{pname} ({side.upper()}) in {_pl(place)} bei {when}. Der Gegner kam wie bei dir "
+                                  f"aus {_pl(aplace)}. Runde gewonnen: " + ", ".join(did) + ".")
         clips[keys[key]].setdefault("desc", f.evidence["pro_clip"])
         f.overlay["pro_clip"] = keys[key]
         f.overlay["pro_tick"] = moment

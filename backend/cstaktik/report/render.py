@@ -302,6 +302,12 @@ def build_payload(match: MatchData, result: AnalysisResult, maps_dirs: list[Path
     }
 
 
+def _with_sid(lines: list[str], match: MatchData) -> list[dict]:
+    """Lob-Zeilen ("Name: ...") mit SteamID, damit die persönliche Ansicht nur die eigenen zeigt."""
+    by_name = {p.name: p.steamid for p in match.players}
+    return [{"sid": by_name.get(t.split(":", 1)[0]), "text": t} for t in lines]
+
+
 def _setups(match: MatchData) -> dict | None:
     from cstaktik import pipeline, pro, setups
 
@@ -443,6 +449,101 @@ def _duel_cmp(match: MatchData) -> dict | None:
     return {"players": list(rows.values()), "pro": pr}
 
 
+AIM_LOW_GAP = 10  # Prozentpunkte mehr Duelle mit zu tiefem Fadenkreuz als Pros
+AIM_ERR_GAP = 1.5  # Grad mehr Abstand zum Kopf als Pros
+AIM_HIT_GAP = 8  # Prozentpunkte weniger "erste Kugel trifft" als Pros
+AIM_MIN_DUELS = 15
+
+
+def _aim(match: MatchData, duel_cmp: dict | None) -> list[dict]:
+    """Je Fokus-Spieler ein konkreter Aim-Tipp, nur wenn seine Duell-Werte klar schlechter sind als die der Pros,
+    mit den Runden, in denen genau das ihn das Duell gekostet hat (verlorene Duelle mit diesem Fehler)."""
+    from cstaktik import duels
+
+    if not duel_cmp or not duel_cmp.get("pro"):
+        return []
+    pro, out = duel_cmp["pro"], []
+    for d in duel_cmp["players"]:
+        if (d.get("n") or 0) < AIM_MIN_DUELS:
+            continue
+        sid = d["sid"]
+        lost = [(x, duels.side_of(x, sid, match.tickrate)) for x in match.duels if x.loser == sid]
+        tip = None
+        if d.get("low_pct") is not None and pro.get("low_pct") is not None and d["low_pct"] - pro["low_pct"] >= AIM_LOW_GAP:
+            rounds = [x.round for x, v in lost if v.get("height") is not None and v["height"] > 2
+                      and v.get("err") is not None and v["err"] <= 20]
+            tip = {"title": "Fadenkreuz zu tief",
+                   "fact": f"In {d['low_pct']} % deiner Duelle lag das Fadenkreuz mehr als 2° unter dem Kopf. Pros: {pro['low_pct']} %.",
+                   "drill": "Prefire-Map deiner Map, 10 Minuten: Laufe jede Ecke ab und halte das Fadenkreuz dabei auf "
+                            "Kopfhöhe an der Kante. Nie auf den Boden schauen.",
+                   "rounds": rounds}
+        elif d.get("err") is not None and pro.get("err") is not None and d["err"] - pro["err"] >= AIM_ERR_GAP:
+            rounds = [x.round for x, v in lost if v.get("err") is not None and v["err"] >= 10]
+            tip = {"title": "Fadenkreuz neben dem Gegner",
+                   "fact": f"Beim Duellstart lag dein Fadenkreuz im Mittel {_de1(d['err'])}° neben dem Kopf. Pros: {_de1(pro['err'])}°.",
+                   "drill": "Prefire-Map, 10 Minuten: Vor jeder Ecke das Fadenkreuz auf die Kante legen, auf Kopfhöhe. "
+                            "Erst dann um die Ecke gehen.",
+                   "rounds": rounds}
+        elif (d.get("first_hit") is not None and pro.get("first_hit") is not None
+              and pro["first_hit"] - d["first_hit"] >= AIM_HIT_GAP):
+            moving = (d.get("moving_pct") or 0) >= 30
+            rounds = [x.round for x, v in lost if v.get("hit") is False]
+            tip = {"title": "Erste Kugel trifft zu selten",
+                   "fact": f"Deine erste Kugel trifft in {d['first_hit']} % der Duelle. Pros: {pro['first_hit']} %."
+                           + (f" {d['moving_pct']} % deiner ersten Schüsse kamen aus der Bewegung." if moving else ""),
+                   "drill": ("Deathmatch, 10 Minuten: nur schießen, wenn du stehst. Gegenrichtung tippen (Counter-Strafe), "
+                             "dann ein Schuss auf den Kopf." if moving else
+                             "Deathmatch, 10 Minuten: nur Kopfschüsse, nur die erste Kugel zählt. Danach kurz absetzen."),
+                   "rounds": rounds}
+        if tip:
+            tip["rounds"] = sorted(set(tip["rounds"]))[:6]
+            out.append({"sid": sid, "name": d["name"], **tip})
+    return out
+
+
+def _util_by(match: MatchData) -> dict:
+    from cstaktik.history import util_stats
+
+    return util_stats(match)
+
+
+def _de1(x: float) -> str:
+    return f"{x:.1f}".replace(".", ",")
+
+
+def _round_lines(match: MatchData) -> dict:
+    """Je Runde: Kauf je Seite (Pistole/Eco/Force/Full, wie im Playbook) und je Fokus-Spieler [Kills, Tod, Schaden]."""
+    from cstaktik import history, playbook
+
+    cfg = load_rules_config().get("playbook")
+    buys = {}
+    for r in match.rounds:
+        eq = {sd: [e.equip_value for e in r.economy if e.side == sd and e.equip_value is not None] for sd in ("t", "ct")}
+        buys[r.num] = {sd: playbook.buy_of(sum(v) if len(v) >= 4 else None, r.num in (1, 13), cfg) for sd, v in eq.items()}
+    me: dict[int, dict] = defaultdict(dict)
+    for sid, rows in history.by_round(match).items():
+        for n, _side, _won, k, d, dmg in rows:
+            me[n][sid] = [k, d, dmg]
+    return {"buy": buys, "me": me}
+
+
+def _spots(result: AnalysisResult) -> list[dict]:
+    """Gleicher Todesort, je Spieler zusammengefasst: "4x als T in Apartments (R5, 7, 9, 11)", häufigste zuerst."""
+    from cstaktik.callouts import place
+
+    per: dict[str, dict] = {}
+    for f in result.findings:
+        if f.rule_id != "repeated_death_spot" or not f.steamid:
+            continue
+        e = per.setdefault(f.steamid, {"sid": f.steamid, "name": f.player_name, "rows": []})
+        ev = f.evidence
+        e["rows"].append({"n": ev["tode"], "side": (ev.get("seite") or "").upper(), "place": place(ev["ort"]),
+                          "rounds": ev["runden"]})
+    for e in per.values():
+        e["rows"].sort(key=lambda x: (-x["n"], x["rounds"]))
+    return sorted(per.values(), key=lambda e: e["name"] or "")
+
+
 def _debrief_lesson(match: MatchData, l0: dict, sid: str | None = None, bright: list[dict] | None = ...) -> dict:
     t = TEACH[l0["id"]]
     if bright is ...:
@@ -580,6 +681,11 @@ def build_context(
         if not ro.get("pro") and tac_now and ro.get("n") in tac_now["tags"]:
             ro["tac"] = tac_now["tags"][ro["n"]]
     imp = _impact(match, result)
+    lines = _round_lines(match)
+    for ro in payload["rounds"]:  # Runden-Reiter: Kauf und eigene Zeile
+        if not ro.get("pro") and ro.get("n") in lines["buy"]:
+            ro["buy"] = lines["buy"][ro["n"]]
+            ro["me"] = lines["me"].get(ro["n"], {})
     if result.impact:  # Siegchance-Verlauf je Runde aus Sicht der Fokus-Seite (Linie im Replay)
         for ro in payload["rounds"]:
             rd = result.impact["rounds"].get(ro.get("n")) if not ro.get("pro") else None
@@ -591,8 +697,12 @@ def build_context(
         "map_label": match.map_name.removeprefix("de_").capitalize() if match.map_name else "Unbekannte Map",
         "score": {"won": won, "lost": lost},
         "top": _top_issues(result),
-        "patterns": [f for f in result.findings if f.round is None and f.severity != "gut"],
-        "unevaluated": [s for s in result.rule_status if not s.evaluated],
+        # Muster: "Gleicher Todesort" steht zusammengefasst je Spieler (spots), "Tod ohne Schaden" nicht: dieselbe Idee
+        # zeigt die Mechanik als "Tode ohne Schuss" (eine Definition, einmal gezeigt)
+        "patterns": [f for f in result.findings if f.round is None and f.severity != "gut"
+                     and f.rule_id not in ("repeated_death_spot", "no_damage_death")],
+        # abgeschaltete Regeln sind keine Datenlücke
+        "unevaluated": [s for s in result.rule_status if not s.evaluated and s.reason != "deaktiviert"],
         "radar_note": radar_note,
         "debrief": debrief,
         "lessons": lessons,
@@ -603,7 +713,13 @@ def build_context(
         "intro": coach_voice.intro(won, lost, (match.map_name or "?").removeprefix("de_").capitalize(), point),
         "memory": memory,
         "focus": None,
-        "duel_cmp": _duel_cmp(match),
+        "duel_cmp": (dc := _duel_cmp(match)),
+        "aim": _aim(match, dc),
+        # Utility je Spieler (gleiche Werte wie im Verlauf und in der Match-Story): [(sid, flash, pre)]
+        "util_by": [(sid, v.get("flash"), v.get("pre")) for sid, v in sorted(_util_by(match).items())],
+        "spots": _spots(result),
+        "death_phrase": coach_voice.DEATH_PHRASE,
+        "deaths_by": {st.steamid: st.deaths for st in result.stats},
         "util_cmp": _util_cmp(match),
         "tactics": tac_now,
         "impact": imp,
@@ -613,8 +729,8 @@ def build_context(
         "goal_cfg": load_rules_config()["goals"],
         "teach": TEACH,
         "bright": {lid: bright_spots(match, lid, _trade_units()) for lid in {l["id"] for l in point[:1]}},
-        "praise": coach_voice.praise(result.findings) + coach_voice.strengths(
-            _duel_now(match), {p.steamid: p.name for p in match.players}, past or []),
+        "praise": _with_sid(coach_voice.praise(result.findings) + coach_voice.strengths(
+            _duel_now(match), {p.steamid: p.name for p in match.players}, past or []), match),
         "goal_check": goal_check,
         "mech_cfg": load_rules_config()["mechanics"],
         "n_findings": sum(1 for f in result.findings if f.severity != "gut"),

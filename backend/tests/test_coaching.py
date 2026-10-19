@@ -37,7 +37,7 @@ def test_bright_spots_trade_range_and_flash_kill():
     m.kills.append(Kill(tick=t, round=r.num, attacker_steamid=ME, attacker_name="Ich", attacker_side="ct",
                         victim_steamid=ENEMIES[3], victim_name="Gegner4", victim_side="t", victim_place="SynthA"))
     spots = coaching.bright_spots(m, "alone")
-    assert spots and spots[0]["round"] == r.num and "mit Bruder 300 Units daneben" in spots[0]["text"]
+    assert spots and spots[0]["round"] == r.num and "mit Bruder 7,6 m daneben" in spots[0]["text"]
 
     m.grenades.append(GrenadeThrow(round=r.num, entity_id=5, thrower_steamid=ME, grenade_type="Flashbang", kind="flash",
                                    points=[(t - 2 * TR, 0, 0, 0), (t - TR, 100, 0, 0)]))
@@ -179,7 +179,7 @@ def test_bright_spots_from_duels_and_honest_none():
     assert "zuerst (0,8 s früher)" in coaching.bright_spots(m, "seen_first")[0]["text"]
     spots = coaching.bright_spots(m, "crosshair")
     assert spots and "Fadenkreuz 3,5° neben dem Gegner, zuerst geschossen" in spots[0]["text"]
-    assert "steht beim ersten Schuss (10 Units/s)" in coaching.bright_spots(m, "moving")[0]["text"]
+    assert "steht beim ersten Schuss still" in coaching.bright_spots(m, "moving")[0]["text"]
     assert coaching.bright_spots(m, "blind") is None  # keine Suche für diese Lektion
     assert coaching.bright_spots(m, "crosshair", sid=ME) == []  # nur Szenen dieses Spielers
 

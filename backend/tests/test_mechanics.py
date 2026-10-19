@@ -41,7 +41,7 @@ def test_death_review_uses_shot_facts():
     m = _match()
     cfg = {**CFG["rules"]["death_review"], "mech": M}
     f = {x.round: x for x in death_review.run(m, cfg)}
-    assert "letzter Schuss im Laufen (200 Units/s)" in f[2].evidence["lage"]
+    assert "letzter Schuss im Laufen (5,1 m/s)" in f[2].evidence["lage"]
     assert "Im Laufen geschossen" in [f[2].title.removeprefix("Tod: ")] + f[2].evidence["weitere_punkte"]
     assert "kein eigener Schuss vor dem Tod" in f[3].evidence["lage"]
 
@@ -109,7 +109,7 @@ def test_crosshair_lesson_and_duel_sentence():
                                                                       "hit": False, "speed": 160}}
     assert lesson_id(fx) == "crosshair"
     assert _duel_sentence(fx) == ("Beim Duellstart lag dein Fadenkreuz 31° neben Blackwell. Seins lag 4° neben dir. "
-                                  "Dein erster Schuss kam 250 ms nach seinem. Du warst dabei mit 160 Units/s unterwegs.")
+                                  "Dein erster Schuss kam 250 ms nach seinem. Du warst dabei mit 4,1 m/s unterwegs.")
     # eigener (verfehlter) Schuss vor dem Kontakt: keine Reaktionszeit, kein "nach seinem"
     early = {**fx, "duel": {**fx["duel"], "early_shot": True}}
     assert "nach seinem" not in _duel_sentence(early) and "zuerst geschossen" not in _duel_sentence(early)
@@ -223,7 +223,7 @@ def test_why_follows_the_data_not_assumed_intent():
 
     fx = {"attacker": "G1", "aplace": "Palace", "mate": "Bruder", "mate_dist": 1400}
     held = {"kind": "gehalten"}
-    assert _why("alone", fx, held, "gehalten").startswith("Du hast allein gehalten. Bruder war 1400 Units weg.")
+    assert _why("alone", fx, held, "gehalten").startswith("Du hast allein gehalten. Bruder war 36 m weg.")
     # steht der Abstand schon im Lage-Satz, wird er nicht wiederholt
     assert _why("alone", fx, {**held, "mate_d": 1400}, "gehalten").startswith("Du hast allein gehalten. Nach")
     assert "peeken" not in _next("alone", fx, held, "gehalten")

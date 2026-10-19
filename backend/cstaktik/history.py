@@ -93,6 +93,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
                                                    "spray_early_pct", "spray_late_pct", "shots")}
                  for m in debrief["mechanics"]},
         "deaths": death_rows(match),
+        "by_round": by_round(match),  # je Fokus-Spieler und Runde: Seite, gewonnen, Kills, Tod, Schaden (Story, T/CT)
         "floor": [[i, j, c] for (i, j), c in floor.items()],
         "timeline": timeline(match),  # Ortsname je 5 s Rundenzeit (Vorbild aus Siegrunden)
     }
@@ -126,6 +127,29 @@ def death_rows(match: MatchData, trade_window_s: float = 3.0) -> list[dict]:
                     # von wo der Killer schoss (Map-Buch: Winkel zum Vorzielen)
                     **({"ax": round(k.attacker_pos.x), "ay": round(k.attacker_pos.y), "aplace": k.attacker_place}
                        if k.attacker_pos is not None and k.attacker_side != k.victim_side else {})})
+    return out
+
+
+def by_round(match: MatchData) -> dict[str, list[list]]:
+    """Je Fokus-Spieler und Runde: [Runde, Seite, gewonnen, Kills, gestorben (0/1), Schaden an Gegnern]. Gezählt wie
+    stats.player_stats (Kills ohne Teamkills, Schaden nur an Gegnern), damit die Summen zu K/D und ADR passen."""
+    from cstaktik.mechanics import is_teamkill
+
+    out: dict[str, list[list]] = {}
+    for sid in sorted(match.focus_ids()):
+        rows = []
+        for r in match.rounds:
+            side = r.sides.get(sid)
+            if side is None:
+                continue
+            k = sum(1 for x in match.kills if x.round == r.num and x.attacker_steamid == sid
+                    and not is_teamkill(match, x))
+            d = sum(1 for x in match.kills if x.round == r.num and x.victim_steamid == sid)
+            dmg = sum(x.dmg for x in match.damages if x.round == r.num and x.attacker_steamid == sid
+                      and x.victim_steamid != sid and r.sides.get(x.victim_steamid) != side)
+            rows.append([r.num, side, None if r.winner is None else r.winner == side, k, d,
+                         dmg if match.damages else None])
+        out[sid] = rows
     return out
 
 
@@ -246,7 +270,9 @@ def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None
                     "map": map_name, "snap": ev["snap"], "info": ev.get("info"), "aktion": ev["aktion"],
                     "pro_rates": ev.get("pro_rates"), "pro_best": ev.get("pro_best"), "cost": ev.get("cost_pct"),
                     "happened": v["happened"], "next": v["next"], "pos": (ev.get("f") or {}).get("vpos"),
-                    "frame": ev.get("frame")})
+                    "frame": ev.get("frame"),
+                    "nades": (ev.get("f") or {}).get("nades"),  # Granaten im Inventar beim Tod (Beleg)
+                    "own": (ev.get("f") or {}).get("own"), "enemy": (ev.get("f") or {}).get("enemy")})
     return out
 
 

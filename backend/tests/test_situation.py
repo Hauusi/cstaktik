@@ -200,8 +200,8 @@ def test_coach_voice_scene_and_focus():
     coach_voice.apply([f])
     v = f.evidence["coach"]
     assert v["id"] in coach_voice.LESSONS and v["lesson"] == coach_voice.LESSONS[v["id"]][0]
-    assert v["happened"].startswith("Bei 0:14 gehst du in SynthA los: 4 gegen 5, nur 20 HP, Bruder 2050 Units weg.")
-    assert "Gegner1 aus SynthPalace" in v["happened"]
+    assert v["happened"].startswith("Bei 1:41 gehst du in Synth A los: 4 gegen 5, nur 20 HP, Bruder 52 m weg.")
+    assert "Gegner1 aus Synth Palace" in v["happened"]
     foc = coach_voice.focus([f, f])
     assert foc[0]["count"] == 2 and foc[0]["lesson"] == v["lesson"]
     assert coach_voice.headline(foc).startswith("Woran ihr heute am häufigsten gestorben seid: ")

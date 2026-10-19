@@ -155,9 +155,9 @@ def test_death_review_facts_and_tip_priority():
     assert "5 gegen 5 (erstes Duell der Runde)" in lage and "geblendet 1,8 s von Gegner1, 0,5 s vor dem Tod" in lage
     assert "37 HP vor dem Duell (vorher 63 durch Molotov von Gegner1)" in lage
     assert r2.title == "Tod: Geblendet" and r2.severity == "hoch"  # Blendung hat Vorrang
-    assert r2.text.startswith("Ich stirbt bei 0:20 in SynthMid mit 37 HP, geblendet, gegen Gegner1 (AK-47)")
+    assert r2.text.startswith("Ich stirbt bei 1:35 in Synth Mid mit 37 HP, geblendet, gegen Gegner1 (AK-47)")
     assert "Allein, kein Trade" in r2.evidence["weitere_punkte"] and "Utility nicht genutzt" in r2.evidence["weitere_punkte"]
-    assert r2.overlay["line"] and "Units zu" in r2.overlay["label"]
+    assert r2.overlay["line"] and "m zu Bruder" in r2.overlay["label"]
     # Runde 3: Bruder 200 Units daneben -> nicht allein
     assert all("Allein" not in p for p in f[3].evidence["weitere_punkte"]) and "Allein" not in f[3].title
     # Runde 4: allein, aber Bruder tradet -> kein "Allein, kein Trade"
@@ -177,5 +177,5 @@ def test_death_review_concrete_tips_and_no_fake_outnumbered():
     assert "Unterzahl" not in [f.title.removeprefix("Tod: ")] + f.evidence["weitere_punkte"]
     assert "Teams 4 gegen 5 von Anfang an" in f.evidence["lage"][0]
     # Haupttipp nennt die echte Person/Entfernung statt Standardsatz
-    assert f.title == "Tod: Allein, kein Trade" and "Units weg" in f.tip and "Bruder" in f.tip
+    assert f.title == "Tod: Allein, kein Trade" and "110 m weg" in f.tip and "Bruder" in f.tip
     assert "Utility nicht genutzt" in f.evidence["weitere_punkte"]
