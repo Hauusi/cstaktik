@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}{{ t.title }}{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}
+<style>
+/* Lektionsseite: eine Seite in fünf Teilen, von oben nach unten zu lesen. */
+.back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
+.state { margin-top: 10px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); font-size: 15px; line-height: 1.5; }
+.state.aktuell { border-color: rgba(255,159,28,.5); }
+.state .chip { display: inline-block; margin-bottom: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.state .chip.geschafft { background: rgba(63,191,127,.16); border-color: transparent; color: #6fe0a6; }
+.state .chip.aktuell { background: var(--orange); border-color: transparent; color: #111; }
+.state .chip.sitzt { border-color: rgba(63,191,127,.45); color: #6fe0a6; }
+.state .chip.baustelle { border-color: rgba(255,159,28,.45); color: var(--orange); }
+.state p { margin: 0; } .state p + p { margin-top: 6px; } .state a { color: var(--orange); font-weight: 700; }
+.part { margin-top: 26px; scroll-margin-top: 70px; }
+.part > h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-size: 13px; color: var(--text); }
+.part > h2 span { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--orange); color: #111;
+  font-size: 12px; letter-spacing: 0; flex: none; }
+.prose p { margin: 0; font-size: 15.5px; line-height: 1.55; } .prose p + p, .prose h3 + p, .prose p + h3, .prose ol + h3 { margin-top: 12px; }
+.prose h3 { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.prose ol { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 6px; font-size: 15.5px; line-height: 1.5; }
+.mantra-q { margin-top: 12px; padding-left: 12px; border-left: 3px solid var(--orange); font-size: 16px; font-weight: 650; }
+.scene { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.scene + .scene { margin-top: 10px; }
+.scene b { display: block; font-size: 14.5px; } .scene p { margin: 6px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--muted); }
+.scene a { display: inline-flex; align-items: center; min-height: 40px; margin-top: 4px; color: var(--orange); font-weight: 700; font-size: 14.5px; }
+.scene.pro { border-color: rgba(157,180,224,.35); } .scene.pro b { color: #9db4e0; }
+.note { font-size: 14.5px; color: var(--muted); line-height: 1.5; margin: 0; }
+.drill { padding: 16px; border-radius: 16px; border: 1px solid rgba(255,159,28,.4); background: var(--surface); }
+.drill .dn { font-family: var(--cond); font-weight: 800; font-size: 22px; line-height: 1.1; text-transform: uppercase; }
+.drill .dm { margin: 6px 0 0; font-size: 14.5px; color: var(--muted); line-height: 1.45; }
+.drill ol { margin: 10px 0 0; padding-left: 22px; display: grid; gap: 6px; font-size: 15px; line-height: 1.5; }
+.drill .dd { margin: 10px 0 0; font-size: 14.5px; line-height: 1.45; }
+.drill form { margin-top: 14px; }
+.drill .ok { margin: 10px 0 0; font-size: 14px; color: #6fe0a6; }
+.lus { margin-top: 12px; display: grid; gap: 6px; }
+.lus a { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--line); font-size: 14.5px; }
+.lus a i { font-style: normal; color: var(--orange); font-weight: 800; }
+.more { display: inline-flex; align-items: center; min-height: 40px; margin-top: 8px; color: var(--orange); font-weight: 700; font-size: 14px; }
+.btn2 { width: 100%; min-height: 48px; border: 0; border-radius: 12px; background: var(--orange); color: #111; font: inherit; font-weight: 800; font-size: 15.5px; cursor: pointer; }
+.pchk { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.pchk p { margin: 0; font-size: 15px; line-height: 1.5; } .pchk p + p { margin-top: 8px; }
+.pchk .src { margin-top: 8px; font-size: 12px; color: var(--faint); }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>{{ t.title }}</h1>
+<p>{% if t.goal %}{{ t.goal }}{% elif t.stage %}Eine Lektion aus der Stufe {{ t.stage }}.{% endif %}</p>
+{% endblock %}
+{% block content %}
+{% if tabs %}<div class="ptabs">{% for x in tabs %}<a href="/kurs/{{ lesson }}?p={{ x.sid }}" class="{{ 'on' if x.on }}">{{ x.name }}</a>{% endfor %}</div>{% endif %}
+<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Kurs</a>
+
+{% if row %}
+<div class="state {{ row.status }}" data-block="status">
+  <span class="chip {{ row.status }}">{{ row.chip }}</span>
+  {% if row.status == "aktuell" %}
+  <p>Das ist deine aktuelle Lektion{% if t.stage %} in der Stufe {{ t.stage }}{% endif %}. {{ current.progress }}</p>
+  {% elif row.status == "geschafft" %}
+  <p>Diese Lektion hast du schon geschafft. Hier kannst du sie jederzeit auffrischen.</p>
+  {% elif row.status == "sitzt" %}
+  <p>Laut {{ "deinem letzten Match" if pl.matches == 1 else "deinen letzten " ~ pl.matches ~ " Matches" }} sitzt diese Lektion schon. Der Fehler kam {{ "einmal" if pl.n == 1 else "keinmal" if pl.n == 0 else pl.n ~ " Mal" }} in {{ pl.rounds }} Runden vor, das sind {{ pl.rate|string|replace(".", ",") }} pro 10 Runden. Bis {{ pl.threshold|string|replace(".", ",") }} gilt sie als sitzend.</p>
+  {% elif row.status == "baustelle" %}
+  <p>Diese Lektion kommt noch. In {{ "deinem letzten Match" if pl.matches == 1 else "deinen letzten " ~ pl.matches ~ " Matches" }} kam der Fehler {{ pl.n }} Mal in {{ pl.rounds }} Runden vor, das sind {{ pl.rate|string|replace(".", ",") }} pro 10 Runden. Der Kurs nimmt sie dran, sobald die Lektionen davor sitzen.</p>
+  {% if current %}<p>Gerade dran ist <a href="/kurs/{{ current.id }}{% if tabs %}?p={{ sid }}{% endif %}">{{ current.title }}</a>.</p>{% endif %}
+  {% else %}
+  <p>Für diese Lektion reichen deine Daten noch nicht. Bisher hat der Coach {{ pl.rounds }} Runden von dir gezählt{% if pl.n %}, darin kam der Fehler {{ pl.n }} Mal vor{% endif %}. Für eine Einstufung braucht er etwa ein volles Match mehr.</p>
+  {% endif %}
+</div>
+{% endif %}
+
+{# 1. Verstehen #}
+<section class="part prose" id="verstehen" data-part="verstehen">
+  <h2><span>1</span>Verstehen</h2>
+  {% if t.what %}<p>{{ t.what }}</p>{% endif %}
+  {% if t.why %}<h3>Warum das Runden gewinnt</h3><p>{{ t.why }}</p>{% endif %}
+  {% if t.spot %}<h3>Woran du es im Match merkst</h3><p>{{ t.spot }}</p>{% endif %}
+  {% if t.how %}<h3>So machst du es richtig</h3><ol>{% for x in t.how %}<li>{{ x }}</li>{% endfor %}</ol>{% endif %}
+  {% if t.mantra %}<div class="mantra-q">„{{ t.mantra }}“</div>{% endif %}
+</section>
+
+{# 2. Bei dir #}
+{% if row %}
+<section class="part" id="bei-dir" data-part="bei-dir">
+  <h2><span>2</span>Bei dir</h2>
+  {% for sc in own %}
+  <div class="scene">
+    <b>{{ sc.where }}</b>
+    {% if sc.text %}<p>{{ sc.text }}</p>{% endif %}
+    <a href="{{ sc.href }}">Szene im Replay ansehen ›</a>
+  </div>
+  {% else %}
+  <p class="note">In deinen Matches gibt es noch keine Szene zu dieser Lektion. Sobald der Fehler vorkommt, siehst du ihn hier.</p>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# 3. Bei den Pros: nur mit Pro-Daten #}
+{% if pros %}
+<section class="part" id="pros" data-part="pros">
+  <h2><span>3</span>Bei den Pros</h2>
+  {% for x in pros %}
+  <div class="scene pro">
+    <b>{{ "Dieselbe Lage in einer Pro-Demo" if x.clip else "So spielen Pros diese Lage" }}</b>
+    <p>{{ x.text }}</p>
+    <p>Deine Szene dazu: {{ x.where }}</p>
+    <a href="{{ x.href }}">{{ "Im Report mit Pro-Lösung ansehen ›" if x.clip else "Szene im Report ansehen ›" }}</a>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{# 4. Üben #}
+<section class="part" id="ueben" data-part="ueben">
+  <h2><span>{{ 4 if pros else 3 if row else 2 }}</span>Üben</h2>
+  {% if t.drill %}{% set d = t.drill %}
+  <div class="drill">
+    <div class="dn">{{ d.name }}</div>
+    {% if d.minutes %}<p class="dm">Plane dafür etwa {{ d.minutes }} Minuten ein.</p>{% endif %}
+    {% if d.where %}<p class="dm"><b>Wo:</b> {{ d.where|trim(".") }}.</p>{% endif %}
+    <ol>{% for st in d.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+    {% if d.done %}<p class="dd"><b>Die Übung sitzt, wenn:</b> {{ d.done }}</p>{% endif %}
+    {% if sid %}
+    <form action="/training/done?p={{ sid }}&lesson={{ lesson }}&back=kurs" method="post"><button class="btn2" type="submit">Übung gemacht</button></form>
+    {% if ticked %}<p class="ok">Eingetragen. Der Coach vergleicht später, ob der Fehler nach Übungen seltener wird.</p>
+    {% elif drills %}<p class="dm">Du hast diese Übung bisher {{ "einmal" if drills == 1 else drills ~ " Mal" }} eingetragen.</p>{% endif %}
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="note">Für diese Lektion gibt es noch keine feste Übung.</p>
+  {% endif %}
+  {% if extras %}
+  <p class="note" style="margin-top:14px">Diese Lektion hat viel mit Granaten zu tun. Diese Lineups passen zu deinen Spots auf {{ extras.map_label }}:</p>
+  {% if extras.lineups %}<div class="lus">{% for lu in extras.lineups %}<a href="{{ lu.href }}"><span>{{ lu.label }}{% if lu.side %} ({{ lu.side }}){% endif %}</span><i>›</i></a>{% endfor %}</div>{% endif %}
+  <a class="more" href="{{ extras.mapbook }}">Map-Buch {{ extras.map_label }} öffnen ›</a>
+  {% endif %}
+  {% if sid %}<div><a class="more" href="/training?p={{ sid }}">Alle Übungen und der Wochenplan ›</a></div>{% endif %}
+</section>
+
+{# 5. Prüfen #}
+{% if row %}
+<section class="part" id="pruefen" data-part="pruefen">
+  <h2><span>{{ 5 if pros else 4 }}</span>Prüfen</h2>
+  <div class="pchk">
+    {% if t.measure %}<p class="muted">{% if t.measure_fault %}Der Coach zählt jeden solchen Fehler in deinen Matches. Gemeint ist: {{ t.measure[:1]|lower }}{{ t.measure[1:] }}{% else %}{{ t.measure }}{% endif %}</p>{% endif %}
+    {% if trend %}
+    <svg class="achart" viewBox="0 0 300 74" role="img" aria-label="Fehler pro 10 Runden je Match, die Linie ist {{ 'dein Ziel' if focus else 'die Grenze' }}">
+      {% set w = 300 / 7 %}
+      <line x1="0" x2="300" y1="{{ 60 - 52 * target / top }}" y2="{{ 60 - 52 * target / top }}" class="goal"/>
+      <text x="298" y="{{ 60 - 52 * target / top - 3 }}" class="lbl end">{{ "Ziel" if focus else "Grenze" }} {{ target|string|replace(".", ",") }}</text>
+      {% for m in trend %}{% set h = 52 * m.rate / top %}
+      <rect x="{{ loop.index0 * w + 6 }}" y="{{ 60 - h }}" width="{{ w - 12 }}" height="{{ [h, 1]|max }}" class="{{ 'ok' if m.met else 'no' }}"><title>{{ m.map }} {{ m.date }}: {{ m.count }} Mal in {{ m.rounds }} Runden</title></rect>
+      <text x="{{ loop.index0 * w + w / 2 }}" y="72" class="lbl">{{ m.rate|string|replace(".", ",") }}</text>
+      {% endfor %}
+    </svg>
+    {% endif %}
+    {% for x in check %}<p class="num">{{ x }}</p>{% endfor %}
+    {% if trend %}<div class="src">Fehler pro 10 Runden {{ "in deinem letzten Match" if trend|length == 1 else "in deinen letzten " ~ trend|length ~ " Matches" }}, gezählt aus deinen Demos.</div>{% endif %}
+  </div>
+</section>
+{% endif %}
+
+<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Kurs</a>
+{% endblock %}

@@ -109,12 +109,13 @@ def test_today_block_on_home_and_minute_page():
     slot = _slot()
     slot["focus"].update({"target": 1.0, "baseline": 2.0, "created_at": "2026-01-01T00:00:00", "status": "aktiv"})
     coaching.save({"players": {ME: {**slot, "drills": []}}}, pipeline.COACHING_FILE)
-    assert "In Matches nach einer Übung" in c.get("/m/t2.html").text
     assert "In Matches nach einer Übung" in c.get(f"/progress?p={ME}").text  # Fortschritt
 
 
 def test_deal_saved_for_own_player_shown_until_next_match():
     _save(_h("d1", "2026-01-01T10:00:00", (13, 7)))
+    coaching.save({"players": {ME: {"focus": {"lesson": "utility", "target": 1.0, "baseline": 2.0, "matches": []},
+                                    "done": [], "drills": []}}}, pipeline.COACHING_FILE)
     for u, sid in (("Hausi", ME), ("Bruder", BRO)):
         accounts.add_user(u, "Geheim-12345")
         accounts.link_steamid(u, sid)
@@ -126,10 +127,11 @@ def test_deal_saved_for_own_player_shown_until_next_match():
     assert a.post("/training/deal", json=body, headers={"Origin": "https://fremd.example"}).status_code == 403
     assert a.post("/training/deal", json=body, headers=O).json() == {"ok": True}
     home = a.get("/").text
-    assert f"Abgemacht nach Mirage 13:7: {LESSONS['utility'][0]}: höchstens 1,0x pro 10 Runden." in home
-    assert "Abgemacht nach" not in b.get("/").text  # nur beim eigenen Nutzer
+    assert ("Nach dem Match auf Mirage (13:7) hast du dir vorgenommen: "
+            f"{LESSONS['utility'][0]}: höchstens 1,0x pro 10 Runden.") in home  # in der Karte der aktuellen Lektion
+    assert "vorgenommen" not in b.get("/").text  # nur beim eigenen Nutzer
     _save(_h("d2", "2026-01-02T10:00:00", (10, 13)))  # nächstes Match ausgewertet
-    assert "Abgemacht nach" not in a.get("/").text
+    assert "vorgenommen" not in a.get("/").text
 
 
 def test_deal_without_accounts_stays_in_browser():
@@ -137,4 +139,4 @@ def test_deal_without_accounts_stays_in_browser():
     c = TestClient(api.app)
     assert c.post("/training/deal", json={"sid": ME, "lesson": "utility", "report": "d1.html"},
                   headers=O).status_code == 400
-    assert "Abgemacht nach" not in c.get("/").text
+    assert "vorgenommen" not in c.get("/").text

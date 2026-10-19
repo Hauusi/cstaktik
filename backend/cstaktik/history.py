@@ -270,6 +270,7 @@ def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None
                     "from": (f.overlay.get("decision") or [None, None, None])[2], "report": report_file,
                     "map": map_name, "snap": ev["snap"], "info": ev.get("info"), "aktion": ev["aktion"],
                     "pro_rates": ev.get("pro_rates"), "pro_best": ev.get("pro_best"), "cost": ev.get("cost_pct"),
+                    "pro_clip": ev.get("pro_clip"),  # dieselbe Lage in einer Pro-Demo (im Report abspielbar)
                     "happened": v["happened"], "next": v["next"], "pos": (ev.get("f") or {}).get("vpos"),
                     "frame": ev.get("frame"),
                     "nades": (ev.get("f") or {}).get("nades"),  # Granaten im Inventar beim Tod (Beleg)

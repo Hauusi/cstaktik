@@ -335,8 +335,8 @@ def run(
     goals.save(state, GOALS_FILE)
     # Ziel-Check mitspeichern, damit der Report später (z. B. nach neuen Pro-Demos) neu gebaut werden kann
     summary["goal_check"] = goal_check if goal_check.get("checks") or not old else old.get("goal_check", goal_check)
-    # Auftrag (Fokus-Lektion) prüfen und ggf. neu setzen; mitspeichern für spätere Neubauten des Reports
-    from cstaktik import coaching
+    # Auftrag (Fokus-Lektion = aktuelle Kurs-Lektion) prüfen und ggf. neu setzen; mitspeichern für Neubauten
+    from cstaktik import coaching, course
 
     cstate = coaching.load(COACHING_FILE)
     if coaching_stale(cstate, load_focus_steamids()):  # Fokus aus players.yaml, nicht aus einem Einzel-Upload
@@ -356,8 +356,8 @@ def run(
         if stale_fix:
             cstate["count_version"] = coaching.COUNT_VERSION
             cstate["focus_ids"] = sorted(load_focus_steamids())
-        summary["focus_check"] = coaching.update_all(cstate, summary, summary.get("lesson_rank_by") or {},
-                                                     past=past, **goal_kw(config))
+        tops, ok = course.plan_for(summary, past, course.settings(config))  # Kurs: Grundlagen zuerst
+        summary["focus_check"] = coaching.update_all(cstate, summary, tops, past=past, settled=ok, **goal_kw(config))
         coaching.save(cstate, COACHING_FILE)
     history.set_leads(summary)  # ein Thema je Spieler, überall gleich (Report, Startseite, Push)
     history.save(summary, HISTORY_DIR)
@@ -510,7 +510,10 @@ def rerender_reports(maps: set[str] | None = None, progress: Progress | None = N
         h.update(fresh)
         h.update(keep)
         if rebuild is not None:  # Aufträge chronologisch neu durchspielen (alle Matches)
-            h["focus_check"] = coaching.update_all(rebuild, h, h["lesson_rank_by"], past=before(h), **goal_kw(config))
+            from cstaktik import course
+
+            tops, ok = course.plan_for(h, before(h), course.settings(config))
+            h["focus_check"] = coaching.update_all(rebuild, h, tops, past=before(h), settled=ok, **goal_kw(config))
         history.set_leads(h)
         history.save(h, HISTORY_DIR)
         from cstaktik import coach_voice

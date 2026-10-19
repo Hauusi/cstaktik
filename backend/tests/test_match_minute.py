@@ -6,7 +6,7 @@ import re
 from fastapi.testclient import TestClient
 from synth import BRO, ME, build_match
 
-from cstaktik import accounts, api, coaching, history, notify, pipeline
+from cstaktik import accounts, api, coaching, course_texts, history, notify, pipeline
 from cstaktik.coach_voice import LESSONS
 from cstaktik.config import load_rules_config
 from cstaktik.curriculum import TEACH
@@ -141,15 +141,14 @@ def test_report_topic_follows_history_rule():
 
 
 def test_minute_scenes_for_secondary_lesson():
+    """Die Szene der Story gehört zur aktuellen Lektion, auch wenn der Fehler bei diesem Tod nur mitspielte."""
     sc = {"lesson": "alone", "lessons": ["alone", "utility"], "sid": ME, "round": 3, "tick": 500, "cost": 12,
           "happened": "Allein gestorben."}
     h = {"report_file": "r.html", "players": {ME: {"name": "Ich"}}, "score_by": {ME: [13, 7]},
-         "lead_by": {ME: "utility"}, "scenes": [sc, {**sc, "lessons": ["alone"], "round": 5}]}
-    assert [x["round"] for x in api._minute_player(h, ME)["scenes"]] == [3]
-    # alter Eintrag ohne Lektionen je Szene: seine teuersten Szenen
-    old = [{k: v for k, v in sc.items() if k != "lessons"}, {**sc, "round": 6, "cost": 30, "lessons": None}]
-    old[1].pop("lessons")
-    assert [x["round"] for x in api._minute_player({**h, "scenes": old}, ME)["scenes"]] == [6, 3]
+         "focus_check": {ME: {"check": None, "focus": {"lesson": "utility", "target": 1.0}}},
+         "scenes": [sc, {**sc, "lessons": ["alone"], "round": 5}]}
+    les = api._minute_player(h, ME)["lesson"]
+    assert les["id"] == "utility" and les["scene"]["round"] == 3 and les["scene"]["href"] == "/reports/r.html#s3-500"
 
 
 def test_push_per_player_topic_and_result():
@@ -190,21 +189,24 @@ def test_minute_page_content_and_visibility():
     a.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
     assert api._is_new({"report_file": "m1.html", "analyzed_at": "2999-01-01T10:00"}, api._seen("Hausi"))
     home = a.get("/").text
-    assert 'href="/m/m1.html"' in home and "Neues Match ansehen" in home  # neues Match: eine große Karte
+    assert 'href="/m/m1.html"' in home and "Neues Match" in home  # neues Match: eine kompakte Karte
     assert "/konto#push" in home  # noch kein Gerät für Benachrichtigungen
     page = a.get("/m/m1.html").text
-    # Story: Ergebnis, Fokus, die eine Szene, nächstes Match, fertig (in dieser Reihenfolge)
-    assert _steps(page) == ["ergebnis", "fokus", "szene", "naechstes", "fertig"]
+    # Story: Ergebnis, deine Lektion (aktuelle Kurs-Lektion), fertig
+    assert _steps(page) == ["ergebnis", "lektion", "fertig"]
     assert "13:7" in page and "Sieg" in page and "+2,5</b>" in page and "etwa 2,5 Runden gebracht" in page
     assert "Platz 2 von 10" in page
-    # in Worten: Tode und Runden statt "pro 10 Runden"
-    assert "1x in 6 Runden. Ziel war höchstens 0." in page and "pro 10 Runden" not in page
-    assert "Nicht geschafft" in page and "Serie: 0 von 2" in page
-    assert LESSONS["utility"][0] in page and TEACH["utility"]["mantra"] in page
+    # ganze Sätze in Worten des Spielers: wie oft in wie vielen Runden, gegen das Ziel, die Serie
+    assert "Deine Lektion" in page and course_texts.LESSONS["utility"]["title"] in page
+    assert ("In diesem Match kam der Fehler einmal in 6 Runden vor. Erlaubt waren höchstens 0. Diesmal hat es "
+            "nicht gereicht, die Serie beginnt im nächsten Match von vorn.") in page
+    assert "Nicht geschafft" in page and "pro 10 Runden" not in page
     assert page.count('href="/reports/m1.html#s') == 1 and 'href="/reports/m1.html#s3-400"' in page  # eine Szene
-    assert TEACH["utility"]["in_game"] in page and "Nächstes Match: höchstens 2." in page
-    assert 'id="deal" data-lesson="utility"' in page and 'data-mine="1"' in page and f'data-sid="{ME}"' in page
-    assert "Ganzer Report" in page and "Zur Startseite" in page
+    assert 'href="/kurs/utility"' in page and "Zur Lektion" in page
+    assert 'data-mine="1"' in page and f'data-sid="{ME}"' in page
+    assert "Ganzer Report" in page and "Zum Kurs" in page
+    for gone in ("Nächstes Match", "Die eine Szene", 'id="deal"'):
+        assert gone not in page, gone
     assert a.post("/training/deal", json={"sid": ME, "lesson": "utility", "report": "m1.html"},
                   headers=O).json() == {"ok": True}  # der Button der Story schickt genau das
     assert not api._is_new({"report_file": "m1.html", "analyzed_at": "2999-01-01T10:00"}, api._seen("Hausi"))
@@ -219,29 +221,44 @@ def test_minute_page_hides_missing_blocks():
     assert "5:13" in page and "Niederlage" in page
     # ohne Daten: nur Ergebnis und Schluss, kein leerer Schritt
     assert _steps(page) == ["ergebnis", "fertig"]
-    assert "Impact" not in page and "Fokus" not in page and "Die eine Szene" not in page
-    assert "Nächstes Match" not in page and 'id="deal"' not in page and "Heute" not in page
+    assert "Impact" not in page and "Deine Lektion" not in page and "Heute" not in page
 
 
 def _steps(page):
     return re.findall(r'data-step="([a-z]+)"', page)
 
 
-def test_minute_story_quiet_without_topic():
+def test_minute_story_without_lesson_and_with_running_focus():
     pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    # Lektionen ausgewertet, aber nichts zweimal: neutrale Zeile statt Thema, ohne Fokus kein nächstes Match
+    # Lektionen gezählt, aber zu wenig für eine Einstufung und kein Auftrag: kein Lektions-Schritt
     history.save({"id": "q1", "map": "de_nuke", "analyzed_at": "2026-10-01T10:00", "report_file": "q1.html",
                   "players": {ME: {"name": "Ich"}}, "score_by": {ME: [13, 11]}, "lead_by": {ME: None},
                   "lessons": {ME: {"alone": 1}}, "issues": {ME: {}}}, pipeline.HISTORY_DIR)
     page = TestClient(api.app).get("/m/q1.html").text
-    assert _steps(page) == ["ergebnis", "szene", "fertig"]
-    assert "Kein Fehler kam mehrmals vor." in page and 'href="/reports/q1.html#s' not in page
-    # Fokus läuft, heute kein Thema: das nächste Match nimmt den Fokus
-    h = {"report_file": "q1.html", "players": {ME: {"name": "Ich"}}, "lead_by": {ME: None},
+    assert _steps(page) == ["ergebnis", "fertig"] and 'href="/reports/q1.html#s' not in page
+    # Auftrag läuft, in diesem Match kein Check: die Lektion mit dem Ziel als Satz
+    h = {"report_file": "q1.html", "players": {ME: {"name": "Ich"}}, "lead_by": {ME: None}, "lessons": {ME: {}},
          "focus_check": {ME: {"check": None, "focus": {"lesson": "blind", "target": 0.8}}}}
-    v = api._minute_player(h, ME)
-    assert v["next"]["lesson"] == "blind" and "check" not in v and "max" not in v["next"]  # ohne Rundenzahl kein Ziel
-    assert api._minute_player({**h, "rounds": 25}, ME)["next"]["max"] == 2  # 0,8 pro 10 Runden bei 25 Runden
+    v = api._minute_player(h, ME)["lesson"]
+    assert v["id"] == "blind" and v["says"] == []  # ohne Rundenzahl keine Zahlen
+    v = api._minute_player({**h, "rounds": 25}, ME)["lesson"]
+    assert v["says"] == ["In diesem Match kam der Fehler keinmal in 25 Runden vor.",
+                         "Dein Ziel ist höchstens 2 in so vielen Runden."]  # 0,8 pro 10 Runden bei 25 Runden
+
+
+def test_minute_story_mastered_points_to_next_lesson():
+    check = {"lesson": "moving_shot", "title": LESSONS["moving_shot"][0], "count": 0, "rate": 0.0, "target": 0.6,
+             "met": True, "streak": 2, "need": 2, "rounds": 24}
+    h = {"report_file": "x.html", "players": {ME: {"name": "Ich", "rounds": 24}}, "lessons": {ME: {}},
+         "focus_check": {ME: {"check": check, "mastered": "moving_shot", "new": True,
+                              "focus": {"lesson": "crosshair", "target": 1.0}}}}
+    v = api._minute_player(h, ME)["lesson"]
+    assert v["id"] == "moving_shot" and v["stamp"] == ("ok", "Lektion geschafft")
+    assert v["next"] == {"id": "crosshair", "title": course_texts.LESSONS["crosshair"]["title"]}
+    assert " ".join(v["says"]) == (
+        "In diesem Match kam der Fehler keinmal in 24 Runden vor. Erlaubt waren höchstens 1, du hast das Ziel also "
+        "geschafft. Das war dein 2. Match in Folge im Ziel. Damit hast du die Lektion geschafft. Als Nächstes kommt "
+        f"die Lektion „{course_texts.LESSONS['crosshair']['title']}“.")
 
 
 def _both_entry():
@@ -250,7 +267,10 @@ def _both_entry():
     history.save({"id": "b2", "map": "de_mirage", "analyzed_at": "2026-10-01T10:00", "report_file": "b2.html",
                   "players": {ME: {"name": "Ich"}, BRO: {"name": "Bruder"}},
                   "score_by": {ME: [13, 7], BRO: [7, 13]}, "impact": {ME: {"total": 250}, BRO: {"total": -120}},
-                  "lead_by": {ME: "utility", BRO: "no_shot_close"}, "scenes": [sc]}, pipeline.HISTORY_DIR)
+                  "lead_by": {ME: "utility", BRO: "no_shot_close"}, "scenes": [sc],
+                  "focus_check": {ME: {"check": None, "focus": {"lesson": "utility", "target": 1.0}},
+                                  BRO: {"check": None, "focus": {"lesson": "no_shot_close", "target": 1.0}}}},
+                 pipeline.HISTORY_DIR)
 
 
 def test_minute_story_pick_player_without_login():
@@ -281,7 +301,7 @@ def test_minute_story_logged_in_only_own_data():
         assert "#s4-900" not in page and f'data-sid="{ME}"' in page and 'data-mine="1"' in page
 
 
-def test_home_builds_weekplan_and_shrinks_upload_with_autodl():
+def test_lesson_page_builds_weekplan_and_home_keeps_small_upload():
     from cstaktik import autodl, weekplan
 
     _save_entry()
@@ -290,14 +310,14 @@ def test_home_builds_weekplan_and_shrinks_upload_with_autodl():
                                     "done": [], "drills": []}}}, pipeline.COACHING_FILE)
     c = TestClient(api.app)
     home = c.get("/").text
-    assert "Demo hochladen" in home  # ohne automatischen Download: Hochladen bleibt der Weg
+    assert "Demo selbst hochladen" in home and "Wo finde ich die Demo?" in home
+    assert c.get("/kurs/utility").status_code == 200
     key = weekplan.week_key(weekplan.local_today())
-    assert key in coaching.load(pipeline.COACHING_FILE)["players"][ME]["weeks"]  # ohne Besuch auf /training
-    assert "erledigt" in home
+    assert key in coaching.load(pipeline.COACHING_FILE)["players"][ME]["weeks"]  # "Übung gemacht" hakt ihn mit ab
     autodl.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     (autodl.CONFIG_DIR / "config.json").write_text("{}")
     home = c.get("/").text
-    assert "Demo selbst hochladen" in home and "<h3>Demo hochladen</h3>" not in home
+    assert "Demo selbst hochladen" in home and "Wo finde ich die Demo?" not in home
 
 
 def test_notify_report_finds_history_entry(monkeypatch):
@@ -352,21 +372,20 @@ def test_minute_story_in_player_language():
                                                                      ("Overtime", 2, 4)]
     assert sum(x["k"] for x in v["sides"]) == 15 and sum(x["d"] for x in v["sides"]) == 20
     assert v["imp"]["meaning"] == "Deine Kills und Tode haben eurem Team zusammen etwa 0,6 Runden gekostet."
+    # Lektion: der neue Auftrag (Utility), Zahlen als Sätze in Fehlern und Runden
+    les = v["lesson"]
+    assert les["id"] == "utility" and les["says"] == ["In diesem Match kam der Fehler 11 Mal in 30 Runden vor.",
+                                                     "Ab dem nächsten Match ist dein Ziel höchstens 6 in so vielen Runden."]
     # Szene: Hauptfehler Utility in einer verlorenen Runde; nicht der Lurk-Tod (Nebenfehler), und der Tod in Überzahl
     # in einer gewonnenen Runde kostet wenig, auch wenn die Siegchance kurz sank
-    assert [x["round"] for x in v["scenes"]] == [12, 3]
-    assert v["scenes"][0]["nades"] == ["Flash", "Molotov"]
-    assert v["util_late"].startswith("Du wirfst viel, aber zu spät: 57 Granaten in 30 Runden.")
-    assert v["spot"] == "4x als T in Apartments gestorben (Runde 5, 7, 9, 11)."
-    # Ziel in Toden statt "pro 10 Runden"
-    assert v["next"]["today"] == "11 von 20 Toden mit Flash oder Molotov in der Tasche."
-    assert v["next"]["max"] == 6 and v["next"]["max_rounds"] == 30
+    assert les["scene"]["round"] == 12 and les["scene"]["nades"] == ["Flash", "Molotov"]
+    assert les["util_late"].startswith("Du wirfst viel, aber zu spät: 57 Granaten in 30 Runden.")
     # Summen passen nicht zu K/D: lieber keine Aufteilung
     bad = {**h, "players": {ME: {**h["players"][ME], "kills": 99}}}
     assert api._minute_player(bad, ME)["sides"] is None
     # wenig geworfen: kein "zu spät"
     few = {**h, "players": {ME: {**h["players"][ME], "utility": {"flash": 10}}}}
-    assert api._minute_player(few, ME)["util_late"] is None
+    assert api._minute_player(few, ME)["lesson"]["util_late"] is None
 
 
 def test_minute_story_page_shows_plain_numbers():
@@ -377,8 +396,8 @@ def test_minute_story_page_shows_plain_numbers():
     assert "15/20" in page and "Kills/Tode" in page and "41 %" in page
     assert "T-Seite</i>3:9 Runden" in page and "Overtime</i>2:4 Runden" in page
     assert "In der Tasche beim Tod: Flash, Molotov." in page and "Du wirfst viel, aber zu spät" in page
-    assert "Nächstes Match: höchstens 6." in page and "pro 10 Runden" not in page
-    assert "Muster: 4x als T in Apartments gestorben" in page
+    assert "Ab dem nächsten Match ist dein Ziel höchstens 6 in so vielen Runden." in page
+    assert "pro 10 Runden" not in page
 
 
 def test_seen_first_sentence_does_not_contradict_the_shot():

@@ -61,8 +61,8 @@ def test_training_pages_and_drill_done():
                   "players": {"s1": {"name": "Ich"}}, "scenes": [sc, sc]}, pipeline.HISTORY_DIR)
     c = TestClient(api.app)
     home = c.get("/").text
-    assert "Dein Fokus fürs nächste Match" in home and "Nie allein in ein Duell" in home
-    assert "Übungen für deinen Fokus" in home and "&back=home" in home  # Wochenplan als Checkliste auf der Startseite
+    # Startseite: der laufende Auftrag ist die aktuelle Kurs-Lektion
+    assert "Deine aktuelle Lektion" in home and "Nicht ohne Trade-Partner peeken" in home and 'href="/kurs/alone"' in home
     t = c.get("/training/situationen").text
     assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situation " in t
     hub = c.get("/training").text
@@ -72,7 +72,7 @@ def test_training_pages_and_drill_done():
     (week, plan), = st["weeks"].items()
     tid = plan["tasks"][0]["id"]
     r = c.post(f"/training/plan?p=s1&week={week}&task={tid}&back=home", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/#fokus"  # Haken auf der Startseite: zurück dorthin
+    assert r.status_code == 303 and r.headers["location"] == "/"
     st = coaching.load(pipeline.COACHING_FILE)["players"]["s1"]
     assert tid in st["weeks"][week]["done"]
     c.post(f"/training/plan?p=s1&week={week}&task={tid}")  # wieder offen

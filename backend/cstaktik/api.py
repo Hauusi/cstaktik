@@ -763,10 +763,9 @@ def push_test(request: Request) -> JSONResponse:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    """Startseite: nur zwei Dinge. Oben das neue Match (oder eine Zeile zum letzten), darunter der Fokus fürs
-    nächste Match mit den Übungen dieser Woche. Alles andere liegt unter Training, Matches und Fortschritt."""
-    from cstaktik import weekplan
+def index(p: str = "") -> str:
+    """Startseite "Dein Kurs": oben ein neues Match (falls da), dann die aktuelle Lektion, dann der Lernpfad mit dem
+    Stand jeder Lektion. Alles andere liegt unter Matches, Fortschritt und auf den Lektionsseiten."""
     from cstaktik.config import load_focus_steamids
 
     jobs = _running_jobs()
@@ -774,16 +773,6 @@ def index() -> str:
     # eingestellter Spieler, der im letzten Match nicht vorkommt: der Coach sieht ihn nicht -> Hinweis
     missing = len(set(_mine(load_focus_steamids())) - set((hist[-1].get("players") or {}) if hist else ()))
     names = _names(hist)
-    auftrag = _auftrag(hist)
-    _ensure_weekplans(hist, [a["sid"] for a in auftrag])
-    key = weekplan.week_key(weekplan.local_today())
-    players = _players_state()
-    for a in auftrag:  # Übungen dieser Woche als kurze Checkliste (Haken über /training/plan)
-        plan = ((players.get(a["sid"]) or {}).get("weeks") or {}).get(key)
-        if plan and plan.get("lesson") == a["lesson"] and plan.get("tasks"):
-            done = plan.get("done") or {}
-            a["week"] = {"key": key, "tasks": [{**t, "done": t["id"] in done} for t in plan["tasks"]],
-                         "done": sum(1 for t in plan["tasks"] if t["id"] in done), "total": len(plan["tasks"])}
     seen = _seen(_USER.get())
     from cstaktik import autodl
 
@@ -792,19 +781,94 @@ def index() -> str:
     except Exception:  # noqa: BLE001 - ohne Download-Konfiguration bleibt es beim Hochladen
         auto = False
     news = [_last_view(h) for h in reversed(hist) if _is_new(h, seen)]  # noch nicht geöffnet, neueste zuerst
-    deal = _deal_view(hist)
     push_hint = False
     if _USER.get() and _me():  # erst nach der Steam-Verbindung: vorher kommt ohnehin keine Nachricht
         from cstaktik import notify
 
         push_hint = not notify.subs(_USER.get())
+    sid, tabs = _course_player(hist, p)
+    kurs = _course_overview(hist, sid) if sid else None
     return _env.get_template("index.html").render(
-        nav_active="coach", jobs=jobs, n_history=len(hist), last=_last_view(hist[-1]) if hist else None,
-        news=news[:6], n_new=len(news), auftrag=auftrag, missing_players=missing if hist else 0,
-        me_name=names.get(_me()) if _me() else None,
-        need_link=_USER.get() is not None and not _me(),
-        auto=auto and bool(hist), push_hint=push_hint, deal=deal,
+        nav_active="coach", jobs=jobs, n_history=len(hist), news=news[:1], n_new=len(news),
+        missing_players=missing if hist else 0, me_name=names.get(_me()) if _me() else None,
+        need_link=_USER.get() is not None and not _me(), auto=auto and bool(hist), push_hint=push_hint,
+        kurs=kurs, sid=sid, who=names.get(sid) if sid else None, tabs=tabs, deal=_deal_view(hist),
     )
+
+
+def _course_player(hist: list[dict], want: str = "") -> tuple[str | None, list[dict]]:
+    """Wessen Kurs: eingeloggt mit Steam der eigene Spieler; ohne Login der gewählte (``p``), sonst der erste mit
+    Auftrag, sonst der erste mit Matches. Dazu Tabs, wenn mehrere Spieler in Frage kommen."""
+    names = _names(hist)
+    players = _players_state()
+    cands = sorted({s for h in hist for s in _course_sids(h)} | {s for s in players if players[s].get("focus")},
+                   key=lambda s: names.get(s, s).lower())
+    cands = _mine(cands)
+    if _me():
+        sid = _me() if _me() in cands or _me() in players else None
+        return sid, []
+    sid = want if want in cands else next((s for s in cands if (players.get(s) or {}).get("focus")),
+                                          cands[0] if cands else None)
+    tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in cands] if len(cands) > 1 else []
+    return sid, tabs
+
+
+def _course_sids(h: dict) -> set[str]:
+    """Spieler eines Matches, für die der Coach Lektionen zählt (Fokus-Spieler)."""
+    return set((h.get("lessons") or {})) | set((h.get("lesson_rank_by") or {})) | set((h.get("issues") or {}))
+
+
+def _course_overview(hist: list[dict], sid: str) -> dict:
+    from cstaktik import course
+
+    return course.overview(hist, sid, _players_state().get(sid))
+
+
+@app.get("/kurs/{lesson}", response_class=HTMLResponse)
+def lesson_page(lesson: str, p: str = "", ok: int = 0) -> str:
+    """Eine Lektion des Kurses als eine Seite: Verstehen, Bei dir, Bei den Pros, Üben, Prüfen."""
+    from cstaktik import course, course_texts
+
+    if lesson not in course_texts.LESSONS:
+        raise HTTPException(404, "Lektion nicht gefunden.")
+    hist = _load_hist()
+    sid, tabs = _course_player(hist, p)
+    names = _names(hist)
+    cfg = course.settings()
+    t = course.texts(lesson)
+    view = {"nav_active": "coach", "jobs": _running_jobs(), "t": t, "sid": sid, "who": names.get(sid) if sid else None,
+            "tabs": tabs, "lesson": lesson, "n_history": len(hist)}
+    if not sid:
+        return _env.get_template("kurs.html").render(**view, row=None)
+    slot = _players_state().get(sid) or {}
+    ov = course.overview(hist, sid, slot, cfg)
+    row = next(r for st in ov["stages"] for r in st["lessons"] if r["id"] == lesson)
+    pl = ov["placement"][lesson]
+    f = slot.get("focus") if (slot.get("focus") or {}).get("lesson") == lesson else None
+    if f:
+        _ensure_weekplans(hist, [sid])  # "Übung gemacht" hakt auch die Übung im Wochenplan ab
+    target = float(f["target"]) if f and f.get("target") is not None else pl["threshold"]
+    rows = course.trend(hist, sid, lesson, target)
+    extras = None
+    if lesson in course.UTILITY_LESSONS:
+        try:
+            ctx = _plan_ctx(hist, _load_pro(), sid, {"lesson": lesson})
+        except Exception:  # noqa: BLE001 - ohne Map-Buch und Lineups bleibt die Übung
+            ctx = None
+        if ctx and ctx.get("map"):
+            lus = list(ctx.get("pos_lineups") or [])[:2] or ([ctx["lineup"]] if ctx.get("lineup") else [])
+            extras = {"map": ctx["map"], "map_label": ctx["map_label"],
+                      "lineups": [{"label": f"{lu['kind_de']} von {lu['from_c']} auf {lu['to_c']}",
+                                   "side": (lu.get("side") or "").upper(),
+                                   "href": f"/lineups/{ctx['map']}?l={lu['id']}&p={sid}"} for lu in lus],
+                      "mapbook": f"/mapbook/{ctx['map']}?p={sid}"}
+    drills = sum(1 for d in slot.get("drills") or [] if d.get("lesson") == lesson)
+    top = max([r["rate"] for r in rows] + [target, 0.1]) * 1.15
+    return _env.get_template("kurs.html").render(
+        **view, row=row, pl=pl, focus=f, target=target, need=cfg["done_after"], streak=course.streak(f),
+        own=course.own_scenes(hist, sid, lesson), pros=course.pro_scenes(hist, sid, lesson), extras=extras,
+        drills=drills, trend=rows, top=top, check=course.check_sentences(rows, target, f, cfg["done_after"]),
+        current=ov["current"], ticked=bool(ok))
 
 
 def _ensure_weekplans(hist: list[dict], sids: list[str]) -> None:
@@ -941,8 +1005,6 @@ def _minute_player(h: dict, sid: str) -> dict:
     """Ein Spieler in der Match-Story: nur Werte, die im Verlaufs-Eintrag stehen. Fehlt etwas, bleibt das Feld leer
     und die Seite lässt den Block weg. Zahlen in Worten des Spielers (Tode, Runden), nicht als Raten."""
     from cstaktik import history
-    from cstaktik.coach_voice import DEATH_PHRASE, LESSONS
-    from cstaktik.curriculum import TEACH
     from cstaktik.impact import de
 
     sc = history.score(h, sid)
@@ -964,90 +1026,98 @@ def _minute_player(h: dict, sid: str) -> dict:
                    "Deine Kills und Tode haben eurem Team zusammen etwa {} Runden gekostet." if v < -0.05 else
                    "Deine Kills und Tode haben sich etwa ausgeglichen.").format(_de(abs(v)))
         out["imp"] = {"total": de(v), "pos": v > 0, "rank": imp.get("rank"), "of": imp.get("of"), "meaning": meaning}
-    rounds = h.get("rounds") or p.get("rounds")
-    deaths = p.get("deaths")
-
-    def plain(lid: str, count: int | None, target) -> dict:
-        """"11 von 19 Toden mit Flash oder Molotov in der Tasche." und das Ziel als Anzahl Tode in so vielen Runden."""
-        o = {}
-        if count is not None and deaths and lid in DEATH_PHRASE:
-            o["today"] = f"{count} von {deaths} Toden {DEATH_PHRASE[lid]}."
-        if target is not None and rounds:
-            o["max"] = int(float(target) * rounds / 10)
-            o["max_rounds"] = rounds
-        return o
-
-    lessons_today = (h.get("lessons") or {}).get(sid) or {}
-    fc = _focus_entry(h.get("focus_check"), sid) or {}
-    c = fc.get("check")
-    fo = fc.get("focus") or {}
-    if c and c.get("rate") is not None and c.get("target") is not None:
-        cl = fo.get("lesson")
-        out["check"] = {"title": c.get("title"), "met": c.get("met"), "streak": c.get("streak"), "need": c.get("need"),
-                        "mastered": bool(fc.get("mastered")), "count": c.get("count"), "rounds": c.get("rounds")}
-        if cl in DEATH_PHRASE and c.get("count") is not None and deaths:
-            out["check"]["today"] = f"{c['count']} von {deaths} Toden {DEATH_PHRASE[cl]}."
-        if c.get("rounds"):
-            out["check"]["max"] = int(float(c["target"]) * c["rounds"] / 10)
-    lid = history.lead(h, sid)
-    won_round = {r[0]: r[2] for r in (h.get("by_round") or {}).get(sid) or []}
-    won_round.update({x[0]: x[2] for x in (history._seq_by(h).get(sid) or [])})
-    if lid in LESSONS and lid != "duel":
-        out["topic"] = {"id": lid, "title": LESSONS[lid][0], "mantra": (TEACH.get(lid) or {}).get("mantra")}
-        own = [x for x in h.get("scenes") or [] if x.get("sid") == sid
-               and x.get("round") is not None and x.get("tick") is not None]
-        main = [x for x in own if x.get("lesson") == lid]  # Hauptfehler dieses Todes
-        side = [x for x in own if x.get("lesson") != lid and lid in (x.get("lessons") or [])]
-        if not main and not side and not any("lessons" in x for x in own):
-            side = own  # ältere Einträge kennen nur die Haupt-Lektion je Szene: dann seine teuersten Szenen
-
-        def low_cost(x) -> bool:  # Tod in Überzahl, Runde trotzdem gewonnen: kostet wenig, kein Aufmacher
-            return bool(won_round.get(x["round"])) and (x.get("own") or 0) > (x.get("enemy") or 0)
-
-        scs = sorted(main, key=lambda x: (low_cost(x), -(x.get("cost") or 0))) + \
-            sorted(side, key=lambda x: (low_cost(x), -(x.get("cost") or 0)))
-        out["scenes"] = [{"round": x["round"], "text": x.get("happened"), "cost": x.get("cost"),
-                          "nades": x.get("nades") if lid == "utility" else None,
-                          "href": f"/reports/{h['report_file']}#s{x['round']}-{x.get('from') or x['tick']}"}
-                         for x in scs[:2]]
-        if lid == "utility":
-            out["util_late"] = _util_late(h, sid)
-    elif sid in (h.get("lead_by") or {}) or (h.get("lessons") or {}).get(sid) is not None:
-        # seine Lektionen sind ausgewertet, aber kein Fehler kam mehrmals vor: das ist die Aussage
-        out["quiet"] = "Kein Fehler kam mehrmals vor. Heute gibt es kein Thema."
-    out["spot"] = _minute_spot(h, sid)  # konkretes Muster (Todesort) zur Szene
-    # Nächstes Match: der laufende Fokus (gilt über mehrere Matches), sonst das heutige Thema
-    if fo.get("lesson") in LESSONS and fo.get("lesson") in TEACH:
-        nid = fo["lesson"]
-    else:
-        nid = lid if lid in LESSONS and lid != "duel" and lid in TEACH else None
-    if nid:
-        t = TEACH[nid]
-        target = fo.get("target") if fo.get("lesson") == nid else None
-        out["next"] = {"lesson": nid, "title": LESSONS[nid][0], "in_game": t.get("in_game"), "mantra": t.get("mantra"),
-                       **plain(nid, lessons_today.get(nid, 0) if sid in (h.get("lessons") or {}) else None, target)}
+    out["lesson"] = _minute_lesson(h, sid)
     return out
 
 
-SPOT_MIN = 3  # so oft am selben Ort (gleiche Seite) gestorben: ein Muster, das man ansprechen kann
+def _times(n: int) -> str:
+    return "keinmal" if n == 0 else "einmal" if n == 1 else f"{n} Mal"
 
 
-def _minute_spot(h: dict, sid: str) -> str | None:
-    """Häufigster Todesort aus den Tod-Zeilen des Verlaufs: "4x als T in Apartments gestorben (Runde 5, 7, 9, 11)."."""
-    from collections import defaultdict
+def _minute_lesson(h: dict, sid: str) -> dict | None:
+    """Story-Schritt "Deine Lektion": die aktuelle Kurs-Lektion in diesem Match, in ganzen Sätzen. Aus dem
+    Auftrags-Ergebnis dieses Matches (``focus_check``): Fehler gegen das Ziel, Serie, geschafft und was danach kommt.
+    Ohne Auftrag die aktuelle Lektion des Kurses. Dazu eine Szene dieses Matches zur Lektion, falls es eine gibt."""
+    from cstaktik import course, course_texts, history
+    from cstaktik.coach_voice import LESSONS
 
-    from cstaktik.callouts import place
-
-    by = defaultdict(list)
-    for d in h.get("deaths") or []:
-        if d.get("sid") == sid and d.get("place") and d.get("side"):
-            by[(d["side"], d["place"])].append(d["round"])
-    if not by:
+    fc = _focus_entry(h.get("focus_check"), sid) or {}
+    c = fc.get("check") or None
+    fo = fc.get("focus") or {}
+    by_title = {v[0]: k for k, v in LESSONS.items()}
+    checked = (c or {}).get("lesson") or by_title.get((c or {}).get("title") or "")
+    if c and not checked and not fc.get("mastered"):
+        checked = fo.get("lesson")
+    lid = checked or fo.get("lesson")
+    if lid not in course_texts.LESSONS:
+        hist = _load_hist()
+        lid = course.current(_players_state().get(sid), course.placement(hist, sid))
+    if lid not in course_texts.LESSONS:
         return None
-    (side, pl), rs = max(by.items(), key=lambda kv: (len(kv[1]), -min(kv[1])))
-    if len(rs) < SPOT_MIN:
-        return None
-    return f"{len(rs)}x als {side.upper()} in {place(pl)} gestorben (Runde {', '.join(map(str, sorted(rs)))})."
+    t = course.texts(lid)
+    p = (h.get("players") or {}).get(sid) or {}
+    counted = sid in (h.get("lessons") or {}) or "lessons" in h and sid in (h.get("players") or {})
+    n_today = ((h.get("lessons") or {}).get(sid) or {}).get(lid, 0) if counted else None
+    rounds = p.get("rounds") or h.get("rounds")
+    says, stamp = [], None
+    nxt = None
+    if c and checked == lid and c.get("count") is not None and c.get("rounds"):
+        n, r = int(c["count"]), int(c["rounds"])
+        allowed = int(float(c["target"]) * r / 10) if c.get("target") is not None else None
+        says.append(f"In diesem Match kam der Fehler {_times(n)} in {r} Runden vor.")
+        need, streak = c.get("need") or 2, c.get("streak") or 0
+        if c.get("met") is None:
+            stamp = ("na", "Zählt nicht")
+            says.append(f"Du hast nur {r} Runden gespielt. Deshalb zählt dieses Match nicht für die Lektion.")
+        elif c["met"]:
+            stamp = ("ok", "Ziel geschafft")
+            if allowed is not None:
+                says.append(f"Erlaubt waren höchstens {allowed}, du hast das Ziel also geschafft.")
+            if fc.get("mastered"):
+                stamp = ("ok", "Lektion geschafft")
+                says.append(f"Das war dein {streak}. Match in Folge im Ziel. Damit hast du die Lektion geschafft.")
+            else:
+                says.append(f"Damit stehst du bei {streak} von {need} Matches in Folge.")
+        else:
+            stamp = ("no", "Nicht geschafft")
+            says.append((f"Erlaubt waren höchstens {allowed}. " if allowed is not None else "")
+                        + "Diesmal hat es nicht gereicht, die Serie beginnt im nächsten Match von vorn.")
+        if fc.get("mastered") and fo.get("lesson") in course_texts.LESSONS and fo["lesson"] != lid:
+            nxt = {"id": fo["lesson"], "title": course.texts(fo["lesson"])["title"]}
+            says.append(f"Als Nächstes kommt die Lektion „{nxt['title']}“.")
+    else:
+        if fc.get("settled") and fc["settled"] in course_texts.LESSONS and fc["settled"] != lid:
+            says.append(f"Die Lektion „{course.texts(fc['settled'])['title']}“ sitzt inzwischen. "
+                        "Deshalb geht dein Kurs weiter.")
+        if n_today is not None and rounds:
+            says.append(f"In diesem Match kam der Fehler {_times(n_today)} in {rounds} Runden vor.")
+        if fo.get("lesson") == lid and fo.get("target") is not None and rounds:
+            allowed = int(float(fo["target"]) * rounds / 10)
+            lead = "Ab dem nächsten Match ist dein Ziel" if fc.get("new") else "Dein Ziel ist"
+            says.append(f"{lead} höchstens {allowed} in so vielen Runden.")
+    # eine Szene dieses Matches zur Lektion: Hauptfehler vor Nebenfehler, teure Runden zuerst
+    won_round = {r[0]: r[2] for r in (h.get("by_round") or {}).get(sid) or []}
+    won_round.update({x[0]: x[2] for x in (history._seq_by(h).get(sid) or [])})
+    own = [x for x in h.get("scenes") or [] if x.get("sid") == sid
+           and x.get("round") is not None and x.get("tick") is not None]
+    main = [x for x in own if x.get("lesson") == lid]
+    side = [x for x in own if x.get("lesson") != lid and lid in (x.get("lessons") or [])]
+
+    def low_cost(x) -> bool:  # Tod in Überzahl, Runde trotzdem gewonnen: kostet wenig, kein Aufmacher
+        return bool(won_round.get(x["round"])) and (x.get("own") or 0) > (x.get("enemy") or 0)
+
+    scs = sorted(main, key=lambda x: (low_cost(x), -(x.get("cost") or 0))) + \
+        sorted(side, key=lambda x: (low_cost(x), -(x.get("cost") or 0)))
+    scene = None
+    if scs and h.get("report_file"):
+        x = scs[0]
+        scene = {"round": x["round"], "where": "" if (x.get("happened") or "").startswith("Bei ")
+                 else course.scene_sentence(x, h.get("map")),
+                 "text": course._first_sentences(x.get("happened"), 3),
+                 "nades": x.get("nades") if lid == "utility" else None,
+                 "href": f"/reports/{h['report_file']}#s{x['round']}-{x.get('from') or x['tick']}"}
+    return {"id": lid, "title": t["title"], "goal": t["goal"], "says": says, "stamp": stamp, "next": nxt,
+            "scene": scene, "util_late": _util_late(h, sid) if lid == "utility" else None}
 
 
 UTIL_LOTS_PER_ROUND = 1.5  # ab so vielen Granaten je Runde wirft er "viel"
@@ -1072,7 +1142,7 @@ def _util_late(h: dict, sid: str) -> str | None:
 
 @app.get("/m/{report_file}", response_class=HTMLResponse)
 def match_minute(report_file: str, p: str = "") -> str:
-    """Match-Story nach dem Spiel: ein Gedanke pro Bildschirm (Ergebnis, Fokus, die eine Szene, nächstes Match).
+    """Match-Story nach dem Spiel: ein Gedanke pro Bildschirm (Ergebnis, deine Lektion im Kurs, fertig).
     Mehrere Fokus-Spieler ohne Login: erst wählen (``p``); eingeloggt nur der eigene Spieler."""
     if not re.fullmatch(r"[^/\\]+\.html", report_file) or not _report_visible(report_file):
         raise HTTPException(404, "Match nicht gefunden.")
@@ -1106,8 +1176,6 @@ def match_minute(report_file: str, p: str = "") -> str:
         # Spielabend nur für heute (bis zu diesem Match), Übungs-Vergleich zum Fokus
         if at is not None and at.date() == weekplan.local_today():
             r["today"] = session.session(_load_hist(), r["sid"], at.date(), until=h["analyzed_at"])
-        if r.get("check"):
-            r["practice"] = session.practice(_players_state().get(r["sid"]))
     return _env.get_template("minute.html").render(**view, r=r, pick=None, mine=bool(me and r and r["sid"] == me))
 
 
@@ -1173,14 +1241,15 @@ def _auftrag(hist: list[dict]) -> list[dict]:
             streak += 1
         out.append({"streak": streak,
                     "mastered_titles": [LESSONS[d["lesson"]][0] for d in reversed(slot.get("done", []))
-                                        if d.get("lesson") in LESSONS][:3],"sid": sid, "name": names.get(sid, sid), "lesson": f["lesson"], "title": LESSONS[f["lesson"]][0],
+                                        if d.get("lesson") in LESSONS and d.get("status") != "sitzt"][:3],"sid": sid, "name": names.get(sid, sid), "lesson": f["lesson"], "title": LESSONS[f["lesson"]][0],
                     "target": f["target"], "baseline": f["baseline"], "matches": f.get("matches", []),
                     "baseline_n": f.get("baseline_n"), "baseline_rounds": f.get("baseline_rounds"),
                     "rueckfall": f.get("rueckfall"),
                     "mantra": t["mantra"], "routine": t["routine"], "in_game": t["in_game"],
                     "drills": coaching.drills_since(slot, f.get("created_at")),
                     "scenes": min(12, sum(1 for sc in scenes if sc["lesson"] == f["lesson"] and sc.get("sid") == sid)),
-                    "mastered": len(slot.get("done", [])), "practice": session.practice(slot)})
+                    "mastered": sum(1 for d in slot.get("done", []) if d.get("status") != "sitzt"),
+                    "practice": session.practice(slot)})
     return out
 
 
@@ -1245,14 +1314,25 @@ async def training_deal(request: Request) -> JSONResponse:
 
 
 @app.post("/training/done")
-def training_done(p: str = "") -> RedirectResponse:
-    from cstaktik import coaching, weekplan
+def training_done(p: str = "", lesson: str = "", back: str = "") -> RedirectResponse:
+    """Übung abgehakt. ``lesson``: Übung einer bestimmten Lektion (Lektionsseite), sonst die des Auftrags.
+    ``back=kurs``: zurück zur Lektionsseite."""
+    from cstaktik import coaching, course_texts, weekplan
 
     _own_only(p)
+    from urllib.parse import quote
 
+    if lesson and lesson not in course_texts.LESSONS:
+        raise HTTPException(404, "Lektion nicht gefunden.")
     with coaching.LOCK:
         state = coaching.load(pipeline.COACHING_FILE)
         slot = state.get("players", {}).get(p)
+        if slot is None and lesson and p and any(p in (h.get("players") or {}) for h in _load_hist()):
+            slot = state.setdefault("players", {}).setdefault(p, {"focus": None, "done": [], "drills": []})
+        if slot and lesson and lesson != (slot.get("focus") or {}).get("lesson"):
+            coaching.drill_done(slot, lesson)  # Übung einer anderen Lektion: zählt nur für diese
+            coaching.save(state, pipeline.COACHING_FILE)
+            slot = None
         if slot and slot.get("focus"):
             coaching.drill_done(slot, slot["focus"]["lesson"])
             # dieselbe Übung im Wochenplan abhaken, damit sie nicht doppelt gezählt wird
@@ -1264,8 +1344,8 @@ def training_done(p: str = "") -> RedirectResponse:
                 if open_:
                     weekplan.toggle(slot, key, open_)
             coaching.save(state, pipeline.COACHING_FILE)
-    from urllib.parse import quote
-
+    if back == "kurs" and lesson:
+        return RedirectResponse(f"/kurs/{lesson}?p={quote(p)}&ok=1#ueben", status_code=303)
     return RedirectResponse(f"/training?p={quote(p)}#vorbereitung", status_code=303)
 
 
@@ -1525,7 +1605,7 @@ def _map_hub(hist: list[dict], sid: str | None) -> list[dict]:
 @app.post("/training/plan")
 def plan_toggle(p: str = "", task: str = "", week: str = "", done: int = 0, back: str = "") -> RedirectResponse:
     """Aufgabe abhaken/Haken entfernen. ``done=1``: nur abhaken (automatisch, z. B. Quiz), nie den Haken entfernen.
-    ``back=home``: danach zurück zur Startseite (Checkliste im Fokus)."""
+    ``back=home``: danach zurück zur Startseite."""
     from cstaktik import coaching, weekplan
 
     _own_only(p)
@@ -1545,7 +1625,7 @@ def plan_toggle(p: str = "", task: str = "", week: str = "", done: int = 0, back
             if now is not None:
                 coaching.save(state, pipeline.COACHING_FILE)
     if back == "home":
-        return RedirectResponse("/#fokus", status_code=303)
+        return RedirectResponse("/", status_code=303)
     return RedirectResponse(f"/training?p={p}#plan", status_code=303)
 
 
@@ -2130,7 +2210,8 @@ def _progress_ctx(p: str) -> dict:
     if prof:
         prof["summary"] = _profile_summary(prof, auftrag)
     tabs = [{"sid": s, "name": names.get(s, s), "on": s == sid} for s in _mine(sids)]
-    return {"p": prof, "a": auftrag, "tabs": tabs}
+    kurs = _course_overview(hist, sid) if sid else None
+    return {"p": prof, "a": auftrag, "tabs": tabs, "kurs": kurs}
 
 
 @app.get("/progress", response_class=HTMLResponse)

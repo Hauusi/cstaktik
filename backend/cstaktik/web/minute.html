@@ -116,56 +116,21 @@ html.js .sx-h { font-size: 40px; }
     <div class="hint">Tippen oder wischen</div>
   </section>
 
-  {# 2. Fokus #}
-  {% if r.check %}{% set c = r.check %}
-  <section class="sx" data-step="fokus" aria-label="Fokus">
-    <div class="k">Dein Fokus</div>
-    <div class="sx-h" role="heading" aria-level="2">{{ c.title }}</div>
-    {% if c.mastered %}<div class="stamp ok">Gemeistert</div>
-    {% elif c.met is none %}<div class="stamp na">Zu wenig Runden</div>
-    {% elif c.met %}<div class="stamp ok">Geschafft</div>
-    {% else %}<div class="stamp no">Nicht geschafft</div>{% endif %}
-    <div class="facts num">{% if c.today %}{{ c.today }}{% elif c.count is not none and c.rounds %}{{ c.count }}x in {{ c.rounds }} Runden.{% endif %}{% if c.max is defined and c.max is not none %} Ziel war höchstens {{ c.max }}.{% endif %}
-      {% if c.met is none %}<div class="muted">Zu wenige Runden, dieses Match zählt nicht.</div>{% endif %}
-      {% if c.need and c.streak is not none and not c.mastered %}<div class="muted">Serie: {{ c.streak }} von {{ c.need }} Matches im Ziel.</div>{% endif %}
-    </div>
-  </section>
-  {% endif %}
-
-  {# 3. Die eine Szene #}
-  {% if r.topic %}
-  <section class="sx" data-step="szene" aria-label="Die eine Szene">
-    <div class="k">Die eine Szene</div>
-    <div class="sx-h" role="heading" aria-level="2">{{ r.topic.title }}</div>
-    {% if r.topic.mantra %}<div class="mantra">„{{ r.topic.mantra }}“</div>{% endif %}
-    {% if r.scenes %}{% set sc = r.scenes[0] %}
-    {% if sc.text %}<div class="facts">{{ sc.text }}</div>{% endif %}
+  {# 2. Deine Lektion: die aktuelle Kurs-Lektion in diesem Match #}
+  {% if r.lesson %}{% set L = r.lesson %}
+  <section class="sx" data-step="lektion" aria-label="Deine Lektion">
+    <div class="k">Deine Lektion</div>
+    <div class="sx-h" role="heading" aria-level="2">{{ L.title }}</div>
+    {% if L.stamp %}<div class="stamp {{ L.stamp[0] }}">{{ L.stamp[1] }}</div>{% endif %}
+    {% if L.says %}<div class="facts num">{{ L.says|join(" ") }}</div>{% elif L.goal %}<div class="facts">{{ L.goal }}</div>{% endif %}
+    {% if L.scene %}{% set sc = L.scene %}
+    <div class="facts muted">{{ sc.where }} {{ sc.text }}</div>
     {% if sc.nades %}<div class="pocket">In der Tasche beim Tod: {{ sc.nades|join(", ") }}.</div>{% endif %}
-    {% if r.util_late %}<div class="facts muted">{{ r.util_late }}</div>{% endif %}
-    {% if r.spot %}<div class="facts muted">Muster: {{ r.spot }}</div>{% endif %}
-    <a class="cta" href="{{ sc.href }}">▶ Runde {{ sc.round }} ansehen</a>
     {% endif %}
-  </section>
-  {% elif r.quiet %}
-  <section class="sx" data-step="szene" aria-label="Die eine Szene">
-    <div class="k">Die eine Szene</div>
-    <div class="sx-h" role="heading" aria-level="2">Sauber gespielt</div>
-    <div class="facts">{{ r.quiet }}</div>
-    {% if r.spot %}<div class="facts muted">Muster: {{ r.spot }}</div>{% endif %}
-  </section>
-  {% endif %}
-
-  {# 4. Nächstes Match #}
-  {% if r.next %}{% set n = r.next %}
-  <section class="sx" data-step="naechstes" aria-label="Nächstes Match">
-    <div class="k">Nächstes Match</div>
-    <div class="sx-h" role="heading" aria-level="2">{{ n.title }}</div>
-    {% if n.in_game %}<div class="say">{{ n.in_game }}</div>{% elif n.mantra %}<div class="mantra">„{{ n.mantra }}“</div>{% endif %}
-    {% if n.today and not r.check %}<div class="facts num">Heute: {{ n.today }}</div>{% endif %}
-    {% if n.max is defined %}<div class="facts num"><b>Nächstes Match: höchstens {{ n.max }}.</b>
-      <div class="muted">Gerechnet auf {{ n.max_rounds }} Runden wie heute.</div></div>{% endif %}
-    <button class="cta" type="button" id="deal" data-lesson="{{ n.lesson }}" hidden>Abgemacht</button>
-    {% if r.practice %}<div class="cap num">{{ r.practice.text }}</div>{% endif %}
+    {% if L.util_late %}<div class="facts muted">{{ L.util_late }}</div>{% endif %}
+    {% if L.scene %}<a class="cta ghost" href="{{ L.scene.href }}">Runde {{ L.scene.round }} ansehen</a>{% endif %}
+    {% if L.next %}<a class="cta" href="/kurs/{{ L.next.id }}{% if many %}?p={{ r.sid }}{% endif %}">Zur nächsten Lektion</a>
+    {% else %}<a class="cta" href="/kurs/{{ L.id }}{% if many %}?p={{ r.sid }}{% endif %}">Zur Lektion</a>{% endif %}
   </section>
   {% endif %}
 
@@ -174,7 +139,7 @@ html.js .sx-h { font-size: 40px; }
     <div class="k">Fertig</div>
     <div class="sx-h" role="heading" aria-level="2">Das war dein Match.</div>
     <a class="cta" href="/reports/{{ file }}">Ganzer Report</a>
-    <a class="cta ghost" href="/">Zur Startseite</a>
+    <a class="cta ghost" href="/{% if many %}?p={{ r.sid }}{% endif %}">Zum Kurs</a>
   </section>
 {% endif %}
   </div>
@@ -232,22 +197,6 @@ html.js .sx-h { font-size: 40px; }
     else if (e.key === " " && !e.target.closest("a, button")) { show(i + 1); e.preventDefault(); }
   });
 
-  // Abgemacht: im Browser merken; eingeloggt mit eigenem Spieler auch auf dem Server (Startseite)
-  var deal = document.getElementById("deal");
-  if (deal) {
-    var file = story.getAttribute("data-file"), sid = story.getAttribute("data-sid");
-    var key = "cstaktik-deal-/reports/" + file + "-" + sid;
-    var mark = function () { deal.textContent = "✓ Abgemacht"; deal.classList.add("done"); };
-    try { if (localStorage.getItem(key)) mark(); } catch (e) { /* ohne Speicher */ }
-    deal.hidden = false;
-    deal.addEventListener("click", function () {
-      mark();
-      try { localStorage.setItem(key, "1"); } catch (e) { /* ohne Speicher */ }
-      if (story.getAttribute("data-mine") && window.fetch) fetch("/training/deal", { method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sid: sid, lesson: deal.getAttribute("data-lesson"), report: file }) }).catch(function () {});
-    });
-  }
 })();
 </script>
 {% endblock %}

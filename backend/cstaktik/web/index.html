@@ -1,58 +1,57 @@
 {% extends "base.html" %}
-{% block title %}Coach · cstaktik{% endblock %}
+{% block title %}Dein Kurs{% endblock %}
 {% block bodyclass %}{% endblock %}
 {% block head %}
 <style>
-/* Startseite: zwei Dinge in fester Reihenfolge. 1. das neue Match, 2. der Fokus fürs nächste Match. */
-.flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 18px 0 0; counter-reset: fl; }
-.flow > div { position: relative; padding: 10px 10px 9px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; }
-.flow > div::before { counter-increment: fl; content: counter(fl); display: grid; place-items: center; width: 22px; height: 22px;
-  border-radius: 50%; background: var(--surface-2); color: var(--orange); font-weight: 800; font-size: 12px; margin-bottom: 6px; }
-.flow > div.on { border-color: rgba(255,159,28,.55); background: rgba(255,159,28,.08); }
-.flow > div.on::before { background: var(--orange); color: #111; }
-.flow b { display: block; font-size: 14px; line-height: 1.2; } .flow span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
+/* Startseite "Dein Kurs": neues Match (falls da), aktuelle Lektion, Lernpfad. Sonst nur kleine Links. */
 .home { display: grid; gap: 14px; margin-top: 18px; }
 .kicker { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .slim { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 12px;
   border: 1px solid var(--line); background: var(--surface); font-size: 13.5px; color: var(--muted); }
 .slim b { color: var(--text); font-weight: 650; } .slim i { font-style: normal; color: var(--orange); font-weight: 800; }
-/* 1. Neues Match */
-.newm { display: block; padding: 18px; border-radius: 18px; border: 1px solid rgba(255,159,28,.45);
-  background: linear-gradient(135deg, rgba(255,159,28,.18), rgba(255,159,28,.02) 60%), var(--surface); }
-.newm .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.newm h3 { margin: 10px 0 0; font-size: 30px; line-height: 1.05; letter-spacing: -.02em; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.newm h3 .num { color: var(--orange); }
-.res { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; }
-.res.w { background: rgba(63,191,127,.15); color: #6fe0a6; } .res.l { background: rgba(240,86,106,.15); color: #ff9aa8; } .res.d { background: var(--surface-2); color: var(--muted); }
+/* Neues Match: eine kompakte Karte */
+.newm { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 16px;
+  border: 1px solid rgba(255,159,28,.45); background: linear-gradient(135deg, rgba(255,159,28,.16), rgba(255,159,28,.02) 60%), var(--surface); }
+.newm .t { min-width: 0; } .newm b { display: block; font-size: 19px; line-height: 1.2; margin-top: 3px; }
+.newm b .num { color: var(--orange); } .newm p { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
+.newm i { font-style: normal; color: var(--orange); font-weight: 800; font-size: 22px; }
 .newb { background: var(--accent); color: #111; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 800; letter-spacing: .08em; margin-right: 4px; }
+/* Aktuelle Lektion */
+.cur { padding: 18px; border-radius: 18px; border: 1px solid rgba(255,159,28,.5); background: var(--surface); }
+.cur h3 { margin: 8px 0 0; font-family: var(--cond); font-weight: 800; font-size: 30px; line-height: 1.02; text-transform: uppercase; }
+.cur .goal { margin: 10px 0 0; font-size: 16px; line-height: 1.45; }
+.cur .prog { margin: 10px 0 0; font-size: 14px; color: var(--muted); line-height: 1.45; }
+.cur .prog.bad { color: #ff9aa8; }
+.dots { display: flex; gap: 6px; margin-top: 12px; } .dots i { width: 28px; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.dots i.on { background: var(--win); }
 .go { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; height: 52px; border-radius: 14px;
   background: var(--orange); color: #111; font-weight: 800; font-size: 16px; box-shadow: 0 8px 24px rgba(255,159,28,.28); }
-.more-new { display: grid; gap: 6px; }
-.more-new a { display: flex; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--surface);
-  border: 1px solid var(--line); font-size: 14px; } .more-new a span { color: var(--muted); font-size: 13px; white-space: nowrap; }
-/* 2. Fokus */
-#fokus { scroll-margin-top: 70px; }
-.fokus .atitle { margin-top: 4px; }
-.cue { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14.5px; }
-.cue span { display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--orange); margin-bottom: 2px; }
-.fline { margin-top: 10px; font-size: 13.5px; color: var(--muted); } .fline b { color: var(--text); }
-.fline.bad { color: #ff9aa8; }
-.deal { margin-top: 10px; padding-left: 10px; border-left: 3px solid var(--orange); font-size: 13.5px; }
-.checks { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.checks .ch { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); }
-.checks .ch b { color: var(--orange); }
-.crow { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center; margin-top: 8px; }
-.crow .chk { width: 30px; height: 30px; font-size: 15px; border-radius: 9px !important; }
-.crow.done .chk { border-color: #46a758; background: rgba(70,167,88,.12); color: #46a758; }
-.crow .ct { font-size: 14px; line-height: 1.3; min-width: 0; } .crow .ct span { display: block; font-size: 11.5px; color: var(--muted); }
-.crow.done .ct { color: var(--muted); text-decoration: line-through; }
-.flinks { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 14px; font-size: 14px; font-weight: 700; }
-.flinks a { color: var(--orange); }
+.empty p { margin: 0; font-size: 15px; line-height: 1.45; } .empty p + p { margin-top: 8px; color: var(--muted); font-size: 14px; }
+/* Lernpfad */
+.pathsum { margin: 0 0 12px; font-size: 14.5px; color: var(--muted); line-height: 1.45; } .pathsum b { color: var(--text); }
+.stage { padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.stage + .stage { margin-top: 10px; }
+.stage.on { border-color: rgba(255,159,28,.4); }
+.stage .sh { display: flex; align-items: center; gap: 10px; font-family: var(--cond); font-weight: 800; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; }
+.stage .sh span { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surface-2);
+  color: var(--orange); font-size: 13px; flex: none; }
+.stage.on .sh span { background: var(--orange); color: #111; }
+.stage .intro { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+.ls { display: grid; gap: 2px; margin-top: 8px; }
+.ls a { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 6px 0;
+  border-top: 1px solid var(--line); font-size: 15px; line-height: 1.25; }
+.ls a .lt { min-width: 0; }
+.chip { flex: none; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px;
+  white-space: nowrap; border: 1px solid var(--line); color: var(--muted); }
+.chip.geschafft { background: rgba(63,191,127,.16); border-color: transparent; color: #6fe0a6; }
+.chip.aktuell { background: var(--orange); border-color: transparent; color: #111; }
+.chip.sitzt { border-color: rgba(63,191,127,.45); color: #6fe0a6; }
+.chip.baustelle { border-color: rgba(255,159,28,.45); color: var(--orange); }
+.tiny { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; font-weight: 700; }
+.tiny a { color: var(--orange); display: inline-flex; align-items: center; min-height: 40px; }
 .upbox.auto { padding: 0; background: none !important; border: 0 !important; box-shadow: none !important; }
-.upbox.auto summary { font-size: 13px; color: var(--muted); padding: 4px 0; }
-.upbox.compact summary { cursor: pointer; list-style: none; font-size: 14.5px; color: var(--text); font-weight: 700; }
-.upbox.compact summary::-webkit-details-marker { display: none; } .upbox.compact summary::after { content: " ›"; color: var(--orange); }
-.upbox.compact[open] summary { margin-bottom: 12px; }
+.upbox.auto summary { cursor: pointer; font-size: 14px; color: var(--muted); padding: 4px 0; min-height: 40px; display: flex; align-items: center; }
+.upbox.auto[open] summary { margin-bottom: 10px; }
 .upbox h3 { margin: 4px 0 2px; font-size: 19px; } .upbox > p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
 .upbox.first { border-color: rgba(255,159,28,.5); }
 .where { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
@@ -66,22 +65,14 @@
 </style>
 {% endblock %}
 {% block hero %}
-<h1>{% if me_name %}Hi {{ me_name }}{% else %}Dein Coach{% endif %}</h1>
+<h1>{% if me_name %}Hi {{ me_name }}{% else %}Dein Kurs{% endif %}</h1>
 <p>{% if jobs %}Dein Match wird ausgewertet. Gleich ist der Report da.
 {% elif need_link %}Verbinde deinen Steam-Account. Dann zeigt der Coach deine Matches.
-{% elif not n_history %}Lade dein erstes Match hoch. In ein paar Minuten weißt du, woran du arbeiten solltest.
-{% elif n_new > 1 %}{{ n_new }} neue Matches. Kurz ansehen, dann zum Fokus.
-{% elif n_new == 1 %}Dein neues Match ist da. Kurz ansehen, dann zum Fokus.
-{% else %}Ein Fokus fürs nächste Match. Mehr braucht es nicht.{% endif %}</p>
-{% if not n_history and not need_link %}{# nur beim Einstieg: danach kennt man den Ablauf, dann ist es nur Platz #}
-<div class="flow" aria-label="So funktioniert es">
-  <div class="on"><b>Hochladen</b><span>Demo nach dem Match</span></div>
-  <div><b>Ansehen</b><span>Dein Match in 60 Sekunden</span></div>
-  <div><b>Üben</b><span>Fokus &amp; Übungen</span></div>
-</div>
-{% endif %}
+{% elif not n_history %}Lade dein erstes Match hoch. Danach weiß der Coach, mit welcher Lektion dein Kurs beginnt.
+{% else %}Dein Coach bringt dir CS2 Schritt für Schritt bei. Jede Lektion prüft er in deinen Matches.{% endif %}</p>
 {% endblock %}
 {% block content %}
+{% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
 {% if missing_players %}<a class="slim" href="/spieler" style="margin-top:18px;border-color:#e5484d">
   <div><b>{{ missing_players }} eingestellte{{ "r" if missing_players == 1 }} Spieler {{ "fehlt" if missing_players == 1 else "fehlen" }} im letzten Match.</b> Hat er nicht mitgespielt, ist alles in Ordnung.</div><i>›</i></a>{% endif %}
 
@@ -98,69 +89,65 @@
 
   {% if push_hint %}<a class="slim" href="/konto#push"><span>Benachrichtigungen einschalten: Der Coach meldet sich, sobald dein Match ausgewertet ist.</span><i>›</i></a>{% endif %}
 
-  {# 1. Neues Match, sonst eine Zeile zum letzten #}
+  {# 1. Neues Match: eine kompakte Karte zur Story #}
   {% if news %}{% set nm = news[0] %}
-  <a class="newm" href="/m/{{ nm.report_file }}" data-block="new">
-    <div class="top"><span class="kicker"><span class="newb">Neu</span> {% if n_new > 1 %}{{ n_new }} neue Matches{% else %}Neues Match{% endif %}{% if nm.when %} · {{ nm.when }}{% endif %}</span>{% if nm.res %}<span class="res {{ nm.res }}">{{ nm.result }}</span>{% endif %}</div>
-    <h3>{{ nm.map_label }}{% if nm.won is not none %} <span class="num">{{ nm.won }}:{{ nm.lost }}</span>{% endif %}</h3>
-    <div class="go">Neues Match ansehen ›</div>
+  <a class="newm" href="/m/{{ nm.report_file }}{% if tabs %}?p={{ sid }}{% endif %}" data-block="new">
+    <div class="t"><span class="kicker"><span class="newb">Neu</span>{% if n_new > 1 %}{{ n_new }} neue Matches{% else %}Neues Match{% endif %}</span>
+      <b>{{ nm.map_label }}{% if nm.won is not none %} <span class="num">{{ nm.won }}:{{ nm.lost }}</span>{% endif %}{% if nm.result %}, {{ nm.result }}{% endif %}</b>
+      <p>Sieh dir an, wie es lief und was es für deine Lektion heißt.</p></div><i>›</i>
   </a>
-  {% if news|length > 1 %}<div class="more-new">{% for u in news[1:] %}
-    <a href="/m/{{ u.report_file }}"><b>{{ u.map_label }}{% if u.won is not none %} <span class="num">{{ u.won }}:{{ u.lost }}</span>{% endif %}</b><span>{% if u.result %}{{ u.result }}{% endif %}{% if u.when %}{{ " · " if u.result }}{{ u.when }}{% endif %} ›</span></a>
-  {% endfor %}</div>{% endif %}
-  {% elif last and last.report_file %}
-  <a class="slim" href="/m/{{ last.report_file }}" data-block="last"><span>Letztes Match: <b>{{ last.map_label }}{% if last.won is not none %} <span class="num">{{ last.won }}:{{ last.lost }}</span>{% endif %}</b>{% if last.result %} · {{ last.result }}{% endif %}{% if last.when %} · {{ last.when }}{% endif %}</span><i>›</i></a>
   {% endif %}
 
-  {# 2. Fokus fürs nächste Match #}
-  {% if auftrag or n_history %}
-  <section id="fokus" data-block="fokus">
-  <h2 style="margin-top:12px">Dein Fokus fürs nächste Match</h2>
-  {% if deal and deal.sid not in auftrag|map(attribute="sid")|list %}<div class="slim deal" style="margin-bottom:10px">Abgemacht nach {{ deal.map_label }}{% if deal.score %} {{ deal.score }}{% endif %}: {{ deal.text }}</div>{% endif %}
-  {% for a in auftrag %}
-  <div class="card auf fokus">
-    <div class="who">{% if auftrag|length > 1 %}{{ a.name }} · {% endif %}Fokus{% if a.mastered %} · {{ a.mastered }} gemeistert{% endif %}</div>
-    <div class="atitle">{{ a.title }}</div>
-    <div class="mantra">„{{ a.mantra }}“</div>
-    {% if a.in_game %}<div class="cue"><span>Im Match</span>{{ a.in_game }}</div>{% endif %}
-    {% if a.rueckfall %}<div class="fline bad">Der Fehler ist zurück. Am {{ a.rueckfall[8:10] }}.{{ a.rueckfall[5:7] }}. war er gemeistert, jetzt passiert er wieder so oft wie vorher.</div>{% endif %}
-    {% set lm = a.matches[-1] if a.matches else none %}
-    {% if lm and lm.rate is not none %}
-    <div class="fline num">Letztes Match: <b>{{ lm.rate|string|replace(".", ",") }}</b> Fehler pro 10 Runden ({{ lm.count }}x in {{ lm.rounds }} Runden). Ziel: höchstens <b>{{ a.target|string|replace(".", ",") }}</b>.{% if a.streak %} {{ a.streak }} von {{ goal_cfg.done_after or 2 }} Matches in Folge geschafft.{% endif %}</div>
-    {% else %}
-    <div class="fline num">Ziel: höchstens <b>{{ a.target|string|replace(".", ",") }}</b> Fehler pro 10 Runden. Start: {{ a.baseline|string|replace(".", ",") }}. Noch kein Match seit dem Fokus-Start.</div>
-    {% endif %}
-    {% if deal and deal.sid == a.sid %}<div class="deal">Abgemacht nach {{ deal.map_label }}{% if deal.score %} {{ deal.score }}{% endif %}: {{ deal.text }}</div>{% endif %}
-    {% if a.week %}
-    <div class="checks">
-      <div class="ch"><span>Übungen für deinen Fokus</span><b class="num">{{ a.week.done }}/{{ a.week.total }} erledigt</b></div>
-      {% for t in a.week.tasks %}
-      <div class="crow {{ 'done' if t.done }}">
-        <form action="/training/plan?p={{ a.sid }}&week={{ a.week.key }}&task={{ t.id|urlencode }}&back=home" method="post"><button class="chk" type="submit" aria-label="{{ 'Haken entfernen' if t.done else 'Erledigt' }}">✓</button></form>
-        <div class="ct">{{ t.title }}<span>{{ t.kind }}{% if t.minutes %} · {{ t.minutes }} Min{% endif %}</span></div>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    <div class="flinks"><a href="/training?p={{ a.sid }}">Alle Übungen ›</a></div>
-  </div>
+  {% if kurs %}{% set c = kurs.current %}
+  {# 2. Aktuelle Lektion #}
+  {% if c %}
+  <section class="cur" data-block="lesson">
+    <div class="kicker">{% if tabs %}{{ who }}: {% endif %}Deine aktuelle Lektion{% if c.stage %} in der Stufe {{ c.stage }}{% endif %}</div>
+    <h3>{{ c.title }}</h3>
+    {% if c.goal %}<p class="goal">{{ c.goal }}</p>{% endif %}
+    {% if c.focus %}<div class="dots" aria-hidden="true">{% for i in range(c.need) %}<i class="{{ 'on' if i < c.streak }}"></i>{% endfor %}</div>{% endif %}
+    <p class="prog num">{{ c.progress }}</p>
+    {% if deal and deal.sid == sid and deal.lesson == c.id %}<p class="prog">Nach dem Match auf {{ deal.map_label }}{% if deal.score %} ({{ deal.score }}){% endif %} hast du dir vorgenommen: {{ deal.text }}</p>{% endif %}
+    {% if c.rueckfall %}<p class="prog bad">Diese Lektion war am {{ c.rueckfall[8:10] }}.{{ c.rueckfall[5:7] }}. schon geschafft. Der Fehler passiert inzwischen wieder so oft wie vorher, deshalb ist sie zurück.</p>{% endif %}
+    <a class="go" href="/kurs/{{ c.id }}{% if tabs %}?p={{ sid }}{% endif %}">Lektion öffnen ›</a>
+  </section>
   {% else %}
-  <div class="card empty">Noch kein Fokus. Er entsteht, sobald ein Fehler in euren letzten Matches mindestens {{ goal_cfg.min_count }}x vorkommt. Ein einzelner Fehler ist noch kein Muster.</div>
-  {% endfor %}
-  {% if n_history %}<a class="slim" href="/training#vorbereitung" style="margin-top:10px"><span><b>Vor dem Match:</b> 10-Minuten-Vorbereitung</span><i>›</i></a>{% endif %}
-  <a class="slim" href="/training#tools" style="margin-top:8px"><span><b>Pro-Taktiken:</b> Playbook, Map-Buch, Lineups</span><i>›</i></a>
+  <section class="card empty" data-block="lesson">
+    {% if kurs.counts.sitzt %}
+    <p>In deinen letzten Matches ist gerade keine Lektion eine Baustelle.</p>
+    <p>Spiel einfach weiter. Der Coach prüft jedes Match und meldet sich, sobald ein Fehler öfter vorkommt.</p>
+    {% else %}
+    <p>Für eine Einstufung braucht der Coach noch mehr Runden von dir.</p>
+    <p>Nach etwa einem vollen Match weiß er, mit welcher Lektion dein Kurs beginnt.</p>
+    {% endif %}
   </section>
   {% endif %}
 
-  {% if auto %}{# Matches kommen automatisch: Hochladen nur noch als kleiner Ausweg #}
+  {# 3. Lernpfad #}
+  <section data-block="path">
+    <h2 style="margin-top:12px">Dein Lernpfad</h2>
+    <p class="pathsum">Du hast <b class="num">{{ kurs.done }} von {{ kurs.total }}</b> Lektionen geschafft.{% if kurs.settled %} {{ "Eine weitere sitzt" if kurs.settled == 1 else kurs.settled ~ " weitere sitzen" }} laut deinen Matches schon.{% endif %}{% if kurs.counts.offen %} Für {{ "eine Lektion" if kurs.counts.offen == 1 else kurs.counts.offen ~ " Lektionen" }} reichen die Daten noch nicht.{% endif %}</p>
+    {% for st in kurs.stages %}
+    <div class="stage{{ ' on' if st.on }}">
+      <div class="sh"><span>{{ loop.index }}</span>{{ st.title }}</div>
+      {% if st.intro %}<p class="intro">{{ st.intro }}</p>{% endif %}
+      <div class="ls">{% for l in st.lessons %}
+        <a href="/kurs/{{ l.id }}{% if tabs %}?p={{ sid }}{% endif %}"><span class="lt">{{ l.title }}</span><span class="chip {{ l.status }}">{{ l.chip }}</span></a>
+      {% endfor %}</div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if n_history %}
+  <div class="tiny"><a href="/training#vorbereitung">Vor dem Match ›</a><a href="/training#tools">Pro-Taktiken ›</a></div>
+  {% endif %}
+
+  {% if n_history %}{# Matches kommen meist automatisch: Hochladen nur als kleiner Ausweg #}
   <details class="card upbox auto">
     <summary>Demo selbst hochladen ›</summary>
     {% set embedded = true %}{% include "upload.html" %}
-  </details>
-  {% elif n_history %}
-  <details class="card upbox compact">
-    <summary>Demo hochladen</summary>
-    {% set embedded = true %}{% include "upload.html" %}
+    {% if not auto %}
     <details class="where"><summary>Wo finde ich die Demo?</summary>
       <ul>
         <li><b>CS2 (Premier, Wettkampf):</b> Im Spiel unter „Sehen“ → „Deine Matches“ das Match herunterladen. Die Datei liegt dann unter <code>…\Counter-Strike Global Offensive\game\csgo\replays</code>.</li>
@@ -168,6 +155,7 @@
         <li><b>Automatisch:</b> In den <a href="/konto">Optionen</a> mit Steam verbinden und den Match-Token eintragen. Dann findet der Coach neue Valve-Matches selbst.</li>
       </ul>
     </details>
+    {% endif %}
   </details>
   {% else %}
   <section class="card upbox first">
@@ -184,8 +172,8 @@
     </details>
     <div class="gets">
       <div>Dein Match in 60 Sekunden, dazu ein Report mit 2D-Replay.</div>
-      <div>Der Fehler, der euch die meisten Runden kostet.</div>
-      <div>Ein Fokus mit Übungen für das nächste Match.</div>
+      <div>Eine Einstufung: welche Lektionen schon sitzen und wo dein Kurs beginnt.</div>
+      <div>Zu jeder Lektion eine Erklärung, deine eigenen Szenen und eine Übung.</div>
     </div>
   </section>
   {% endif %}
