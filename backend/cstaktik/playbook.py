@@ -7,10 +7,8 @@ Ankunft am Bombsite, Plant (Ort, Zeit), Ausrüstung der Teams. Daraus wird je Ru
 - Ziel: Bombsite des Plants, sonst der Bombsite, den die T zuerst erreicht haben.
 - Tempo: Rush (Ankunft bis ``rush_s``), Execute (bis ``late_s``), spät (danach).
 - Spät: Default nur, wenn die T sich über die Map verteilen. "Zusammen", wenn mindestens ``group_min`` von ihnen
-  gemeinsam spielen: zu einem der Zeitpunkte ``group_at`` im Umkreis ``group_r`` um ihren Mittelpunkt, oder auf
-  demselben Weg (gleiche Orte zwischen ``route_from`` und ``route_to`` s, Überlappung ab ``route_overlap``),
-  auch wenn sie dabei hintereinander laufen (z. B. 4 über Palace, einer Mitte: kein Default).
-- Split: Die T, die den Bombsite betreten, kommen aus mindestens zwei verschiedenen Orten.
+  zwischen ``group_from`` und ``group_to`` s überwiegend als Gruppe laufen (jeder höchstens ``group_gap`` Units vom
+  nächsten, also auch hintereinander auf demselben Weg). Beispiele: alle 5 Mitte, 4 gemeinsam über Palace.
 
 Runden mit gleichem Ziel, Tempo und gleichen Zugängen bilden eine Taktik ("A-Split über Palace + Ramp").
 Je Taktik: Runden, Siege, typische Granaten (Wurf- und Landeort aus der Demo) und eine Beispielrunde zum Zeichnen.
@@ -28,8 +26,8 @@ PATH_STEP_S = 2
 PATH_MAX_S = 115
 
 DEFAULTS = {"eco_max": 6000, "force_max": 18000, "rush_s": 25, "late_s": 55, "nade_before_s": 20,
-            "nade_after_s": 5, "common_share": 0.5, "group_at": (20, 30, 40), "group_min": 4, "group_r": 700,
-            "route_from": 8, "route_to": 50, "route_overlap": 0.5}
+            "nade_after_s": 5, "common_share": 0.5, "group_from": 16, "group_to": 46, "group_step": 6, "group_min": 4,
+            "group_gap": 700}
 
 STYLE_TEXT = {
     "rush": ("Rush", "Alle gehen schnell auf einen Bombsite, bevor die CT rotieren. Das lebt von Tempo und "
@@ -185,58 +183,47 @@ def main_via(approach: dict, style: str) -> list[str]:
     return order[:1]
 
 
+def _clusters(pts: dict, gap: float) -> list[list[str]]:
+    """Gruppen von Spielern, die aneinanderhängen: jeder höchstens ``gap`` Units vom nächsten entfernt.
+    So zählen auch Spieler, die hintereinander denselben Weg laufen, als eine Gruppe."""
+    ids = list(pts)
+    root = {s: s for s in ids}
+
+    def find(x):
+        while root[x] != x:
+            x = root[x]
+        return x
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            if ((pts[a][0] - pts[b][0]) ** 2 + (pts[a][1] - pts[b][1]) ** 2) ** .5 <= gap:
+                root[find(a)] = find(b)
+    out: dict = {}
+    for s in ids:
+        out.setdefault(find(s), []).append(s)
+    return sorted(out.values(), key=len, reverse=True)
+
+
 def grouped(p: dict, c: dict) -> str | None:
-    """Laufen die T früh gemeinsam? Zu einem der Zeitpunkte ``group_at`` stehen mindestens ``group_min`` Spieler im
-    Umkreis ``group_r`` (Units) um ihren Mittelpunkt. Dann deren häufigster Ort ("" ohne Ortsangabe), sonst None."""
-    need, rad = c["group_min"], c["group_r"]
-    for sec in c["group_at"]:
+    """Spielen die T früh gemeinsam statt verteilt? Geprüft alle ``group_step`` s zwischen ``group_from`` und
+    ``group_to``: Hängen mindestens ``group_min`` lebende T aneinander (Abstand je höchstens ``group_gap`` Units),
+    in mindestens der Hälfte der Zeitpunkte, ist es kein Default. Rückgabe: häufigster Ort dieser Gruppe ("" ohne
+    Ortsangabe), sonst None. An echten Pro-Runden geprüft: verteilte Defaults bleiben darunter."""
+    need, paths, places = c["group_min"], p.get("paths") or {}, p.get("places") or {}
+    hits, checks, where = 0, 0, []
+    for sec in range(c["group_from"], c["group_to"] + 1, c["group_step"]):
         i = sec // PATH_STEP_S
-        pts = {sid: v[i] for sid, v in (p.get("paths") or {}).items() if i < len(v)}
+        pts = {sid: v[i] for sid, v in paths.items() if i < len(v)}
         if len(pts) < need:
             continue
-        best: list[str] = []
-        for cx, cy in pts.values():  # Mittelpunkt der Nachbarn je Spieler: größte Gruppe suchen
-            near = {s: q for s, q in pts.items() if ((q[0] - cx) ** 2 + (q[1] - cy) ** 2) ** .5 <= 2 * rad}
-            mx, my = sum(q[0] for q in near.values()) / len(near), sum(q[1] for q in near.values()) / len(near)
-            grp = [s for s, q in near.items() if ((q[0] - mx) ** 2 + (q[1] - my) ** 2) ** .5 <= rad]
-            if len(grp) > len(best):
-                best = grp
-        if len(best) < need:
-            continue
-        j = i
-        pl = [v[j] for s, v in (p.get("places") or {}).items() if s in best and j < len(v) and v[j]]
-        top = Counter(pl).most_common(1)
-        return top[0][0] if top and top[0][1] >= need - 1 else ""
-    return same_route(p, c)
-
-
-def same_route(p: dict, c: dict) -> str | None:
-    """Laufen mindestens ``group_min`` T denselben Weg (auch hintereinander)? Weg = Orte zwischen ``route_from``
-    und ``route_to`` s ohne Bombsites. Gleich: Überlappung (Jaccard) ab ``route_overlap``. Rückgabe: der Ort,
-    den die meisten der Gruppe passiert haben, sonst None."""
-    lo, hi = c["route_from"] // PATH_STEP_S, c["route_to"] // PATH_STEP_S
-    routes = {sid: {q for q in pls[lo:hi + 1] if q and not _site_of(q)} for sid, pls in (p.get("places") or {}).items()}
-    routes = {s: r for s, r in routes.items() if r}
-    need = c["group_min"]
-    if len(routes) < need:
+        checks += 1
+        big = _clusters(pts, c["group_gap"])[0]
+        if len(big) >= need:
+            hits += 1
+            where += [places[s][i] for s in big if s in places and i < len(places[s]) and places[s][i]]
+    if not checks or hits * 2 < checks:
         return None
-    sim = lambda a, b: len(a & b) / len(a | b)  # noqa: E731
-    best: list[str] = []
-    for s, r in routes.items():
-        grp = [t for t, q in routes.items() if sim(r, q) >= c["route_overlap"]]
-        if len(grp) > len(best):
-            best = grp
-    if len(best) < need:
-        return None
-    # Name: gemeinsamer Ort (fast alle der Gruppe), der am spätesten erreicht wird, also nah am Ziel, nicht der Spawn
-    cnt = Counter(q for s in best for q in routes[s])
-    pls = p.get("places") or {}
-
-    def when(q):
-        firsts = [pls[s].index(q) for s in best if q in pls[s]]
-        return sum(firsts) / len(firsts)
-    shared = [q for q in cnt if cnt[q] >= need - 1]
-    return max(shared, key=lambda q: (when(q), q)) if shared else ""
+    top = Counter(where).most_common(1)
+    return top[0][0] if top else ""
 
 
 def group_key(p: dict, k: dict) -> tuple:
