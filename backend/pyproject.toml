@@ -13,6 +13,7 @@ dependencies = [
     "pydantic>=2.6",
     "cryptography>=42",
     "zstandard>=0.22",
+    "anthropic>=1.0",
 ]
 
 [project.optional-dependencies]

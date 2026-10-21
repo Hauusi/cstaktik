@@ -199,3 +199,15 @@ playbook:
   nade_after_s: 5
   common_share: 0.5  # "typische Granate": in mindestens der Hälfte der Runden einer Taktik
   zone_units: 1300   # CT-Aufstellung: bis zu diesem Abstand von der Bombsite-Mitte (aus Plants) zählt ein CT zu A/B
+
+# KI-Coach (ai_coach.py): Nachbesprechung und Fragen zu einem Match über die Claude API. Nur aktiv, wenn auf dem
+# Server die Umgebungsvariable ANTHROPIC_API_KEY gesetzt ist (nie im Repo). Preise in US-Dollar je Million Tokens
+# (Listenpreise von Anthropic); daraus werden die Kosten je Gespräch und je Monat gerechnet.
+ai:
+  model: claude-haiku-5-5
+  monthly_limit_usd: 2.0    # danach antwortet der Coach bis zum Monatsende nicht mehr
+  max_questions: 15         # Fragen je Match und Spieler
+  max_question_chars: 500
+  prices:
+    claude-haiku-5-5: {input: 0.10, output: 0.50}
+    claude-sonnet-5-5: {input: 2.0, output: 10.0}

@@ -138,7 +138,9 @@ html.js .sx-h { font-size: 40px; }
   <section class="sx" data-step="fertig" aria-label="Fertig">
     <div class="k">Fertig</div>
     <div class="sx-h" role="heading" aria-level="2">Das war dein Match.</div>
-    <a class="cta" href="/reports/{{ file }}">Ganzer Report</a>
+    <div class="facts">Jetzt besprich es mit deinem Coach: was los war, woran du arbeitest, und frag nach, was du nicht verstehst.</div>
+    <a class="cta" href="/coach/{{ file }}{% if many %}?p={{ r.sid }}{% endif %}">Mit dem Coach besprechen</a>
+    <a class="cta ghost" href="/reports/{{ file }}">Ganzer Report</a>
     <a class="cta ghost" href="/{% if many %}?p={{ r.sid }}{% endif %}">Zum Kurs</a>
   </section>
 {% endif %}

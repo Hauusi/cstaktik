@@ -22,6 +22,7 @@ CACHE_DIR = DATA_DIR / "cache"
 HISTORY_DIR = DATA_DIR / "history"
 GOALS_FILE = DATA_DIR / "goals.json"
 COACHING_FILE = DATA_DIR / "coaching.json"
+AI_DIR = DATA_DIR / "ai"  # KI-Coach: Gespräche je Match und Spieler, Kosten je Monat
 PRO_DIR = DATA_DIR / "pro"
 PRO_DEMOS_DIR = DATA_DIR / "pro_demos"  # hochgeladene Pro-Demos, getrennt von den eigenen
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.

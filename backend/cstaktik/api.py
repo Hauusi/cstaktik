@@ -1179,6 +1179,86 @@ def match_minute(report_file: str, p: str = "") -> str:
     return _env.get_template("minute.html").render(**view, r=r, pick=None, mine=bool(me and r and r["sid"] == me))
 
 
+def _coach_target(report_file: str, p: str) -> tuple[dict, str, list[str], dict]:
+    """Match und Spieler für den KI-Coach. Eingeloggt nur der eigene Spieler; ohne Login ein Fokus-Spieler."""
+    if not re.fullmatch(r"[^/\\]+\.html", report_file) or not _report_visible(report_file):
+        raise HTTPException(404, "Match nicht gefunden.")
+    hist = _load_hist()
+    h = next((x for x in hist if x.get("report_file") == report_file), None)
+    if h is None:
+        raise HTTPException(404, "Match nicht gefunden.")
+    players = h.get("players") or {}
+    from cstaktik import history
+
+    focus = sorted(set(history._seq_by(h)) | set(h.get("lessons") or {}) | set(h.get("impact") or {}))
+    me = _me()
+    sids = [me] if me and me in players else [s for s in _mine(focus) if s in players]
+    if not sids:
+        raise HTTPException(404, "Keine Spieler-Daten.")
+    return h, (p if p in sids else sids[0]), sids, players
+
+
+def _coach_facts(h: dict, sid: str) -> str:
+    from cstaktik import ai_coach
+
+    hist = _load_hist()
+    before = [x for x in hist if sid in (x.get("players") or {}) and x is not h
+              and (x.get("analyzed_at") or "") < (h.get("analyzed_at") or "")]
+    before.sort(key=lambda x: x.get("analyzed_at") or "", reverse=True)
+    return ai_coach.facts(h, sid, previous=before[:3], lesson=_minute_lesson(h, sid))
+
+
+def _coach_view(chat: dict | None) -> dict:
+    from cstaktik import ai_coach
+
+    cfg = ai_coach.settings()
+    msgs = []
+    for i, m in enumerate((chat or {}).get("messages") or []):
+        if i == 0:
+            continue  # Startbitte nicht zeigen
+        msgs.append({"role": m["role"], "html": ai_coach.to_html(m["text"]) if m["role"] == "assistant" else None,
+                     "text": m["text"]})
+    asked = sum(1 for m in msgs if m["role"] == "user")
+    return {"msgs": msgs, "left": max(0, cfg["max_questions"] - asked),
+            "cost": ai_coach.cents((chat or {}).get("cost_usd") or 0),
+            "month": ai_coach.cents(ai_coach.spent()), "limit": ai_coach.cents(cfg["monthly_limit_usd"])}
+
+
+@app.get("/coach/{report_file}", response_class=HTMLResponse)
+def coach_page(report_file: str, p: str = "") -> str:
+    """KI-Coach: Nachbesprechung des Matches und Fragen dazu."""
+    from cstaktik import ai_coach
+
+    h, sid, sids, players = _coach_target(report_file, p)
+    chat = ai_coach.load_chat(report_file, sid)
+    return _env.get_template("coach.html").render(
+        nav_active="matches", jobs=_running_jobs(), file=report_file, sid=sid, many=len(sids) > 1,
+        name=(players.get(sid) or {}).get("name", sid), enabled=ai_coach.enabled(),
+        map_label=(h.get("map") or "?").removeprefix("de_").capitalize(), **_coach_view(chat))
+
+
+@app.post("/coach/{report_file}")
+async def coach_ask(report_file: str, request: Request) -> JSONResponse:
+    """Nachbesprechung starten (ohne Frage) oder eine Frage stellen. Antwort: das ganze Gespräch als HTML-Teile."""
+    from cstaktik import ai_coach
+
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    p, q = str(body.get("p") or ""), str(body.get("q") or "")
+    h, sid, _sids, _players = _coach_target(report_file, p)
+    _own_only(sid)
+    try:
+        chat = await run_in_threadpool(ai_coach.ask, report_file, sid, _coach_facts(h, sid), q)
+    except ai_coach.CoachError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    v = _coach_view(chat)
+    v["msgs"] = [{"role": m["role"], "html": str(m["html"]) if m["html"] else None, "text": m["text"]}
+                 for m in v["msgs"]]
+    return JSONResponse(v)
+
+
 @app.get("/pro", response_class=HTMLResponse)
 def pro_page() -> str:
     from cstaktik import pro
