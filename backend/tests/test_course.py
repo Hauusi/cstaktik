@@ -133,7 +133,7 @@ def test_lesson_drill_tick_and_per_player_isolation():
     b.post("/login", data={"name": "Bruder", "password": "Geheim-12345"}, headers=O)
     page = b.get(f"/kurs/crosshair?p={ME}").text  # fremder Spieler per Parameter: trotzdem nur der eigene
     assert "Runde 7 auf Mirage" not in page and "Das ist deine aktuelle Lektion" not in page
-    home = b.get("/").text
+    home = b.get("/kurs").text
     assert re.search(r'href="/kurs/utility"><span class="lt">[^<]+</span><span class="chip aktuell">', home)
     assert b.post(f"/training/done?p={ME}&lesson=crosshair&back=kurs", headers=O).status_code == 403
     r = b.post(f"/training/done?p={BRO}&lesson=utility&back=kurs", headers=O, follow_redirects=False)

@@ -141,7 +141,7 @@ html.js .sx-h { font-size: 40px; }
     <div class="facts">Jetzt besprich es mit deinem Coach: was los war, woran du arbeitest, und frag nach, was du nicht verstehst.</div>
     <a class="cta" href="/coach/{{ file }}{% if many %}?p={{ r.sid }}{% endif %}">Mit dem Coach besprechen</a>
     <a class="cta ghost" href="/reports/{{ file }}">Ganzer Report</a>
-    <a class="cta ghost" href="/{% if many %}?p={{ r.sid }}{% endif %}">Zum Kurs</a>
+    <a class="cta ghost" href="/kurs{% if many %}?p={{ r.sid }}{% endif %}">Zum Kurs</a>
   </section>
 {% endif %}
   </div>

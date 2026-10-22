@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Granaten · cstaktik{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}{% include "stats_style.html" %}{% endblock %}
+{% block hero %}
+<h1>Granaten</h1>
+<p>Was deine Flashes, HEs und Molotovs bewirkt haben. Gemessen aus den Ereignissen deiner Demo.</p>
+{% endblock %}
+{% block content %}
+{% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/granaten?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Coach</a>
+{% if not v %}
+<div class="box"><p>Für dieses Match gibt es noch keine Granaten-Auswertung. Sie entsteht bei jedem neu ausgewerteten Match.
+  Ältere Matches bekommen sie, wenn der Admin die Auswertung neu berechnet.</p></div>
+{% else %}{% set ne = v.ne %}{% set fl = ne.flash %}
+<div class="sk">Letztes Match · {{ v.map }}{% if v.when %} · {{ v.when }}{% endif %}</div>
+<div class="big num">
+  <div class="{{ 'ok' if fl.n and fl.good * 2 >= fl.n else 'warn' if fl.n }}"><b>{{ fl.good }}<small> / {{ fl.n }}</small></b><span>Flashes wirksam</span>
+    <i>Wirksam heißt: mindestens ein Gegner {{ good_s }} s oder länger geblendet.</i></div>
+  <div><b>{{ fl.assists }}</b><span>Flash-Assists</span><i>Gegner, die noch geblendet getötet wurden.</i></div>
+  <div class="{{ 'warn' if fl.team }}"><b>{{ fl.team }}</b><span>Mal das eigene Team geblendet</span><i>Mindestens 1 s Blendzeit bei Mitspielern.</i></div>
+  <div><b>{{ ne.he.enemy_dmg }}</b><span>HE-Schaden an Gegnern</span><i>{{ ne.he.n }} HE geworfen{% if v.he_avg is not none %}, im Schnitt {{ v.he_avg }} pro HE{% endif %}{% if ne.he.team_dmg %}, {{ ne.he.team_dmg }} an Mitspielern{% endif %}.</i></div>
+  <div><b>{{ ne.molotov.enemy_dmg }}</b><span>Molotov-Schaden an Gegnern</span><i>{{ ne.molotov.n }} geworfen{% if v.molo_avg is not none %}, im Schnitt {{ v.molo_avg }} pro Molotov{% endif %}{% if ne.molotov.kills %}, {{ ne.molotov.kills }} {{ "Kill" if ne.molotov.kills == 1 else "Kills" }}{% endif %}.</i></div>
+  {% if ne.deaths_known %}<div class="{{ 'warn' if ne.unused|length * 2 > ne.deaths_known }}"><b>{{ ne.unused|length }}<small> / {{ ne.deaths_known }}</small></b><span>Tode mit Granaten in der Tasche</span><i>Jede ungenutzte Granate ist verschenkter Vorteil.</i></div>{% endif %}
+</div>
+<div class="box note"><p>Smokes ({{ ne.smoke.n }} geworfen) zählt die App nur. Ob eine Smoke Sicht genommen hat oder eine Molotov einen Gegner vertrieben hat, steht nicht in der Demo.</p></div>
+
+{% if ne.rounds %}
+<div class="sk">Runde für Runde</div>
+<table class="st num">
+  <tr><th>Runde</th><th>Geworfen</th><th>Wirkung</th></tr>
+  {% set NM = {"flash": "Flash", "he": "HE", "molotov": "Molotov", "smoke": "Smoke"} %}
+  {% for r in ne.rounds %}{% if r.thrown %}
+  <tr><td>{{ r.r }}</td>
+    <td>{% for k, n in r.thrown.items() %}{{ n }}× {{ NM.get(k, k) }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+    <td>{% set bits = [] %}
+      {% if r.thrown.flash %}{% if r.blind %}<span class="good">{{ r.blind }} geblendet ({{ r.blind_s|string|replace(".", ",") }} s)</span>{% else %}<span class="bad">niemand geblendet</span>{% endif %}{% if r.assists %} · {{ r.assists }} Assist{% endif %}{% if r.team_blind %} · <span class="bad">Team geblendet</span>{% endif %}<br>{% endif %}
+      {% if r.thrown.he %}HE {{ r.he_dmg }} Schaden<br>{% endif %}
+      {% if r.thrown.molotov %}Molotov {{ r.molo_dmg }} Schaden<br>{% endif %}
+      {% if not (r.thrown.flash or r.thrown.he or r.thrown.molotov) %}–{% endif %}</td></tr>
+  {% endif %}{% endfor %}
+</table>
+{% endif %}
+{% if ne.unused %}
+<div class="sk">Gestorben mit Granaten</div>
+<div class="box"><p>{% for u in ne.unused %}Runde {{ u.r }}: {{ u.nades|join(", ") }}{% if not loop.last %} · {% endif %}{% endfor %}</p></div>
+{% endif %}
+{% endif %}
+
+{% if trend|length > 1 %}
+<div class="sk">Deine letzten Matches</div>
+<table class="st num">
+  <tr><th>Match</th><th class="n">Flash wirksam</th><th class="n">HE Ø</th><th class="n">Molo Ø</th><th class="n">Tod mit Nades</th></tr>
+  {% for t in trend %}
+  <tr><td>{{ t.map }} <span style="color:var(--muted)">{{ t.when }}</span></td><td class="n">{{ t.flash }}</td>
+    <td class="n">{{ t.he if t.he is not none else "–" }}</td><td class="n">{{ t.molo if t.molo is not none else "–" }}</td><td class="n">{{ t.unused }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+<div class="links"><a href="/kurs/utility">Lektion: Erst Utility, dann Duell ›</a><a href="/kurs/blind">Lektion: Bei Flash sofort wegdrehen ›</a></div>
+{% endblock %}

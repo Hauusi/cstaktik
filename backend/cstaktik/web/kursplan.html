@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Dein Kurs{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}
+<style>
+/* Startseite "Dein Kurs": neues Match (falls da), aktuelle Lektion, Lernpfad. Sonst nur kleine Links. */
+.home { display: grid; gap: 14px; margin-top: 18px; }
+.kicker { font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.slim { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--surface); font-size: 13.5px; color: var(--muted); }
+.slim b { color: var(--text); font-weight: 650; } .slim i { font-style: normal; color: var(--orange); font-weight: 800; }
+/* Neues Match: eine kompakte Karte */
+.newm { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-radius: 16px;
+  border: 1px solid rgba(255,159,28,.45); background: linear-gradient(135deg, rgba(255,159,28,.16), rgba(255,159,28,.02) 60%), var(--surface); }
+.newm .t { min-width: 0; } .newm b { display: block; font-size: 19px; line-height: 1.2; margin-top: 3px; }
+.newm b .num { color: var(--orange); } .newm p { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
+.newm i { font-style: normal; color: var(--orange); font-weight: 800; font-size: 22px; }
+.newb { background: var(--accent); color: #111; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 800; letter-spacing: .08em; margin-right: 4px; }
+/* Coach: Gespräch zum letzten Match */
+.coachbox { padding: 18px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface); }
+.cb-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.cb-story { flex: none; color: var(--orange); font-weight: 700; font-size: 13.5px; }
+.cb-w { color: var(--win); } .cb-l { color: var(--loss); }
+.pathall > summary { cursor: pointer; list-style: none; color: var(--orange); font-weight: 700; font-size: 14px; padding: 6px 0; }
+.pathall > summary::-webkit-details-marker { display: none; }
+/* Vorbereitung */
+.pm { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.pm b { font-size: 16px; } .pm span { display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+.pm a { color: var(--orange); font-weight: 700; font-size: 14px; }
+/* Aktuelle Lektion */
+.cur { padding: 18px; border-radius: 18px; border: 1px solid rgba(255,159,28,.5); background: var(--surface); }
+.cur h3 { margin: 8px 0 0; font-family: var(--cond); font-weight: 800; font-size: 30px; line-height: 1.02; text-transform: uppercase; }
+.cur .goal { margin: 10px 0 0; font-size: 16px; line-height: 1.45; }
+.cur .prog { margin: 10px 0 0; font-size: 14px; color: var(--muted); line-height: 1.45; }
+.cur .prog.bad { color: #ff9aa8; }
+.dots { display: flex; gap: 6px; margin-top: 12px; } .dots i { width: 28px; height: 6px; border-radius: 3px; background: var(--surface-2); }
+.dots i.on { background: var(--win); }
+.go { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; height: 52px; border-radius: 14px;
+  background: var(--orange); color: #111; font-weight: 800; font-size: 16px; box-shadow: 0 8px 24px rgba(255,159,28,.28); }
+.empty p { margin: 0; font-size: 15px; line-height: 1.45; } .empty p + p { margin-top: 8px; color: var(--muted); font-size: 14px; }
+.back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
+/* Lernpfad */
+.pathsum { margin: 0 0 12px; font-size: 14.5px; color: var(--muted); line-height: 1.45; } .pathsum b { color: var(--text); }
+.stage { padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.stage + .stage { margin-top: 10px; }
+.stage.on { border-color: rgba(255,159,28,.4); }
+.stage .sh { display: flex; align-items: center; gap: 10px; font-family: var(--cond); font-weight: 800; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; }
+.stage .sh span { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--surface-2);
+  color: var(--orange); font-size: 13px; flex: none; }
+.stage.on .sh span { background: var(--orange); color: #111; }
+.stage .intro { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+.ls { display: grid; gap: 2px; margin-top: 8px; }
+.ls a { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 6px 0;
+  border-top: 1px solid var(--line); font-size: 15px; line-height: 1.25; }
+.ls a .lt { min-width: 0; }
+.chip { flex: none; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px;
+  white-space: nowrap; border: 1px solid var(--line); color: var(--muted); }
+.chip.geschafft { background: rgba(63,191,127,.16); border-color: transparent; color: #6fe0a6; }
+.chip.aktuell { background: var(--orange); border-color: transparent; color: #111; }
+.chip.sitzt { border-color: rgba(63,191,127,.45); color: #6fe0a6; }
+.chip.baustelle { border-color: rgba(255,159,28,.45); color: var(--orange); }
+.tiny { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 14px; font-weight: 700; }
+.tiny a { color: var(--orange); display: inline-flex; align-items: center; min-height: 40px; }
+.upbox.auto { padding: 0; background: none !important; border: 0 !important; box-shadow: none !important; }
+.upbox.auto summary { cursor: pointer; font-size: 14px; color: var(--muted); padding: 4px 0; min-height: 40px; display: flex; align-items: center; }
+.upbox.auto[open] summary { margin-bottom: 10px; }
+.upbox h3 { margin: 4px 0 2px; font-size: 19px; } .upbox > p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+.upbox.first { border-color: rgba(255,159,28,.5); }
+.where { margin-top: 10px; font-size: 13.5px; color: var(--muted); }
+.where summary { cursor: pointer; color: var(--text); font-weight: 600; }
+.where ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; } .where code { font-size: 12px; word-break: break-all; }
+.where a { color: var(--orange); }
+.gets { display: grid; gap: 8px; margin-top: 12px; }
+.gets div { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; font-size: 14px; }
+.gets div::before { content: "✓"; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(63,191,127,.15); color: #6fe0a6; font-weight: 800; font-size: 13px; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>Dein Kurs</h1>
+<p>Zwölf Lektionen in fünf Stufen, Grundlagen zuerst. Jede Lektion prüft dein Coach in deinen Matches.</p>
+{% endblock %}
+{% block content %}
+{% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/kurs?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Coach</a>
+<div class="home">
+  {% if kurs %}{% set c = kurs.current %}
+  {# 2. Aktuelle Lektion #}
+  {% if c %}
+  <section class="cur" data-block="lesson">
+    <div class="kicker">{% if tabs %}{{ who }}: {% endif %}Daran arbeiten wir: deine Lektion{% if c.stage %} in der Stufe {{ c.stage }}{% endif %}</div>
+    <h3>{{ c.title }}</h3>
+    {% if c.goal %}<p class="goal">{{ c.goal }}</p>{% endif %}
+    {% if c.focus %}<div class="dots" aria-hidden="true">{% for i in range(c.need) %}<i class="{{ 'on' if i < c.streak }}"></i>{% endfor %}</div>{% endif %}
+    <p class="prog num">{{ c.progress }}</p>
+    {% if deal and deal.sid == sid and deal.lesson == c.id %}<p class="prog">Nach dem Match auf {{ deal.map_label }}{% if deal.score %} ({{ deal.score }}){% endif %} hast du dir vorgenommen: {{ deal.text }}</p>{% endif %}
+    {% if c.rueckfall %}<p class="prog bad">Diese Lektion war am {{ c.rueckfall[8:10] }}.{{ c.rueckfall[5:7] }}. schon geschafft. Der Fehler passiert inzwischen wieder so oft wie vorher, deshalb ist sie zurück.</p>{% endif %}
+    <a class="go" href="/kurs/{{ c.id }}{% if tabs %}?p={{ sid }}{% endif %}">Lektion öffnen ›</a>
+  </section>
+  {% else %}
+  <section class="card empty" data-block="lesson">
+    {% if kurs.counts.sitzt %}
+    <p>In deinen letzten Matches ist gerade keine Lektion eine Baustelle.</p>
+    <p>Spiel einfach weiter. Der Coach prüft jedes Match und meldet sich, sobald ein Fehler öfter vorkommt.</p>
+    {% else %}
+    <p>Für eine Einstufung braucht der Coach noch mehr Runden von dir.</p>
+    <p>Nach etwa einem vollen Match weiß er, mit welcher Lektion dein Kurs beginnt.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+  {# 3. Lernpfad #}
+  <section data-block="path">
+    <h2 style="margin-top:12px">Dein Lernpfad</h2>
+    <p class="pathsum">Du hast <b class="num">{{ kurs.done }} von {{ kurs.total }}</b> Lektionen geschafft.{% if kurs.settled %} {{ "Eine weitere sitzt" if kurs.settled == 1 else kurs.settled ~ " weitere sitzen" }} laut deinen Matches schon.{% endif %}{% if kurs.counts.offen %} Für {{ "eine Lektion" if kurs.counts.offen == 1 else kurs.counts.offen ~ " Lektionen" }} reichen die Daten noch nicht.{% endif %}</p>
+    {% for st in kurs.stages %}
+    <div class="stage{{ ' on' if st.on }}">
+      <div class="sh"><span>{{ loop.index }}</span>{{ st.title }}</div>
+      {% if st.intro %}<p class="intro">{{ st.intro }}</p>{% endif %}
+      <div class="ls">{% for l in st.lessons %}
+        <a href="/kurs/{{ l.id }}{% if tabs %}?p={{ sid }}{% endif %}"><span class="lt">{{ l.title }}</span><span class="chip {{ l.status }}">{{ l.chip }}</span></a>
+      {% endfor %}</div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+  {% if not kurs %}<section class="card empty"><p>Noch keine Matches. Nach deinem ersten Match stuft dich der Coach ein.</p></section>{% endif %}
+</div>
+{% endblock %}

@@ -60,8 +60,8 @@ def test_training_pages_and_drill_done():
     history.save({"id": "a1", "map": "de_mirage", "rounds": 20, "analyzed_at": "2026-10-02T10:00",
                   "players": {"s1": {"name": "Ich"}}, "scenes": [sc, sc]}, pipeline.HISTORY_DIR)
     c = TestClient(api.app)
-    home = c.get("/").text
-    # Startseite: der laufende Auftrag ist die aktuelle Kurs-Lektion
+    home = c.get("/kurs").text
+    # Kurs-Übersicht: der laufende Auftrag ist die aktuelle Kurs-Lektion
     assert "Daran arbeiten wir" in home and "Nicht ohne Trade-Partner peeken" in home and 'href="/kurs/alone"' in home
     t = c.get("/training/situationen").text
     assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situation " in t

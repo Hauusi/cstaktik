@@ -52,7 +52,7 @@
 {% endblock %}
 {% block content %}
 {% if tabs %}<div class="ptabs">{% for x in tabs %}<a href="/kurs/{{ lesson }}?p={{ x.sid }}" class="{{ 'on' if x.on }}">{{ x.name }}</a>{% endfor %}</div>{% endif %}
-<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Kurs</a>
+<a class="back" href="/kurs{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Kurs</a>
 
 {% if row %}
 <div class="state {{ row.status }}" data-block="status">
@@ -165,5 +165,5 @@
 </section>
 {% endif %}
 
-<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Kurs</a>
+<a class="back" href="/kurs{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Kurs</a>
 {% endblock %}

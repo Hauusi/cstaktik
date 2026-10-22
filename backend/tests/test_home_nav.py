@@ -36,45 +36,46 @@ def _login():
     return c
 
 
-def test_home_is_the_course_new_match_lesson_and_path():
-    from cstaktik import course_texts
-
+def test_home_is_coach_card_and_tiles():
     _entry("m1", "2999-01-01T10:00")
     _entry("m2", "2999-01-02T10:00")
     _focus()
     home = _login().get("/").text
-    blocks = re.findall(r'data-block="([a-z-]+)"', home)
-    assert blocks == ["new", "lesson", "prep", "path"]  # neues Match, aktuelle Lektion, Vorbereitung, Lernpfad
-    assert "2 neue Matches" in home and 'href="/m/m2.html"' in home and 'href="/m/m1.html"' not in home
-    # aktuelle Lektion = laufender Auftrag, mit Fortschritt als Satz und Knopf zur Lektion
-    assert "Daran arbeiten wir" in home and course_texts.LESSONS["utility"]["title"] in home
-    assert "1 von 2 Matches in Folge geschafft." in home and 'href="/kurs/utility"' in home and "Lektion öffnen" in home
-    # Lernpfad: alle Stufen und Lektionen, jede antippbar, mit Status
+    assert re.findall(r'data-block="([a-z-]+)"', home) == ["coach", "tiles"]  # Coach oben, darunter die Kacheln
+    # Coach-Karte zum letzten Match (ohne KI-Schlüssel: Weg in die Match-Story)
+    card = home[home.index('data-block="coach"'):home.index('data-block="tiles"')]
+    assert "Neu" in card and "Mirage" in card and "13:7" in card and 'href="/m/m2.html"' in card
+    tiles = re.findall(r'data-tile="([a-z]+)"', home)
+    assert home.count("class=\"tbar\"") == 1  # nur der Kurs hat einen Balken
+    assert tiles == ["gespraech", "kurs", "granaten", "duelle", "taktiken", "lineups", "briefing", "training",
+                     "matches", "fortschritt"]
+    from cstaktik import course_texts
+
+    assert 'href="/kurs"' in home and course_texts.LESSONS["utility"]["title"] in home  # Kachel Kurs: aktuelle Lektion
+    for href in ("/granaten", "/duelle", "/playbook/de_mirage", "/lineups/de_mirage", "/briefing/de_mirage",
+                 "/training/situationen", "/matches", "/progress", "/coach/m2.html"):
+        assert f'href="{href}"' in home, href
+    assert "Der KI-Coach ist noch nicht eingerichtet" in home
+    assert "Dein Lernpfad" not in home and "Demo selbst hochladen" in home
+
+
+def test_kurs_page_lesson_and_path():
+    from cstaktik import course_texts
+
+    _entry("m1", "2026-01-01T10:00")
+    _focus()
+    page = _login().get("/kurs").text
+    assert re.findall(r'data-block="([a-z-]+)"', page) == ["lesson", "path"]
+    assert "Daran arbeiten wir" in page and course_texts.LESSONS["utility"]["title"] in page
+    assert "1 von 2 Matches in Folge geschafft." in page and 'href="/kurs/utility"' in page and "Lektion öffnen" in page
     for st in course_texts.STAGES:
-        assert st["title"] in home
+        assert st["title"] in page
     for lid in course_texts.LESSONS:
-        assert f'href="/kurs/{lid}"' in home
-    path = home[home.index('data-block="path"'):]
+        assert f'href="/kurs/{lid}"' in page
+    path = page[page.index('data-block="path"'):]
     assert re.search(r'href="/kurs/alone"><span class="lt">[^<]+</span><span class="chip geschafft">geschafft', path)
     assert re.search(r'href="/kurs/utility"><span class="lt">[^<]+</span><span class="chip aktuell">aktuell', path)
-    assert "Du hast <b class=\"num\">1 von 12</b> Lektionen geschafft." in home
-    # kleine Links bleiben, der Rest ist weg
-    assert 'href="/training#vorbereitung"' in home and 'href="/training#tools"' in home
-    body = re.sub(r"<style>.*?</style>|<script>.*?</script>", "", home, flags=re.S)  # nur sichtbarer Inhalt
-    # Vorbereitung je Map: Briefing, Pro-Taktiken, Lineups
-    assert 'href="/briefing/de_mirage"' in home and 'href="/playbook/de_mirage"' in home and 'href="/lineups/de_mirage"' in home
-    for gone in ("Größter Hebel", "Situations-Training", "Heute ·", "Auftrag", "Wochenplan", "Thema:",
-                 "Dein Fokus fürs nächste Match", "Letztes Match"):
-        assert gone not in body, gone
-    assert "Demo selbst hochladen" in home
-
-
-def test_home_without_new_match_shows_lesson_and_path():
-    _entry("m1", "2026-01-01T10:00")  # vor dem ersten Login: gilt als gesehen
-    _focus()
-    home = _login().get("/").text
-    assert re.findall(r'data-block="([a-z-]+)"', home) == ["lesson", "prep", "path"]
-    assert 'href="/m/' not in home
+    assert "Du hast <b class=\"num\">1 von 12</b> Lektionen geschafft." in page
 
 
 def test_home_course_per_player_isolated():
@@ -83,16 +84,45 @@ def test_home_course_per_player_isolated():
     coaching.save({"players": {ME: {"focus": FOCUS, "done": [], "drills": []},
                                BRO: {"focus": {**FOCUS, "lesson": "crosshair", "matches": []}, "done": [],
                                      "drills": []}}}, pipeline.COACHING_FILE)
-    me = _login().get("/").text
+    me = _login().get("/kurs").text
     assert 'class="cur"' in me and 'href="/kurs/utility"' in me
     assert re.search(r'href="/kurs/crosshair"><span class="lt">[^<]+</span><span class="chip offen">', me)
     accounts.add_user("Bruder", "Geheim-12345")
     accounts.link_steamid("Bruder", BRO)
     b = TestClient(api.app)
     b.post("/login", data={"name": "Bruder", "password": "Geheim-12345"}, headers=O)
-    bro = b.get("/").text
+    bro = b.get("/kurs").text
     assert re.search(r'href="/kurs/crosshair"><span class="lt">[^<]+</span><span class="chip aktuell">', bro)
     assert "1 von 2 Matches in Folge geschafft." not in bro
+
+
+def test_granaten_and_duelle_pages():
+    from cstaktik import nade_effect
+    from test_nade_effect import _match
+
+    ne = nade_effect.stats(_match(), "1")
+    for i, at in enumerate(("2026-01-01T10:00", "2026-01-02T10:00")):
+        history.save({"id": f"g{i}", "map": "de_mirage", "rounds": 20, "analyzed_at": at, "report_file": f"g{i}.html",
+                      "players": {ME: {"name": "Ich"}}, "nade_eff": {ME: ne},
+                      "duel_stats": {ME: {"n": 20, "won": 55, "shot_first": 60, "first_hit": 40, "err": 4.2,
+                                          "react": 230, "moving_pct": 35, "seen_n": 10, "seen_me": 40, "seen_opp": 30,
+                                          "won_seen_me": 75, "won_seen_opp": 20}},
+                      "mech": {ME: {"hs_pct": 41.2}}}, pipeline.HISTORY_DIR)
+    c = _login()
+    g = c.get("/granaten").text
+    assert "Flashes wirksam" in g and "Flash-Assists" in g and "HE-Schaden an Gegnern" in g
+    assert "im Schnitt 40 pro HE" in g and "10 an Mitspielern" in g
+    assert "Tode mit Granaten in der Tasche" in g and "Runde 2: Flash, HE" in g
+    assert "1 geblendet (2,5 s)" in g and "Team geblendet" in g and "Deine letzten Matches" in g
+    assert "Smokes (1 geworfen) zählt die App nur" in g
+    d = c.get("/duelle").text
+    assert "55<small> %</small>" in d and "4,2<small>°</small>" in d and "230<small> ms</small>" in d
+    assert "41<small> %</small></b><span>Headshot-Kills" in d
+    assert "In <b>40 %</b> der Duelle hast du den Gegner zuerst gesehen" in d and "übrigen <b>30 %</b>" in d
+    assert "Deine letzten Matches" in d
+    home = c.get("/").text
+    assert "<b>1 von 1</b> Flashes wirksam, <b>40</b> HE-Schaden" in home
+    assert "<b>55 %</b> gewonnen, Fadenkreuz <b>4,2°</b> daneben" in home
 
 
 def test_nav_has_three_tabs_and_settings_icon():

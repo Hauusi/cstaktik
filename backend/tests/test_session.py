@@ -126,12 +126,12 @@ def test_deal_saved_for_own_player_shown_until_next_match():
     assert b.post("/training/deal", json={**body, "sid": BRO}, headers=O).status_code == 404  # nicht sein Match
     assert a.post("/training/deal", json=body, headers={"Origin": "https://fremd.example"}).status_code == 403
     assert a.post("/training/deal", json=body, headers=O).json() == {"ok": True}
-    home = a.get("/").text
+    home = a.get("/kurs").text
     assert ("Nach dem Match auf Mirage (13:7) hast du dir vorgenommen: "
             f"{LESSONS['utility'][0]}: höchstens 1,0x pro 10 Runden.") in home  # in der Karte der aktuellen Lektion
-    assert "vorgenommen" not in b.get("/").text  # nur beim eigenen Nutzer
+    assert "vorgenommen" not in b.get("/kurs").text  # nur beim eigenen Nutzer
     _save(_h("d2", "2026-01-02T10:00:00", (10, 13)))  # nächstes Match ausgewertet
-    assert "vorgenommen" not in a.get("/").text
+    assert "vorgenommen" not in a.get("/kurs").text
 
 
 def test_deal_without_accounts_stays_in_browser():

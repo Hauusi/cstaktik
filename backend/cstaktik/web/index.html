@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Dein Coach{% endblock %}
-{% block bodyclass %}{% endblock %}
+{% block bodyclass %}{% if coach and tiles %}wide{% endif %}{% endblock %}
 {% block head %}
 <style>
 /* Startseite "Dein Kurs": neues Match (falls da), aktuelle Lektion, Lernpfad. Sonst nur kleine Links. */
@@ -23,6 +23,41 @@
 .cb-w { color: var(--win); } .cb-l { color: var(--loss); }
 .pathall > summary { cursor: pointer; list-style: none; color: var(--orange); font-weight: 700; font-size: 14px; padding: 6px 0; }
 .pathall > summary::-webkit-details-marker { display: none; }
+/* Coach-Karte */
+.ccard { display: grid; gap: 14px; padding: 18px; border-radius: 20px; border: 1px solid rgba(255,159,28,.45);
+  background: linear-gradient(135deg, rgba(255,159,28,.16), rgba(255,159,28,.02) 55%), var(--surface); }
+.ccard .go { margin-top: 0; }
+.cquote { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3; }
+.cdeal { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: rgba(0,0,0,.25); font-size: 15px; line-height: 1.4; }
+.cdeal svg { flex: none; width: 22px; height: 22px; fill: none; stroke: var(--orange); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cdeal b { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.cstory { justify-self: start; color: var(--orange); font-weight: 700; font-size: 14px; }
+.cwait { margin: 0; color: var(--muted); }
+.ccard .err { padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(240,86,106,.45); color: #f59aa6; font-size: 15px; }
+/* Kacheln */
+.tiles-h { margin: 12px 0 10px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+body.wide main { max-width: 560px; }
+@media (min-width: 980px) {
+  body.wide main { max-width: 1160px; }
+  body.wide .home { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  body.wide .home > * { grid-column: 1 / -1; }
+  body.wide .home > .ccard { grid-column: 1; margin-top: 30px; }
+  body.wide .home > .tiles-sec { grid-column: 2; grid-row: span 3; }
+  body.wide .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.tile { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 132px; padding: 14px; border-radius: 18px;
+  border: 1px solid var(--line); background: var(--surface); transition: border-color .15s; }
+.tile:hover { border-color: rgba(255,159,28,.45); }
+.tico { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: rgba(255,159,28,.12); color: var(--orange); }
+.tico.b { background: rgba(74,138,224,.14); color: #7fb0f0; } .tico.g { background: rgba(63,191,127,.14); color: #6fe0a6; }
+.tico.r { background: rgba(240,86,106,.14); color: #f59aa6; }
+.tico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.ttl { font-family: var(--cond); font-weight: 800; font-size: 19px; letter-spacing: .03em; text-transform: uppercase; line-height: 1.05; }
+.tsub { margin-top: auto; color: var(--muted); font-size: 13.5px; line-height: 1.3; } .tsub b { color: var(--text); font-weight: 700; }
+.tbadge { position: absolute; top: 12px; right: 12px; font-size: 11px; font-weight: 800; letter-spacing: .06em; padding: 3px 8px; border-radius: 999px;
+  background: var(--accent-2); color: #fff; text-transform: uppercase; }
+.tbar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; } .tbar i { display: block; height: 100%; background: var(--orange); }
 /* Vorbereitung */
 .pm { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
 .pm b { font-size: 16px; } .pm span { display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
@@ -100,13 +135,31 @@
 
   {% if push_hint %}<a class="slim" href="/konto#push"><span>Benachrichtigungen einschalten: Der Coach meldet sich, sobald dein Match ausgewertet ist.</span><i>›</i></a>{% endif %}
 
-  {# 1. Der Coach: Gespräch zum letzten Match (Nachbesprechung, Abmachung, Frage) #}
-  {% set talk = coach and (coach.cv.enabled or coach.cv.has) %}
-  {% if talk %}{% set cv = coach.cv %}{% set file = coach.file %}{% set many = tabs %}
-  <section class="coachbox" data-block="coach">
-    <div class="cb-top"><span class="kicker">{% if coach.new %}<span class="newb">Neu</span>{% endif %}Nachbesprechung · {{ coach.map_label }}{% if coach.score %} <span class="num cb-{{ coach.res }}">{{ coach.score }}</span>{% endif %}{% if coach.when %} · {{ coach.when }}{% endif %}</span>
-      <a class="cb-story" href="/m/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Match-Story ›</a></div>
-    {% with sid = coach.sid, full = false %}{% include "coach_talk.html" %}{% endwith %}
+  {# 1. Der Coach: ein Satz zum letzten Match, eure Abmachung, Weg in die Nachbesprechung #}
+  {% set talk = coach is not none %}
+  {% if coach %}{% set cv = coach.cv %}{% set d = cv.debrief %}
+  <section class="ccard" data-block="coach">
+    <div class="kicker">{% if coach.new %}<span class="newb">Neu</span>{% endif %}Nachbesprechung · {{ coach.map_label }}{% if coach.score %} <span class="num cb-{{ coach.res }}">{{ coach.score }}</span>{% endif %}{% if coach.when %} · {{ coach.when }}{% endif %}</div>
+    {% if d %}
+    <p class="cquote">„{{ d.headline }}“</p>
+    {% if d.agreement and d.agreement.text %}
+    <div class="cdeal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
+      <div><b>Unsere Abmachung</b>{{ d.agreement.text }}</div></div>
+    {% endif %}
+    <a class="go" href="/coach/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Nachbesprechung öffnen ›</a>
+    {% elif cv.legacy %}
+    <p class="cquote">Deine Nachbesprechung ist fertig.</p>
+    <a class="go" href="/coach/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Nachbesprechung öffnen ›</a>
+    {% elif cv.enabled %}
+    <div class="ct" data-coach data-file="{{ coach.file }}" data-sid="{{ coach.sid }}" data-start="1">
+      <p class="cwait msg wait">Dein Coach schaut sich das Match an und bereitet die Nachbesprechung vor. Das dauert etwa eine halbe Minute.</p>
+      <div class="err" data-err hidden></div>
+    </div>
+    {% else %}
+    <p class="cquote">Sieh dir an, wie es lief und was es für deine Lektion heißt.</p>
+    <a class="go" href="/m/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Match-Story ›</a>
+    {% endif %}
+    {% if d or cv.legacy or cv.enabled %}<a class="cstory" href="/m/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Match-Story ›</a>{% endif %}
   </section>
   {% endif %}
 
@@ -118,62 +171,8 @@
   </a>
   {% endif %}
 
-  {% if kurs %}{% set c = kurs.current %}
-  {# 2. Aktuelle Lektion #}
-  {% if c %}
-  <section class="cur" data-block="lesson">
-    <div class="kicker">{% if tabs %}{{ who }}: {% endif %}Daran arbeiten wir: deine Lektion{% if c.stage %} in der Stufe {{ c.stage }}{% endif %}</div>
-    <h3>{{ c.title }}</h3>
-    {% if c.goal %}<p class="goal">{{ c.goal }}</p>{% endif %}
-    {% if c.focus %}<div class="dots" aria-hidden="true">{% for i in range(c.need) %}<i class="{{ 'on' if i < c.streak }}"></i>{% endfor %}</div>{% endif %}
-    <p class="prog num">{{ c.progress }}</p>
-    {% if deal and deal.sid == sid and deal.lesson == c.id %}<p class="prog">Nach dem Match auf {{ deal.map_label }}{% if deal.score %} ({{ deal.score }}){% endif %} hast du dir vorgenommen: {{ deal.text }}</p>{% endif %}
-    {% if c.rueckfall %}<p class="prog bad">Diese Lektion war am {{ c.rueckfall[8:10] }}.{{ c.rueckfall[5:7] }}. schon geschafft. Der Fehler passiert inzwischen wieder so oft wie vorher, deshalb ist sie zurück.</p>{% endif %}
-    <a class="go" href="/kurs/{{ c.id }}{% if tabs %}?p={{ sid }}{% endif %}">Lektion öffnen ›</a>
-  </section>
-  {% else %}
-  <section class="card empty" data-block="lesson">
-    {% if kurs.counts.sitzt %}
-    <p>In deinen letzten Matches ist gerade keine Lektion eine Baustelle.</p>
-    <p>Spiel einfach weiter. Der Coach prüft jedes Match und meldet sich, sobald ein Fehler öfter vorkommt.</p>
-    {% else %}
-    <p>Für eine Einstufung braucht der Coach noch mehr Runden von dir.</p>
-    <p>Nach etwa einem vollen Match weiß er, mit welcher Lektion dein Kurs beginnt.</p>
-    {% endif %}
-  </section>
-  {% endif %}
+  {% include "home_tiles.html" %}
 
-  {% if prep %}
-  {# Vorbereitung: Briefing, Pro-Taktiken und Lineups je Map #}
-  <section class="prep" data-block="prep">
-    <h2 style="margin-top:12px">Vor dem nächsten Match</h2>
-    <p class="pathsum">Wähl die Map. Dein Coach hat Briefing, Pro-Taktiken und Lineups dafür.</p>
-    {% for m in prep %}
-    <div class="pm"><b>{{ m.label }}</b><span><a href="/briefing/{{ m.map }}">Briefing</a><a href="/playbook/{{ m.map }}">Taktiken</a><a href="/lineups/{{ m.map }}">Lineups</a></span></div>
-    {% endfor %}
-    <div class="tiny"><a href="/training#vorbereitung">Alle Maps ›</a><a href="/training#tools">Pro-Taktiken ›</a></div>
-  </section>
-  {% elif n_history %}
-  <div class="tiny"><a href="/training#vorbereitung">Vor dem Match ›</a><a href="/training#tools">Pro-Taktiken ›</a></div>
-  {% endif %}
-
-  {# 3. Lernpfad #}
-  <section data-block="path">
-    <h2 style="margin-top:12px">Dein Lernpfad</h2>
-    <p class="pathsum">Du hast <b class="num">{{ kurs.done }} von {{ kurs.total }}</b> Lektionen geschafft.{% if kurs.settled %} {{ "Eine weitere sitzt" if kurs.settled == 1 else kurs.settled ~ " weitere sitzen" }} laut deinen Matches schon.{% endif %}{% if kurs.counts.offen %} Für {{ "eine Lektion" if kurs.counts.offen == 1 else kurs.counts.offen ~ " Lektionen" }} reichen die Daten noch nicht.{% endif %}</p>
-    <details class="pathall"{% if not (talk or kurs.current) %} open{% endif %}><summary>Alle {{ kurs.total }} Lektionen ansehen</summary>
-    {% for st in kurs.stages %}
-    <div class="stage{{ ' on' if st.on }}">
-      <div class="sh"><span>{{ loop.index }}</span>{{ st.title }}</div>
-      {% if st.intro %}<p class="intro">{{ st.intro }}</p>{% endif %}
-      <div class="ls">{% for l in st.lessons %}
-        <a href="/kurs/{{ l.id }}{% if tabs %}?p={{ sid }}{% endif %}"><span class="lt">{{ l.title }}</span><span class="chip {{ l.status }}">{{ l.chip }}</span></a>
-      {% endfor %}</div>
-    </div>
-    {% endfor %}
-    </details>
-  </section>
-  {% endif %}
 
 
   {% if n_history %}{# Matches kommen meist automatisch: Hochladen nur als kleiner Ausweg #}
@@ -213,5 +212,5 @@
 </div>
 {% endif %}
 <a class="more-link" href="/mehr#anleitung">Wie funktioniert der Coach? ›</a>
-{% if coach and (coach.cv.enabled or coach.cv.has) %}{% include "coach_assets.html" %}{% endif %}
+{% if coach and coach.cv.enabled and not coach.cv.has %}{% include "coach_assets.html" %}{% endif %}
 {% endblock %}

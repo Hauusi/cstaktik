@@ -164,18 +164,23 @@ def test_coach_page_own_player_only(monkeypatch):
     assert v["ok"] and v["cost"] == "3,0"
     sent = c.calls[0]["messages"][0]["content"]
     assert "Match-Daten für Ich" in sent and "Bruders" not in sent
-    for page in (a.get("/coach/m1.html").text, a.get("/").text):
-        assert 'data-start="1"' not in page  # gespeichert, kein neuer Aufruf
-        assert DEBRIEF["headline"] in page and "Runde 1." in page and "Erfunden" not in page
-        assert "Dein Thema heute: Erst Utility, dann Duell" in page and "Ohne Flash nach A." in page
-        assert 'href="/reports/m1.html#s3-400"' in page  # Szene im 2D-Replay
-        assert "Unsere Abmachung" in page and DEBRIEF["agreement"]["text"] in page
-        assert "Dein Coach fragt · Runde 3" in page and 'data-answer="1"' in page
+    page = a.get("/coach/m1.html").text
+    assert 'data-start="1"' not in page  # gespeichert, kein neuer Aufruf
+    assert DEBRIEF["headline"] in page and "Runde 1." in page and "Erfunden" not in page
+    assert "Dein Thema heute: Erst Utility, dann Duell" in page and "Ohne Flash nach A." in page
+    assert 'href="/reports/m1.html#s3-400"' in page  # Szene im 2D-Replay
+    assert "Unsere Abmachung" in page and DEBRIEF["agreement"]["text"] in page
+    assert "Dein Coach fragt · Runde 3" in page and 'data-answer="1"' in page
+    # Startseite: Eröffnungssatz und Abmachung, die Kachel "Gespräch" wartet auf die Antwort
+    home = a.get("/").text
+    assert 'data-start="1"' not in home and DEBRIEF["headline"] in home and DEBRIEF["agreement"]["text"] in home
+    assert 'href="/coach/m1.html"' in home and "Nachbesprechung öffnen" in home
+    assert "1 Frage" in home and "Dein Coach wartet auf deine Antwort zu <b>Runde 3</b>" in home
     v = a.post("/coach/m1.html", json={"q": "Ich wollte schnell rein.", "answer": True}, headers=O).json()
     assert v["ok"]
-    page = a.get("/").text
+    page = a.get("/coach/m1.html").text
     assert "Ich wollte schnell rein." in page and "&lt;b&gt;war&lt;/b&gt;" in page and 'data-answer="1"' not in page
-    assert 'href="/coach/m1.html"' in page  # weiter im Gespräch
+    assert "1 Frage" not in a.get("/").text
     a.post("/coach/m1.html", json={"q": "Und Runde 1?"}, headers=O)
     page = a.get("/coach/m1.html").text
     assert "Und Runde 1?" in page and "Noch 13 Fragen" in page

@@ -788,7 +788,8 @@ def index(p: str = "") -> str:
         push_hint = not notify.subs(_USER.get())
     sid, tabs = _course_player(hist, p)
     kurs = _course_overview(hist, sid) if sid else None
-    return _env.get_template("index.html").render(coach=_home_coach(hist, sid, news), prep=_prep_maps(hist, sid),
+    coach = _home_coach(hist, sid, news)
+    return _env.get_template("index.html").render(coach=coach, tiles=_home_tiles(hist, sid, coach, kurs, tabs),
         nav_active="coach", jobs=jobs, n_history=len(hist), news=news[:1], n_new=len(news),
         missing_players=missing if hist else 0, me_name=names.get(_me()) if _me() else None,
         need_link=_USER.get() is not None and not _me(), auto=auto and bool(hist), push_hint=push_hint,
@@ -814,6 +815,82 @@ def _home_coach(hist: list[dict], sid: str | None, news: list[dict]) -> dict | N
             "new": any(n.get("report_file") == h["report_file"] for n in news)}
 
 
+def _pq(tabs, sid) -> str:
+    return f"?p={sid}" if tabs and sid else ""
+
+
+def _home_tiles(hist: list[dict], sid: str | None, coach: dict | None, kurs: dict | None, tabs) -> list[dict]:
+    """Kacheln der Startseite: Symbol, Titel und ein echter Wert aus den Matches (fehlt er, ein erklärender Satz)."""
+    from markupsafe import Markup, escape
+
+    if not hist:
+        return []
+    q = _pq(tabs, sid)
+    b = lambda x: Markup(f"<b>{escape(x)}</b>")  # noqa: E731
+    mine = [h for h in hist if not sid or sid in (h.get("players") or {})]
+    last = mine[-1] if mine else hist[-1]
+    lmap = last.get("map") or ""
+    mlabel = lmap.removeprefix("de_").capitalize()
+    tiles = []
+    if coach:
+        cv, d = coach["cv"], coach["cv"].get("debrief") or {}
+        qd = d.get("question") or {}
+        if cv.get("has") and qd.get("text") and not cv.get("answer"):
+            text = Markup("Dein Coach wartet auf deine Antwort") + (Markup(" zu ") + b(f"Runde {qd['round']}")
+                                                                     if qd.get("round") else "")
+            badge = "1 Frage"
+        elif cv.get("has"):
+            text, badge = Markup("Frag nach, was du zu ") + b(coach["map_label"]) + Markup(" nicht verstehst"), None
+        elif cv.get("enabled"):
+            text, badge = Markup("Nachbesprechung zu ") + b(coach["map_label"]) + Markup(" wird vorbereitet"), None
+        else:
+            text, badge = Markup("Der KI-Coach ist noch nicht eingerichtet"), None
+        tiles.append({"id": "gespraech", "title": "Gespräch", "icon": "chat", "tone": "o", "badge": badge,
+                      "href": f"/coach/{coach['file']}{q}", "text": text})
+    c = (kurs or {}).get("current")
+    tiles.append({"id": "kurs", "title": "Kurs", "icon": "cap", "tone": "o", "href": f"/kurs{q}",
+                  "text": (Markup("Lektion: ") + b(c["title"])) if c else
+                  (Markup("") + b(f"{kurs['done']} von {kurs['total']}") + Markup(" Lektionen geschafft")) if kurs
+                  else Markup("Zwölf Lektionen, Grundlagen zuerst"),
+                  "bar": round(100 * c["streak"] / c["need"]) if c and c.get("focus") and c.get("need") else None})
+    ne = next(((h, h["nade_eff"][sid]) for h in reversed(mine) if sid and (h.get("nade_eff") or {}).get(sid)), None)
+    if ne:
+        fl, he = ne[1]["flash"], ne[1]["he"]
+        text = (b(f"{fl['good']} von {fl['n']}") + Markup(" Flashes wirksam") if fl["n"] else Markup("Keine Flash geworfen"))
+        if he["n"]:
+            text += Markup(", ") + b(str(he["enemy_dmg"])) + Markup(" HE-Schaden")
+    else:
+        text = Markup("Was deine Flashes, HEs und Molotovs bewirken")
+    tiles.append({"id": "granaten", "title": "Granaten", "icon": "nade", "tone": "r", "href": f"/granaten{q}", "text": text})
+    ds = next((h["duel_stats"][sid] for h in reversed(mine) if sid and ((h.get("duel_stats") or {}).get(sid) or {}).get("n")),
+              None)
+    if ds and ds.get("won") is not None:
+        text = b(f"{ds['won']} %") + Markup(" gewonnen")
+        if ds.get("err") is not None:
+            text += Markup(", Fadenkreuz ") + b(f"{_de(ds['err'])}°") + Markup(" daneben")
+    else:
+        text = Markup("Wer zuerst sieht, zuerst schießt und trifft")
+    tiles.append({"id": "duelle", "title": "Duelle", "icon": "target", "tone": "r", "href": f"/duelle{q}", "text": text})
+    if lmap and re.fullmatch(r"[a-z0-9_]+", lmap):
+        tiles += [
+            {"id": "taktiken", "title": "Taktiken", "icon": "map", "tone": "b", "href": f"/playbook/{lmap}",
+             "text": Markup("Pro-Taktiken für ") + b(mlabel)},
+            {"id": "lineups", "title": "Lineups", "icon": "arc", "tone": "b", "href": f"/lineups/{lmap}",
+             "text": Markup("Smokes und Flashes der Pros auf ") + b(mlabel)},
+            {"id": "briefing", "title": "Briefing", "icon": "clip", "tone": "b", "href": f"/briefing/{lmap}",
+             "text": Markup("Vor dem Match: worauf du auf ") + b(mlabel) + Markup(" achtest")}]
+    n_sc = sum(1 for h in mine for x in h.get("scenes") or [] if not sid or x.get("sid") == sid)
+    tiles.append({"id": "training", "title": "Training", "icon": "dumbbell", "tone": "g", "href": "/training/situationen",
+                  "text": (b(str(n_sc)) + Markup(" eigene Szenen zum Nachspielen")) if n_sc
+                  else Markup("Übungen und Szenen zum Nachspielen")})
+    sc = __import__("cstaktik.history", fromlist=["score"]).score(last, sid) if sid else None
+    tiles.append({"id": "matches", "title": "Matches", "icon": "list", "tone": "g", "href": "/matches",
+                  "text": Markup("Letztes: ") + b(mlabel + (f" {sc[0]}:{sc[1]}" if sc else ""))})
+    tiles.append({"id": "fortschritt", "title": "Fortschritt", "icon": "chart", "tone": "g", "href": "/progress",
+                  "text": Markup("Deine Fehler pro 10 Runden über die letzten Matches")})
+    return tiles
+
+
 def _prep_maps(hist: list[dict], sid: str | None) -> list[dict]:
     """Vor dem nächsten Match: die Maps, die der Spieler zuletzt gespielt hat (häufigste zuerst)."""
     from collections import Counter
@@ -832,7 +909,8 @@ def _course_player(hist: list[dict], want: str = "") -> tuple[str | None, list[d
                    key=lambda s: names.get(s, s).lower())
     cands = _mine(cands)
     if _me():
-        sid = _me() if _me() in cands or _me() in players else None
+        played = any(_me() in (h.get("players") or {}) for h in hist)
+        sid = _me() if _me() in cands or _me() in players or played else None
         return sid, []
     sid = want if want in cands else next((s for s in cands if (players.get(s) or {}).get("focus")),
                                           cands[0] if cands else None)
@@ -849,6 +927,71 @@ def _course_overview(hist: list[dict], sid: str) -> dict:
     from cstaktik import course
 
     return course.overview(hist, sid, _players_state().get(sid))
+
+
+@app.get("/kurs", response_class=HTMLResponse)
+def kurs_overview(p: str = "") -> str:
+    """Kurs-Übersicht: aktuelle Lektion und Lernpfad mit dem Stand jeder Lektion."""
+    hist = _load_hist()
+    sid, tabs = _course_player(hist, p)
+    names = _names(hist)
+    return _env.get_template("kursplan.html").render(
+        nav_active="coach", jobs=_running_jobs(), kurs=_course_overview(hist, sid) if sid else None, sid=sid,
+        who=names.get(sid) if sid else None, tabs=tabs, deal=_deal_view(hist))
+
+
+@app.get("/granaten", response_class=HTMLResponse)
+def granaten_page(p: str = "") -> str:
+    """Granaten: Wirkung im letzten Match (je Runde) und der Verlauf über die letzten Matches."""
+    hist = _load_hist()
+    sid, tabs = _course_player(hist, p)
+    rows = [h for h in hist if sid and (h.get("nade_eff") or {}).get(sid)]
+    last = rows[-1] if rows else None
+    trend = []
+    for h in rows[-10:][::-1]:
+        ne = h["nade_eff"][sid]
+        fl, he, mo = ne["flash"], ne["he"], ne["molotov"]
+        trend.append({"when": (_when(h) or "")[:6], "map": (h.get("map") or "?").removeprefix("de_").capitalize(),
+                      "flash": f"{fl['good']}/{fl['n']}" if fl["n"] else "–", "assists": fl.get("assists", 0),
+                      "he": round(he["enemy_dmg"] / he["n"]) if he["n"] else None,
+                      "molo": round(mo["enemy_dmg"] / mo["n"]) if mo["n"] else None,
+                      "unused": f"{len(ne['unused'])}/{ne['deaths_known']}" if ne.get("deaths_known") else "–",
+                      "file": h.get("report_file")})
+    view = None
+    if last:
+        ne = last["nade_eff"][sid]
+        view = {"ne": ne, "map": (last.get("map") or "?").removeprefix("de_").capitalize(), "when": _when(last),
+                "file": last.get("report_file"),
+                "he_avg": round(ne["he"]["enemy_dmg"] / ne["he"]["n"]) if ne["he"]["n"] else None,
+                "molo_avg": round(ne["molotov"]["enemy_dmg"] / ne["molotov"]["n"]) if ne["molotov"]["n"] else None}
+    return _env.get_template("stats_granaten.html").render(
+        nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, v=view, trend=trend,
+        good_s=_de(__import__("cstaktik.nade_effect", fromlist=["GOOD_BLIND_S"]).GOOD_BLIND_S))
+
+
+@app.get("/duelle", response_class=HTMLResponse)
+def duelle_page(p: str = "") -> str:
+    """Duelle: Kennzahlen des letzten Matches mit Erklärung und der Verlauf über die letzten Matches."""
+    hist = _load_hist()
+    sid, tabs = _course_player(hist, p)
+    rows = [h for h in hist if sid and ((h.get("duel_stats") or {}).get(sid) or {}).get("n")]
+    last = rows[-1] if rows else None
+    trend = [{"when": (_when(h) or "")[:6], "map": (h.get("map") or "?").removeprefix("de_").capitalize(),
+              **{k: h["duel_stats"][sid].get(k) for k in ("n", "won", "shot_first", "first_hit", "err", "moving_pct")},
+              "err_de": None if h["duel_stats"][sid].get("err") is None else _de(h["duel_stats"][sid]["err"])}
+             for h in rows[-10:][::-1]]
+    view = None
+    if last:
+        keys = ("n", "won", "shot_first", "first_hit", "err", "react", "moving_pct", "low_pct", "seen_n", "seen_me",
+                "seen_opp", "won_seen_me", "won_seen_opp")
+        d = {**dict.fromkeys(keys), **last["duel_stats"][sid]}
+        mech = {"hs_pct": None, **((last.get("mech") or {}).get(sid) or {})}
+        view = {"d": d, "mech": mech, "map": (last.get("map") or "?").removeprefix("de_").capitalize(),
+                "when": _when(last), "err_de": None if d.get("err") is None else _de(d["err"]),
+                "same": None if d.get("seen_me") is None or d.get("seen_opp") is None
+                else 100 - d["seen_me"] - d["seen_opp"]}
+    return _env.get_template("stats_duelle.html").render(nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs,
+                                                         v=view, trend=trend)
 
 
 @app.get("/kurs/{lesson}", response_class=HTMLResponse)

@@ -1,0 +1,23 @@
+{# Gemeinsamer Stil der Statistik-Seiten (Granaten, Duelle). #}
+<style>
+.back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
+.sk { margin-top: 18px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.big { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.big div { padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.big b { display: block; font-family: var(--cond); font-weight: 800; font-size: 34px; line-height: 1; }
+.big b small { font-size: 18px; color: var(--muted); }
+.big span { display: block; margin-top: 6px; font-size: 13.5px; color: var(--text); line-height: 1.3; }
+.big i { display: block; margin-top: 4px; font-style: normal; font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.big .warn b { color: var(--loss); } .big .ok b { color: var(--win); }
+.box { margin-top: 12px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); font-size: 14.5px; line-height: 1.5; }
+.box p { margin: 0; } .box p + p { margin-top: 8px; } .box a { color: var(--orange); font-weight: 700; }
+.box.note { color: var(--muted); border-style: dashed; font-size: 13.5px; }
+table.st { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 14px; }
+table.st th { text-align: left; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 6px 6px 0; }
+table.st td { padding: 9px 6px 9px 0; border-top: 1px solid var(--line); vertical-align: top; }
+table.st td.n, table.st th.n { text-align: right; white-space: nowrap; }
+table.st .bad { color: var(--loss); } table.st .good { color: var(--win); }
+.links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; font-size: 14px; font-weight: 700; } .links a { color: var(--orange); }
+.ptabs { display: flex; gap: 6px; margin: 14px 0 0; } .ptabs a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 700; }
+.ptabs a.on { background: var(--orange); color: #111; border-color: transparent; }
+</style>

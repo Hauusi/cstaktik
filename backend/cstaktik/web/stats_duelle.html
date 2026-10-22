@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Duelle · cstaktik{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}{% include "stats_style.html" %}{% endblock %}
+{% block hero %}
+<h1>Duelle</h1>
+<p>Wie deine Duelle laufen: wer zuerst sieht, wer zuerst schießt und wo dein Fadenkreuz ist.</p>
+{% endblock %}
+{% block content %}
+{% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/duelle?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Coach</a>
+{% if not v %}
+<div class="box"><p>Noch keine Duelle ausgewertet.</p></div>
+{% else %}{% set d = v.d %}
+<div class="sk">Letztes Match · {{ v.map }}{% if v.when %} · {{ v.when }}{% endif %} · {{ d.n }} Duelle</div>
+<div class="big num">
+  {% if d.won is not none %}<div class="{{ 'ok' if d.won >= 50 else 'warn' }}"><b>{{ d.won }}<small> %</small></b><span>Duelle gewonnen</span><i>Ein Duell: ein Schusswechsel zwischen dir und einem Gegner, der mit einem Kill endet.</i></div>{% endif %}
+  {% if d.shot_first is not none %}<div><b>{{ d.shot_first }}<small> %</small></b><span>zuerst geschossen</span><i>Wer zuerst schießt, gewinnt öfter.</i></div>{% endif %}
+  {% if d.first_hit is not none %}<div><b>{{ d.first_hit }}<small> %</small></b><span>erster Schuss traf</span><i>Die erste Kugel ist die genaueste.</i></div>{% endif %}
+  {% if v.err_de is not none %}<div><b>{{ v.err_de }}<small>°</small></b><span>Fadenkreuz daneben</span><i>Median beim Duellstart. Je kleiner, desto weniger musst du ziehen.</i></div>{% endif %}
+  {% if d.react is not none %}<div><b>{{ d.react }}<small> ms</small></b><span>Reaktionszeit</span><i>Bis zu deinem Schuss, wenn der Gegner zuerst schoss.</i></div>{% endif %}
+  {% if d.moving_pct is not none %}<div class="{{ 'warn' if d.moving_pct >= 30 }}"><b>{{ d.moving_pct }}<small> %</small></b><span>erster Schuss aus der Bewegung</span><i>Laufend streuen Waffen stark. Erst stoppen, dann schießen.</i></div>{% endif %}
+  {% if v.mech.hs_pct is not none %}<div><b>{{ v.mech.hs_pct|round|int }}<small> %</small></b><span>Headshot-Kills</span><i>Anteil deiner Kills mit Kopfschuss.</i></div>{% endif %}
+  {% if d.low_pct is not none %}<div class="{{ 'warn' if d.low_pct >= 30 }}"><b>{{ d.low_pct }}<small> %</small></b><span>Fadenkreuz zu tief</span><i>In knappen Duellen lag es unter dem Kopf.</i></div>{% endif %}
+</div>
+{% if d.seen_me is not none %}
+<div class="sk">Wer hat zuerst gesehen?</div>
+<div class="box num">
+  <p>In <b>{{ d.seen_me }} %</b> der Duelle hast du den Gegner zuerst gesehen{% if d.won_seen_me is not none %}. Davon hast du <b>{{ d.won_seen_me }} %</b> gewonnen{% endif %}.</p>
+  <p>In <b>{{ d.seen_opp }} %</b> hat er dich zuerst gesehen{% if d.won_seen_opp is not none %}. Davon hast du nur <b>{{ d.won_seen_opp }} %</b> gewonnen{% endif %}.</p>
+  {% if v.same is not none and v.same > 0 %}<p>In den übrigen <b>{{ v.same }} %</b> habt ihr euch gleichzeitig gesehen.</p>{% endif %}
+  <p style="color:var(--muted)">Gezählt sind nur Duelle, in denen die Demo zeigt, wer wen zuerst gesehen hat ({{ d.seen_n }} von {{ d.n }}).</p>
+</div>
+{% endif %}
+{% endif %}
+
+{% if trend|length > 1 %}
+<div class="sk">Deine letzten Matches</div>
+<table class="st num">
+  <tr><th>Match</th><th class="n">Gew.</th><th class="n">Zuerst</th><th class="n">1. Treffer</th><th class="n">Fadenkr.</th><th class="n">Bewegt</th></tr>
+  {% for t in trend %}
+  <tr><td>{{ t.map }} <span style="color:var(--muted)">{{ t.when }}</span></td>
+    <td class="n">{{ t.won ~ " %" if t.won is not none else "–" }}</td><td class="n">{{ t.shot_first ~ " %" if t.shot_first is not none else "–" }}</td>
+    <td class="n">{{ t.first_hit ~ " %" if t.first_hit is not none else "–" }}</td><td class="n">{{ t.err_de ~ "°" if t.err_de is not none else "–" }}</td>
+    <td class="n">{{ t.moving_pct ~ " %" if t.moving_pct is not none else "–" }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+<div class="links"><a href="/kurs/crosshair">Lektion: Fadenkreuz vorher auf den Spot ›</a><a href="/kurs/moving_shot">Lektion: Erst stoppen, dann schießen ›</a><a href="/kurs/seen_first">Lektion: Sehen, bevor du gesehen wirst ›</a></div>
+{% endblock %}
