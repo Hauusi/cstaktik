@@ -20,6 +20,7 @@ from markupsafe import Markup
 
 from cstaktik import pipeline
 from cstaktik.config import load_rules_config
+from cstaktik.nade_effect import GOOD_BLIND_S as GOOD_BLIND
 
 _LOCK = threading.Lock()  # ein Gespräch zur Zeit: kein doppelter Start bei Neuladen, Kosten-Datei konsistent
 
@@ -177,17 +178,7 @@ def facts(h: dict, sid: str, previous: list[dict] | None = None, lesson: dict | 
         if mech.get("deaths_no_shot_pct") is not None:
             out.append(f"- Tode ohne eigenen Schuss kurz davor: {round(mech['deaths_no_shot_pct'])} %")
 
-    util = p.get("utility") or {}
-    us = (h.get("util_stats") or {}).get(sid) or {}
-    if util or us:
-        out.append("\n## Granaten")
-        if util:
-            out.append("- Geworfen: " + ", ".join(f"{k} {v}" for k, v in util.items()))
-        fl = us.get("flash") or {}
-        if fl.get("n"):
-            out.append(f"- Flashes: {fl['n']}, davon {fl.get('good', '?')} mit geblendetem Gegner"
-                       + (f", Gegner im Schnitt {fl['avg_enemy_s']} s blind" if fl.get("avg_enemy_s") is not None else "")
-                       + (f", {fl['team']} Mal das eigene Team geblendet" if fl.get("team") else ""))
+    out += _nade_lines(h, sid, p)
 
     les = (h.get("lessons") or {}).get(sid) or {}
     if les:
@@ -234,6 +225,68 @@ def facts(h: dict, sid: str, previous: list[dict] | None = None, lesson: dict | 
                        + (", häufigste Fehler: " + ", ".join(f"{LESSONS.get(k, (k,))[0]} {n}" for k, n in top)
                           if top else ""))
     return "\n".join(out)
+
+
+def _nade_lines(h: dict, sid: str, p: dict) -> list[str]:
+    """Granaten: Wirkung aus den Demo-Ereignissen (nade_effect), sonst die alten Zähler."""
+    ne = (h.get("nade_eff") or {}).get(sid)
+    us = (h.get("util_stats") or {}).get(sid) or {}
+    util = p.get("utility") or {}
+    if not ne and not util and not us:
+        return []
+    out = ["\n## Granaten und ihre Wirkung (aus den Demo-Ereignissen gemessen)"]
+    if not ne:
+        if util:
+            out.append("- Geworfen: " + ", ".join(f"{k} {v}" for k, v in util.items()))
+        fl = us.get("flash") or {}
+        if fl.get("n"):
+            out.append(f"- Flashes: {fl['n']}, davon {fl.get('good', '?')} mit geblendetem Gegner")
+        return out
+    fl, he, mo, sm = ne["flash"], ne["he"], ne["molotov"], ne["smoke"]
+    if fl["n"]:
+        out.append(f"- Flashes: {fl['n']} geworfen. {fl['good']} davon haben mindestens einen Gegner {GOOD_BLIND} s oder "
+                   f"länger geblendet, insgesamt {fl['enemies']} Mal ein Gegner geblendet"
+                   + (f" (im Schnitt {fl['avg_blind_s']} s)" if fl.get("avg_blind_s") is not None else "")
+                   + f". Geblendete Gegner, die danach noch blind getötet wurden (Flash-Assist): {fl['assists']}. "
+                   f"Eigenes Team geblendet: {fl['team']} Mal.")
+    if he["n"]:
+        out.append(f"- HE: {he['n']} geworfen, {he['enemy_dmg']} Schaden an Gegnern"
+                   + (f", {he['team_dmg']} an Mitspielern" if he.get("team_dmg") else "")
+                   + (f", {he['kills']} Kills" if he.get("kills") else "") + ".")
+    if mo["n"]:
+        out.append(f"- Molotov/Brandgranate: {mo['n']} geworfen, {mo['enemy_dmg']} Schaden an Gegnern"
+                   + (f", {mo['team_dmg']} an Mitspielern" if mo.get("team_dmg") else "")
+                   + (f", {mo['kills']} Kills" if mo.get("kills") else "")
+                   + ". Ob eine Molotov einen Gegner aus einer Position vertrieben hat, misst die App nicht.")
+    if sm["n"]:
+        out.append(f"- Smokes: {sm['n']} geworfen. Ihre Wirkung (Sicht blockiert) misst die App nicht.")
+    if us.get("pre") is not None:
+        out.append(f"- Granaten vor dem ersten Kill der Runde: im Schnitt {us['pre']} pro Runde")
+    if ne.get("deaths_known"):
+        un = ne.get("unused") or []
+        out.append(f"- Gestorben mit Granaten in der Tasche: {len(un)} von {ne['deaths_known']} Toden"
+                   + (": " + "; ".join(f"Runde {u['r']} ({', '.join(u['nades'])})" for u in un) if un else ""))
+    names = {"flash": "Flash", "he": "HE", "molotov": "Molotov", "smoke": "Smoke", "decoy": "Decoy"}
+    rows = []
+    for r in ne.get("rounds") or []:
+        if not r.get("thrown"):
+            continue
+        bits = [", ".join(f"{n}x {names.get(k, k)}" for k, n in r["thrown"].items())]
+        if r["thrown"].get("flash"):
+            bits.append(f"{r['blind']} Gegner geblendet (zusammen {r['blind_s']} s)" if r["blind"] else "kein Gegner geblendet")
+            if r.get("assists"):
+                bits.append(f"{r['assists']} geblendete Gegner getötet")
+            if r.get("team_blind"):
+                bits.append("eigenes Team geblendet")
+        if r["thrown"].get("he"):
+            bits.append(f"HE {r['he_dmg']} Schaden")
+        if r["thrown"].get("molotov"):
+            bits.append(f"Molotov {r['molo_dmg']} Schaden")
+        rows.append(f"Runde {r['r']}: " + "; ".join(bits))
+    if rows:
+        out.append("Würfe je Runde:")
+        out += rows
+    return out
 
 
 # --- Gespräch und Kosten ---------------------------------------------------------------------------------------

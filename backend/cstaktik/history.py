@@ -57,6 +57,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "lessons": lessons(result),
         "duel_stats": duel_stats(match),
         "util_stats": util_stats(match),
+        "nade_eff": __import__("cstaktik.nade_effect", fromlist=["by_player"]).by_player(match),
         "lesson_rank": (rank := lesson_rank(result, past)),
         "main_lesson": rank[0] if rank else None,  # wie "Der eine Punkt" im Report (mit Gedächtnis)
         "lesson_rank_by": lesson_rank_by(result, past),
