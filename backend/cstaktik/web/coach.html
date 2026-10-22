@@ -3,104 +3,16 @@
 {% block bodyclass %}{% endblock %}
 {% block head %}
 <style>
-/* KI-Coach: Nachbesprechung oben, darunter Fragen und Antworten wie ein Gespräch. */
 .back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
-.thread { margin-top: 12px; }
-.msg { margin-top: 14px; padding: 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); font-size: 16px; line-height: 1.55; }
-.msg h3 { margin: 18px 0 6px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--orange); }
-.msg h3:first-child { margin-top: 0; }
-.msg p { margin: 0; } .msg p + p, .msg ul + p, .msg p + ul { margin-top: 8px; }
-.msg ul { margin: 6px 0 0; padding-left: 20px; } .msg li + li { margin-top: 4px; }
-.msg.user { margin-left: 15%; background: var(--surface-2); border-color: transparent; font-size: 15px; }
-.msg.wait { color: var(--muted); }
-.err { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(240,86,106,.45); color: #f59aa6; font-size: 15px; }
-.ask { display: flex; gap: 8px; margin-top: 16px; }
-.ask textarea { flex: 1; min-height: 52px; max-height: 160px; padding: 14px; resize: vertical; border-radius: 14px; border: 1px solid var(--line);
-  background: var(--surface); color: var(--text); font: inherit; font-size: 16px; }
-.ask button { flex: none; min-width: 84px; border: 0; border-radius: 14px; background: var(--orange); color: #111; font: inherit; font-weight: 800; cursor: pointer; }
-.ask button:disabled { opacity: .5; cursor: default; }
-.foot { margin-top: 14px; color: var(--faint); font-size: 13px; line-height: 1.5; }
-.off { margin-top: 16px; }
+.talk { margin-top: 10px; }
 </style>
 {% endblock %}
 {% block hero %}
 <h1>Nachbesprechung</h1>
-<p>{{ map_label }}{% if many %} · {{ name }}{% endif %}. Dein Coach spricht nur über das, was in deiner Demo steht.</p>
+<p>{{ map_label }}{% if when %} · {{ when }}{% endif %}{% if many %} · {{ name }}{% endif %}. Dein Coach spricht nur über das, was in deiner Demo steht.</p>
 {% endblock %}
 {% block content %}
-<a class="back" href="/m/{{ file }}{% if many %}?p={{ sid }}{% endif %}">‹ Zurück zur Match-Story</a>
-<div id="coach" data-file="{{ file }}" data-sid="{{ sid }}"{% if enabled and not msgs %} data-start="1"{% endif %}>
-  <div class="thread" id="thread">
-    {% for m in msgs %}
-    {% if m.role == "assistant" %}<div class="msg">{{ m.html }}</div>{% else %}<div class="msg user">{{ m.text }}</div>{% endif %}
-    {% endfor %}
-  </div>
-  <div class="err" id="err" hidden></div>
-  {% if not enabled %}
-  <div class="msg off">Der KI-Coach ist auf dem Server noch nicht eingerichtet. Dafür muss der Admin einen API-Schlüssel von
-    Anthropic hinterlegen (Umgebungsvariable ANTHROPIC_API_KEY).</div>
-  {% else %}
-  <form class="ask" id="ask"{% if not msgs or left <= 0 %} hidden{% endif %}>
-    <textarea id="q" name="q" maxlength="500" rows="2" placeholder="Frag deinen Coach, z. B. Was hätte ich in Runde 7 besser machen sollen?"></textarea>
-    <button type="submit" id="send">Fragen</button>
-  </form>
-  {% endif %}
-  <div class="foot num" id="foot">{% if msgs %}Dieses Gespräch hat bisher {{ cost }} US-Cent gekostet. {% endif %}Diesen Monat {{ month }} von {{ limit }} US-Cent.{% if msgs %} Noch {{ left }} Fragen zu diesem Match.{% endif %}</div>
-</div>
-{% endblock %}
-{% block script %}
-<script>
-(function () {
-  var box = document.getElementById("coach");
-  var form = document.getElementById("ask");
-  if (!box) return;
-  var thread = document.getElementById("thread"), err = document.getElementById("err"), foot = document.getElementById("foot");
-
-  function bubble(cls, text) {
-    var d = document.createElement("div");
-    d.className = "msg " + cls;
-    d.textContent = text;
-    thread.appendChild(d);
-    return d;
-  }
-  function render(v) {
-    thread.innerHTML = "";
-    v.msgs.forEach(function (m) {
-      if (m.role === "assistant") { var d = document.createElement("div"); d.className = "msg"; d.innerHTML = m.html; thread.appendChild(d); }
-      else bubble("user", m.text);
-    });
-    foot.textContent = "Dieses Gespräch hat bisher " + v.cost + " US-Cent gekostet. Diesen Monat " + v.month + " von " + v.limit
-      + " US-Cent. Noch " + v.left + " Fragen zu diesem Match.";
-    if (form) form.hidden = v.left <= 0;
-  }
-  function send(q) {
-    err.hidden = true;
-    var wait = bubble("wait", q ? "Coach denkt nach …" : "Dein Coach schaut sich das Match an und schreibt die Nachbesprechung. Das dauert etwa 10 bis 20 Sekunden …");
-    if (form) { form.querySelector("button").disabled = true; }
-    return fetch("/coach/" + encodeURIComponent(box.dataset.file), {
-      method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({p: box.dataset.sid, q: q || ""})
-    }).then(function (r) {
-      return r.json().catch(function () { return {error: "Unerwartete Antwort vom Server."}; });
-    }).then(function (v) {
-      if (v.error) { wait.remove(); err.textContent = v.error; err.hidden = false; return false; }
-      render(v); return true;
-    }).catch(function () {
-      wait.remove(); err.textContent = "Keine Verbindung zum Server."; err.hidden = false; return false;
-    }).then(function (ok) {
-      if (form) form.querySelector("button").disabled = false;
-      return ok;
-    });
-  }
-  if (box.dataset.start) send("");
-  if (form) form.addEventListener("submit", function (e) {
-    e.preventDefault();
-    var t = document.getElementById("q"), q = t.value.trim();
-    if (!q) return;
-    bubble("user", q);
-    t.value = "";
-    send(q).then(function (ok) { if (!ok) { thread.lastChild && thread.lastChild.classList.contains("user") && thread.lastChild.remove(); t.value = q; } });
-  });
-})();
-</script>
+<a class="back" href="/m/{{ file }}{% if many %}?p={{ sid }}{% endif %}">‹ Match-Story</a>
+<div class="talk">{% include "coach_talk.html" %}</div>
+{% include "coach_assets.html" %}
 {% endblock %}

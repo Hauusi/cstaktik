@@ -1,0 +1,82 @@
+{# Gespräch mit dem Coach zu einem Match. Variablen: cv (api._coach_view), file, sid, full (ganze Seite statt Startseite). #}
+{% if cv.radars %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{% for m, img in cv.radars.items() %}<image id="rad-{{ m }}" href="{{ img }}" width="1024" height="1024"/>{% endfor %}</defs></svg>{% endif %}
+{% macro scene_map(sc) %}{% if sc and sc.view %}{% set v = sc.view %}{% set vb = v.vb_rev or v.vb %}{% set w = vb[2] / 320 %}
+<svg class="ct-map" viewBox="{{ vb[0] }} {{ vb[1] }} {{ vb[2] }} {{ vb[2] }}" role="img" aria-label="Lagebild der Szene">
+  <use href="#rad-{{ sc.map }}"/>
+  {% for m in v.mates %}<circle cx="{{ m[0] }}" cy="{{ m[1] }}" r="{{ 6 * w }}" class="cm-m"/><text x="{{ m[0] + 9 * w }}" y="{{ m[1] + 4 * w }}" font-size="{{ 11 * w }}" class="cm-l">{{ m[2] }}</text>{% endfor %}
+  {% for f in v.foes %}<circle cx="{{ f[0] }}" cy="{{ f[1] }}" r="{{ 6 * w }}" class="cm-f"/>{% endfor %}
+  {% if v.killer %}<line x1="{{ v.killer[0] }}" y1="{{ v.killer[1] }}" x2="{{ v.dead[0] }}" y2="{{ v.dead[1] }}" stroke-width="{{ 3 * w }}" class="cm-shot"/>
+  <circle cx="{{ v.killer[0] }}" cy="{{ v.killer[1] }}" r="{{ 8 * w }}" class="cm-k"/>{% endif %}
+  <circle cx="{{ v.me[0] }}" cy="{{ v.me[1] }}" r="{{ 8 * w }}" class="cm-me"/>
+</svg>
+<div class="ct-leg"><span style="color:#ff9f1c">● du</span> <span style="color:#5d79ae">● Mitspieler</span>{% if v.killer %} <span style="color:#e5484d">● wer dich erwischt hat{% if v.kplace %} ({{ v.kplace|callout }}){% endif %}</span>{% endif %}</div>
+{% endif %}{% endmacro %}
+<div class="ct" data-coach data-file="{{ file }}" data-sid="{{ sid }}"{% if cv.enabled and not cv.has %} data-start="1"{% endif %}>
+{% if cv.debrief %}{% set d = cv.debrief %}
+  <p class="ct-open">{{ d.headline }}</p>
+  <p>{{ d.summary }}</p>
+  {% if d.good %}
+  <h3>Was gut war</h3>
+  <ul class="ct-good">{% for g in d.good %}<li><b class="num">Runde {{ g.round }}.</b> {{ g.text }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if d.topic and d.topic.title %}
+  <h3>Dein Thema heute: {{ d.topic.title }}</h3>
+  {% if d.topic.principle %}<p>{{ d.topic.principle }}</p>{% endif %}
+  {% for x in d.scenes %}
+  <div class="ct-scene">
+    <div class="ct-r num">Runde {{ x.round }}</div>
+    {{ scene_map(x.sc) }}
+    <p>{{ x.what }}</p>
+    <p class="ct-better"><b>Besser:</b> {{ x.better }}</p>
+    {% if x.sc and x.sc.href %}<a class="ct-link" href="{{ x.sc.href }}">Szene im 2D-Replay ansehen ›</a>{% endif %}
+  </div>
+  {% endfor %}
+  {% if d.topic.lesson and d.topic.lesson != "none" %}<a class="ct-link" href="/kurs/{{ d.topic.lesson }}">Zur Lektion „{{ d.lesson_title or d.topic.title }}“ ›</a>{% endif %}
+  {% endif %}
+  {% if d.agreement and d.agreement.text %}
+  <div class="ct-deal">
+    <div class="ct-k">Unsere Abmachung fürs nächste Match</div>
+    <p class="ct-deal-t">{{ d.agreement.text }}</p>
+    {% if d.agreement.check %}<p class="ct-muted">{{ d.agreement.check }}</p>{% endif %}
+  </div>
+  {% endif %}
+  {% if d.question and d.question.text %}
+  <div class="ct-q">
+    <div class="ct-k">Dein Coach fragt{% if d.question.round %} · Runde {{ d.question.round }}{% endif %}</div>
+    <p class="ct-q-t">{{ d.question.text }}</p>
+    {% if d.q_scene and d.q_scene.href %}<a class="ct-link" href="{{ d.q_scene.href }}">Runde {{ d.question.round }} im 2D-Replay ›</a>{% endif %}
+    {% if cv.answer %}
+    <div class="msg user">{{ cv.answer }}</div>
+    {% if cv.reply %}<div class="msg">{{ cv.reply }}</div>{% endif %}
+    {% elif cv.enabled %}
+    <form class="ask" data-answer="1">
+      <textarea name="q" maxlength="500" rows="2" placeholder="Deine Antwort …"></textarea>
+      <button type="submit">Antworten</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+{% elif cv.legacy %}
+  <div class="msg">{{ cv.legacy }}</div>
+{% elif cv.enabled %}
+  <div class="msg wait">Dein Coach schaut sich das Match an und bereitet die Nachbesprechung vor. Das dauert etwa eine halbe Minute.</div>
+{% else %}
+  <div class="msg">Der KI-Coach ist auf dem Server noch nicht eingerichtet. Dafür muss der Admin einen API-Schlüssel von
+    Anthropic hinterlegen (Umgebungsvariable ANTHROPIC_API_KEY).</div>
+{% endif %}
+{% if full %}
+  {% for m in cv.msgs %}
+  {% if m.role == "assistant" %}<div class="msg">{{ m.html }}</div>{% else %}<div class="msg user">{{ m.text }}</div>{% endif %}
+  {% endfor %}
+  {% if cv.enabled and cv.has and cv.left > 0 %}
+  <form class="ask" data-ask="1">
+    <textarea name="q" maxlength="500" rows="2" placeholder="Frag deinen Coach, z. B. Was hätte ich in Runde 7 besser machen sollen?"></textarea>
+    <button type="submit">Fragen</button>
+  </form>
+  {% endif %}
+  {% if cv.has %}<div class="ct-foot num">Dieses Gespräch hat bisher {{ cv.cost }} US-Cent gekostet. Diesen Monat {{ cv.month }} von {{ cv.limit }} US-Cent. Noch {{ cv.left }} Fragen zu diesem Match.</div>{% endif %}
+{% elif cv.has %}
+  <a class="ct-more" href="/coach/{{ file }}{% if many %}?p={{ sid }}{% endif %}">{% if cv.msgs %}Gespräch weiterführen{% else %}Weitere Fragen zum Match stellen{% endif %} ›</a>
+{% endif %}
+  <div class="err" data-err hidden></div>
+</div>

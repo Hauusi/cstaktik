@@ -44,10 +44,10 @@ def test_home_is_the_course_new_match_lesson_and_path():
     _focus()
     home = _login().get("/").text
     blocks = re.findall(r'data-block="([a-z-]+)"', home)
-    assert blocks == ["new", "lesson", "path"]  # neues Match, aktuelle Lektion, Lernpfad
+    assert blocks == ["new", "lesson", "prep", "path"]  # neues Match, aktuelle Lektion, Vorbereitung, Lernpfad
     assert "2 neue Matches" in home and 'href="/m/m2.html"' in home and 'href="/m/m1.html"' not in home
     # aktuelle Lektion = laufender Auftrag, mit Fortschritt als Satz und Knopf zur Lektion
-    assert "Deine aktuelle Lektion" in home and course_texts.LESSONS["utility"]["title"] in home
+    assert "Daran arbeiten wir" in home and course_texts.LESSONS["utility"]["title"] in home
     assert "1 von 2 Matches in Folge geschafft." in home and 'href="/kurs/utility"' in home and "Lektion öffnen" in home
     # Lernpfad: alle Stufen und Lektionen, jede antippbar, mit Status
     for st in course_texts.STAGES:
@@ -61,8 +61,10 @@ def test_home_is_the_course_new_match_lesson_and_path():
     # kleine Links bleiben, der Rest ist weg
     assert 'href="/training#vorbereitung"' in home and 'href="/training#tools"' in home
     body = re.sub(r"<style>.*?</style>|<script>.*?</script>", "", home, flags=re.S)  # nur sichtbarer Inhalt
-    for gone in ("Größter Hebel", "/briefing/", "Situations-Training", "Heute ·", "Auftrag", "Wochenplan", "Thema:",
-                 "Dein Fokus fürs nächste Match", "Letztes Match", "·"):
+    # Vorbereitung je Map: Briefing, Pro-Taktiken, Lineups
+    assert 'href="/briefing/de_mirage"' in home and 'href="/playbook/de_mirage"' in home and 'href="/lineups/de_mirage"' in home
+    for gone in ("Größter Hebel", "Situations-Training", "Heute ·", "Auftrag", "Wochenplan", "Thema:",
+                 "Dein Fokus fürs nächste Match", "Letztes Match"):
         assert gone not in body, gone
     assert "Demo selbst hochladen" in home
 
@@ -71,7 +73,7 @@ def test_home_without_new_match_shows_lesson_and_path():
     _entry("m1", "2026-01-01T10:00")  # vor dem ersten Login: gilt als gesehen
     _focus()
     home = _login().get("/").text
-    assert re.findall(r'data-block="([a-z-]+)"', home) == ["lesson", "path"]
+    assert re.findall(r'data-block="([a-z-]+)"', home) == ["lesson", "prep", "path"]
     assert 'href="/m/' not in home
 
 
@@ -98,7 +100,7 @@ def test_nav_has_three_tabs_and_settings_icon():
         page = TestClient(api.app).get(path).text
         nav = re.search(r'<nav class="gnav".*?</nav>', page, re.S).group(0)
         tabs = re.findall(r'<a href="([^"]+)"[^>]*>.*?</svg>([^<]+)</a>', nav, re.S)
-        assert tabs == [("/", "Kurs"), ("/matches", "Matches"), ("/progress", "Fortschritt")], path
+        assert tabs == [("/", "Coach"), ("/matches", "Matches"), ("/progress", "Fortschritt")], path
         assert 'href="/mehr" aria-label="Einstellungen"' in page, path
     nav = re.search(r'<nav class="gnav".*?</nav>', TestClient(api.app).get("/training").text, re.S).group(0)
     assert re.search(r'href="/"\s+class="on"', nav)  # Training gehört zum Kurs

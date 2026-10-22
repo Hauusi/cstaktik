@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dein Kurs{% endblock %}
+{% block title %}Dein Coach{% endblock %}
 {% block bodyclass %}{% endblock %}
 {% block head %}
 <style>
@@ -16,6 +16,17 @@
 .newm b .num { color: var(--orange); } .newm p { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
 .newm i { font-style: normal; color: var(--orange); font-weight: 800; font-size: 22px; }
 .newb { background: var(--accent); color: #111; border-radius: 999px; padding: 2px 7px; font-size: 10px; font-weight: 800; letter-spacing: .08em; margin-right: 4px; }
+/* Coach: Gespräch zum letzten Match */
+.coachbox { padding: 18px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface); }
+.cb-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.cb-story { flex: none; color: var(--orange); font-weight: 700; font-size: 13.5px; }
+.cb-w { color: var(--win); } .cb-l { color: var(--loss); }
+.pathall > summary { cursor: pointer; list-style: none; color: var(--orange); font-weight: 700; font-size: 14px; padding: 6px 0; }
+.pathall > summary::-webkit-details-marker { display: none; }
+/* Vorbereitung */
+.pm { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+.pm b { font-size: 16px; } .pm span { display: flex; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+.pm a { color: var(--orange); font-weight: 700; font-size: 14px; }
 /* Aktuelle Lektion */
 .cur { padding: 18px; border-radius: 18px; border: 1px solid rgba(255,159,28,.5); background: var(--surface); }
 .cur h3 { margin: 8px 0 0; font-family: var(--cond); font-weight: 800; font-size: 30px; line-height: 1.02; text-transform: uppercase; }
@@ -69,7 +80,7 @@
 <p>{% if jobs %}Dein Match wird ausgewertet. Gleich ist der Report da.
 {% elif need_link %}Verbinde deinen Steam-Account. Dann zeigt der Coach deine Matches.
 {% elif not n_history %}Lade dein erstes Match hoch. Danach weiß der Coach, mit welcher Lektion dein Kurs beginnt.
-{% else %}Dein Coach bringt dir CS2 Schritt für Schritt bei. Jede Lektion prüft er in deinen Matches.{% endif %}</p>
+{% else %}Dein Coach bespricht jedes Match mit dir, hält eure Abmachung fest und bringt dir CS2 Schritt für Schritt bei.{% endif %}</p>
 {% endblock %}
 {% block content %}
 {% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
@@ -89,8 +100,17 @@
 
   {% if push_hint %}<a class="slim" href="/konto#push"><span>Benachrichtigungen einschalten: Der Coach meldet sich, sobald dein Match ausgewertet ist.</span><i>›</i></a>{% endif %}
 
-  {# 1. Neues Match: eine kompakte Karte zur Story #}
-  {% if news %}{% set nm = news[0] %}
+  {# 1. Der Coach: Gespräch zum letzten Match (Nachbesprechung, Abmachung, Frage) #}
+  {% set talk = coach and (coach.cv.enabled or coach.cv.has) %}
+  {% if talk %}{% set cv = coach.cv %}{% set file = coach.file %}{% set many = tabs %}
+  <section class="coachbox" data-block="coach">
+    <div class="cb-top"><span class="kicker">{% if coach.new %}<span class="newb">Neu</span>{% endif %}Nachbesprechung · {{ coach.map_label }}{% if coach.score %} <span class="num cb-{{ coach.res }}">{{ coach.score }}</span>{% endif %}{% if coach.when %} · {{ coach.when }}{% endif %}</span>
+      <a class="cb-story" href="/m/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Match-Story ›</a></div>
+    {% with sid = coach.sid, full = false %}{% include "coach_talk.html" %}{% endwith %}
+  </section>
+  {% endif %}
+
+  {% if news and not talk %}{% set nm = news[0] %}
   <a class="newm" href="/m/{{ nm.report_file }}{% if tabs %}?p={{ sid }}{% endif %}" data-block="new">
     <div class="t"><span class="kicker"><span class="newb">Neu</span>{% if n_new > 1 %}{{ n_new }} neue Matches{% else %}Neues Match{% endif %}</span>
       <b>{{ nm.map_label }}{% if nm.won is not none %} <span class="num">{{ nm.won }}:{{ nm.lost }}</span>{% endif %}{% if nm.result %}, {{ nm.result }}{% endif %}</b>
@@ -102,7 +122,7 @@
   {# 2. Aktuelle Lektion #}
   {% if c %}
   <section class="cur" data-block="lesson">
-    <div class="kicker">{% if tabs %}{{ who }}: {% endif %}Deine aktuelle Lektion{% if c.stage %} in der Stufe {{ c.stage }}{% endif %}</div>
+    <div class="kicker">{% if tabs %}{{ who }}: {% endif %}Daran arbeiten wir: deine Lektion{% if c.stage %} in der Stufe {{ c.stage }}{% endif %}</div>
     <h3>{{ c.title }}</h3>
     {% if c.goal %}<p class="goal">{{ c.goal }}</p>{% endif %}
     {% if c.focus %}<div class="dots" aria-hidden="true">{% for i in range(c.need) %}<i class="{{ 'on' if i < c.streak }}"></i>{% endfor %}</div>{% endif %}
@@ -123,10 +143,25 @@
   </section>
   {% endif %}
 
+  {% if prep %}
+  {# Vorbereitung: Briefing, Pro-Taktiken und Lineups je Map #}
+  <section class="prep" data-block="prep">
+    <h2 style="margin-top:12px">Vor dem nächsten Match</h2>
+    <p class="pathsum">Wähl die Map. Dein Coach hat Briefing, Pro-Taktiken und Lineups dafür.</p>
+    {% for m in prep %}
+    <div class="pm"><b>{{ m.label }}</b><span><a href="/briefing/{{ m.map }}">Briefing</a><a href="/playbook/{{ m.map }}">Taktiken</a><a href="/lineups/{{ m.map }}">Lineups</a></span></div>
+    {% endfor %}
+    <div class="tiny"><a href="/training#vorbereitung">Alle Maps ›</a><a href="/training#tools">Pro-Taktiken ›</a></div>
+  </section>
+  {% elif n_history %}
+  <div class="tiny"><a href="/training#vorbereitung">Vor dem Match ›</a><a href="/training#tools">Pro-Taktiken ›</a></div>
+  {% endif %}
+
   {# 3. Lernpfad #}
   <section data-block="path">
     <h2 style="margin-top:12px">Dein Lernpfad</h2>
     <p class="pathsum">Du hast <b class="num">{{ kurs.done }} von {{ kurs.total }}</b> Lektionen geschafft.{% if kurs.settled %} {{ "Eine weitere sitzt" if kurs.settled == 1 else kurs.settled ~ " weitere sitzen" }} laut deinen Matches schon.{% endif %}{% if kurs.counts.offen %} Für {{ "eine Lektion" if kurs.counts.offen == 1 else kurs.counts.offen ~ " Lektionen" }} reichen die Daten noch nicht.{% endif %}</p>
+    <details class="pathall"{% if not (talk or kurs.current) %} open{% endif %}><summary>Alle {{ kurs.total }} Lektionen ansehen</summary>
     {% for st in kurs.stages %}
     <div class="stage{{ ' on' if st.on }}">
       <div class="sh"><span>{{ loop.index }}</span>{{ st.title }}</div>
@@ -136,12 +171,10 @@
       {% endfor %}</div>
     </div>
     {% endfor %}
+    </details>
   </section>
   {% endif %}
 
-  {% if n_history %}
-  <div class="tiny"><a href="/training#vorbereitung">Vor dem Match ›</a><a href="/training#tools">Pro-Taktiken ›</a></div>
-  {% endif %}
 
   {% if n_history %}{# Matches kommen meist automatisch: Hochladen nur als kleiner Ausweg #}
   <details class="card upbox auto">
@@ -180,4 +213,5 @@
 </div>
 {% endif %}
 <a class="more-link" href="/mehr#anleitung">Wie funktioniert der Coach? ›</a>
+{% if coach and (coach.cv.enabled or coach.cv.has) %}{% include "coach_assets.html" %}{% endif %}
 {% endblock %}

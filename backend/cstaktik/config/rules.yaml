@@ -204,7 +204,9 @@ playbook:
 # Server die Umgebungsvariable ANTHROPIC_API_KEY gesetzt ist (nie im Repo). Preise in US-Dollar je Million Tokens
 # (Listenpreise von Anthropic); daraus werden die Kosten je Gespräch und je Monat gerechnet.
 ai:
-  model: claude-haiku-5-5
+  model: claude-haiku-5-5           # Fragen und Antworten im Gespräch (günstig)
+  debrief_model: claude-sonnet-5-5  # Nachbesprechung: besserer Coach-Ton, etwa 3-8 US-Cent je Match
+  debrief_effort: medium            # Denkaufwand; max_tokens 7000 hält eine Nachbesprechung unter 10 Cent
   monthly_limit_usd: 2.0    # danach antwortet der Coach bis zum Monatsende nicht mehr
   max_questions: 15         # Fragen je Match und Spieler
   max_question_chars: 500

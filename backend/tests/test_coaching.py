@@ -62,7 +62,7 @@ def test_training_pages_and_drill_done():
     c = TestClient(api.app)
     home = c.get("/").text
     # Startseite: der laufende Auftrag ist die aktuelle Kurs-Lektion
-    assert "Deine aktuelle Lektion" in home and "Nicht ohne Trade-Partner peeken" in home and 'href="/kurs/alone"' in home
+    assert "Daran arbeiten wir" in home and "Nicht ohne Trade-Partner peeken" in home and 'href="/kurs/alone"' in home
     t = c.get("/training/situationen").text
     assert "Nicht ohne Trade-Partner peeken" in t and "1 echte Situation " in t
     hub = c.get("/training").text

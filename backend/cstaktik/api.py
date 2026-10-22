@@ -788,12 +788,39 @@ def index(p: str = "") -> str:
         push_hint = not notify.subs(_USER.get())
     sid, tabs = _course_player(hist, p)
     kurs = _course_overview(hist, sid) if sid else None
-    return _env.get_template("index.html").render(
+    return _env.get_template("index.html").render(coach=_home_coach(hist, sid, news), prep=_prep_maps(hist, sid),
         nav_active="coach", jobs=jobs, n_history=len(hist), news=news[:1], n_new=len(news),
         missing_players=missing if hist else 0, me_name=names.get(_me()) if _me() else None,
         need_link=_USER.get() is not None and not _me(), auto=auto and bool(hist), push_hint=push_hint,
         kurs=kurs, sid=sid, who=names.get(sid) if sid else None, tabs=tabs, deal=_deal_view(hist),
     )
+
+
+def _home_coach(hist: list[dict], sid: str | None, news: list[dict]) -> dict | None:
+    """Startseite: das Gespräch zum letzten Match des Spielers (Nachbesprechung, Abmachung, Frage des Coaches)."""
+    from cstaktik import ai_coach, history
+
+    if not sid:
+        return None
+    h = next((x for x in reversed(hist) if sid in (x.get("players") or {}) and x.get("report_file")), None)
+    if h is None:
+        return None
+    chat = ai_coach.load_chat(h["report_file"], sid)
+    sc = history.score(h, sid)
+    return {"file": h["report_file"], "sid": sid, "when": _when(h), "cv": _coach_view(h, sid, chat),
+            "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(),
+            "score": f"{sc[0]}:{sc[1]}" if sc else None,
+            "res": None if not sc else "w" if sc[0] > sc[1] else "l" if sc[1] > sc[0] else "d",
+            "new": any(n.get("report_file") == h["report_file"] for n in news)}
+
+
+def _prep_maps(hist: list[dict], sid: str | None) -> list[dict]:
+    """Vor dem nächsten Match: die Maps, die der Spieler zuletzt gespielt hat (häufigste zuerst)."""
+    from collections import Counter
+
+    n = Counter(h.get("map") for h in hist[-20:] if h.get("map") and (not sid or sid in (h.get("players") or {})))
+    return [{"map": m, "label": m.removeprefix("de_").capitalize()} for m, _ in n.most_common(4)
+            if re.fullmatch(r"[a-z0-9_]+", m)]
 
 
 def _course_player(hist: list[dict], want: str = "") -> tuple[str | None, list[dict]]:
@@ -1205,58 +1232,106 @@ def _coach_facts(h: dict, sid: str) -> str:
     before = [x for x in hist if sid in (x.get("players") or {}) and x is not h
               and (x.get("analyzed_at") or "") < (h.get("analyzed_at") or "")]
     before.sort(key=lambda x: x.get("analyzed_at") or "", reverse=True)
-    return ai_coach.facts(h, sid, previous=before[:3], lesson=_minute_lesson(h, sid))
+    return (ai_coach.facts(h, sid, previous=before[:3], lesson=_minute_lesson(h, sid))
+            + ai_coach.notes_text(sid, h.get("report_file") or ""))
 
 
-def _coach_view(chat: dict | None) -> dict:
+def _coach_rounds(h: dict, sid: str) -> set[int]:
+    """Runden, die es im Match für den Spieler gibt (aus dem Verlauf): nur die darf der Coach zitieren."""
+    rows = (h.get("by_round") or {}).get(sid) or []
+    return {int(r[0]) for r in rows} | {int(x["round"]) for x in h.get("scenes") or []
+                                        if x.get("sid") == sid and x.get("round") is not None}
+
+
+def _coach_scene(h: dict, sid: str, rnd: int, lesson: str | None) -> dict | None:
+    """Szene des Spielers in dieser Runde (passende Lektion zuerst) mit Lagebild und Link zur Wiederholung."""
+    own = [x for x in h.get("scenes") or [] if x.get("sid") == sid and x.get("round") == rnd]
+    if not own:
+        return None
+    x = dict(sorted(own, key=lambda x: (x.get("lesson") != lesson, x.get("tick") or 0))[0])
+    x["href"] = f"/reports/{h['report_file']}#s{rnd}-{x.get('from') or x.get('tick')}" if h.get("report_file") else None
+    return x
+
+
+def _coach_view(h: dict | None, sid: str | None, chat: dict | None) -> dict:
+    """Gespräch für die Seiten: strukturierte Nachbesprechung (Szenen mit Lagebild), die Frage des Coaches mit
+    Antwort, danach weitere Fragen. Alte Gespräche (Fließtext) werden als Text gezeigt."""
     from cstaktik import ai_coach
+    from cstaktik.coach_voice import LESSONS
 
     cfg = ai_coach.settings()
-    msgs = []
-    for i, m in enumerate((chat or {}).get("messages") or []):
-        if i == 0:
-            continue  # Startbitte nicht zeigen
-        msgs.append({"role": m["role"], "html": ai_coach.to_html(m["text"]) if m["role"] == "assistant" else None,
-                     "text": m["text"]})
-    asked = sum(1 for m in msgs if m["role"] == "user")
-    return {"msgs": msgs, "left": max(0, cfg["max_questions"] - asked),
-            "cost": ai_coach.cents((chat or {}).get("cost_usd") or 0),
-            "month": ai_coach.cents(ai_coach.spent()), "limit": ai_coach.cents(cfg["monthly_limit_usd"])}
+    msgs = (chat or {}).get("messages") or []
+    d = (chat or {}).get("debrief")
+    view = {"debrief": None, "legacy": None, "answer": None, "reply": None, "msgs": [], "radars": {}}
+    rest = msgs[2:]
+    if d and h is not None:
+        t = d.get("topic") or {}
+        scenes = []
+        for x in t.get("scenes") or []:
+            sc = _coach_scene(h, sid, x["round"], t.get("lesson"))
+            scenes.append({**x, "sc": sc})
+        pics = [x["sc"] for x in scenes if x["sc"]]
+        view["radars"] = _scene_maps(pics)
+        q = d.get("question") or {}
+        view["debrief"] = {**d, "scenes": scenes, "lesson_title": LESSONS.get(t.get("lesson"), (None,))[0],
+                           "q_scene": _coach_scene(h, sid, q["round"], None) if q.get("round") else None}
+        if rest and rest[0].get("kind") == "answer":
+            view["answer"] = rest[0]["text"].removeprefix(ai_coach.ANSWER)
+            view["reply"] = ai_coach.to_html(rest[1]["text"]) if len(rest) > 1 else None
+            rest = rest[2:]
+    elif len(msgs) > 1:
+        view["legacy"] = ai_coach.to_html(msgs[1]["text"])
+    view["msgs"] = [{"role": m["role"], "text": m["text"],
+                     "html": ai_coach.to_html(m["text"]) if m["role"] == "assistant" else None} for m in rest]
+    asked = sum(1 for m in msgs[1:] if m["role"] == "user")
+    if ai_coach.enabled() and not d:  # altes Fließtext-Gespräch: neue Nachbesprechung schreiben lassen
+        view.update(legacy=None, msgs=[])
+        msgs = []
+    view.update(has=bool(msgs), left=max(0, cfg["max_questions"] - asked),
+                cost=ai_coach.cents((chat or {}).get("cost_usd") or 0), month=ai_coach.cents(ai_coach.spent()),
+                limit=ai_coach.cents(cfg["monthly_limit_usd"]), enabled=ai_coach.enabled())
+    return view
 
 
 @app.get("/coach/{report_file}", response_class=HTMLResponse)
 def coach_page(report_file: str, p: str = "") -> str:
-    """KI-Coach: Nachbesprechung des Matches und Fragen dazu."""
+    """KI-Coach: Nachbesprechung des Matches und das Gespräch dazu."""
     from cstaktik import ai_coach
 
     h, sid, sids, players = _coach_target(report_file, p)
     chat = ai_coach.load_chat(report_file, sid)
     return _env.get_template("coach.html").render(
-        nav_active="matches", jobs=_running_jobs(), file=report_file, sid=sid, many=len(sids) > 1,
-        name=(players.get(sid) or {}).get("name", sid), enabled=ai_coach.enabled(),
-        map_label=(h.get("map") or "?").removeprefix("de_").capitalize(), **_coach_view(chat))
+        nav_active="coach", jobs=_running_jobs(), file=report_file, sid=sid, many=len(sids) > 1,
+        name=(players.get(sid) or {}).get("name", sid), cv=_coach_view(h, sid, chat), full=True,
+        map_label=(h.get("map") or "?").removeprefix("de_").capitalize(), when=_when(h))
+
+
+def _when(h: dict) -> str | None:
+    try:
+        return datetime.fromisoformat(h["analyzed_at"]).strftime("%d.%m. %H:%M")
+    except (KeyError, ValueError, TypeError):
+        return None
 
 
 @app.post("/coach/{report_file}")
 async def coach_ask(report_file: str, request: Request) -> JSONResponse:
-    """Nachbesprechung starten (ohne Frage) oder eine Frage stellen. Antwort: das ganze Gespräch als HTML-Teile."""
+    """Nachbesprechung starten (ohne Frage), eine Frage stellen oder die Frage des Coaches beantworten."""
     from cstaktik import ai_coach
 
     try:
         body = await request.json()
     except ValueError:
         body = {}
-    p, q = str(body.get("p") or ""), str(body.get("q") or "")
+    p, q, answer = str(body.get("p") or ""), str(body.get("q") or ""), bool(body.get("answer"))
     h, sid, _sids, _players = _coach_target(report_file, p)
     _own_only(sid)
+    meta = {"map": (h.get("map") or "?").removeprefix("de_").capitalize()}
     try:
-        chat = await run_in_threadpool(ai_coach.ask, report_file, sid, _coach_facts(h, sid), q)
+        chat = await run_in_threadpool(ai_coach.ask, report_file, sid, _coach_facts(h, sid), q,
+                                       rounds=_coach_rounds(h, sid), answer=answer and bool(q), meta=meta)
     except ai_coach.CoachError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    v = _coach_view(chat)
-    v["msgs"] = [{"role": m["role"], "html": str(m["html"]) if m["html"] else None, "text": m["text"]}
-                 for m in v["msgs"]]
-    return JSONResponse(v)
+    return JSONResponse({"ok": True, "cost": ai_coach.cents(chat.get("cost_usd") or 0)})
 
 
 @app.get("/pro", response_class=HTMLResponse)

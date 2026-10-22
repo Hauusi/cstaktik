@@ -1,0 +1,71 @@
+{# Stil und Verhalten für coach_talk.html (einmal pro Seite einbinden). #}
+<style>
+.ct { font-size: 16px; line-height: 1.55; }
+.ct p { margin: 10px 0 0; }
+.ct .ct-open { margin-top: 0; font-size: 20px; font-weight: 700; line-height: 1.35; }
+.ct h3 { margin: 22px 0 6px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--orange); }
+.ct-good { margin: 6px 0 0; padding-left: 20px; } .ct-good li + li { margin-top: 6px; }
+.ct-scene { margin-top: 14px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.ct-scene p:first-of-type { margin-top: 8px; }
+.ct-r { font-family: var(--cond); font-weight: 800; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.ct-map { display: block; width: 100%; max-width: 360px; aspect-ratio: 1; margin: 8px auto 0; border-radius: 10px; background: #000; }
+.cm-m { fill: #5d79ae; } .cm-f { fill: none; stroke: #e5484d; stroke-width: 2; } .cm-me { fill: #ff9f1c; stroke: #111; stroke-width: 1.5; }
+.cm-k { fill: #e5484d; } .cm-shot { stroke: #e5484d; stroke-dasharray: 6 4; } .cm-l { fill: #cfd8ea; font-weight: 700; }
+.ct-leg { margin-top: 6px; text-align: center; font-size: 12.5px; }
+.ct-better { color: var(--text); } .ct-better b { color: var(--win); }
+.ct-link { display: inline-block; margin-top: 10px; color: var(--orange); font-weight: 700; font-size: 14px; }
+.ct-deal, .ct-q { margin-top: 18px; padding: 16px; border-radius: 16px; border: 1px solid rgba(255,159,28,.5);
+  background: linear-gradient(135deg, rgba(255,159,28,.12), rgba(255,159,28,.02) 60%), var(--surface); }
+.ct-q { border-color: rgba(74,138,224,.5); background: linear-gradient(135deg, rgba(74,138,224,.12), rgba(74,138,224,.02) 60%), var(--surface); }
+.ct-k { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.ct-deal-t, .ct-q-t { font-size: 18px; font-weight: 650; line-height: 1.4; }
+.ct-muted { color: var(--muted); font-size: 14.5px; }
+.ct .msg { margin-top: 12px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.ct .msg p:first-child { margin-top: 0; } .ct .msg ul { margin: 6px 0 0; padding-left: 20px; }
+.ct .msg h3:first-child { margin-top: 0; }
+.ct .msg.user { margin-left: 15%; background: var(--surface-2); border-color: transparent; font-size: 15px; }
+.ct .msg.wait { color: var(--muted); }
+.ct .err { margin-top: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(240,86,106,.45); color: #f59aa6; font-size: 15px; }
+.ct .ask { display: flex; gap: 8px; margin-top: 12px; }
+.ct .ask textarea { flex: 1; min-height: 52px; max-height: 160px; padding: 12px 14px; resize: vertical; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
+.ct .ask button { flex: none; min-width: 96px; border: 0; border-radius: 14px; background: var(--orange); color: #111; font: inherit; font-weight: 800; cursor: pointer; }
+.ct .ask button:disabled { opacity: .5; cursor: default; }
+.ct-foot { margin-top: 14px; color: var(--faint); font-size: 13px; line-height: 1.5; }
+.ct-more { display: inline-block; margin-top: 14px; color: var(--orange); font-weight: 700; }
+</style>
+<script>
+(function () {
+  document.querySelectorAll("[data-coach]").forEach(function (box) {
+    var err = box.querySelector("[data-err]");
+    function send(body, btn) {
+      err.hidden = true;
+      if (btn) btn.disabled = true;
+      body.p = box.dataset.sid;
+      return fetch("/coach/" + encodeURIComponent(box.dataset.file), {
+        method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)
+      }).then(function (r) {
+        return r.json().catch(function () { return {error: "Unerwartete Antwort vom Server."}; });
+      }).catch(function () { return {error: "Keine Verbindung zum Server."}; }).then(function (v) {
+        if (v.error) {
+          err.textContent = v.error; err.hidden = false; if (btn) btn.disabled = false;
+          var w = box.querySelector(".msg.wait"); if (w) w.remove();
+          return;
+        }
+        location.reload();
+      });
+    }
+    if (box.dataset.start) send({});
+    box.querySelectorAll("form.ask").forEach(function (f) {
+      f.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var t = f.querySelector("textarea"), q = t.value.trim();
+        if (!q) return;
+        var w = document.createElement("div"); w.className = "msg wait"; w.textContent = "Dein Coach denkt nach …";
+        f.parentNode.insertBefore(w, f);
+        send({q: q, answer: !!f.dataset.answer}, f.querySelector("button"));
+      });
+    });
+  });
+})();
+</script>
