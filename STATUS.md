@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-10-23 · Branch `ccr-b08d5abb-e1pzde` · Tests: 363 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-10-23 · Branch `ccr-b08d5abb-e1pzde` · Tests: 366 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -59,7 +59,7 @@ entfernt (Steam blockte). FACEIT-Demos (.dem.zst) werden beim Upload entpackt.
 - Python 3.13, FastAPI + Jinja2, awpy 2.0.2 / demoparser2, pydantic, SQLite (Accounts), PWA mit Service Worker
   und Web Push (RFC 8291/8292, `notify.py`). KI: offizielles `anthropic`-SDK (1.x).
 - Paket: `backend/cstaktik`, Tests: `backend/tests` (pytest, `synth.py` baut synthetische Matches).
-- Daten (`backend/data/`, gitignored): `demos_raw/`, `cache/` (geparste Matches, `CACHE_SCHEMA` 15),
+- Daten (`backend/data/`, gitignored): `demos_raw/`, `cache/` (geparste Matches, `CACHE_SCHEMA` 16 = mit Assists),
   `history/` (ein JSON je Match), `reports/` (HTML je Match), `pro/`, `pro_demos/`, `maps/`, `icons/`, `fonts/`,
   `autodl/`, `ai/` (KI-Gespräche, Notizen, Kosten), `coaching.json`, `goals.json`, `cstaktik.db`, `secret.key`.
 - Konfiguration: `backend/cstaktik/config/rules.yaml` (Abschnitte parser, report, rules, utility_cmp, mapbook,
@@ -78,7 +78,7 @@ Report-HTML (`report/render.py`) -> Push-Nachricht.
 players (K/D, ADR, Opening, Utility-Zähler), score_by, by_round [Runde, Seite, gewonnen, Kills, gestorben,
 Schaden], lessons {sid: {lektion: anzahl}}, scenes (Tod-Szenen mit happened/next/frame/snap und clip =
 Wiederholung der letzten Sekunden, siehe scene_clip.py), duel_stats, mech,
-util_stats, nade_eff (Granaten-Wirkung), impact, moments, clutch, plays/ct_plays (Taktiken), timeline, deaths,
+util_stats, nade_eff (Granaten-Wirkung), board (Scoreboard-Rohzahlen für Stats), impact, moments, clutch, plays/ct_plays (Taktiken), timeline, deaths,
 focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler).
 
 ## 5. Module (backend/cstaktik)
@@ -94,6 +94,7 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 | coach.py, coach_voice.py | Diagnose und Coach-Ansagen je Tod, Lektions-IDs (`LESSONS`) |
 | situation.py, duels.py, impact.py, clutch.py, mechanics.py, stats.py, tilt.py | Lagebild/Gewinnchance, Duell-Werte, Win Probability Added, Clutches, Mechanik, Statistik, Tilt |
 | scene_clip.py | Szenen-Clip je Tod: Positionen aller Spieler bis 8 s (max. 12 s) davor bis 1 s danach, Kills, Smokes/Molotovs/Flashes; Weltkoordinaten, Zeit relativ zum Tod |
+| scoreboard.py | Stats: Rohzahlen je Match (K/D/A, Schaden, HS, KAST, 1K–5K, Openings, Trades), Summen über Matches, Kennzahlen inkl. HLTV-Rating 1.0 und Rating-2.0-Näherung (awpy-Formel, gegengeprüft: gleiche Werte wie awpy) |
 | nade_effect.py | Granaten-Wirkung: Flash-Blendzeit, Flash-Assists, Team geblendet, HE/Molotov-Schaden, Tod mit Granaten |
 | utility_cmp.py | Utility gegen Pros, Flash-Wirkung, Granaten vor dem ersten Duell |
 | course.py, course_texts.py, curriculum.py | Kurs: 5 Stufen, 12 Lektionen, Einstufung aus den letzten Matches |
@@ -116,13 +117,15 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - `/m/{report}` Match-Story (Ergebnis, Lektion mit abspielbarer Szene, Fertig mit Link zum Coach). `/reports/{datei}` Report mit 2D-Replay.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
+- `/stats` (Reiter "Stats"): Rating, K/D, ADR, KAST, HS, KPR/DPR, Assists, Überleben, Openings, Multi-Kills,
+  Clutches, Impact, Granaten, Rating je Match (Balken), Match-Tabelle, je Map. Filter: letzte 10/alle, Map.
 - `/granaten`, `/duelle`: Statistik-Seiten mit letztem Match, Runde für Runde bzw. Kennzahlen, Verlauf.
 - `/matches`, `/progress`, `/progress/details`, `/progress/karte`, `/review`, `/highlights`.
 - `/training`, `/training/situationen` (Szenen-Quiz), `/training/deal|done|plan`.
 - `/playbook/{map}`, `/lineups/{map}`, `/briefing/{map}`, `/mapbook/{map}`, `/pro`, `/pro/sync`.
 - `/konto` (Optionen, Steam, Bot, Push), `/spieler`, `/mehr`, `/login`, `/setup`, `/auth/steam`, `/push/*`,
   `/analyze` (Upload), `/jobs/{id}`, `/api/jobs/{id}`.
-- Navigation unten (am PC oben): Coach, Matches, Fortschritt; Einstellungen oben rechts.
+- Navigation unten (am PC oben): Coach, Matches, Stats, Fortschritt; Einstellungen oben rechts.
 
 ## 7. KI-Coach (ai_coach.py)
 
@@ -176,6 +179,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-10-23: Stats-Reiter (`scoreboard.py`, `/stats`), Assists im Parser (Kill.assister_steamid,
+  MatchData.assists_parsed), CACHE_SCHEMA 16: Neuberechnung liest Demos in data/demos_raw neu (ca. 1–2 min je
+  Match); Matches ohne Demo zeigen Rating 1.0 statt 2.0 und kein KAST (422059b).
 - 2026-10-23: Szenen-Wiederholung im Coach und in der Match-Story (`scene_clip.py`, Feld `clip` in scenes;
   ältere Matches brauchen den Befehl mit Neuberechnung).
 - 2026-10-23: STATUS.md und CLAUDE.md angelegt, Stop-Hook prüft, dass STATUS.md mitgepflegt wird.
