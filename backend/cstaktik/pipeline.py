@@ -26,7 +26,7 @@ AI_DIR = DATA_DIR / "ai"  # KI-Coach: Gespräche je Match und Spieler, Kosten je
 PRO_DIR = DATA_DIR / "pro"
 PRO_DEMOS_DIR = DATA_DIR / "pro_demos"  # hochgeladene Pro-Demos, getrennt von den eigenen
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.
-CACHE_SCHEMA = 15
+CACHE_SCHEMA = 16  # 16: Assists (Kill.assister_steamid)
 # Obergrenze für entpackte Demos (Schutz gegen manipulierte .bz2-Dateien).
 MAX_DEMO_BYTES = 2 * 1024**3
 

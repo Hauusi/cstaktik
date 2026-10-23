@@ -125,12 +125,12 @@ def test_granaten_and_duelle_pages():
     assert "<b>55 %</b> gewonnen, Fadenkreuz <b>4,2°</b> daneben" in home
 
 
-def test_nav_has_three_tabs_and_settings_icon():
+def test_nav_has_four_tabs_and_settings_icon():
     for path in ("/", "/matches", "/progress", "/training", "/mehr"):
         page = TestClient(api.app).get(path).text
         nav = re.search(r'<nav class="gnav".*?</nav>', page, re.S).group(0)
         tabs = re.findall(r'<a href="([^"]+)"[^>]*>.*?</svg>([^<]+)</a>', nav, re.S)
-        assert tabs == [("/", "Coach"), ("/matches", "Matches"), ("/progress", "Fortschritt")], path
+        assert tabs == [("/", "Coach"), ("/matches", "Matches"), ("/stats", "Stats"), ("/progress", "Fortschritt")], path
         assert 'href="/mehr" aria-label="Einstellungen"' in page, path
     nav = re.search(r'<nav class="gnav".*?</nav>', TestClient(api.app).get("/training").text, re.S).group(0)
     assert re.search(r'href="/"\s+class="on"', nav)  # Training gehört zum Kurs

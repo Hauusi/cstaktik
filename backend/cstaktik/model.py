@@ -69,6 +69,7 @@ class Kill(BaseModel):
     victim_place: str | None = None
     weapon: str | None = None
     headshot: bool | None = None
+    assister_steamid: str | None = None  # Assist laut Demo (ältere Caches: unbekannt, dann None)
     victim_inventory: list[str] | None = None  # Inventar kurz vor dem Tod
 
 
@@ -197,6 +198,7 @@ class MatchData(BaseModel):
     bomb: list[BombEvent] = Field(default_factory=list)
     duels: list[Duel] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)  # Hinweise auf fehlende Datenarten
+    assists_parsed: bool = False  # Kill.assister_steamid gelesen (ältere Caches: nein, Assists unbekannt)
     # Kills nach Rundenende (awpy zählt Ereignisse bis official_end): Waffen-Retten, Exit-Frags. Kein Teil der Runde,
     # deshalb nicht in ``kills`` (Regeln, Statistik, Lagen); nur für "Waffe gerettet?" aufgehoben.
     post_round_kills: list[Kill] = Field(default_factory=list)

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Stats · cstaktik{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}
+{% include "stats_style.html" %}
+<style>
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.chips a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.chips a.on { background: var(--surface-2); color: var(--text); border-color: rgba(255,159,28,.5); }
+.hero-r { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 18px; border-radius: 20px;
+  border: 1px solid rgba(255,159,28,.45); background: linear-gradient(135deg, rgba(255,159,28,.16), rgba(255,159,28,.02) 55%), var(--surface); }
+.hero-r .rv { font-family: var(--cond); font-weight: 800; font-size: 64px; line-height: .9; }
+.hero-r .rl { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.hero-r .rs { text-align: right; font-size: 14px; line-height: 1.6; color: var(--muted); } .hero-r .rs b { color: var(--text); font-size: 16px; }
+.good { color: var(--win); } .bad { color: var(--loss); }
+.big4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 520px) { .big4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 110px; margin-top: 10px; padding: 10px 10px 0; border-radius: 16px;
+  border: 1px solid var(--line); background: var(--surface); position: relative; }
+.bars a { flex: 1; min-width: 6px; max-width: 34px; border-radius: 4px 4px 0 0; background: var(--muted); }
+.bars a.g { background: var(--win); } .bars a.r { background: var(--loss); }
+.bars .one { position: absolute; left: 10px; right: 10px; border-top: 1px dashed rgba(255,255,255,.3); }
+.bars .one span { position: absolute; right: 0; top: -16px; font-size: 11px; color: var(--muted); }
+.box.note b { font: inherit; font-weight: 700; color: var(--text); }
+.wrap { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+table.st.wide { min-width: 520px; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>Stats</h1>
+<p>Deine Zahlen aus den Demos: wie auf HLTV, nur für deine eigenen Matches.</p>
+{% endblock %}
+{% block content %}
+{% if tabs %}<div class="ptabs">{% for x in tabs %}<a href="/stats?p={{ x.sid }}&n={{ n }}" class="{{ 'on' if x.on }}">{{ x.name }}</a>{% endfor %}</div>{% endif %}
+<div class="chips">
+  <a href="/stats{{ q(n='10') }}" class="{{ 'on' if n != 'all' }}">Letzte 10</a>
+  <a href="/stats{{ q(n='all') }}" class="{{ 'on' if n == 'all' }}">Alle</a>
+  <a href="/stats{{ q(map='') }}" class="{{ 'on' if not cur_map }}">Alle Maps</a>
+  {% for m in maps %}<a href="/stats{{ q(map=m) }}" class="{{ 'on' if cur_map == m }}">{{ m.removeprefix('de_')|capitalize }}</a>{% endfor %}
+</div>
+{% if not t %}
+<div class="box"><p>Noch keine Stats. Sie entstehen bei jedem ausgewerteten Match.{% if missing %} Für {{ missing }} ältere Matches fehlen sie noch; der Admin kann sie mit der Neuberechnung nachholen.{% endif %}</p></div>
+{% else %}
+{% set rating = t.rating2 if t.rating2 is not none else t.rating1 %}
+<div class="hero-r num">
+  <div><div class="rv {{ 'good' if rating >= 1.1 else 'bad' if rating < 0.9 }}">{{ de(rating) }}</div>
+    <div class="rl">{% if t.rating2 is not none %}Rating 2.0 (Näherung){% else %}Rating 1.0 (HLTV){% endif %} · 1,00 ist Durchschnitt</div></div>
+  <div class="rs"><b>{{ t.matches }}</b> {{ "Match" if t.matches == 1 else "Matches" }} · <b>{{ t.rounds }}</b> Runden<br>
+    <b class="good">{{ won }}</b> {{ "Sieg" if won == 1 else "Siege" }} · <b class="bad">{{ lost }}</b> {{ "Niederlage" if lost == 1 else "Niederlagen" }}</div>
+</div>
+<div class="big big4 num">
+  <div><b>{{ de(t.kd) if t.kd is not none else "–" }}</b><span>K/D</span><i>{{ t.kills }} Kills, {{ t.deaths }} Tode ({{ "+" if t.diff > 0 }}{{ t.diff }})</i></div>
+  <div><b>{{ de(t.adr, 1) if t.adr is not none else "–" }}</b><span>ADR</span><i>Schaden je Runde</i></div>
+  <div><b>{{ t.kast if t.kast is not none else "–" }}<small> %</small></b><span>KAST</span><i>Runden mit Kill, Assist, überlebt oder getradet</i></div>
+  <div><b>{{ t.hs_pct if t.hs_pct is not none else "–" }}<small> %</small></b><span>Headshots</span><i>Anteil der Kills</i></div>
+</div>
+
+<div class="sk">Rating je Match</div>
+<div class="bars" aria-label="Rating je Match, älteste links">
+  <div class="one" style="bottom: {{ (100 / rmax)|round(1) }}px"><span>1,00</span></div>
+  {% for m in matches|reverse %}{% set r = m.rating2 if m.rating2 is not none else m.rating1 %}
+  <a href="/m/{{ m.file }}" class="{{ 'g' if r >= 1.1 else 'r' if r < 0.9 }}" style="height: {{ ([r, 0.05]|max / rmax * 100)|round(1) }}px" title="{{ m.map }} {{ m.when }}: {{ de(r) }}"></a>
+  {% endfor %}
+</div>
+
+<div class="sk">Kills und Tode</div>
+<div class="big num">
+  <div><b>{{ de(t.kpr) }}</b><span>Kills je Runde</span><i>KPR</i></div>
+  <div><b>{{ de(t.dpr) }}</b><span>Tode je Runde</span><i>DPR</i></div>
+  <div><b>{{ t.assists if t.assists is not none else "–" }}</b><span>Assists</span><i>{% if t.assists is none %}Für ältere Matches nicht in den Daten{% else %}Schaden am Gegner, den ein Mitspieler tötet{% endif %}</i></div>
+  <div><b>{{ t.survival_pct }}<small> %</small></b><span>Runden überlebt</span><i>{{ t.traded }} deiner Tode wurden getradet</i></div>
+</div>
+
+<div class="sk">Impact</div>
+<div class="big num">
+  <div><b>{{ t.ok }}<small> : {{ t.od }}</small></b><span>Opening-Duelle</span><i>Erster Kill der Runde für dich : gegen dich</i></div>
+  <div><b>{{ t.multi }}</b><span>Multi-Kill-Runden</span><i>davon {{ t.k3plus }} mit 3 oder mehr{% if t.aces %}, {{ t.aces }} Ace{% endif %}</i></div>
+  <div><b>{{ clutch.won }}<small> / {{ clutch.n }}</small></b><span>Clutches gewonnen</span><i>Als Letzter gegen 1 oder mehr</i></div>
+  <div><b>{{ de(t.impact) if t.impact is not none else "–" }}</b><span>Impact (HLTV-Formel)</span><i>Aus Kills und Assists je Runde</i></div>
+</div>
+
+{% if nades %}
+<div class="sk">Granaten</div>
+<div class="big num">
+  <div><b>{{ nades.flash_good }}<small> / {{ nades.flash_n }}</small></b><span>Flashes wirksam</span><i>{{ nades.assists }} Flash-Assists</i></div>
+  <div><b>{{ nades.he_dmg }}</b><span>HE-Schaden</span><i>{{ nades.he_n }} HE geworfen</i></div>
+</div>
+<div class="links"><a href="/granaten{% if tabs %}?p={{ sid }}{% endif %}">Alles zu Granaten ›</a><a href="/duelle{% if tabs %}?p={{ sid }}{% endif %}">Alles zu Duellen ›</a></div>
+{% endif %}
+
+<div class="sk">Matches</div>
+<div class="wrap"><table class="st wide num">
+  <tr><th>Match</th><th class="n">Ergebnis</th><th class="n">K-D-A</th><th class="n">+/-</th><th class="n">ADR</th><th class="n">KAST</th><th class="n">Rating</th></tr>
+  {% for m in matches %}{% set r = m.rating2 if m.rating2 is not none else m.rating1 %}
+  <tr><td><a href="/m/{{ m.file }}">{{ m.map }}</a> <span style="color:var(--muted)">{{ m.when }}</span></td>
+    <td class="n {{ 'good' if m.res == 'w' else 'bad' if m.res == 'l' }}">{{ m.score[0] ~ ":" ~ m.score[1] if m.score else "–" }}</td>
+    <td class="n">{{ m.kills }}-{{ m.deaths }}-{{ m.assists if m.assists is not none else "?" }}</td>
+    <td class="n {{ 'good' if m.diff > 0 else 'bad' if m.diff < 0 }}">{{ "+" if m.diff > 0 }}{{ m.diff }}</td>
+    <td class="n">{{ de(m.adr, 1) if m.adr is not none else "–" }}</td><td class="n">{{ m.kast ~ " %" if m.kast is not none else "–" }}</td>
+    <td class="n {{ 'good' if r >= 1.1 else 'bad' if r < 0.9 }}"><b>{{ de(r) }}</b>{% if m.rating2 is none %}*{% endif %}</td></tr>
+  {% endfor %}
+</table></div>
+
+{% if by_map|length > 1 %}
+<div class="sk">Je Map (alle Matches)</div>
+<table class="st num">
+  <tr><th>Map</th><th class="n">Matches</th><th class="n">Siege</th><th class="n">K/D</th><th class="n">ADR</th><th class="n">Rating</th></tr>
+  {% for m in by_map %}{% set r = m.rating2 if m.rating2 is not none else m.rating1 %}
+  <tr><td><a href="/stats{{ q(map=m.map) }}">{{ m.label }}</a></td><td class="n">{{ m.n }}</td><td class="n">{{ m.won }}</td>
+    <td class="n">{{ de(m.kd) if m.kd is not none else "–" }}</td><td class="n">{{ de(m.adr, 1) if m.adr is not none else "–" }}</td>
+    <td class="n {{ 'good' if r >= 1.1 else 'bad' if r < 0.9 }}">{{ de(r) }}</td></tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<div class="box note">
+  <p><b>Woher die Zahlen kommen:</b> alles aus deinen Demos. K/D zählt wie das Scoreboard (auch Kills nach Rundenende).
+    KAST: Runden mit Kill, Assist, überlebt oder getradet (Killer fällt binnen 5 s).</p>
+  <p><b>Rating 1.0</b> ist die öffentliche Formel von HLTV. <b>Rating 2.0</b> hat HLTV nie veröffentlicht; hier steht die
+    Näherung aus der Bibliothek awpy (aus KAST, Kills, Toden, Impact und ADR). Sie liegt nah am HLTV-Wert, ist aber nicht der
+    offizielle. Matches mit * haben keine Assists in den Daten (vor dem Update geparst), dort steht Rating 1.0.</p>
+  {% if missing %}<p>{{ missing }} ältere {{ "Match fehlt" if missing == 1 else "Matches fehlen" }} hier noch. Die Neuberechnung auf dem Server holt sie nach.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,6 +1,6 @@
-{# Globale Navigation: unten am Handy, oben am PC. Drei Tabs (Kurs, Matches, Fortschritt), nav_active = coach|matches|progress. Einstellungen als Symbol oben rechts im Kopf (base.html). #}
+{# Globale Navigation: unten am Handy, oben am PC. Vier Tabs (Coach, Matches, Stats, Fortschritt), nav_active = coach|matches|progress. Einstellungen als Symbol oben rechts im Kopf (base.html). #}
 <style>
-.gnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: grid; grid-template-columns: repeat(3, 1fr);
+.gnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: grid; grid-template-columns: repeat(4, 1fr);
   background: #0c0d0f; border-top: 1px solid #262a30; padding-bottom: env(safe-area-inset-bottom); }
 .gnav a { display: grid; justify-items: center; gap: 3px; padding: 8px 2px 7px; color: #8a8f98; text-decoration: none;
   font: 600 11px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; border-top: 2px solid transparent; }
@@ -20,5 +20,6 @@ body { padding-bottom: calc(62px + env(safe-area-inset-bottom)); }
 <nav class="gnav" aria-label="Navigation">
   <a href="/" class="{{ 'on' if nav_active in ('coach', 'training') }}"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Coach</a>
   <a href="/matches" class="{{ 'on' if nav_active == 'matches' }}"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18M8 4v16"/></svg>Matches</a>
+  <a href="/stats" class="{{ 'on' if nav_active == 'stats' }}"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Stats</a>
   <a href="/progress" class="{{ 'on' if nav_active == 'progress' }}"><svg viewBox="0 0 24 24"><path d="M4 19h16M6 16l4-5 3 3 5-7"/></svg>Fortschritt</a>
 </nav>

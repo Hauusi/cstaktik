@@ -310,6 +310,7 @@ def parse_demo(
                 victim_place=row.get("victim_place") or None,
                 weapon=row.get("weapon"),
                 headshot=row.get("headshot"),
+                assister_steamid=_sid(row.get("assister_steamid")),
             )
         )
 
@@ -583,6 +584,7 @@ def parse_demo(
         shots=shots,
         bomb=bomb,
         missing=missing,
+        assists_parsed="assister_steamid" in dem.kills.columns,
     )
     step("Duelle", 0.995)
     _add_duels(dem, match)
