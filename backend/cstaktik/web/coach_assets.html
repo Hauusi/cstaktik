@@ -33,6 +33,14 @@
 .ct .ask button:disabled { opacity: .5; cursor: default; }
 .ct-foot { margin-top: 14px; color: var(--faint); font-size: 13px; line-height: 1.5; }
 .ct-more { display: inline-block; margin-top: 14px; color: var(--orange); font-weight: 700; }
+.rp { margin-top: 8px; }
+.rp-map { display: block; width: 100%; max-width: 420px; aspect-ratio: 1; margin: 0 auto; border-radius: 10px; background: #000; touch-action: manipulation; }
+.rp-bar { display: flex; align-items: center; gap: 10px; max-width: 420px; margin: 8px auto 0; }
+.rp-bar button { flex: none; min-width: 40px; height: 36px; border: 0; border-radius: 10px; background: var(--orange); color: #111; font: inherit; font-weight: 800; cursor: pointer; }
+.rp-bar .rp-speed { background: var(--surface); color: var(--text); border: 1px solid var(--line); font-size: 13px; }
+.rp-seek { flex: 1; min-width: 0; accent-color: var(--orange); }
+.rp-t { flex: none; width: 54px; text-align: right; font-size: 13px; color: var(--muted); }
+.rp-t.dead { color: var(--loss); font-weight: 800; }
 </style>
 <script>
 (function () {
@@ -66,6 +74,101 @@
         send({q: q, answer: !!f.dataset.answer}, f.querySelector("button"));
       });
     });
+  });
+
+  // Szenen-Wiederholung: Positionen aus der Demo, zwischen den Abtastpunkten weich überblendet
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  var COL = ["#ff9f1c", "#5d79ae", "#e5484d"];
+  document.querySelectorAll("[data-replay]").forEach(function (box) {
+    var c; try { c = JSON.parse(box.dataset.replay); } catch (e) { return; }
+    var svg = box.querySelector("svg"), gN = box.querySelector(".rp-n"), gK = box.querySelector(".rp-k"), gP = box.querySelector(".rp-p");
+    var play = box.querySelector(".rp-play"), seek = box.querySelector(".rp-seek"), tl = box.querySelector(".rp-t"), sp = box.querySelector(".rp-speed");
+    var F = c.frames, t0 = F[0][0], t1 = F[F.length - 1][0], w = c.vb[2] / 320;
+    var dead = {}; c.kills.forEach(function (k) { if (!(k[2] in dead) || k[0] < dead[k[2]]) dead[k[2]] = k[0]; });
+    var dots = c.ids.map(function (p, i) {
+      var g = el("g", {}), r = (i === 0 ? 8 : 6) * w;
+      g.appendChild(el("circle", {r: r, fill: COL[p.t], stroke: "#111", "stroke-width": 1.5 * w}));
+      var tx = el("text", {x: r + 2 * w, y: 4 * w, "font-size": 11 * w, fill: p.t === 2 ? "#ffb3bd" : "#dfe6f3", "font-weight": 700});
+      tx.textContent = i === 0 ? "du" : p.n; g.appendChild(tx);
+      g.style.display = "none"; gP.appendChild(g); return g;
+    });
+    function posAt(i, t) {
+      var a = null, b = null;
+      for (var f = 0; f < F.length; f++) {
+        var q = null; F[f][1].forEach(function (x) { if (x[0] === i) q = x; });
+        if (!q) continue;
+        if (F[f][0] <= t) a = [F[f][0], q[1], q[2]]; else { b = [F[f][0], q[1], q[2]]; break; }
+      }
+      if (!a) return null;
+      if (!b || b[0] - a[0] > 1.5) return t - a[0] > 0.6 ? null : [a[1], a[2]];
+      var u = (t - a[0]) / (b[0] - a[0]);
+      return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+    }
+    var last = {};
+    function draw(t) {
+      gN.innerHTML = ""; gK.innerHTML = "";
+      c.nades.forEach(function (n) {
+        var a = n[0], b = n[1], k = n[2];
+        if (k === "smoke" || k === "molotov") {
+          if (t < a || t > b) return;
+          gN.appendChild(el("circle", {cx: n[3], cy: n[4], r: n[5], fill: k === "smoke" ? "rgba(190,198,210,.55)" : "rgba(255,122,28,.45)",
+            stroke: k === "smoke" ? "#c9d1dd" : "#ff7a1c", "stroke-width": 1.5 * w}));
+        } else if (t >= a && t < a + 0.5) {
+          gN.appendChild(el("circle", {cx: n[3], cy: n[4], r: (k === "flash" ? 26 : 20) * w * (0.5 + (t - a)),
+            fill: k === "flash" ? "rgba(255,255,255,.75)" : "rgba(255,210,80,.6)"}));
+        }
+      });
+      c.ids.forEach(function (p, i) {
+        var d = dead[i], q = (d !== undefined && t >= d) ? null : posAt(i, t);
+        if (q) { last[i] = q; dots[i].style.display = ""; dots[i].setAttribute("transform", "translate(" + q[0] + "," + q[1] + ")"); }
+        else {
+          dots[i].style.display = "none";
+          var lp = d !== undefined && t >= d ? (posAt(i, d - 0.05) || last[i]) : null;
+          if (lp) {
+            var x = lp[0], y = lp[1], s = 6 * w;
+            gK.appendChild(el("path", {d: "M" + (x - s) + " " + (y - s) + "L" + (x + s) + " " + (y + s) + "M" + (x + s) + " " + (y - s) + "L" + (x - s) + " " + (y + s),
+              stroke: COL[p.t], "stroke-width": 3 * w, "stroke-linecap": "round"}));
+          }
+        }
+      });
+      c.kills.forEach(function (k) {
+        if (k[1] === null || t < k[0] || t > k[0] + 0.9) return;
+        var pa = posAt(k[1], k[0]) || last[k[1]], pv = posAt(k[2], k[0] - 0.05) || last[k[2]];
+        if (!pa || !pv) return;
+        gK.appendChild(el("line", {x1: pa[0], y1: pa[1], x2: pv[0], y2: pv[1],
+          stroke: "#ffdf6b", "stroke-width": 2.5 * w, "stroke-dasharray": (6 * w) + " " + (4 * w)}));
+      });
+      var dt = Math.round(t * 10) / 10;
+      tl.textContent = dt < 0 ? (dt.toFixed(1).replace(".", ",") + " s") : (dt === 0 ? "Tod" : "+" + dt.toFixed(1).replace(".", ",") + " s");
+      tl.classList.toggle("dead", t >= 0);
+      seek.value = Math.round(1000 * (t - t0) / (t1 - t0));
+    }
+    var t = t0, speed = 1, running = false, prev = 0;
+    function step(ts) {
+      if (!running) return;
+      if (prev) t += (ts - prev) / 1000 * speed;
+      prev = ts;
+      if (t >= t1) { t = t1; running = false; play.textContent = "↻"; }
+      draw(t);
+      if (running) requestAnimationFrame(step);
+    }
+    function start() { if (t >= t1) { t = t0; last = {}; } running = true; prev = 0; play.textContent = "❚❚"; requestAnimationFrame(step); }
+    play.addEventListener("click", function () { if (running) { running = false; play.textContent = "▶"; } else start(); });
+    sp.addEventListener("click", function () { speed = speed === 1 ? 0.5 : speed === 0.5 ? 2 : 1; sp.textContent = (speed === 0.5 ? "½" : speed) + "×"; });
+    seek.addEventListener("input", function () { running = false; play.textContent = "▶"; t = t0 + (t1 - t0) * seek.value / 1000; draw(t); });
+    draw(t0);
+    // spielt einmal von selbst, sobald die Szene sichtbar ist (in der Story erst, wenn ihr Schritt dran ist)
+    var seen = false, inView = false, step0 = box.closest(".sx");
+    function maybe() {
+      if (seen || !inView || (step0 && !step0.classList.contains("on"))) return;
+      seen = true; start();
+    }
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (es) { es.forEach(function (e) { inView = e.isIntersecting; maybe(); }); },
+                               {threshold: 0.6}).observe(svg);
+    }
+    if (step0 && "MutationObserver" in window) new MutationObserver(maybe).observe(step0, {attributes: true, attributeFilter: ["class"]});
   });
 })();
 </script>

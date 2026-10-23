@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-10-23 · Branch `ccr-b08d5abb-e1pzde` · Tests: 361 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-10-23 · Branch `ccr-b08d5abb-e1pzde` · Tests: 363 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -76,7 +76,8 @@ Report-HTML (`report/render.py`) -> Push-Nachricht.
 
 ### Wichtige Felder im Verlauf-Eintrag (`history.summarize`)
 players (K/D, ADR, Opening, Utility-Zähler), score_by, by_round [Runde, Seite, gewonnen, Kills, gestorben,
-Schaden], lessons {sid: {lektion: anzahl}}, scenes (Tod-Szenen mit happened/next/frame/snap), duel_stats, mech,
+Schaden], lessons {sid: {lektion: anzahl}}, scenes (Tod-Szenen mit happened/next/frame/snap und clip =
+Wiederholung der letzten Sekunden, siehe scene_clip.py), duel_stats, mech,
 util_stats, nade_eff (Granaten-Wirkung), impact, moments, clutch, plays/ct_plays (Taktiken), timeline, deaths,
 focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler).
 
@@ -92,6 +93,7 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 | rules/ | Einzelregeln: death_review, untraded_death, unused_utility, entry_deaths, no_damage_death, repeated_death_spot, economy, positives |
 | coach.py, coach_voice.py | Diagnose und Coach-Ansagen je Tod, Lektions-IDs (`LESSONS`) |
 | situation.py, duels.py, impact.py, clutch.py, mechanics.py, stats.py, tilt.py | Lagebild/Gewinnchance, Duell-Werte, Win Probability Added, Clutches, Mechanik, Statistik, Tilt |
+| scene_clip.py | Szenen-Clip je Tod: Positionen aller Spieler bis 8 s (max. 12 s) davor bis 1 s danach, Kills, Smokes/Molotovs/Flashes; Weltkoordinaten, Zeit relativ zum Tod |
 | nade_effect.py | Granaten-Wirkung: Flash-Blendzeit, Flash-Assists, Team geblendet, HE/Molotov-Schaden, Tod mit Granaten |
 | utility_cmp.py | Utility gegen Pros, Flash-Wirkung, Granaten vor dem ersten Duell |
 | course.py, course_texts.py, curriculum.py | Kurs: 5 Stufen, 12 Lektionen, Einstufung aus den letzten Matches |
@@ -111,7 +113,7 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
   Matches, Fortschritt. Am PC Coach links, Kacheln rechts. Upload eingeklappt.
 - `/coach/{report}` GET/POST: Nachbesprechung (`coach_talk.html`, `coach_assets.html`), Antwort auf die Frage
   des Coaches, weitere Fragen.
-- `/m/{report}` Match-Story (Ergebnis, Lektion, Fertig mit Link zum Coach). `/reports/{datei}` Report mit 2D-Replay.
+- `/m/{report}` Match-Story (Ergebnis, Lektion mit abspielbarer Szene, Fertig mit Link zum Coach). `/reports/{datei}` Report mit 2D-Replay.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
 - `/granaten`, `/duelle`: Statistik-Seiten mit letztem Match, Runde für Runde bzw. Kennzahlen, Verlauf.
@@ -128,7 +130,9 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - Nachbesprechung: `debrief_model` (Standard claude-sonnet-5-5, effort medium, max_tokens 7000) mit
   Structured Output (JSON-Schema): headline, summary, good[], topic{lesson, title, principle, scenes[]},
   agreement{text, check}, question{round, text}. Runden, die es im Match für den Spieler nicht gibt, werden
-  entfernt (`_check_debrief`). Szenen bekommen Lagebild und Link ins 2D-Replay.
+  entfernt (`_check_debrief`). Jede Szene wird als Wiederholung abgespielt (Player in `coach_assets.html`,
+  Daten aus `clip`, umgerechnet in `api._clip_px`; startet von selbst, Regler, Tempo ½/1/2), sonst Standbild,
+  dazu Link ins 2D-Replay.
 - Fragen und Antworten: `model` (claude-haiku-5-5), kurze Antworten, Gespräch bleibt gespeichert.
 - Fakten (`facts`): Ergebnis, Scoreboard, Impact, jede Runde, Duelle, Schießen, Granaten-Wirkung je Runde,
   Fehler je Lektion, aktuelle Kurs-Lektion, Clutches, Szenen, letzte 3 Matches, Notizen früherer Gespräche.
@@ -172,6 +176,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-10-23: Szenen-Wiederholung im Coach und in der Match-Story (`scene_clip.py`, Feld `clip` in scenes;
+  ältere Matches brauchen den Befehl mit Neuberechnung).
 - 2026-10-23: STATUS.md und CLAUDE.md angelegt, Stop-Hook prüft, dass STATUS.md mitgepflegt wird.
 - 2026-10-22: Startseite als Kachel-Raster, `/kurs`, `/granaten`, `/duelle` (2c2f4a0).
 - 2026-10-22: Granaten-Wirkung (`nade_effect.py`, `nade_eff` im Verlauf und in den KI-Fakten) (66b714e).

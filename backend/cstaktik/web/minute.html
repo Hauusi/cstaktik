@@ -44,6 +44,7 @@ body.story-page .hero { display: none; }
 .cta[hidden] { display: none; }
 .cap { margin-top: 10px; color: var(--muted); font-size: 14px; }
 .hint { display: none; }
+.sx .rp-map, .sx .rp-bar { max-width: 300px; }
 
 /* Mit JS: Vollbild-Story wie bei Instagram */
 html.js body.story-page { overflow: hidden; }
@@ -79,6 +80,7 @@ html.js .sx-h { font-size: 40px; }
     </div>
   </div>
   <div class="st-body" id="steps">
+{% if radars %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{% for m, img in radars.items() %}<image id="rad-{{ m }}" href="{{ img }}" width="1024" height="1024"/>{% endfor %}</defs></svg>{% endif %}
 
 {% if pick %}
   <section class="sx" aria-label="Spieler wählen">
@@ -124,6 +126,12 @@ html.js .sx-h { font-size: 40px; }
     {% if L.stamp %}<div class="stamp {{ L.stamp[0] }}">{{ L.stamp[1] }}</div>{% endif %}
     {% if L.says %}<div class="facts num">{{ L.says|join(" ") }}</div>{% elif L.goal %}<div class="facts">{{ L.goal }}</div>{% endif %}
     {% if L.scene %}{% set sc = L.scene %}
+    {% if sc.clipv %}{% set cv = sc.clipv %}
+    <div class="rp" data-replay='{{ cv|tojson }}'>
+      <svg class="rp-map" viewBox="{{ cv.vb[0] }} {{ cv.vb[1] }} {{ cv.vb[2] }} {{ cv.vb[2] }}" role="img" aria-label="Wiederholung Runde {{ sc.round }}"><use href="#rad-{{ sc.map }}"/><g class="rp-n"></g><g class="rp-k"></g><g class="rp-p"></g></svg>
+      <div class="rp-bar"><button type="button" class="rp-play" aria-label="Abspielen">▶</button><input type="range" class="rp-seek" min="0" max="1000" value="0" aria-label="Zeit"><span class="rp-t num"></span><button type="button" class="rp-speed">1×</button></div>
+    </div>
+    {% endif %}
     <div class="facts muted">{{ sc.where }} {{ sc.text }}</div>
     {% if sc.nades %}<div class="pocket">In der Tasche beim Tod: {{ sc.nades|join(", ") }}.</div>{% endif %}
     {% endif %}
@@ -146,6 +154,7 @@ html.js .sx-h { font-size: 40px; }
 {% endif %}
   </div>
 </div>
+{% if radars %}{% include "coach_assets.html" %}{% endif %}
 {% endblock %}
 {% block script %}
 <script>
@@ -175,13 +184,14 @@ html.js .sx-h { font-size: 40px; }
   var swiped = false;
   story.addEventListener("click", function (e) {
     if (swiped) { swiped = false; return; }
-    if (e.target.closest("a, button")) return;
+    if (e.target.closest("a, button, input, .rp")) return;
     var rect = story.getBoundingClientRect();
     show(e.clientX - rect.left < rect.width / 3 ? i - 1 : i + 1);
   });
   // Wischen: nach links weiter, nach rechts zurück
   var x0 = null, y0 = null;
   story.addEventListener("touchstart", function (e) {
+    if (e.target.closest(".rp")) { x0 = null; return; }  // Wiederholung: Ziehen am Regler ist kein Wischen
     x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
   }, { passive: true });
   story.addEventListener("touchend", function (e) {

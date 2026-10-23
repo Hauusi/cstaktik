@@ -61,7 +61,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "lesson_rank": (rank := lesson_rank(result, past)),
         "main_lesson": rank[0] if rank else None,  # wie "Der eine Punkt" im Report (mit Gedächtnis)
         "lesson_rank_by": lesson_rank_by(result, past),
-        "scenes": scenes(result, report_file, match.map_name),
+        "scenes": _with_clips(match, scenes(result, report_file, match.map_name)),  # mit Wiederholung je Tod
         "plays": _plays(match),  # eure T-Runden für das Playbook (Laufwege, Granaten, Plant)
         "ct_plays": _ct_plays(match),  # eure CT-Aufstellungen
         "clutch": _clutch(match),  # Clutch-Situationen der Fokus-Spieler (clutch.py)
@@ -255,6 +255,13 @@ def lesson_rank_by(result: AnalysisResult, past: list[dict] | None = None) -> di
     sids = {f.steamid for f in result.findings if f.evidence.get("coach") and f.steamid}
     return {sid: [x["id"] for x in focus([f for f in result.findings if f.steamid == sid], 10,
                                          recurrence(past or [], sid))] for sid in sids}
+
+
+def _with_clips(match: MatchData, scs: list[dict]) -> list[dict]:
+    from cstaktik import scene_clip
+
+    scene_clip.attach(match, scs)
+    return scs
 
 
 def scenes(result: AnalysisResult, report_file: str | None, map_name: str | None) -> list[dict]:

@@ -25,7 +25,15 @@
   {% for x in d.scenes %}
   <div class="ct-scene">
     <div class="ct-r num">Runde {{ x.round }}</div>
+    {% if x.sc and x.sc.clipv %}
+    <div class="rp" data-replay='{{ x.sc.clipv|tojson }}' data-map="{{ x.sc.map }}">
+      <svg class="rp-map" viewBox="{{ x.sc.clipv.vb[0] }} {{ x.sc.clipv.vb[1] }} {{ x.sc.clipv.vb[2] }} {{ x.sc.clipv.vb[2] }}" role="img" aria-label="Wiederholung Runde {{ x.round }}"><use href="#rad-{{ x.sc.map }}"/><g class="rp-n"></g><g class="rp-k"></g><g class="rp-p"></g></svg>
+      <div class="rp-bar"><button type="button" class="rp-play" aria-label="Abspielen">▶</button><input type="range" class="rp-seek" min="0" max="1000" value="0" aria-label="Zeit"><span class="rp-t num"></span><button type="button" class="rp-speed">1×</button></div>
+      <div class="ct-leg"><span style="color:#ff9f1c">● du</span> <span style="color:#5d79ae">● Mitspieler</span> <span style="color:#e5484d">● Gegner</span> <span style="color:#9aa3b2">○ Smoke</span> <span style="color:#ff7a1c">○ Molotov</span></div>
+    </div>
+    {% else %}
     {{ scene_map(x.sc) }}
+    {% endif %}
     <p>{{ x.what }}</p>
     <p class="ct-better"><b>Besser:</b> {{ x.better }}</p>
     {% if x.sc and x.sc.href %}<a class="ct-link" href="{{ x.sc.href }}">Szene im 2D-Replay ansehen ›</a>{% endif %}

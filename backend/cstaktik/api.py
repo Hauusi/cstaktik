@@ -1285,7 +1285,8 @@ def _minute_lesson(h: dict, sid: str) -> dict | None:
                  else course.scene_sentence(x, h.get("map")),
                  "text": course._first_sentences(x.get("happened"), 3),
                  "nades": x.get("nades") if lid == "utility" else None,
-                 "href": f"/reports/{h['report_file']}#s{x['round']}-{x.get('from') or x['tick']}"}
+                 "href": f"/reports/{h['report_file']}#s{x['round']}-{x.get('from') or x['tick']}",
+                 "raw": {k: x[k] for k in ("frame", "map", "clip") if k in x}}  # für die Wiederholung (Story)
     return {"id": lid, "title": t["title"], "goal": t["goal"], "says": says, "stamp": stamp, "next": nxt,
             "scene": scene, "util_late": _util_late(h, sid) if lid == "utility" else None}
 
@@ -1340,13 +1341,20 @@ def match_minute(report_file: str, p: str = "") -> str:
         return _env.get_template("minute.html").render(**view, r=None, mine=False,
                                                        pick=[{"sid": s, "name": names[s]} for s in sids])
     r = _minute_player(h, p if p in sids else sids[0]) if sids else None
+    radars = {}
+    sc = ((r or {}).get("lesson") or {}).get("scene")
+    if sc and (sc.get("raw") or {}).get("clip"):  # Szene der Lektion als Wiederholung
+        raw = dict(sc["raw"])
+        radars = _scene_maps([raw], clips=True)
+        sc["clipv"], sc["map"] = raw.get("clipv"), raw.get("map")
     if r:
         from cstaktik import session, weekplan
 
         # Spielabend nur für heute (bis zu diesem Match), Übungs-Vergleich zum Fokus
         if at is not None and at.date() == weekplan.local_today():
             r["today"] = session.session(_load_hist(), r["sid"], at.date(), until=h["analyzed_at"])
-    return _env.get_template("minute.html").render(**view, r=r, pick=None, mine=bool(me and r and r["sid"] == me))
+    return _env.get_template("minute.html").render(**view, r=r, pick=None, mine=bool(me and r and r["sid"] == me),
+                                                   radars=radars)
 
 
 def _coach_target(report_file: str, p: str) -> tuple[dict, str, list[str], dict]:
@@ -1414,7 +1422,7 @@ def _coach_view(h: dict | None, sid: str | None, chat: dict | None) -> dict:
             sc = _coach_scene(h, sid, x["round"], t.get("lesson"))
             scenes.append({**x, "sc": sc})
         pics = [x["sc"] for x in scenes if x["sc"]]
-        view["radars"] = _scene_maps(pics)
+        view["radars"] = _scene_maps(pics, clips=True)
         q = d.get("question") or {}
         view["debrief"] = {**d, "scenes": scenes, "lesson_title": LESSONS.get(t.get("lesson"), (None,))[0],
                            "q_scene": _coach_scene(h, sid, q["round"], None) if q.get("round") else None}
@@ -1647,7 +1655,28 @@ def training_done(p: str = "", lesson: str = "", back: str = "") -> RedirectResp
     return RedirectResponse(f"/training?p={quote(p)}#vorbereitung", status_code=303)
 
 
-def _scene_maps(scenes: list[dict]) -> dict[str, str]:
+def _clip_px(c: dict, r) -> dict:
+    """Szenen-Clip (Weltkoordinaten) für die Seite: Radar-Pixel, Ausschnitt um dich und deinen Killer."""
+    cfg = load_rules_config().get("report") or {}
+    px = lambda x, y: [round(v, 1) for v in r.to_px(x, y)]  # noqa: E731
+    frames = [[t, [[i, *px(x, y)] for i, x, y in pts]] for t, pts in c["frames"]]
+    nades = [[a, b, k, *px(x, y), round((cfg.get("smoke_draw_radius_units", 140) if k == "smoke" else
+                                          cfg.get("molotov_draw_radius_units", 110)) / r.scale, 1), th]
+             for a, b, k, x, y, th in c["nades"]]
+    focus = {0}
+    for t, a, v in c["kills"]:
+        if v == 0 and a is not None:
+            focus.add(a)  # wer dich erwischt hat, gehört ins Bild
+    pts = [(q[1], q[2]) for _, ps in frames for q in ps if q[0] in focus]
+    xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+    size = min(1024, max(max(xs) - min(xs), max(ys) - min(ys)) + 200, 1024)
+    size = max(size, 380)
+    cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+    vb = [round(min(max(cx - size / 2, 0), 1024 - size)), round(min(max(cy - size / 2, 0), 1024 - size)), round(size)]
+    return {"ids": c["ids"], "frames": frames, "kills": c["kills"], "nades": nades, "vb": vb}
+
+
+def _scene_maps(scenes: list[dict], clips: bool = False) -> dict[str, str]:
     """Lagebilder der Szenen auf das Radarbild der Map umrechnen (Pixel, Ausschnitt). Rückgabe: Map -> Bild."""
     from cstaktik.model import MatchData
     from cstaktik.report.radar import build_radar
@@ -1684,6 +1713,8 @@ def _scene_maps(scenes: list[dict]) -> dict[str, str]:
         view["vb"] = box(pts)
         view["vb_rev"] = box(pts + [view["killer"], view["dead"]]) if "killer" in view else view["vb"]
         sc["view"] = view
+        if clips and sc.get("clip"):
+            sc["clipv"] = _clip_px(sc["clip"], r)
     return imgs
 
 
