@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Warm-up · cstaktik{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}
+<style>
+.back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
+.wplan { margin-top: 14px; padding: 16px; border-radius: 18px; border: 1px solid rgba(255,159,28,.5);
+  background: linear-gradient(135deg, rgba(255,159,28,.14), rgba(255,159,28,.02) 60%), var(--surface); }
+.wplan .k { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.wplan p { margin: 8px 0 0; font-size: 18px; font-weight: 700; line-height: 1.35; }
+.wi { margin-top: 18px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
+.wi h2 { margin: 0 0 8px; }
+.wdone { margin-top: 18px; padding: 16px; border-radius: 16px; border: 1px solid rgba(63,191,127,.45); color: #6fe0a6; font-weight: 700; }
+.wdone[hidden] { display: none; }
+.dr { margin-top: 10px; } .dr-lage { font-size: 14px; color: var(--muted); line-height: 1.4; }
+.dr-q { margin-top: 8px; font-size: 17px; font-weight: 700; }
+.dr-opts { display: grid; gap: 8px; margin-top: 10px; }
+.dr-o { display: block; width: 100%; padding: 13px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--text); font: inherit; font-size: 15.5px; text-align: left; cursor: pointer; }
+.dr-o small { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+.dr-o small[hidden] { display: none; }
+.dr-o.pick { border-color: var(--orange); background: rgba(255,159,28,.12); } .dr-o.mine { border-color: rgba(240,86,106,.6); }
+.dr-o.best { border-color: var(--win); } .dr-o:disabled { cursor: default; }
+.dr-res { margin-top: 6px; font-size: 15px; line-height: 1.45; } .dr-res p { margin: 8px 0 0; }
+.dr-v { font-weight: 700; } .dr-m { color: var(--muted); } .dr-n b { color: var(--win); }
+.dr-l { display: inline-block; margin-top: 8px; color: var(--orange); font-weight: 700; font-size: 14px; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>Warm-up</h1>
+<p>Zwei Minuten vor dem Match: dein Plan und {{ items|length or "ein paar" }} Szenen aus früheren Matches. Wer Entscheidungen immer wieder abruft, trifft sie im Spiel schneller.</p>
+{% endblock %}
+{% block content %}{% import "replay_box.html" as rb with context %}
+{% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/warmup?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Coach</a>
+<div data-session data-sid="{{ sid or '' }}" data-file="{{ report or '' }}" data-warmup="1">
+{% if radars %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{% for m, img in radars.items() %}<image id="rad-{{ m }}" href="{{ img }}" width="1024" height="1024"/>{% endfor %}</defs></svg>{% endif %}
+{% if plan %}
+<div class="wplan"><div class="k">Dein Plan heute</div><p>{{ plan.text }}</p></div>
+{% endif %}
+{% if streak %}<p style="color:var(--muted);font-size:14px;margin:10px 0 0">{{ streak }} {{ "Tag" if streak == 1 else "Tage" }} in Folge aufgewärmt.</p>{% endif %}
+{% for d in items %}
+<section class="wi">
+  <h2>Szene {{ loop.index }} von {{ items|length }} · {{ d.lesson_title }}</h2>
+  {{ rb.replay(d.clipv, d.map, "Entscheidung Runde " ~ d.round, drill=true, key=d.key) }}
+  {{ rb.drill_choice(d) }}
+</section>
+{% else %}
+<div class="box" style="margin-top:18px">Gerade ist keine Szene fällig. Jede Szene kommt wieder, sobald ihr Abstand um ist: nach 1, 3, 7 und 21 Tagen.</div>
+{% endfor %}
+<div class="wdone" id="wdone" hidden>Warm-up erledigt. Viel Erfolg im Match.</div>
+</div>
+{% include "coach_assets.html" %}
+<script>
+(function () {
+  var all = document.querySelectorAll(".wi .dr"), box = document.querySelector("[data-warmup]");
+  if (!all.length) return;
+  document.addEventListener("click", function () {
+    setTimeout(function () {
+      if (Array.prototype.every.call(all, function (d) { return d.dataset.done; }) && !box.dataset.sent) {
+        box.dataset.sent = "1"; document.getElementById("wdone").hidden = false;
+        fetch("/session/done", {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
+                                body: JSON.stringify({report: box.dataset.file, p: box.dataset.sid, warmup: true})}).catch(function () {});
+      }
+    }, 50);
+  });
+})();
+</script>
+{% endblock %}

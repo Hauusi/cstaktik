@@ -53,7 +53,7 @@ def test_home_is_coach_card_and_tiles():
 
     assert 'href="/kurs"' in home and course_texts.LESSONS["utility"]["title"] in home  # Kachel Kurs: aktuelle Lektion
     for href in ("/granaten", "/duelle", "/playbook/de_mirage", "/lineups/de_mirage", "/briefing/de_mirage",
-                 "/training/situationen", "/matches", "/progress", "/coach/m2.html"):
+                 "/warmup", "/matches", "/progress", "/coach/m2.html"):
         assert f'href="{href}"' in home, href
     assert "Der KI-Coach ist noch nicht eingerichtet" in home
     assert "Dein Lernpfad" not in home and "Demo selbst hochladen" in home

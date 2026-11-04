@@ -32,6 +32,8 @@
 .cdeal svg { flex: none; width: 22px; height: 22px; fill: none; stroke: var(--orange); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .cdeal b { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .cstory { justify-self: start; color: var(--orange); font-weight: 700; font-size: 14px; }
+.clinks { display: flex; flex-wrap: wrap; gap: 4px 18px; } .clinks a { color: var(--orange); font-weight: 700; font-size: 14px; }
+.clinks:empty { display: none; } .cstat { margin: 0; color: var(--muted); font-size: 14.5px; }
 .cwait { margin: 0; color: var(--muted); }
 .ccard .err { padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(240,86,106,.45); color: #f59aa6; font-size: 15px; }
 /* Kacheln */
@@ -115,7 +117,7 @@ body.wide main { max-width: 560px; }
 <p>{% if jobs %}Dein Match wird ausgewertet. Gleich ist der Report da.
 {% elif need_link %}Verbinde deinen Steam-Account. Dann zeigt der Coach deine Matches.
 {% elif not n_history %}Lade dein erstes Match hoch. Danach weiß der Coach, mit welcher Lektion dein Kurs beginnt.
-{% else %}Dein Coach bespricht jedes Match mit dir, hält eure Abmachung fest und bringt dir CS2 Schritt für Schritt bei.{% endif %}</p>
+{% else %}Nach jedem Match eine kurze Session, vor jedem Match zwei Minuten Warm-up. So bleibt hängen, woran du arbeitest.{% endif %}</p>
 {% endblock %}
 {% block content %}
 {% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
@@ -137,29 +139,25 @@ body.wide main { max-width: 560px; }
 
   {# 1. Der Coach: ein Satz zum letzten Match, eure Abmachung, Weg in die Nachbesprechung #}
   {% set talk = coach is not none %}
-  {% if coach %}{% set cv = coach.cv %}{% set d = cv.debrief %}
+  {% if coach %}{% set cv = coach.cv %}{% set d = cv.debrief %}{% set q = "?p=" ~ sid if tabs else "" %}
   <section class="ccard" data-block="coach">
-    <div class="kicker">{% if coach.new %}<span class="newb">Neu</span>{% endif %}Nachbesprechung · {{ coach.map_label }}{% if coach.score %} <span class="num cb-{{ coach.res }}">{{ coach.score }}</span>{% endif %}{% if coach.when %} · {{ coach.when }}{% endif %}</div>
-    {% if d %}
-    <p class="cquote">„{{ d.headline }}“</p>
-    {% if d.agreement and d.agreement.text %}
-    <div class="cdeal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
-      <div><b>Unsere Abmachung</b>{{ d.agreement.text }}</div></div>
-    {% endif %}
-    <a class="go" href="/coach/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Nachbesprechung öffnen ›</a>
-    {% elif cv.legacy %}
-    <p class="cquote">Deine Nachbesprechung ist fertig.</p>
-    <a class="go" href="/coach/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Nachbesprechung öffnen ›</a>
-    {% elif cv.enabled %}
-    <div class="ct" data-coach data-file="{{ coach.file }}" data-sid="{{ coach.sid }}" data-start="1">
-      <p class="cwait msg wait">Dein Coach schaut sich das Match an und bereitet die Nachbesprechung vor. Das dauert etwa eine halbe Minute.</p>
-      <div class="err" data-err hidden></div>
-    </div>
+    {% if not coach.done %}
+    <div class="kicker">{% if coach.new %}<span class="newb">Neu</span>{% endif %}Coaching-Session · {{ coach.map_label }}{% if coach.score %} <span class="num cb-{{ coach.res }}">{{ coach.score }}</span>{% endif %}{% if coach.when %} · {{ coach.when }}{% endif %}</div>
+    <p class="cquote">{% if d %}„{{ d.headline }}“{% else %}Dein Match ist ausgewertet. Vier Minuten: dein bester Moment, zwei Szenen zum Selbst-Entscheiden, dein Plan fürs nächste Match.{% endif %}</p>
+    <a class="go" href="/m/{{ coach.file }}{{ q }}">Session starten ›</a>
     {% else %}
-    <p class="cquote">Sieh dir an, wie es lief und was es für deine Lektion heißt.</p>
-    <a class="go" href="/m/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Match-Story ›</a>
+    <div class="kicker">Vor dem nächsten Match</div>
+    {% if coach.plan %}
+    <div class="cdeal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
+      <div><b>Dein Plan</b>{{ coach.plan.text }}</div></div>
+    {% else %}<p class="cquote">Du hast noch keinen Plan fürs nächste Match. Den legst du am Ende der Session fest.</p>{% endif %}
+    {% if coach.warm_n %}<a class="go" href="/warmup{{ q }}">Warm-up · {{ coach.warm_n }} {{ "Szene" if coach.warm_n == 1 else "Szenen" }} · 2 Min ›</a>
+    {% else %}<p class="cstat">Warm-up erledigt{% if coach.streak %}, {{ coach.streak }} {{ "Tag" if coach.streak == 1 else "Tage" }} in Folge{% endif %}. Neue Szenen kommen nach dem nächsten Match.</p>{% endif %}
     {% endif %}
-    {% if d or cv.legacy or cv.enabled %}<a class="cstory" href="/m/{{ coach.file }}{% if tabs %}?p={{ sid }}{% endif %}">Match-Story ›</a>{% endif %}
+    <div class="clinks">
+      {% if coach.done %}<a href="/m/{{ coach.file }}{{ q }}">Session {{ coach.map_label }} ansehen ›</a>{% endif %}
+      {% if cv.enabled or cv.has %}<a href="/coach/{{ coach.file }}{{ q }}">KI-Nachbesprechung ›</a>{% endif %}
+    </div>
   </section>
   {% endif %}
 
@@ -212,5 +210,5 @@ body.wide main { max-width: 560px; }
 </div>
 {% endif %}
 <a class="more-link" href="/mehr#anleitung">Wie funktioniert der Coach? ›</a>
-{% if coach and coach.cv.enabled and not coach.cv.has %}{% include "coach_assets.html" %}{% endif %}
+
 {% endblock %}

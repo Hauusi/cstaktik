@@ -85,6 +85,8 @@
     var svg = box.querySelector("svg"), gN = box.querySelector(".rp-n"), gK = box.querySelector(".rp-k"), gP = box.querySelector(".rp-p");
     var play = box.querySelector(".rp-play"), seek = box.querySelector(".rp-seek"), tl = box.querySelector(".rp-t"), sp = box.querySelector(".rp-speed");
     var F = c.frames, t0 = F[0][0], t1 = F[F.length - 1][0], w = c.vb[2] / 320;
+    var drill = box.hasAttribute("data-drill") && c.dec !== null && c.dec !== undefined, answered = false;
+    var EV = box.dataset.event || "Tod";
     var dead = {}; c.kills.forEach(function (k) { if (!(k[2] in dead) || k[0] < dead[k[2]]) dead[k[2]] = k[0]; });
     var dots = c.ids.map(function (p, i) {
       var g = el("g", {}), r = (i === 0 ? 8 : 6) * w;
@@ -140,7 +142,7 @@
           stroke: "#ffdf6b", "stroke-width": 2.5 * w, "stroke-dasharray": (6 * w) + " " + (4 * w)}));
       });
       var dt = Math.round(t * 10) / 10;
-      tl.textContent = dt < 0 ? (dt.toFixed(1).replace(".", ",") + " s") : (dt === 0 ? "Tod" : "+" + dt.toFixed(1).replace(".", ",") + " s");
+      tl.textContent = dt < 0 ? (dt.toFixed(1).replace(".", ",") + " s") : (dt === 0 ? EV : "+" + dt.toFixed(1).replace(".", ",") + " s");
       tl.classList.toggle("dead", t >= 0);
       seek.value = Math.round(1000 * (t - t0) / (t1 - t0));
     }
@@ -149,14 +151,27 @@
       if (!running) return;
       if (prev) t += (ts - prev) / 1000 * speed;
       prev = ts;
+      if (drill && !answered && t >= c.dec) {  // Entscheidungsmoment: anhalten und fragen
+        t = c.dec; running = false; play.textContent = "?"; draw(t);
+        box.classList.add("ask"); box.dispatchEvent(new CustomEvent("rp:dec", {bubbles: true}));
+        return;
+      }
       if (t >= t1) { t = t1; running = false; play.textContent = "↻"; }
       draw(t);
       if (running) requestAnimationFrame(step);
     }
     function start() { if (t >= t1) { t = t0; last = {}; } running = true; prev = 0; play.textContent = "❚❚"; requestAnimationFrame(step); }
-    play.addEventListener("click", function () { if (running) { running = false; play.textContent = "▶"; } else start(); });
+    box._answered = function () { answered = true; box.classList.remove("ask"); start(); };
+    play.addEventListener("click", function () {
+      if (drill && !answered && t >= c.dec - 0.01) return;  // erst entscheiden
+      if (running) { running = false; play.textContent = "▶"; } else start();
+    });
     sp.addEventListener("click", function () { speed = speed === 1 ? 0.5 : speed === 0.5 ? 2 : 1; sp.textContent = (speed === 0.5 ? "½" : speed) + "×"; });
-    seek.addEventListener("input", function () { running = false; play.textContent = "▶"; t = t0 + (t1 - t0) * seek.value / 1000; draw(t); });
+    seek.addEventListener("input", function () {
+      running = false; play.textContent = "▶"; t = t0 + (t1 - t0) * seek.value / 1000;
+      if (drill && !answered && t > c.dec) t = c.dec;  // vor der Entscheidung nicht vorspulen
+      draw(t);
+    });
     draw(t0);
     // spielt einmal von selbst, sobald die Szene sichtbar ist (in der Story erst, wenn ihr Schritt dran ist)
     var seen = false, inView = false, step0 = box.closest(".sx");
@@ -169,6 +184,56 @@
                                {threshold: 0.6}).observe(svg);
     }
     if (step0 && "MutationObserver" in window) new MutationObserver(maybe).observe(step0, {attributes: true, attributeFilter: ["class"]});
+  });
+
+  // Entscheidungen in Szenen: Wahl speichern, auflösen, Szene weiterlaufen lassen
+  function post(url, body) {
+    return fetch(url, {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
+                       body: JSON.stringify(body)}).then(function (r) { return r.ok; }).catch(function () { return false; });
+  }
+  var ctx = document.querySelector("[data-session]");
+  var who = ctx ? {p: ctx.dataset.sid || ""} : {};
+  document.querySelectorAll(".dr").forEach(function (dr) {
+    var box = dr.parentNode.querySelector(".rp");
+    dr.querySelectorAll(".dr-o").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (dr.dataset.done) return; dr.dataset.done = "1";
+        b.classList.add("pick");
+        dr.querySelectorAll(".dr-o").forEach(function (o) {
+          o.disabled = true;
+          if (o.dataset.choice === dr.dataset.aktion) o.classList.add("mine");
+          if (o.dataset.choice === dr.dataset.best) o.classList.add("best");
+          var r = o.querySelector(".dr-r"); if (r && r.textContent.trim()) r.hidden = false;
+        });
+        dr.querySelector(".dr-q").hidden = true;
+        dr.querySelector(".dr-res").hidden = false;
+        if (box && box._answered) box._answered();
+        post("/session/answer", Object.assign({key: dr.dataset.key, choice: b.dataset.choice}, who));
+      });
+    });
+  });
+  document.querySelectorAll(".ck").forEach(function (ck) {
+    ck.querySelectorAll(".ck-o").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (ck.dataset.done) return; ck.dataset.done = "1";
+        var ok = b.dataset.text === ck.dataset.plan;
+        ck.querySelectorAll(".ck-o").forEach(function (o) {
+          o.disabled = true;
+          o.classList.add(o.dataset.text === ck.dataset.plan ? "right" : (o === b ? "no" : "x"));
+        });
+        var res = ck.querySelector(".ck-res"); res.hidden = false;
+        res.querySelector(".ck-v").textContent = ok ? "Genau. Den Plan hattest du im Kopf." : "Nicht ganz. Das war dein Plan (grün). Gut, dass du ihn jetzt noch einmal siehst.";
+      });
+    });
+  });
+  document.querySelectorAll(".pl").forEach(function (pl) {
+    pl.querySelectorAll(".pl-o").forEach(function (b) {
+      b.addEventListener("click", function () {
+        pl.querySelectorAll(".pl-o").forEach(function (o) { o.classList.toggle("on", o === b); });
+        post("/session/plan", Object.assign({report: ctx && ctx.dataset.file, lesson: pl.dataset.lesson, text: b.dataset.text}, who))
+          .then(function (ok) { pl.querySelector(".pl-ok").hidden = !ok; });
+      });
+    });
   });
 })();
 </script>

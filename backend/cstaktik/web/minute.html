@@ -44,6 +44,24 @@ body.story-page .hero { display: none; }
 .cta[hidden] { display: none; }
 .cap { margin-top: 10px; color: var(--muted); font-size: 14px; }
 .hint { display: none; }
+.line b.p { color: var(--win); } .line b.n { color: var(--loss); } .line b { color: var(--text); }
+.ck, .pl { display: grid; gap: 8px; margin-top: 16px; }
+.ck-o, .pl-o, .dr-o { display: block; width: 100%; padding: 13px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); font: inherit; font-size: 15.5px; line-height: 1.35; text-align: left; cursor: pointer; }
+.ck-o.ok, .pl-o.on, .dr-o.pick { border-color: var(--accent); background: rgba(255,159,28,.12); }
+.ck-o.no { border-color: rgba(240,86,106,.6); opacity: .7; } .ck-o.right { border-color: var(--win); background: rgba(63,191,127,.12); }
+.ck-res, .dr-res { margin-top: 6px; font-size: 15px; line-height: 1.45; } .ck-res p, .dr-res p { margin: 8px 0 0; }
+.ck-v { font-weight: 700; }
+.pl-ok { margin-top: 4px; color: var(--win); font-weight: 700; font-size: 15px; }
+.dr { margin-top: 10px; } .dr-lage { font-size: 14px; color: var(--muted); line-height: 1.4; }
+.dr-q { margin-top: 8px; font-size: 17px; font-weight: 700; }
+.dr-opts { display: grid; gap: 8px; margin-top: 10px; } .dr-o small { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
+.dr-o small[hidden] { display: none; }
+.dr-o.mine { border-color: rgba(240,86,106,.6); } .dr-o.best { border-color: var(--win); }
+.dr-o:disabled { cursor: default; }
+.dr-v { font-weight: 700; } .dr-m { color: var(--muted); } .dr-n b { color: var(--win); }
+.dr-l { display: inline-block; margin-top: 8px; color: var(--accent); font-weight: 700; font-size: 14px; }
+html.js .sx.tall { justify-content: flex-start; padding-top: 18px; }
 .sx .rp-map, .sx .rp-bar { max-width: 300px; }
 
 /* Mit JS: Vollbild-Story wie bei Instagram */
@@ -69,9 +87,9 @@ html.js .sx-h { font-size: 40px; }
 @media (prefers-reduced-motion: reduce) { html.js .sx, html.js .sx.on { transition: none; transform: none; } }
 </style>
 {% endblock %}
-{% block content %}
+{% block content %}{% import "replay_box.html" as rb with context %}
 <script>document.documentElement.classList.add("js");</script>
-<div class="story" id="story" data-file="{{ file }}"{% if r %} data-sid="{{ r.sid }}"{% endif %}{% if mine %} data-mine="1"{% endif %}>
+<div class="story" id="story" data-session data-file="{{ file }}"{% if r %} data-sid="{{ r.sid }}"{% endif %}{% if mine %} data-mine="1"{% endif %}>
   <div class="st-head">
     <div class="st-segs" id="segs" aria-hidden="true"></div>
     <div class="st-top">
@@ -114,47 +132,95 @@ html.js .sx-h { font-size: 40px; }
     {% if r.imp %}
     <div class="imp">Impact <b class="num {{ 'p' if r.imp.pos else 'n' }}">{{ r.imp.total }}</b>{% if r.imp.rank and r.imp.of %} · Platz {{ r.imp.rank }} von {{ r.imp.of }}{% endif %}. {{ r.imp.meaning }}</div>
     {% endif %}
+    {% if r.s and r.s.rating %}{% set rt = r.s.rating %}
+    <div class="line num">Rating <b class="{{ 'p' if rt.me >= 1.1 else 'n' if rt.me < 0.9 }}">{{ "%.2f"|format(rt.me)|replace(".", ",") }}</b>{% if rt.avg is not none %} · dein Schnitt {{ "%.2f"|format(rt.avg)|replace(".", ",") }} ({{ rt.n }} {{ "Match" if rt.n == 1 else "Matches" }} davor){% endif %}{% if rt.best %} · <b class="p">bestes Rating seit {{ rt.n }} Matches</b>{% endif %}</div>
+    {% endif %}
+    {% if r.s and r.s.headline %}<div class="say">„{{ r.s.headline }}“</div>{% endif %}
     {% if r.today and r.today.line %}<div class="line num">{{ r.today.line }}</div>{% endif %}
     <div class="hint">Tippen oder wischen</div>
   </section>
 
-  {# 2. Deine Lektion: die aktuelle Kurs-Lektion in diesem Match #}
-  {% if r.lesson %}{% set L = r.lesson %}
-  <section class="sx" data-step="lektion" aria-label="Deine Lektion">
-    <div class="k">Deine Lektion</div>
-    <div class="sx-h" role="heading" aria-level="2">{{ L.title }}</div>
-    {% if L.stamp %}<div class="stamp {{ L.stamp[0] }}">{{ L.stamp[1] }}</div>{% endif %}
-    {% if L.says %}<div class="facts num">{{ L.says|join(" ") }}</div>{% elif L.goal %}<div class="facts">{{ L.goal }}</div>{% endif %}
-    {% if L.scene %}{% set sc = L.scene %}
-    {% if sc.clipv %}{% set cv = sc.clipv %}
-    <div class="rp" data-replay='{{ cv|tojson }}'>
-      <svg class="rp-map" viewBox="{{ cv.vb[0] }} {{ cv.vb[1] }} {{ cv.vb[2] }} {{ cv.vb[2] }}" role="img" aria-label="Wiederholung Runde {{ sc.round }}"><use href="#rad-{{ sc.map }}"/><g class="rp-n"></g><g class="rp-k"></g><g class="rp-p"></g></svg>
-      <div class="rp-bar"><button type="button" class="rp-play" aria-label="Abspielen">▶</button><input type="range" class="rp-seek" min="0" max="1000" value="0" aria-label="Zeit"><span class="rp-t num"></span><button type="button" class="rp-speed">1×</button></div>
-    </div>
-    {% endif %}
-    <div class="facts muted">{{ sc.where }} {{ sc.text }}</div>
-    {% if sc.nades %}<div class="pocket">In der Tasche beim Tod: {{ sc.nades|join(", ") }}.</div>{% endif %}
-    {% endif %}
-    {% if L.util_late %}<div class="facts muted">{{ L.util_late }}</div>{% endif %}
-    {% if L.scene %}<a class="cta ghost" href="{{ L.scene.href }}">Runde {{ L.scene.round }} ansehen</a>{% endif %}
-    {% if L.next %}<a class="cta" href="/kurs/{{ L.next.id }}{% if many %}?p={{ r.sid }}{% endif %}">Zur nächsten Lektion</a>
-    {% else %}<a class="cta" href="/kurs/{{ L.id }}{% if many %}?p={{ r.sid }}{% endif %}">Zur Lektion</a>{% endif %}
+  {% set S = r.s or {} %}
+  {# 2. Dein bester Moment: Wiederholung des größten positiven Impacts #}
+  {% if S.highlight %}{% set hl = S.highlight %}
+  <section class="sx tall" data-step="moment" aria-label="Dein bester Moment">
+    <div class="k">Dein bester Moment</div>
+    <div class="sx-h" role="heading" aria-level="2">Runde {{ hl.round }}</div>
+    {{ rb.replay(hl.clipv, hl.map, "Wiederholung Runde " ~ hl.round, event=hl.what.split(" ")[0]) }}
+    <div class="facts">{{ hl.what }}{% if hl.ctx %} {{ hl.ctx }}{% endif %}. Das brachte eurem Team {{ hl.val }} Prozentpunkte Siegchance.</div>
   </section>
   {% endif %}
 
-  {# 5. Fertig #}
+  {# 3. Kurz-Check: erst erinnern, dann auflösen (Abrufüben) #}
+  {% if S.check %}{% set ck = S.check %}
+  <section class="sx" data-step="check" aria-label="Kurz-Check">
+    <div class="k">Kurz-Check</div>
+    <div class="sx-h" role="heading" aria-level="2">Was war dein Plan für dieses Match?</div>
+    <div class="ck" data-plan="{{ ck.plan.text }}">
+      {% for o in ck.options %}<button type="button" class="ck-o" data-text="{{ o }}">{{ o }}</button>{% endfor %}
+      <div class="ck-res" hidden>
+        <p class="ck-v"></p>
+        {% if ck.stamp %}<div class="stamp {{ ck.stamp[0] }}">{{ ck.stamp[1] }}</div>{% endif %}
+        {% if ck.says %}<div class="facts num">{{ ck.says|join(" ") }}</div>
+        {% elif ck.count is not none and ck.rounds %}<div class="facts num">Der Fehler aus der Lektion „{{ ck.lesson_title }}“ kam heute {{ "keinmal" if ck.count == 0 else ("einmal" if ck.count == 1 else ck.count ~ " Mal") }} in {{ ck.rounds }} Runden vor.</div>{% endif %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  {# 4. Entscheide selbst: Szene stoppt im Entscheidungsmoment (Temporal-Occlusion-Training) #}
+  {% for d in S.drills or [] %}
+  <section class="sx tall" data-step="entscheiden" aria-label="Entscheide selbst">
+    <div class="k">Entscheide selbst · {{ loop.index }}/{{ S.drills|length }} · Runde {{ d.round }}</div>
+    {{ rb.replay(d.clipv, d.map, "Entscheidung Runde " ~ d.round, drill=true, key=d.key) }}
+    {{ rb.drill_choice(d) }}
+  </section>
+  {% endfor %}
+
+  {# 5. Dein Thema: die aktuelle Lektion mit dem Warum #}
+  {% if S.lesson %}{% set L = r.lesson or {} %}
+  <section class="sx" data-step="lektion" aria-label="Dein Thema">
+    <div class="k">Dein Thema</div>
+    <div class="sx-h" role="heading" aria-level="2">{{ S.lesson.title }}</div>
+    {% if L.stamp %}<div class="stamp {{ L.stamp[0] }}">{{ L.stamp[1] }}</div>{% endif %}
+    {% if L.says %}<div class="facts num">{{ L.says|join(" ") }}</div>{% endif %}
+    <div class="facts muted">{{ S.lesson.principle or S.lesson.why }}</div>
+    {% if L.util_late %}<div class="facts muted">{{ L.util_late }}</div>{% endif %}
+    {% if L.scene and not S.drills %}{% set sc = L.scene %}{# ohne Wiederholung: die Szene als Text #}
+    <div class="facts muted">{{ sc.where }} {{ sc.text }}</div>
+    {% if sc.nades %}<div class="pocket">In der Tasche beim Tod: {{ sc.nades|join(", ") }}.</div>{% endif %}
+    <a class="cta ghost" href="{{ sc.href }}">Runde {{ sc.round }} ansehen</a>
+    {% endif %}
+    <a class="cta ghost" href="/kurs/{{ S.lesson.id }}{% if many %}?p={{ r.sid }}{% endif %}">Zur Lektion</a>
+  </section>
+
+  {# 6. Dein Plan: Wenn-dann (Durchführungsvorsatz) #}
+  {% if S.plan and S.plan.options %}
+  <section class="sx" data-step="plan" aria-label="Dein Plan">
+    <div class="k">Dein Plan fürs nächste Match</div>
+    <div class="sx-h" role="heading" aria-level="2">Wenn das passiert, dann machst du das.</div>
+    <div class="facts muted">Such dir einen Satz aus. Je genauer die Situation, desto eher fällt er dir im Spiel ein.</div>
+    <div class="pl" data-lesson="{{ S.lesson.id }}">
+      {% for o in S.plan.options %}<button type="button" class="pl-o{{ ' on' if S.plan.chosen == o }}" data-text="{{ o }}">{{ o }}</button>{% endfor %}
+      <div class="pl-ok"{% if not S.plan.chosen %} hidden{% endif %}>Abgemacht. Vor dem nächsten Match erinnert dich das Warm-up daran.</div>
+    </div>
+  </section>
+  {% endif %}
+  {% endif %}
+
+  {# 7. Fertig #}
   <section class="sx" data-step="fertig" aria-label="Fertig">
-    <div class="k">Fertig</div>
-    <div class="sx-h" role="heading" aria-level="2">Das war dein Match.</div>
-    <div class="facts">Jetzt besprich es mit deinem Coach: was los war, woran du arbeitest, und frag nach, was du nicht verstehst.</div>
-    <a class="cta" href="/coach/{{ file }}{% if many %}?p={{ r.sid }}{% endif %}">Mit dem Coach besprechen</a>
+    <div class="k">Session geschafft</div>
+    <div class="sx-h" role="heading" aria-level="2">Gut gemacht.</div>
+    <div class="facts">{% if S.drills %}Du hast {{ S.drills|length }} {{ "Szene" if S.drills|length == 1 else "Szenen" }} selbst entschieden. {% endif %}Die Szenen kommen in deinen nächsten Warm-ups wieder, mit wachsendem Abstand. So bleibt es hängen.</div>
+    {% if S.ai %}<a class="cta" href="/coach/{{ file }}{% if many %}?p={{ r.sid }}{% endif %}">Mit dem Coach besprechen</a>{% endif %}
+    <a class="cta{{ ' ghost' if S.ai }}" href="/{% if many %}?p={{ r.sid }}{% endif %}">Fertig</a>
     <a class="cta ghost" href="/reports/{{ file }}">Ganzer Report</a>
-    <a class="cta ghost" href="/kurs{% if many %}?p={{ r.sid }}{% endif %}">Zum Kurs</a>
   </section>
 {% endif %}
   </div>
 </div>
-{% if radars %}{% include "coach_assets.html" %}{% endif %}
+{% if r %}{% include "coach_assets.html" %}{% endif %}
 {% endblock %}
 {% block script %}
 <script>
@@ -175,6 +241,11 @@ html.js .sx-h { font-size: 40px; }
       if ("inert" in s) s.inert = j !== i;
     });
     Array.prototype.forEach.call(segs.children, function (g, j) { g.classList.toggle("on", j <= i); });
+    if (steps[i].dataset.step === "fertig" && story.dataset.sid && !story.dataset.sent) {
+      story.dataset.sent = "1";
+      fetch("/session/done", {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
+                              body: JSON.stringify({report: story.dataset.file, p: story.dataset.sid})}).catch(function () {});
+    }
     try { history.replaceState(null, "", i ? "#" + (i + 1) : location.pathname + location.search); } catch (e) { /* egal */ }
   }
   var start = parseInt((location.hash || "").slice(1), 10);

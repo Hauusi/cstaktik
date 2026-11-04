@@ -459,3 +459,69 @@ def path() -> list[str]:
     """Lektionen in Kursreihenfolge (Stufe für Stufe)."""
     order = [s["key"] for s in STAGES]
     return sorted(LESSONS, key=lambda k: (order.index(LESSONS[k]["stage"]), list(LESSONS).index(k)))
+
+
+# Wenn-dann-Pläne je Lektion (Durchführungsvorsätze, Gollwitzer & Sheeran 2006): eine konkrete Situation im Spiel
+# ("Wenn ...") wird fest mit einer Handlung verknüpft ("dann ..."). Der Spieler wählt nach dem Match einen davon.
+PLANS: dict[str, list[str]] = {
+    "moving_shot": [
+        "Wenn ich einen Gegner sehe, dann lasse ich zuerst die Bewegungstaste los und tippe kurz die Gegenrichtung, bevor ich schieße.",
+        "Wenn ich peeke, dann peeke ich kurz und bleibe stehen, sobald der Winkel offen ist.",
+        "Wenn mein erster Schuss nicht trifft, dann bleibe ich stehen und tappe nach, statt weiterzulaufen.",
+    ],
+    "crosshair": [
+        "Wenn ich um eine Ecke gehe, dann liegt mein Fadenkreuz schon auf Kopfhöhe an der Kante.",
+        "Wenn ich laufe, dann halte ich das Fadenkreuz auf Kopfhöhe statt auf den Boden.",
+        "Wenn ich eine Position halte, dann zielt mein Fadenkreuz auf die Stelle, an der der Kopf zuerst auftaucht.",
+    ],
+    "no_shot_close": [
+        "Wenn eine Ecke nah ist, dann gehe ich mit Abstand und Fadenkreuz an der Kante darum herum, Schritt für Schritt.",
+        "Wenn ich eine enge Ecke nicht einsehen kann, dann werfe ich zuerst eine Granate oder nehme einen anderen Weg.",
+        "Wenn ich in einen Raum gehe, dann prüfe ich die nächste Ecke zuerst und erst danach die weiten.",
+    ],
+    "seen_first": [
+        "Wenn ich eine Position wähle, dann eine, von der ich den Gegner sehe, bevor er mich sieht.",
+        "Wenn ich nach einem Kontakt die Position halte, dann wechsle ich sie, bevor der Gegner wiederkommt.",
+        "Wenn ich vorrücke, dann nutze ich Deckung und schaue zuerst kurz, bevor ich ganz rausgehe.",
+    ],
+    "angle": [
+        "Wenn ich eine Position beziehe, dann prüfe ich, aus wie vielen Richtungen man mich treffen kann, und stelle mich so, dass es nur eine ist.",
+        "Wenn ich zwei Winkel nicht halten kann, dann bitte ich einen Mitspieler um einen davon oder nehme eine Smoke.",
+        "Wenn ich auf einem Bombenplatz stehe, dann mit dem Rücken an Deckung statt mitten im Platz.",
+    ],
+    "no_shot_far": [
+        "Wenn ich eine lange, offene Linie kreuzen muss, dann nur mit Smoke, mit Flash oder gemeinsam mit einem Mitspieler.",
+        "Wenn ich auf eine lange Linie schaue, dann bleibe ich stehen und laufe nicht hindurch.",
+        "Wenn ich keine Granate für die Linie habe, dann nehme ich einen anderen Weg.",
+    ],
+    "moving": [
+        "Wenn ich in einen Winkel komme, dann bin ich in dem Moment schon stehend und nicht mitten im Laufen.",
+        "Wenn ich peeke, dann entscheide ich vorher: kurz rein und wieder raus oder stehen bleiben.",
+        "Wenn ich einen Gegner erwarte, dann verlangsame ich vor der Kante.",
+    ],
+    "utility": [
+        "Wenn ich einen Gegner an einer Ecke erwarte und eine Flash habe, dann werfe ich zuerst die Flash und peeke direkt danach.",
+        "Wenn ich in eine Ecke gehen will, in der ein Gegner sitzen kann, dann räume ich sie zuerst mit einer Molotov.",
+        "Wenn ich weniger als 3 Sekunden bis zum Duell habe und eine Granate in der Hand halten könnte, dann werfe ich sie jetzt.",
+    ],
+    "blind": [
+        "Wenn ich eine gegnerische Flash höre oder sehe, dann drehe ich mich sofort weg und gehe hinter Deckung.",
+        "Wenn ich geblendet bin, dann gehe ich zurück, statt blind stehen zu bleiben.",
+        "Wenn ich eine Flash erwarte, dann stelle ich mich so, dass ich mit einem Schritt hinter Deckung bin.",
+    ],
+    "alone": [
+        "Wenn ich peeken will, dann vorher kurz prüfen: ist ein Mitspieler nah genug, um mich zu traden? Wenn nicht, warte ich.",
+        "Wenn ich allein vorne bin, dann calle ich, was ich sehe, und falle zurück, statt das Duell zu suchen.",
+        "Wenn ein Mitspieler peekt, dann bleibe ich nah genug, um ihn sofort zu traden.",
+    ],
+    "low_hp": [
+        "Wenn ich weniger als 50 HP habe, dann suche ich kein neues Duell, sondern calle und spiele für den Trade.",
+        "Wenn ich nach einem Duell wenig HP habe, dann ziehe ich mich zurück und lasse einen Mitspieler vorgehen.",
+        "Wenn ich mit wenig HP eine Position halte, dann eine, an der ich nur auf einen Gegner gleichzeitig treffe.",
+    ],
+    "outnumbered": [
+        "Wenn wir in Unterzahl sind, dann gehe ich zum nächsten Mitspieler, bevor ich ein Duell nehme.",
+        "Wenn wir in Unterzahl sind und die Zeit für uns läuft, dann spiele ich auf Zeit statt auf Kills.",
+        "Wenn ich in Unterzahl allein bin, dann suche ich Duelle nur einzeln, einen Gegner nach dem anderen.",
+    ],
+}

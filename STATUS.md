@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-10-23 · Branch `ccr-b08d5abb-e1pzde` · Tests: 366 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branch `ccr-b08d5abb-e1pzde` · Tests: 371 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -61,7 +61,7 @@ entfernt (Steam blockte). FACEIT-Demos (.dem.zst) werden beim Upload entpackt.
 - Paket: `backend/cstaktik`, Tests: `backend/tests` (pytest, `synth.py` baut synthetische Matches).
 - Daten (`backend/data/`, gitignored): `demos_raw/`, `cache/` (geparste Matches, `CACHE_SCHEMA` 16 = mit Assists),
   `history/` (ein JSON je Match), `reports/` (HTML je Match), `pro/`, `pro_demos/`, `maps/`, `icons/`, `fonts/`,
-  `autodl/`, `ai/` (KI-Gespräche, Notizen, Kosten), `coaching.json`, `goals.json`, `cstaktik.db`, `secret.key`.
+  `autodl/`, `ai/` (KI-Gespräche, Notizen, Kosten), `drills/` (Plan, Entscheidungen, Sessions, Warm-ups je Spieler), `coaching.json`, `goals.json`, `cstaktik.db`, `secret.key`.
 - Konfiguration: `backend/cstaktik/config/rules.yaml` (Abschnitte parser, report, rules, utility_cmp, mapbook,
   situation, coach, goals, course, mechanics, faceit, playbook, ai), `players.yaml` (gitignored, Vorlage
   `players.example.yaml`).
@@ -77,7 +77,8 @@ Report-HTML (`report/render.py`) -> Push-Nachricht.
 ### Wichtige Felder im Verlauf-Eintrag (`history.summarize`)
 players (K/D, ADR, Opening, Utility-Zähler), score_by, by_round [Runde, Seite, gewonnen, Kills, gestorben,
 Schaden], lessons {sid: {lektion: anzahl}}, scenes (Tod-Szenen mit happened/next/frame/snap und clip =
-Wiederholung der letzten Sekunden, siehe scene_clip.py), duel_stats, mech,
+Wiederholung der letzten Sekunden mit `dec` = Entscheidungsmoment, siehe scene_clip.py), moments (beste
+Momente, die zwei besten je Spieler mit clip), duel_stats, mech,
 util_stats, nade_eff (Granaten-Wirkung), board (Scoreboard-Rohzahlen für Stats), impact, moments, clutch, plays/ct_plays (Taktiken), timeline, deaths,
 focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler).
 
@@ -94,10 +95,11 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 | coach.py, coach_voice.py | Diagnose und Coach-Ansagen je Tod, Lektions-IDs (`LESSONS`) |
 | situation.py, duels.py, impact.py, clutch.py, mechanics.py, stats.py, tilt.py | Lagebild/Gewinnchance, Duell-Werte, Win Probability Added, Clutches, Mechanik, Statistik, Tilt |
 | scene_clip.py | Szenen-Clip je Tod: Positionen aller Spieler bis 8 s (max. 12 s) davor bis 1 s danach, Kills, Smokes/Molotovs/Flashes; Weltkoordinaten, Zeit relativ zum Tod |
+| drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan (set_plan, plan_before), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | scoreboard.py | Stats: Rohzahlen je Match (K/D/A, Schaden, HS, KAST, 1K–5K, Openings, Trades), Summen über Matches, Kennzahlen inkl. HLTV-Rating 1.0 und Rating-2.0-Näherung (awpy-Formel, gegengeprüft: gleiche Werte wie awpy) |
 | nade_effect.py | Granaten-Wirkung: Flash-Blendzeit, Flash-Assists, Team geblendet, HE/Molotov-Schaden, Tod mit Granaten |
 | utility_cmp.py | Utility gegen Pros, Flash-Wirkung, Granaten vor dem ersten Duell |
-| course.py, course_texts.py, curriculum.py | Kurs: 5 Stufen, 12 Lektionen, Einstufung aus den letzten Matches |
+| course.py, course_texts.py, curriculum.py | Kurs: 5 Stufen, 12 Lektionen, Einstufung aus den letzten Matches; `course_texts.PLANS`: je Lektion 3 Wenn-dann-Pläne |
 | coaching.py, goals.py, weekplan.py, session.py | Auftrag (aktuelle Lektion) und Check je Match, Ziele, Wochenplan, Spielabend |
 | ai_coach.py | KI-Coach (Claude API): Fakten, Nachbesprechung (JSON-Schema), Fragen, Gedächtnis, Kosten |
 | playbook.py, setups.py, lineups.py, mapbook.py, briefing.py, reference.py, pro.py, faceit.py | Pro-Taktiken (T/CT), Lineups, Map-Buch, Briefing, Vorbild-Runden, Pro-Demos |
@@ -109,12 +111,17 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 
 ## 6. Seiten und Endpunkte (api.py)
 
-- `/` Startseite: Coach-Karte zum letzten Match (Eröffnungssatz, Abmachung, Nachbesprechung öffnen), darunter
-  Kachel-Raster (`home_tiles.html`): Gespräch, Kurs, Granaten, Duelle, Taktiken, Lineups, Briefing, Training,
-  Matches, Fortschritt. Am PC Coach links, Kacheln rechts. Upload eingeklappt.
+- `/` Startseite: Coach-Karte. Vor der Session: "Session starten" zum letzten Match. Danach: "Vor dem nächsten
+  Match" mit Wenn-dann-Plan und Warm-up-Knopf (fällige Szenen). Darunter Kachel-Raster (`home_tiles.html`):
+  Gespräch, Kurs, Granaten, Duelle, Taktiken, Lineups, Briefing, Warm-up, Matches, Fortschritt. Am PC Coach links, Kacheln rechts. Upload eingeklappt.
 - `/coach/{report}` GET/POST: Nachbesprechung (`coach_talk.html`, `coach_assets.html`), Antwort auf die Frage
   des Coaches, weitere Fragen.
-- `/m/{report}` Match-Story (Ergebnis, Lektion mit abspielbarer Szene, Fertig mit Link zum Coach). `/reports/{datei}` Report mit 2D-Replay.
+- `/m/{report}` Coaching-Session (Story, `api._session`): Ergebnis mit Rating und Schnitt (+ KI-Eröffnung), bester
+  Moment als Wiederholung, Kurz-Check des alten Plans (Abruf, 3 Optionen), 2 Szenen "Entscheide selbst" (Wiederholung
+  hält bei `dec`, Wahl, Auflösung, läuft weiter), Thema mit Warum, Wenn-dann-Plan wählen, Fertig (markiert Session).
+  Bausteine in `replay_box.html` (Makros replay, drill_choice), Logik in `coach_assets.html`.
+- `/warmup`: Plan plus 3 fällige Szenen aus früheren Matches zum Entscheiden; alle entschieden = Warm-up erledigt.
+- `POST /session/answer|plan|done`: Entscheidung, Plan, Session/Warm-up erledigt (nur eigener Spieler). `/reports/{datei}` Report mit 2D-Replay.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
 - `/stats` (Reiter "Stats"): Rating, K/D, ADR, KAST, HS, KPR/DPR, Assists, Überleben, Openings, Multi-Kills,
@@ -123,7 +130,7 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - `/matches`, `/progress`, `/progress/details`, `/progress/karte`, `/review`, `/highlights`.
 - `/training`, `/training/situationen` (Szenen-Quiz), `/training/deal|done|plan`.
 - `/playbook/{map}`, `/lineups/{map}`, `/briefing/{map}`, `/mapbook/{map}`, `/pro`, `/pro/sync`.
-- `/konto` (Optionen, Steam, Bot, Push), `/spieler`, `/mehr`, `/login`, `/setup`, `/auth/steam`, `/push/*`,
+- `/konto` (Optionen, Steam, Bot, Push), `/spieler`, `/mehr` (Anleitung, `#wissenschaft` mit Studien), `/login`, `/setup`, `/auth/steam`, `/push/*`,
   `/analyze` (Upload), `/jobs/{id}`, `/api/jobs/{id}`.
 - Navigation unten (am PC oben): Coach, Matches, Stats, Fortschritt; Einstellungen oben rechts.
 
@@ -145,7 +152,17 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - Geschätzte Kosten: Nachbesprechung 3–8 US-Cent (Sonnet), Fragen unter 0,1 Cent (Haiku).
 - Alte Fließtext-Gespräche werden mit Schlüssel neu geschrieben.
 
-## 8. Kurs und Auftrag
+## 8. Lernprinzipien (Quellen auf /mehr#wissenschaft)
+
+- Entscheiden statt zuschauen: Temporal-Occlusion-Training (Müller u. a., Sports Medicine 2024, Meta-Analyse).
+- Wenn-dann-Pläne: Durchführungsvorsätze (Gollwitzer & Sheeran 2006, d = 0,65 über 94 Tests). Gilt auch für die
+  KI-Abmachung (Prompt verlangt "Wenn ..., dann ...").
+- Abrufen statt Nochmal-Ansehen (Roediger & Karpicke 2006): Kurz-Check, Warm-up.
+- Verteiltes Wiederholen (Cepeda u. a. 2006): Abstände 1/3/7/21 Tage, anders als Pros entschieden = zurück auf 1 Tag.
+- Rückmeldung zur Aufgabe, nicht zur Person (Kluger & DeNisi 1996); im KI-Prompt festgelegt.
+- Bester Moment zur Motivation; Wirkung eigener Highlight-Videos ist in Studien uneinheitlich, so steht es auch in der App.
+
+## 8b. Kurs und Auftrag
 
 - 5 Stufen (Schießen, Duelle, Granaten, Zusammenspiel, Runde), 12 Lektionen mit coach_voice-IDs.
 - Einstufung über die letzten 5 Matches in Fehlern pro 10 Runden. Grenze 1,0, für seen_first, utility, alone,
@@ -161,6 +178,9 @@ Playwright, Chromium unter `/opt/pw-browsers/chromium`. Server nie mit `pkill -f
 eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue Sitzung nicht.
 
 ## 10. Offen
+
+- Mehrere echte Matches eines Spielers zum Testen fehlen in der Spielwiese (nur 1 FACEIT-Match mit unseren
+  SteamIDs): Kurz-Check und Warm-up mit älteren Matches nur in Tests geprüft.
 
 - Erste echte Nachbesprechung vom Nutzer ansehen (Screenshot), Ton und Länge abstimmen.
 - Push-Nachricht vor dem Match mit der Abmachung.
@@ -178,6 +198,11 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-04: Coaching-Session statt Match-Story (`/m`), Warm-up (`/warmup`), `drills.py`, Wenn-dann-Pläne
+  (`course_texts.PLANS`), Entscheidungsmoment in Clips (`dec`), Highlight-Clips für beste Momente, Startseite mit
+  Session/Plan/Warm-up, Kachel Warm-up, KI-Abmachung als Wenn-dann, Seite "Die Wissenschaft dahinter".
+  Ältere Matches brauchen die Neuberechnung (Clips mit `dec` und Highlights).
 
 - 2026-10-23: Stats-Reiter (`scoreboard.py`, `/stats`), Assists im Parser (Kill.assister_steamid,
   MatchData.assists_parsed), CACHE_SCHEMA 16: Neuberechnung liest Demos in data/demos_raw neu (ca. 1–2 min je

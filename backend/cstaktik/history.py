@@ -67,7 +67,7 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "ct_plays": _ct_plays(match),  # eure CT-Aufstellungen
         "clutch": _clutch(match),  # Clutch-Situationen der Fokus-Spieler (clutch.py)
         "impact": _impact(result, focus),  # Siegchance je Spieler (impact.py), Prozentpunkte
-        "moments": _moments(match, result),  # größte Impact-Momente je Fokus-Spieler (Highlights)
+        "moments": _with_moment_clips(match, _moments(match, result)),  # größte Impact-Momente je Fokus-Spieler (Highlights)
         # Rundenfolge je Fokus-Spieler aus seiner Sicht (Tilt-Check); je Spieler, falls ihr gegeneinander spielt
         "seq": {sid: [[r.num, r.sides[sid], r.winner == r.sides[sid]] for r in match.rounds
                       if r.winner and sid in r.sides] for sid in focus},
@@ -256,6 +256,13 @@ def lesson_rank_by(result: AnalysisResult, past: list[dict] | None = None) -> di
     sids = {f.steamid for f in result.findings if f.evidence.get("coach") and f.steamid}
     return {sid: [x["id"] for x in focus([f for f in result.findings if f.steamid == sid], 10,
                                          recurrence(past or [], sid))] for sid in sids}
+
+
+def _with_moment_clips(match: MatchData, ms: list[dict]) -> list[dict]:
+    from cstaktik import scene_clip
+
+    scene_clip.attach_moments(match, ms)
+    return ms
 
 
 def _with_clips(match: MatchData, scs: list[dict]) -> list[dict]:

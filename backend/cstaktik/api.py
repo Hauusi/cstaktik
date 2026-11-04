@@ -806,9 +806,15 @@ def _home_coach(hist: list[dict], sid: str | None, news: list[dict]) -> dict | N
     h = next((x for x in reversed(hist) if sid in (x.get("players") or {}) and x.get("report_file")), None)
     if h is None:
         return None
+    from cstaktik import drills
+
     chat = ai_coach.load_chat(h["report_file"], sid)
     sc = history.score(h, sid)
+    scenes = [x for hh in hist for x in hh.get("scenes") or [] if x.get("sid") == sid]
+    focus = ((_players_state().get(sid) or {}).get("focus") or {}).get("lesson")
     return {"file": h["report_file"], "sid": sid, "when": _when(h), "cv": _coach_view(h, sid, chat),
+            "done": drills.session_done(sid, h["report_file"]), "plan": drills.current_plan(sid),
+            "warm_n": len(drills.due(sid, scenes, 3, focus=focus)), "streak": drills.warmup_streak(sid),
             "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(),
             "score": f"{sc[0]}:{sc[1]}" if sc else None,
             "res": None if not sc else "w" if sc[0] > sc[1] else "l" if sc[1] > sc[0] else "d",
@@ -879,10 +885,10 @@ def _home_tiles(hist: list[dict], sid: str | None, coach: dict | None, kurs: dic
              "text": Markup("Smokes und Flashes der Pros auf ") + b(mlabel)},
             {"id": "briefing", "title": "Briefing", "icon": "clip", "tone": "b", "href": f"/briefing/{lmap}",
              "text": Markup("Vor dem Match: worauf du auf ") + b(mlabel) + Markup(" achtest")}]
-    n_sc = sum(1 for h in mine for x in h.get("scenes") or [] if not sid or x.get("sid") == sid)
-    tiles.append({"id": "training", "title": "Training", "icon": "dumbbell", "tone": "g", "href": "/training/situationen",
-                  "text": (b(str(n_sc)) + Markup(" eigene Szenen zum Nachspielen")) if n_sc
-                  else Markup("Übungen und Szenen zum Nachspielen")})
+    warm = (coach or {}).get("warm_n")
+    tiles.append({"id": "training", "title": "Warm-up", "icon": "dumbbell", "tone": "g", "href": f"/warmup{q}",
+                  "text": (b(f"{warm} {'Szene' if warm == 1 else 'Szenen'}") + Markup(" fällig, 2 Minuten vor dem Match"))
+                  if warm else Markup("Gerade nichts fällig. Szenen kommen mit Abstand wieder.")})
     sc = __import__("cstaktik.history", fromlist=["score"]).score(last, sid) if sid else None
     tiles.append({"id": "matches", "title": "Matches", "icon": "list", "tone": "g", "href": "/matches",
                   "text": Markup("Letztes: ") + b(mlabel + (f" {sc[0]}:{sc[1]}" if sc else ""))})
@@ -1391,11 +1397,8 @@ def match_minute(report_file: str, p: str = "") -> str:
                                                        pick=[{"sid": s, "name": names[s]} for s in sids])
     r = _minute_player(h, p if p in sids else sids[0]) if sids else None
     radars = {}
-    sc = ((r or {}).get("lesson") or {}).get("scene")
-    if sc and (sc.get("raw") or {}).get("clip"):  # Szene der Lektion als Wiederholung
-        raw = dict(sc["raw"])
-        radars = _scene_maps([raw], clips=True)
-        sc["clipv"], sc["map"] = raw.get("clipv"), raw.get("map")
+    if r:
+        r["s"], radars = _session(h, r["sid"], r)
     if r:
         from cstaktik import session, weekplan
 
@@ -1532,6 +1535,185 @@ async def coach_ask(report_file: str, request: Request) -> JSONResponse:
     except ai_coach.CoachError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse({"ok": True, "cost": ai_coach.cents(chat.get("cost_usd") or 0)})
+
+
+HIGHLIGHT_KIND = {"kill": "Kill", "plant": "Bombe gelegt", "defuse": "Bombe entschärft"}
+
+
+def _rating(row: dict | None) -> float | None:
+    from cstaktik import scoreboard
+
+    d = scoreboard.derive(row) if row else None
+    return None if not d else d["rating2"] if d["rating2"] is not None else d["rating1"]
+
+
+def _session_drill(sc: dict, radars_out: dict) -> dict | None:
+    """Eine Szene als Entscheidung: läuft bis zum Entscheidungsmoment, dann wählt der Spieler."""
+    from cstaktik import drills
+    from cstaktik.coach_voice import LESSONS
+
+    if not (sc.get("clip") or {}).get("dec") is not None:
+        return None
+    x = _quiz_scene(dict(sc))
+    radars_out.update(_scene_maps([x], clips=True))
+    if not x.get("clipv"):
+        return None
+    rates = x.get("pro_rates") or {}
+    return {"key": drills.scene_key(sc), "round": x.get("round"), "map": x.get("map"), "clipv": x["clipv"],
+            "uhr": x.get("uhr"), "snap": x.get("snap") or {}, "lage_info": x.get("lage_info"),
+            "reveal_info": x.get("reveal_info"), "did": x.get("did"), "did_note": x.get("did_note"),
+            "aktion": x.get("aktion"), "best": x.get("pro_best"), "happened": x.get("happened"), "next": x.get("next"),
+            "lesson": x.get("lesson"), "lesson_title": LESSONS.get(x.get("lesson"), ("",))[0],
+            "rates": {k: rates.get(k) for k in drills.ACTIONS},
+            "href": f"/reports/{x['report']}#s{x['round']}-{x.get('from') or x['tick']}" if x.get("report") else None}
+
+
+def _session(h: dict, sid: str, r: dict) -> tuple[dict, dict]:
+    """Coaching-Session zu einem Match (Schritte der Story). Gibt (Session, Radarbilder) zurück."""
+    from cstaktik import ai_coach, course_texts, drills
+    from cstaktik.impact import CTX_IN
+
+    radars: dict = {}
+    d: dict = {}
+    s: dict = {"done": drills.session_done(sid, h.get("report_file") or "")}
+    hist = [x for x in _load_hist() if sid in (x.get("board") or {})]
+    me = _rating(((h.get("board") or {}).get(sid)))
+    before = [x for x in hist if (x.get("analyzed_at") or "") < (h.get("analyzed_at") or "")][-10:]
+    if me is not None:
+        from cstaktik import scoreboard
+
+        avg = _rating(scoreboard.totals([x["board"][sid] for x in before])) if before else None
+        s["rating"] = {"me": me, "avg": avg, "n": len(before),
+                       "best": bool(before) and me > max(_rating(x["board"][sid]) or 0 for x in before)}
+    # Bester Moment (positiver Impact) als Wiederholung
+    ms = [m for m in h.get("moments") or [] if m.get("sid") == sid and m.get("clip") and (m.get("val") or 0) > 0]
+    if ms:
+        m = max(ms, key=lambda m: m["val"])
+        x = {"frame": {"me": [0, 0]}, "map": h.get("map"), "clip": m["clip"]}
+        radars.update(_scene_maps([x], clips=True))
+        if x.get("clipv"):
+            what = HIGHLIGHT_KIND.get(m["kind"], m["kind"])
+            if m["kind"] == "kill" and m.get("other"):
+                what += f" gegen {m['other']}"
+            s["highlight"] = {"round": m["round"], "what": what, "ctx": CTX_IN.get(m.get("ctx") or ""),
+                              "val": round(m["val"]), "clipv": x["clipv"], "map": h.get("map")}
+    # Abruf: Wie lautete dein Plan für dieses Match? (erst erinnern, dann auflösen)
+    plan = drills.plan_before(sid, h.get("analyzed_at"))
+    if plan and plan.get("lesson") in course_texts.PLANS:
+        import random
+
+        others = [t for lid, ts in course_texts.PLANS.items() if lid != plan["lesson"] for t in ts[:1]]
+        rnd = random.Random(f"{sid}{h.get('id')}")
+        opts = rnd.sample(others, 2) + [plan["text"]]
+        rnd.shuffle(opts)
+        n = ((h.get("lessons") or {}).get(sid) or {}).get(plan["lesson"])
+        L = r.get("lesson") or {}
+        s["check"] = {"plan": plan, "options": opts, "lesson_title": course_texts.LESSONS[plan["lesson"]]["title"],
+                      "count": n, "rounds": ((h.get("players") or {}).get(sid) or {}).get("rounds"),
+                      "says": L.get("says") if L.get("id") == plan["lesson"] else None,
+                      "stamp": L.get("stamp") if L.get("id") == plan["lesson"] else None}
+    # Entscheiden: zwei Szenen dieses Matches, zuerst zur aktuellen Lektion, dann die teuersten
+    lid = (r.get("lesson") or {}).get("id")
+    own = [x for x in h.get("scenes") or [] if x.get("sid") == sid and (x.get("clip") or {}).get("dec") is not None]
+    own.sort(key=lambda x: (lid not in ([x.get("lesson")] + (x.get("lessons") or [])), -(x.get("cost") or 0)))
+    s["drills"] = [d for d in (_session_drill(x, radars) for x in own[:2]) if d]
+    # Lektion und Wenn-dann-Plan
+    if lid in course_texts.LESSONS:
+        t = course_texts.LESSONS[lid]
+        chat = ai_coach.load_chat(h.get("report_file") or "", sid)
+        d = (chat or {}).get("debrief") or {}
+        ag = ((d.get("agreement") or {}).get("text") or "").strip()
+        opts = ([ag] if ag.lower().startswith("wenn") else []) + course_texts.PLANS.get(lid, [])
+        cur = drills.current_plan(sid)
+        s["lesson"] = {"id": lid, "title": t["title"], "why": t["why"], "goal": t["goal"],
+                       "principle": (d.get("topic") or {}).get("principle") if (d.get("topic") or {}).get("lesson") == lid else None}
+        s["plan"] = {"options": opts, "chosen": cur["text"] if cur and cur.get("report") == h.get("report_file") else None}
+    s["headline"] = d.get("headline")
+    s["ai"] = ai_coach.enabled() or bool(d)
+    return s, radars
+
+
+def _session_target(body: dict) -> tuple[dict, str]:
+    """Match und Spieler für Session-Aktionen; eingeloggt nur der eigene Spieler."""
+    report = str(body.get("report") or "")
+    h, sid, _sids, _players = _coach_target(report, str(body.get("p") or ""))
+    _own_only(sid)
+    return h, sid
+
+
+@app.post("/session/answer")
+async def session_answer(request: Request) -> JSONResponse:
+    """Entscheidung in einer Szene speichern (für die Wiederholung im Warm-up)."""
+    from cstaktik import drills
+
+    body = await _json_body(request)
+    key, choice = str(body.get("key") or ""), str(body.get("choice") or "")
+    report = key.split("#", 1)[0]
+    h, sid = _session_target({**body, "report": report})
+    sc = next((x for x in h.get("scenes") or [] if x.get("sid") == sid and drills.scene_key(x) == key), None)
+    if sc is None or choice not in drills.ACTIONS:
+        raise HTTPException(404, "Szene nicht gefunden.")
+    row = drills.record(sid, key, choice, sc.get("aktion"), sc.get("pro_best"))
+    return JSONResponse({"ok": True, "pro": row["ok"]})
+
+
+@app.post("/session/plan")
+async def session_plan(request: Request) -> JSONResponse:
+    """Wenn-dann-Plan fürs nächste Match festhalten."""
+    from cstaktik import course_texts, drills
+
+    body = await _json_body(request)
+    h, sid = _session_target(body)
+    lesson, text = str(body.get("lesson") or ""), " ".join(str(body.get("text") or "").split())
+    if lesson not in course_texts.LESSONS or not (10 <= len(text) <= 240):
+        raise HTTPException(400, "Plan ungültig.")
+    drills.set_plan(sid, lesson, text, h.get("report_file") or "", h.get("analyzed_at"))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/session/done")
+async def session_done(request: Request) -> JSONResponse:
+    from cstaktik import drills
+
+    body = await _json_body(request)
+    h, sid = _session_target(body)
+    if body.get("warmup"):
+        drills.mark_warmup(sid)
+    else:
+        drills.mark_session(sid, h.get("report_file") or "")
+    return JSONResponse({"ok": True})
+
+
+async def _json_body(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    return body if isinstance(body, dict) else {}
+
+
+@app.get("/warmup", response_class=HTMLResponse)
+def warmup_page(p: str = "") -> str:
+    """Warm-up vor dem Match: drei fällige Szenen aus früheren Matches entscheiden (Abstände wie beim Karteikasten)."""
+    from cstaktik import drills
+
+    hist = _load_hist()
+    sid, tabs = _course_player(hist, p)
+    radars: dict = {}
+    items, plan, streak, last = [], None, 0, None
+    if sid:
+        scenes = [x for h in hist for x in h.get("scenes") or [] if x.get("sid") == sid]
+        focus = (_players_state().get(sid) or {}).get("focus") or {}
+        for sc in drills.due(sid, scenes, 3, focus=focus.get("lesson")):
+            d = _session_drill(sc, radars)
+            if d:
+                items.append(d)
+        plan = drills.current_plan(sid)
+        streak = drills.warmup_streak(sid)
+        last = next((h for h in reversed(hist) if sid in (h.get("players") or {}) and h.get("report_file")), None)
+    return _env.get_template("warmup.html").render(
+        nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, items=items, radars=radars, plan=plan,
+        streak=streak, report=(last or {}).get("report_file"))
 
 
 @app.get("/pro", response_class=HTMLResponse)
@@ -1716,13 +1898,15 @@ def _clip_px(c: dict, r) -> dict:
     for t, a, v in c["kills"]:
         if v == 0 and a is not None:
             focus.add(a)  # wer dich erwischt hat, gehört ins Bild
+        if a == 0 and -1.0 <= t <= 1.0:
+            focus.add(v)  # bei einem Highlight: dein Opfer
     pts = [(q[1], q[2]) for _, ps in frames for q in ps if q[0] in focus]
     xs, ys = [q[0] for q in pts], [q[1] for q in pts]
     size = min(1024, max(max(xs) - min(xs), max(ys) - min(ys)) + 200, 1024)
     size = max(size, 380)
     cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
     vb = [round(min(max(cx - size / 2, 0), 1024 - size)), round(min(max(cy - size / 2, 0), 1024 - size)), round(size)]
-    return {"ids": c["ids"], "frames": frames, "kills": c["kills"], "nades": nades, "vb": vb}
+    return {"ids": c["ids"], "frames": frames, "kills": c["kills"], "nades": nades, "vb": vb, "dec": c.get("dec")}
 
 
 def _scene_maps(scenes: list[dict], clips: bool = False) -> dict[str, str]:

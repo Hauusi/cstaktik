@@ -189,22 +189,23 @@ def test_minute_page_content_and_visibility():
     a.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
     assert api._is_new({"report_file": "m1.html", "analyzed_at": "2999-01-01T10:00"}, api._seen("Hausi"))
     home = a.get("/").text
-    assert 'href="/m/m1.html"' in home and "Neues Match" in home  # neues Match: eine kompakte Karte
+    assert 'href="/m/m1.html"' in home and "Coaching-Session" in home and "Session starten" in home  # neues Match
     assert "/konto#push" in home  # noch kein Gerät für Benachrichtigungen
     page = a.get("/m/m1.html").text
-    # Story: Ergebnis, deine Lektion (aktuelle Kurs-Lektion), fertig
-    assert _steps(page) == ["ergebnis", "lektion", "fertig"]
+    # Session: Ergebnis, dein Thema (aktuelle Kurs-Lektion), Wenn-dann-Plan, fertig (ohne Clips keine Entscheidungen)
+    assert _steps(page) == ["ergebnis", "lektion", "plan", "fertig"]
     assert "13:7" in page and "Sieg" in page and "+2,5</b>" in page and "etwa 2,5 Runden gebracht" in page
     assert "Platz 2 von 10" in page
     # ganze Sätze in Worten des Spielers: wie oft in wie vielen Runden, gegen das Ziel, die Serie
-    assert "Deine Lektion" in page and course_texts.LESSONS["utility"]["title"] in page
+    assert "Dein Thema" in page and course_texts.LESSONS["utility"]["title"] in page
     assert ("In diesem Match kam der Fehler einmal in 6 Runden vor. Erlaubt waren höchstens 0. Diesmal hat es "
             "nicht gereicht, die Serie beginnt im nächsten Match von vorn.") in page
     assert "Nicht geschafft" in page and "pro 10 Runden" not in page
     assert page.count('href="/reports/m1.html#s') == 1 and 'href="/reports/m1.html#s3-400"' in page  # eine Szene
     assert 'href="/kurs/utility"' in page and "Zur Lektion" in page
     assert 'data-mine="1"' in page and f'data-sid="{ME}"' in page
-    assert "Ganzer Report" in page and "Zum Kurs" in page
+    assert "Ganzer Report" in page and "Session geschafft" in page
+    assert course_texts.PLANS["utility"][0] in page  # Wenn-dann-Pläne zur Lektion
     for gone in ("Nächstes Match", "Die eine Szene", 'id="deal"'):
         assert gone not in page, gone
     assert a.post("/training/deal", json={"sid": ME, "lesson": "utility", "report": "m1.html"},

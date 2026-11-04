@@ -158,8 +158,8 @@ def test_coach_page_own_player_only(monkeypatch):
     monkeypatch.setattr(ai_coach, "_client", lambda: c)
     page = a.get("/coach/m1.html").text
     assert 'data-start="1"' in page and "eine halbe Minute" in page
-    home = a.get("/").text  # Startseite: der Coach startet das Gespräch zum letzten Match selbst
-    assert 'data-block="coach"' in home and 'data-start="1"' in home and 'data-file="m1.html"' in home
+    home = a.get("/").text  # Startseite: Session zum letzten Match, Weg zur KI-Nachbesprechung
+    assert 'data-block="coach"' in home and 'href="/m/m1.html"' in home and 'href="/coach/m1.html"' in home
     v = a.post("/coach/m1.html", json={"p": BRO}, headers=O).json()  # fremde SteamID: es bleibt der eigene Spieler
     assert v["ok"] and v["cost"] == "3,0"
     sent = c.calls[0]["messages"][0]["content"]
@@ -171,10 +171,9 @@ def test_coach_page_own_player_only(monkeypatch):
     assert 'href="/reports/m1.html#s3-400"' in page  # Szene im 2D-Replay
     assert "Unsere Abmachung" in page and DEBRIEF["agreement"]["text"] in page
     assert "Dein Coach fragt · Runde 3" in page and 'data-answer="1"' in page
-    # Startseite: Eröffnungssatz und Abmachung, die Kachel "Gespräch" wartet auf die Antwort
+    # Startseite: Eröffnungssatz in der Session-Karte, die Kachel "Gespräch" wartet auf die Antwort
     home = a.get("/").text
-    assert 'data-start="1"' not in home and DEBRIEF["headline"] in home and DEBRIEF["agreement"]["text"] in home
-    assert 'href="/coach/m1.html"' in home and "Nachbesprechung öffnen" in home
+    assert DEBRIEF["headline"] in home and "Session starten" in home and 'href="/coach/m1.html"' in home
     assert "1 Frage" in home and "Dein Coach wartet auf deine Antwort zu <b>Runde 3</b>" in home
     v = a.post("/coach/m1.html", json={"q": "Ich wollte schnell rein.", "answer": True}, headers=O).json()
     assert v["ok"]

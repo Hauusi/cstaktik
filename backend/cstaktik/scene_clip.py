@@ -63,9 +63,12 @@ def clip(match: MatchData, sid: str, rnd_num: int, death_tick: int, from_tick: i
         nades.append([rel(u.start_tick), rel(u_end) if u.kind in ("smoke", "molotov") else rel(u.start_tick),
                       u.kind, int(u.pos.x), int(u.pos.y), index.get(u.thrower_steamid)])
     team = lambda s: TEAM_ME if s == sid else TEAM_MATE if rnd.sides[s] == side else TEAM_FOE  # noqa: E731
-    return {"ids": [{"n": match.name_of(s), "t": team(s)} for s in ids],
-            "frames": [[rel(t), pts] for t, pts in sorted(frames.items())],
-            "kills": kills, "nades": nades}
+    out = {"ids": [{"n": match.name_of(s), "t": team(s)} for s in ids],
+           "frames": [[rel(t), pts] for t, pts in sorted(frames.items())],
+           "kills": kills, "nades": nades}
+    if from_tick is not None and start <= from_tick < death_tick:
+        out["dec"] = rel(from_tick)  # Entscheidungsmoment: hier hält die Szene im Training an
+    return out
 
 
 def attach(match: MatchData, scenes: list[dict]) -> None:
@@ -78,3 +81,19 @@ def attach(match: MatchData, scenes: list[dict]) -> None:
             c = clip(match, sc["sid"], sc["round"], sc["tick"], sc.get("from"), by_round)
             if c:
                 sc["clip"] = c
+
+
+def attach_moments(match: MatchData, moments: list[dict], per_player: int = 2) -> None:
+    """Clip an die besten positiven Momente je Spieler (Highlight der Session). Zeit 0 = der Moment selbst."""
+    if not match.positions:
+        return
+    by_round = _by_round(match)
+    best: dict[str, list[dict]] = defaultdict(list)
+    for m in sorted(moments, key=lambda m: -(m.get("val") or 0)):
+        if (m.get("val") or 0) > 0 and len(best[m["sid"]]) < per_player:
+            best[m["sid"]].append(m)
+    for ms in best.values():
+        for m in ms:
+            c = clip(match, m["sid"], m["round"], m["tick"], None, by_round)
+            if c:
+                m["clip"] = c

@@ -1,0 +1,31 @@
+{# Wiederholung einer Szene (Player in coach_assets.html). drill: hält im Entscheidungsmoment an (data-drill). #}
+{% macro replay(cv, map, label, drill=false, event="Tod", key="") %}
+<div class="rp"{% if drill %} data-drill="1"{% endif %} data-event="{{ event }}"{% if key %} data-key="{{ key }}"{% endif %} data-replay='{{ cv|tojson }}'>
+  <svg class="rp-map" viewBox="{{ cv.vb[0] }} {{ cv.vb[1] }} {{ cv.vb[2] }} {{ cv.vb[2] }}" role="img" aria-label="{{ label }}"><use href="#rad-{{ map }}"/><g class="rp-n"></g><g class="rp-k"></g><g class="rp-p"></g></svg>
+  <div class="rp-bar"><button type="button" class="rp-play" aria-label="Abspielen">▶</button><input type="range" class="rp-seek" min="0" max="1000" value="0" aria-label="Zeit"><span class="rp-t num"></span><button type="button" class="rp-speed">1×</button></div>
+</div>
+{% endmacro %}
+
+{# Entscheidung: Lage, drei Optionen, Auflösung nach der Wahl. d: api._session_drill #}
+{% macro drill_choice(d) %}
+{% set ACT = {"gehalten": "Position halten", "zurückgezogen": "Zurückziehen", "Richtung Gegner": "Peeken / Richtung Gegner"} %}
+<div class="dr" data-key="{{ d.key }}" data-aktion="{{ d.aktion or '' }}" data-best="{{ d.best or '' }}">
+  {% set sn = d.snap %}
+  <div class="dr-lage num">{{ d.uhr or "" }} · {{ sn.own }} gegen {{ sn.enemy }}{% if sn.hp is not none %} · {{ "volle HP" if sn.hp >= 100 else sn.hp ~ " HP" }}{% endif %}{% if sn.place %} · du bist in {{ sn.place|callout }}{% endif %}{% if sn.mate and sn.mate_d is not none %} · {{ sn.mate }} {{ sn.mate_d|meters }} entfernt{% endif %}{% if d.lage_info %} · {{ d.lage_info|replace(".", "") }}{% endif %}.</div>
+  <div class="dr-q">Die Szene hält im Entscheidungsmoment an. Was machst du?</div>
+  <div class="dr-opts">
+    {% for k, label in ACT.items() %}{% set rt = d.rates.get(k) %}
+    <button type="button" class="dr-o" data-choice="{{ k }}">{{ label }}
+      <small class="dr-r" hidden>{% if k == d.aktion %}Das hast du gemacht. Danach: Tod.{% endif %}{% if rt %} Pros: {{ rt[0] }} von {{ rt[1] }} Runden gewonnen.{% endif %}</small></button>
+    {% endfor %}
+  </div>
+  <div class="dr-res" hidden>
+    <p class="dr-v">{% if d.best %}Pros gewinnen diese Lage am häufigsten mit: {{ ACT[d.best] }}.{% else %}Für diese Lage gibt es zu wenige Pro-Runden für einen klaren Favoriten. Entscheidend ist die Regel deines Coaches.{% endif %}</p>
+    {% if d.did_note %}<p class="dr-m">{{ d.did_note }}</p>{% endif %}
+    {% if d.reveal_info %}<p class="dr-m">Radar: {{ d.reveal_info }}</p>{% endif %}
+    {% if d.happened %}<p class="dr-m">{{ d.happened }}</p>{% endif %}
+    {% if d.next %}<p class="dr-n"><b>Nächstes Mal:</b> {{ d.next }}</p>{% endif %}
+    {% if d.href %}<a class="dr-l" href="{{ d.href }}">Ganze Runde im 2D-Replay ›</a>{% endif %}
+  </div>
+</div>
+{% endmacro %}
