@@ -433,7 +433,20 @@ def konto_page(request: Request, saved: str = "", error: str = "") -> str:
     return _env.get_template("konto.html").render(
         nav_active="settings", user=user, steam=accounts.get_steam(user) if user else None, saved=saved, error=error,
         has_key=bool(key), key_hint=f"…{key[-4:]}" if key else None, autodl=autodl.status(),
-        bot_user=accounts.get_setting("autodl_bot_user"), docker_cmd=autodl.docker_command())
+        bot_user=accounts.get_setting("autodl_bot_user"), docker_cmd=autodl.docker_command(),
+        ai_on=__import__("cstaktik.ai_coach", fromlist=["enabled"]).enabled(),
+        ai_auto=__import__("cstaktik.ai_coach", fromlist=["auto_debrief"]).auto_debrief())
+
+
+@app.post("/konto/ki")
+async def konto_ki(request: Request) -> Response:
+    """Schalter: KI-Nachbesprechung automatisch (kostet je Match) oder nur auf Knopfdruck."""
+    from cstaktik import ai_coach
+
+    _need_user(request)
+    form = await request.form()
+    ai_coach.set_auto_debrief(form.get("auto") == "1")
+    return RedirectResponse("/konto?saved=Gespeichert.#ki", status_code=303)
 
 
 def _need_user(request: Request) -> str:
@@ -789,9 +802,14 @@ def index(p: str = "") -> str:
     sid, tabs = _course_player(hist, p)
     kurs = _course_overview(hist, sid) if sid else None
     coach = _home_coach(hist, sid, news)
-    from cstaktik import dayplan
+    from cstaktik import coach_story, dayplan, drills
 
     day = dayplan.build(sid, coach, _players_state().get(sid), _pq(tabs, sid)) if sid and hist else None
+    if coach:  # Der Coach spricht auf der Startseite (ohne KI, aus den Daten)
+        h_last = next((x for x in hist if x.get("report_file") == coach["file"]), None)
+        ml = _minute_lesson(h_last, sid) if h_last else None
+        coach["say"] = coach_story.home_message(h_last, sid, (ml or {}).get("id"), hist, _players_state().get(sid),
+                                                coach["done"], drills.current_plan(sid), _USER.get() or names.get(sid))
     return _env.get_template("index.html").render(coach=coach, tiles=_home_tiles(hist, sid, coach, kurs, tabs), day=day,
         nav_active="coach", jobs=jobs, n_history=len(hist), news=news[:1], n_new=len(news),
         missing_players=missing if hist else 0, me_name=names.get(_me()) if _me() else None,
@@ -1548,15 +1566,19 @@ def _coach_view(h: dict | None, sid: str | None, chat: dict | None) -> dict:
             view["answer"] = rest[0]["text"].removeprefix(ai_coach.ANSWER)
             view["reply"] = ai_coach.to_html(rest[1]["text"]) if len(rest) > 1 else None
             rest = rest[2:]
+    elif (chat or {}).get("qa"):
+        rest = msgs  # nur Fragen und Antworten, ohne Nachbesprechung
     elif len(msgs) > 1:
         view["legacy"] = ai_coach.to_html(msgs[1]["text"])
     view["msgs"] = [{"role": m["role"], "text": m["text"],
                      "html": ai_coach.to_html(m["text"]) if m["role"] == "assistant" else None} for m in rest]
     asked = sum(1 for m in msgs[1:] if m["role"] == "user")
-    if ai_coach.enabled() and not d:  # altes Fließtext-Gespräch: neue Nachbesprechung schreiben lassen
+    if ai_coach.enabled() and not d and not (chat or {}).get("qa"):  # altes Fließtext-Gespräch: neu schreiben lassen
         view.update(legacy=None, msgs=[])
         msgs = []
-    view.update(has=bool(msgs), left=max(0, cfg["max_questions"] - asked),
+    asked = sum(1 for m in msgs if m["role"] == "user") if (chat or {}).get("qa") else asked
+    view.update(has=bool(msgs), auto=ai_coach.auto_debrief(), qa=bool((chat or {}).get("qa")),
+                left=max(0, cfg["max_questions"] - asked),
                 cost=ai_coach.cents((chat or {}).get("cost_usd") or 0), month=ai_coach.cents(ai_coach.spent()),
                 limit=ai_coach.cents(cfg["monthly_limit_usd"]), enabled=ai_coach.enabled())
     return view
@@ -1736,6 +1758,17 @@ def _session(h: dict, sid: str, r: dict) -> tuple[dict, dict]:
                             "map": (x.get("map") or "?").removeprefix("de_").capitalize(), "me": x is h or x.get("id") == h.get("id")})
         s["trend"] = {"pts": pts[-6:], "target": lim, "max": max([lim * 2] + [q["rate"] for q in pts[-6:]])} if len(pts) >= 2 else None
         s["routine"] = course_texts.routine(lid)
+    # Der Coach spricht: eine Geschichte zu diesem Match, ohne KI, aus den Daten (coach_story)
+    from cstaktik import coach_story, course as _course
+
+    _cfg = _course.settings(load_rules_config())
+    _lim = None
+    if lid in course_texts.LESSONS:
+        _fo = ((_players_state().get(sid) or {}).get("focus") or {})
+        _lim = float(_fo["target"]) if _fo.get("lesson") == lid and _fo.get("target") is not None else _course.threshold(lid, _cfg)
+    s["story"] = coach_story.match_story(h, sid, lid if lid in course_texts.LESSONS else None, allh,
+                                         _players_state().get(sid), drills.plan_before(sid, h.get("analyzed_at")),
+                                         _lim, _cfg["done_after"])
     # Tilt-Check: Runden nach 2+ Niederlagen in Folge in diesem Match, dazu die Langzeit-Aussage über alle Matches
     from cstaktik import tilt
 

@@ -108,8 +108,11 @@ def test_ask_flow_costs_limits_and_memory(monkeypatch):
     assert chat["cost_usd"] == pytest.approx(0.03 + 0.0015)
     with pytest.raises(ai_coach.CoachError, match="zu lang"):
         ai_coach.ask("m1.html", ME, "FAKTEN", "x" * 501, client=c)
-    with pytest.raises(ai_coach.CoachError, match="Erst die Nachbesprechung"):
-        ai_coach.ask("m2.html", ME, "FAKTEN", "Frage", client=c)
+    # Frage ohne Nachbesprechung: günstiges Modell, Fakten und Frage in der ersten Nachricht, keine Nachbesprechung
+    qa = ai_coach.ask("m2.html", ME, "FAKTEN", "Frage", client=c)
+    kw = c.calls[-1]
+    assert qa["qa"] and qa["debrief"] is None and kw["model"] == "claude-haiku-5-5" and "output_config" not in kw
+    assert kw["messages"][0]["content"].startswith("FAKTEN") and kw["messages"][0]["content"].endswith("Frage: Frage")
     cfg = {**ai_coach.settings(), "max_questions": 1}
     monkeypatch.setattr(ai_coach, "settings", lambda config=None: cfg)
     with pytest.raises(ai_coach.CoachError, match="aufgebraucht"):
@@ -117,7 +120,7 @@ def test_ask_flow_costs_limits_and_memory(monkeypatch):
     cfg["max_questions"], cfg["monthly_limit_usd"] = 15, 0.01
     with pytest.raises(ai_coach.CoachError, match="Monatslimit"):
         ai_coach.ask("m1.html", ME, "FAKTEN", "Noch eine?", client=c)
-    assert len(c.calls) == 2
+    assert len(c.calls) == 3  # Nachbesprechung, Antwort, Frage ohne Nachbesprechung
 
 
 def test_schema_is_strict():
@@ -156,6 +159,10 @@ def test_coach_page_own_player_only(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
     c = FakeClient(text="Runde 3 <b>war</b> teuer.")
     monkeypatch.setattr(ai_coach, "_client", lambda: c)
+    page = a.get("/coach/m1.html").text
+    assert 'data-start="1"' not in page and 'data-gen="1"' in page  # Standard: Nachbesprechung nur auf Knopfdruck
+    assert 'data-ask="1"' in page  # Fragen gehen trotzdem
+    assert a.post("/konto/ki", data={"auto": "1"}, headers=O).status_code in (200, 303)
     page = a.get("/coach/m1.html").text
     assert 'data-start="1"' in page and "eine halbe Minute" in page
     home = a.get("/").text  # Startseite: Session zum letzten Match, Weg zur KI-Nachbesprechung

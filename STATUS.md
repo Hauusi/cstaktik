@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 397 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 400 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -99,6 +99,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | academy.py, academy_texts.py | CS-Wissen: 11 Bereiche (`AREAS`), 47 Themen (`TOPICS`) mit Kernsatz, Erklärung, Beispiel in Schritten, Fehlern, Übung, Schlüsselwort, Frage für die eigene Demo, Wissens-Check; `answer` (Abstände 1/3/7/21 Tage, falsch = morgen), `due` (falsche zuerst, neue nur aus gelesenen Themen oder der aktuellen Lektion, Bereiche gemischt), `overview`, `related` (Lektion -> Themen), `mine` ("Bei dir": Kennzahlen aus dem Spielerprofil laut `MEASURES`, Stand der verwandten Lektionen, bis 2 eigene Szenen, T/CT-Siegquote laut `SIDE_TOPICS`). Lernstand in data/drills/<sid>.json unter `quiz` und `read` |
 | drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Tilt-Check (set_tilt, tilt_state: Gefühl je Match, Reset an/aus), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | evening.py | Spielabend: Rating je Match-Nummer des Tages (curve), Rat "Pause nach k Matches" erst ab 3 Tagen mit 2+ Matches und Abfall >= 0,10; index_today |
+| coach_story.py | Der Coach spricht, ohne KI: Eröffnung (Ergebnis, Rating gegen Schnitt), Rückblick auf den Plan (gemessen), das eine Muster mit Belegen (Runden, verlorene, Seite, Ort, Abstand zum Mitspieler, Granaten in der Tasche, Vergleich mit deinen Matches davor), Weg seit Lektionsstart (Gedächtnis), Ansage zur Szene, Plan, Übung, was im nächsten Match geprüft wird; `home_message` für die Startseite. Keine „pro 10 Runden“ in Sätzen, nur Anzahl in Runden |
 | duo.py | Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
 | dayplan.py | Tagesplan der Startseite: Session, Übung der Lektion, Thema im CS-Wissen, Warm-up; erledigt nur aus gespeicherten Daten (Session markiert, Übung heute, Thema heute geöffnet/beantwortet, Warm-up heute) |
 | spielerprofil.py | Spielerprofil „Wo du stehst“ (oben auf /progress): 6 Bereiche wie im CS-Wissen, Urteil aus den Kurs-Lektionen des Bereichs (Baustelle/Stärke/Im Rahmen/Zu wenig Daten, Economy ohne Urteil), Kennzahlen mit Verlauf gegen die 10 Matches davor, 50 % als Bezug nur bei Duellen, T/CT-Siegquote |
@@ -118,12 +119,12 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 
 ## 6. Seiten und Endpunkte (api.py)
 
-- `/` Startseite: Coach-Karte, darunter „Dein Tag“ (`dayplan.build`, Block `day`). Vor der Session: "Session starten" zum letzten Match. Danach: "Vor dem nächsten
+- `/` Startseite: Coach-Karte mit Sprechblase des Coaches (`coach_story.home_message`; vor der Session Anreißer, danach Abmachung und Weg), darunter „Dein Tag“ (`dayplan.build`, Block `day`). Vor der Session: "Session starten" zum letzten Match. Danach: "Vor dem nächsten
   Match" mit Wenn-dann-Plan und Warm-up-Knopf (fällige Szenen). Darunter Kachel-Raster (`home_tiles.html`):
   Gespräch, Kurs, Granaten, Duelle, Taktiken, Lineups, Briefing, Warm-up, Matches, Fortschritt. Am PC Coach links, Kacheln rechts. Upload eingeklappt.
 - `/coach/{report}` GET/POST: Nachbesprechung (`coach_talk.html`, `coach_assets.html`), Antwort auf die Frage
   des Coaches, weitere Fragen.
-- `/m/{report}` Coaching-Session (Story, `api._session`): Ergebnis mit Rating und Schnitt (+ KI-Eröffnung), bester
+- `/m/{report}` Coaching-Session (Story, `api._session`, Coach-Sätze aus `s.story` in Sprechblasen; Reihenfolge Ergebnis, Moment, Kurz-Check, Thema, Szenen, Tilt, Plan mit Übung und Prüfung, Fertig): Ergebnis mit Rating und Schnitt (+ KI-Eröffnung), bester
   Moment als Wiederholung, Kurz-Check des alten Plans (Abruf, 3 Optionen, dann Selbsteinschätzung Ja/Teilweise/Nein,
   dann gemessene Zahlen), 2 Szenen "Entscheide selbst" (Wiederholung hält bei `dec`, Wahl, dann "Warum?" mit 4 Gründen,
   Auflösung inkl. worauf es ankam, läuft weiter), Thema mit Warum, Wenn-dann-Plan wählen + Hindernis mit Gegenplan +
@@ -157,6 +158,9 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 - Navigation unten (am PC oben): Coach, Matches, Stats, Fortschritt; Einstellungen oben rechts.
 
 ## 7. KI-Coach (ai_coach.py)
+
+- Schalter in /konto#ki (`ai_coach.auto_debrief`, Setting `ai_auto_debrief`), Standard aus: Nachbesprechung nur auf Knopfdruck.
+  Fragen gehen auch ohne Nachbesprechung (Chat mit `qa: true`, günstiges Modell, Fakten + Frage in der ersten Nachricht).
 
 - Aktiv nur mit `ANTHROPIC_API_KEY` auf dem Server. Ohne Schlüssel: Hinweis, Rest der App läuft normal.
 - Nachbesprechung: `debrief_model` (Standard claude-sonnet-5-5, effort medium, max_tokens 7000) mit
@@ -230,6 +234,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 11. Entscheidungen
 
+- Der Coach in der App läuft ohne KI (keine Kosten je Match). KI nur für Fragen und auf Wunsch für die Nachbesprechung.
+
 - Kein Kachel-Zerlegen des Coach-Gesprächs: Coach-Karte oben, Kacheln nur als Übersicht.
 - Taktiken, Lineups, Briefing bleiben (Nutzer findet sie sehr gut).
 - Kein Repo-Wechsel des Parsers (awpy/demoparser2 bleibt); keine offene Lineup-Datenbank gefunden.
@@ -238,6 +244,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-04: Coach spricht ohne KI (`coach_story.py`) auf Startseite und in der Session, Thema vor den Szenen,
+  Übung und Prüfung beim Plan; KI-Nachbesprechung als Schalter (Standard aus), Fragen ohne Nachbesprechung.
 
 - 2026-11-04: Duo-Auswertung über Matches (`duo.py`, `h["duo"]`), Abschnitt „Ihr zwei“ auf /stats, Duo-Zahlen in den
   KI-Fakten. Ältere Matches bekommen sie mit der Neuberechnung.

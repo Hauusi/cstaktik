@@ -102,6 +102,24 @@ def enabled() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 
+def auto_debrief() -> bool:
+    """Schreibt der KI-Coach die Nachbesprechung von selbst (kostet je Match)? Standard: aus. Der Coach in der App
+    (coach_story) braucht keine KI; Fragen gehen auch ohne Nachbesprechung."""
+    from cstaktik import accounts
+
+    return accounts.get_setting("ai_auto_debrief") == "1"
+
+
+def set_auto_debrief(on: bool) -> None:
+    from cstaktik import accounts
+
+    accounts.set_setting("ai_auto_debrief", "1" if on else None)
+
+
+QA = """Der Spieler hat keine Nachbesprechung angefordert, sondern stellt direkt eine Frage zu diesem Match. Antworte \
+wie oben beschrieben: kurz, auf Deutsch, nur mit dem, was in den Daten steht."""
+
+
 # --- Fakten ---------------------------------------------------------------------------------------------------
 
 def _pct(v) -> str | None:
@@ -472,8 +490,10 @@ def ask(report_file: str, sid: str, fact_text: str, question: str | None = None,
         chat = load_chat(report_file, sid)
         if not question and chat and chat.get("debrief"):
             return chat  # Nachbesprechung gibt es schon (alte Fließtext-Gespräche werden neu geschrieben)
-        if question and not chat:
-            raise CoachError("Erst die Nachbesprechung, dann Fragen.")
+        if question and not chat:  # Frage ohne Nachbesprechung: günstiges Modell, Fakten vorne
+            chat = {"model": cfg["model"], "created": datetime.now().isoformat(timespec="seconds"), "messages": [],
+                    "debrief": None, "qa": True, "cost_usd": 0.0}
+            answer = False
         if question and sum(1 for m in chat["messages"] if m["role"] == "user") > cfg["max_questions"]:
             raise CoachError(f"Für dieses Match sind die {cfg['max_questions']} Fragen aufgebraucht.")
         if spent() >= cfg["monthly_limit_usd"]:
@@ -508,8 +528,12 @@ def ask(report_file: str, sid: str, fact_text: str, question: str | None = None,
             msgs.append({"role": "user", "text": (ANSWER + question) if answer else question, "at": now,
                          **({"kind": "answer"} if answer else {})})
             # Fakten stehen fest vorne in der ersten Nachricht: bei Fragen ist das der gecachte Teil
-            api_msgs = [{"role": m["role"], "content": (f"{fact_text}\n\n{DEBRIEF}" if i == 0 else m["text"])}
-                        for i, m in enumerate(msgs)]
+            if chat.get("qa"):
+                api_msgs = [{"role": m["role"], "content": (f"{fact_text}\n\n{QA}\n\nFrage: {m['text']}" if i == 0 else m["text"])}
+                            for i, m in enumerate(msgs)]
+            else:
+                api_msgs = [{"role": m["role"], "content": (f"{fact_text}\n\n{DEBRIEF}" if i == 0 else m["text"])}
+                            for i, m in enumerate(msgs)]
             resp, text = _call(client, cfg, model, api_msgs, max_tokens=3000)
             msgs.append({"role": "assistant", "text": text, "at": now})
             chat = {**chat, "messages": msgs,

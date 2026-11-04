@@ -38,6 +38,7 @@
 .rp-bar { display: flex; align-items: center; gap: 10px; max-width: 420px; margin: 8px auto 0; }
 .rp-bar button { flex: none; min-width: 40px; height: 36px; border: 0; border-radius: 10px; background: var(--orange); color: #111; font: inherit; font-weight: 800; cursor: pointer; }
 .rp-bar .rp-speed { background: var(--surface); color: var(--text); border: 1px solid var(--line); font-size: 13px; }
+.ct-gen { display: block; width: 100%; margin-top: 10px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
 .rp-seek { flex: 1; min-width: 0; accent-color: var(--orange); }
 .rp-t { flex: none; width: 54px; text-align: right; font-size: 13px; color: var(--muted); }
 .rp-t.dead { color: var(--loss); font-weight: 800; }
@@ -64,6 +65,11 @@
       });
     }
     if (box.dataset.start) send({});
+    var gen = box.querySelector("[data-gen]");
+    if (gen) gen.addEventListener("click", function () {
+      var w = document.createElement("div"); w.className = "msg wait"; w.textContent = "Dein Coach schreibt die Nachbesprechung …";
+      gen.parentNode.insertBefore(w, gen.nextSibling); send({}, gen);
+    });
     box.querySelectorAll("form.ask").forEach(function (f) {
       f.addEventListener("submit", function (e) {
         e.preventDefault();

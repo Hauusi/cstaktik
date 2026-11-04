@@ -47,6 +47,11 @@
 .ds .dt small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); line-height: 1.35; }
 .ds .tm { font-size: 12.5px; color: var(--muted); white-space: nowrap; } .ds.next .tm { color: var(--orange); font-weight: 800; }
 .day-done { margin: 10px 0 0; font-size: 14px; color: #6fe0a6; font-weight: 700; }
+.csay { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; }
+.csay .av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--orange); color: #111; font-family: var(--cond); font-weight: 800; font-size: 17px; }
+.csay .bub { padding: 12px 14px; border-radius: 4px 16px 16px 16px; background: var(--surface-2); font-size: 16px; line-height: 1.5; }
+.csay .bub p { margin: 0; } .csay .bub p + p { margin-top: 8px; }
+.csay .who { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
 .clinks { display: flex; flex-wrap: wrap; gap: 4px 18px; } .clinks a { color: var(--orange); font-weight: 700; font-size: 14px; }
 .clinks:empty { display: none; } .cstat { margin: 0; color: var(--muted); font-size: 14.5px; }
 .cwait { margin: 0; color: var(--muted); }
@@ -158,11 +163,13 @@ body.wide main { max-width: 560px; }
   <section class="ccard" data-block="coach">
     {% if not coach.done %}
     <div class="kicker">{% if coach.new %}<span class="newb">Neu</span>{% endif %}Coaching-Session · {{ coach.map_label }}{% if coach.score %} <span class="num cb-{{ coach.res }}">{{ coach.score }}</span>{% endif %}{% if coach.when %} · {{ coach.when }}{% endif %}</div>
-    <p class="cquote">{% if d %}„{{ d.headline }}“{% else %}Dein Match ist ausgewertet. Vier Minuten: dein bester Moment, zwei Szenen zum Selbst-Entscheiden, dein Plan fürs nächste Match.{% endif %}</p>
+    {% if coach.say %}<div class="csay"><span class="av" aria-hidden="true">C</span><div class="bub"><div class="who">Dein Coach</div>{% for x in coach.say.lines %}<p>{{ x }}</p>{% endfor %}{% if d and d.headline %}<p>{{ d.headline }}</p>{% endif %}</div></div>
+    {% else %}<p class="cquote">{% if d %}„{{ d.headline }}“{% else %}Dein Match ist ausgewertet. Vier Minuten: dein bester Moment, zwei Szenen zum Selbst-Entscheiden, dein Plan fürs nächste Match.{% endif %}</p>{% endif %}
     <a class="go" href="/m/{{ coach.file }}{{ q }}">Session starten ›</a>
     {% else %}
     <div class="kicker">Vor dem nächsten Match</div>
-    {% if coach.plan %}
+    {% if coach.say %}<div class="csay"><span class="av" aria-hidden="true">C</span><div class="bub"><div class="who">Dein Coach</div>{% for x in coach.say.lines %}<p>{{ x }}</p>{% endfor %}{% if coach.cueword %}<p><b style="color:var(--orange)">„{{ coach.cueword }}“</b></p>{% endif %}</div></div>
+    {% elif coach.plan %}
     <div class="cdeal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
       <div><b>Dein Plan</b>{{ coach.plan.text }}{% if coach.plan.if_obstacle %}<br><span class="cob">{{ coach.plan.if_obstacle }}</span>{% endif %}{% if coach.cueword %}<br><span class="ccw">„{{ coach.cueword }}“</span>{% endif %}</div></div>
     {% else %}<p class="cquote">Du hast noch keinen Plan fürs nächste Match. Den legst du am Ende der Session fest.</p>{% endif %}

@@ -11,7 +11,7 @@
 </svg>
 <div class="ct-leg"><span style="color:#ff9f1c">● du</span> <span style="color:#5d79ae">● Mitspieler</span>{% if v.killer %} <span style="color:#e5484d">● wer dich erwischt hat{% if v.kplace %} ({{ v.kplace|callout }}){% endif %}</span>{% endif %}</div>
 {% endif %}{% endmacro %}
-<div class="ct" data-coach data-file="{{ file }}" data-sid="{{ sid }}"{% if cv.enabled and not cv.has %} data-start="1"{% endif %}>
+<div class="ct" data-coach data-file="{{ file }}" data-sid="{{ sid }}"{% if cv.enabled and not cv.has and cv.auto %} data-start="1"{% endif %}>
 {% if cv.debrief %}{% set d = cv.debrief %}
   <p class="ct-open">{{ d.headline }}</p>
   <p>{{ d.summary }}</p>
@@ -66,8 +66,11 @@
   {% endif %}
 {% elif cv.legacy %}
   <div class="msg">{{ cv.legacy }}</div>
-{% elif cv.enabled %}
+{% elif cv.enabled and cv.auto and not cv.qa %}
   <div class="msg wait">Dein Coach schaut sich das Match an und bereitet die Nachbesprechung vor. Das dauert etwa eine halbe Minute.</div>
+{% elif cv.enabled %}
+  <div class="msg">Die Nachbesprechung zu diesem Match findest du in der Session, ohne KI und kostenlos. Hier kannst du dem KI-Coach Fragen zum Match stellen{% if not cv.qa %} oder ihn eine ausführliche Nachbesprechung schreiben lassen{% endif %}.</div>
+  {% if not cv.qa %}<button type="button" class="ct-gen" data-gen="1">KI-Nachbesprechung schreiben lassen (etwa 3–8 Cent)</button>{% endif %}
 {% else %}
   <div class="msg">Der KI-Coach ist auf dem Server noch nicht eingerichtet. Dafür muss der Admin einen API-Schlüssel von
     Anthropic hinterlegen (Umgebungsvariable ANTHROPIC_API_KEY).</div>
@@ -76,7 +79,7 @@
   {% for m in cv.msgs %}
   {% if m.role == "assistant" %}<div class="msg">{{ m.html }}</div>{% else %}<div class="msg user">{{ m.text }}</div>{% endif %}
   {% endfor %}
-  {% if cv.enabled and cv.has and cv.left > 0 %}
+  {% if cv.enabled and cv.left > 0 and (cv.has or not cv.auto) %}
   <form class="ask" data-ask="1">
     <textarea name="q" maxlength="500" rows="2" placeholder="Frag deinen Coach, z. B. Was hätte ich in Runde 7 besser machen sollen?"></textarea>
     <button type="submit">Fragen</button>

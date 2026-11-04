@@ -27,6 +27,16 @@ body.story-page .hero { display: none; }
 .imp b { color: var(--text); font-weight: 700; } .imp b.p { color: var(--win); } .imp b.n { color: var(--loss); }
 .pocket { margin-top: 12px; padding: 10px 12px; border-left: 3px solid var(--accent); background: rgba(255,159,28,.08);
   border-radius: 6px; font-size: 15px; line-height: 1.4; }
+.cs { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; margin-top: 14px; }
+.cs .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #111;
+  font-family: var(--cond); font-weight: 800; font-size: 15px; }
+.cs .bub { padding: 12px 14px; border-radius: 4px 16px 16px 16px; background: var(--surface-2); font-size: 16px; line-height: 1.5; }
+.cs .bub p { margin: 0; } .cs .bub p + p { margin-top: 8px; }
+.cs .bub ul { margin: 8px 0 0; padding-left: 18px; } .cs .bub li + li { margin-top: 4px; }
+.cs .bub .why { color: var(--muted); font-size: 14.5px; }
+.cs.first { margin-top: 4px; }
+.todo { margin-top: 14px; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255,159,28,.4); background: rgba(255,159,28,.06); font-size: 15px; line-height: 1.45; }
+.todo b { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
 .line { margin-top: 16px; color: var(--muted); font-size: 15px; }
 .stamp { display: inline-block; margin-top: 18px; padding: 8px 14px; font-family: var(--cond); font-weight: 800; font-size: 26px;
   letter-spacing: .08em; text-transform: uppercase; border: 2px solid currentColor; border-radius: 4px; }
@@ -111,7 +121,7 @@ html.js .sx-h { font-size: 40px; }
 @media (prefers-reduced-motion: reduce) { html.js .sx, html.js .sx.on { transition: none; transform: none; } }
 </style>
 {% endblock %}
-{% block content %}{% import "replay_box.html" as rb with context %}
+{% block content %}{% macro say(lines, cls="") %}{% if lines %}<div class="cs {{ cls }}"><span class="av" aria-hidden="true">C</span><div class="bub">{% for x in lines %}<p>{{ x }}</p>{% endfor %}{{ caller() if caller }}</div></div>{% endif %}{% endmacro %}{% import "replay_box.html" as rb with context %}
 <script>document.documentElement.classList.add("js");</script>
 <div class="story" id="story" data-session data-file="{{ file }}"{% if r %} data-sid="{{ r.sid }}"{% endif %}{% if mine %} data-mine="1"{% endif %}>
   <div class="st-head">
@@ -147,6 +157,7 @@ html.js .sx-h { font-size: 40px; }
     {% else %}
     <div class="sx-h" role="heading" aria-level="1">Match ausgewertet</div>
     {% endif %}
+    {% if (r.s or {}).story %}{{ say(r.s.story.open, "first") }}{% endif %}
     {% if r.stats %}{% set s = r.stats %}
     <div class="kd num"><div><b>{{ s.k }}/{{ s.d }}</b><span>Kills/Tode</span></div>
       {% if s.adr is not none %}<div><b>{{ s.adr }}</b><span>ADR</span></div>{% endif %}
@@ -173,6 +184,7 @@ html.js .sx-h { font-size: 40px; }
   <section class="sx tall" data-step="moment" aria-label="Dein bester Moment">
     <div class="k">Dein bester Moment</div>
     <div class="sx-h" role="heading" aria-level="2">Runde {{ hl.round }}</div>
+    {{ say(["Fangen wir mit dem Guten an. Das war dein wichtigster Moment im Match."]) }}
     {{ rb.replay(hl.clipv, hl.map, "Wiederholung Runde " ~ hl.round, event=hl.what.split(" ")[0]) }}
     <div class="facts">{{ hl.what }}{% if hl.ctx %} {{ hl.ctx }}{% endif %}. Das brachte eurem Team {{ hl.val }} Prozentpunkte Siegchance.</div>
   </section>
@@ -194,6 +206,7 @@ html.js .sx-h { font-size: 40px; }
       </div>
       <div class="ck-meas"{% if not ck.self %} hidden{% endif %}>
         <p class="ck-mv">Das sagen deine Zahlen:</p>
+        {% if S.story and S.story.callback %}{{ say(S.story.callback.lines) }}{% endif %}
         {% if ck.stamp %}<div class="stamp {{ ck.stamp[0] }}">{{ ck.stamp[1] }}</div>{% endif %}
         {% if ck.says %}<div class="facts num">{{ ck.says|join(" ") }}</div>
         {% elif ck.count is not none and ck.rounds %}<div class="facts num">Der Fehler aus der Lektion „{{ ck.lesson_title }}“ kam heute {{ "keinmal" if ck.count == 0 else ("einmal" if ck.count == 1 else ck.count ~ " Mal") }} in {{ ck.rounds }} Runden vor.</div>{% endif %}
@@ -203,10 +216,40 @@ html.js .sx-h { font-size: 40px; }
   </section>
   {% endif %}
 
+  {# 5. Dein Thema: die aktuelle Lektion mit dem Warum #}
+  {% if S.lesson %}{% set L = r.lesson or {} %}
+  <section class="sx" data-step="lektion" aria-label="Dein Thema">
+    <div class="k">Dein Thema</div>
+    <div class="sx-h" role="heading" aria-level="2">{{ S.lesson.title }}</div>
+    {% set P = (S.story or {}).pattern %}
+    {% if P %}{% call say([P.headline] + P.lines) %}{% endcall %}{% endif %}
+    {% if S.story and S.story.journey %}{{ say(S.story.journey) }}{% endif %}
+    {% if L.stamp %}<div class="stamp {{ L.stamp[0] }}">{{ L.stamp[1] }}</div>{% endif %}
+    {% if L.says %}{{ say([L.says|join(" ")]) }}{% endif %}
+    {% if S.trend %}{% set T = S.trend %}
+    <div class="tr" aria-label="Fehler pro 10 Runden in deinen letzten Matches">
+      <div class="tl" style="bottom: {{ (T.target / T.max * 70)|round(1) }}px"><span>Ziel {{ "%.1f"|format(T.target)|replace(".", ",") }}</span></div>
+      {% for q in T.pts %}<i class="{{ 'me' if q.me }} {{ 'ok' if q.rate <= T.target }}" style="height: {{ ([q.rate, 0.1]|max / T.max * 70)|round(1) }}px" title="{{ q.map }}: {{ q.rate }}"></i>{% endfor %}
+    </div>
+    <div class="trc">Fehler pro 10 Runden, deine letzten {{ T.pts|length }} Matches. Grün: im Ziel. Orange umrandet: dieses Match.</div>
+    {% endif %}
+    <div class="facts muted"><b style="color:var(--text)">Warum das zählt:</b> {{ S.lesson.principle or S.lesson.why }}</div>
+    {% if L.util_late %}<div class="facts muted">{{ L.util_late }}</div>{% endif %}
+    {% if L.scene and not S.drills %}{% set sc = L.scene %}{# ohne Wiederholung: die Szene als Text #}
+    <div class="facts muted">{{ sc.where }} {{ sc.text }}</div>
+    {% if sc.nades %}<div class="pocket">In der Tasche beim Tod: {{ sc.nades|join(", ") }}.</div>{% endif %}
+    <a class="cta ghost" href="{{ sc.href }}">Runde {{ sc.round }} ansehen</a>
+    {% endif %}
+    <a class="cta ghost" href="/kurs/{{ S.lesson.id }}{% if many %}?p={{ r.sid }}{% endif %}">Zur Lektion</a>
+    {% if S.wissen %}<div class="facts muted">Mehr dazu im CS-Wissen: {% for w in S.wissen[:2] %}<a href="/wissen/{{ w.id }}{% if many %}?p={{ r.sid }}{% endif %}" style="color:var(--orange);font-weight:700">{{ w.title }}</a>{{ ", " if not loop.last }}{% endfor %}</div>{% endif %}
+  </section>
+  {% endif %}
+
   {# 4. Entscheide selbst: Szene stoppt im Entscheidungsmoment (Temporal-Occlusion-Training) #}
   {% for d in S.drills or [] %}
   <section class="sx tall" data-step="entscheiden" aria-label="Entscheide selbst">
     <div class="k">Entscheide selbst · {{ loop.index }}/{{ S.drills|length }} · Runde {{ d.round }}</div>
+    {% if loop.first and S.story %}{{ say([S.story.ask]) }}{% endif %}
     {{ rb.replay(d.clipv, d.map, "Entscheidung Runde " ~ d.round, drill=true, key=d.key) }}
     {{ rb.drill_choice(d) }}
   </section>
@@ -233,37 +276,12 @@ html.js .sx-h { font-size: 40px; }
   </section>
   {% endif %}
 
-  {# 5. Dein Thema: die aktuelle Lektion mit dem Warum #}
-  {% if S.lesson %}{% set L = r.lesson or {} %}
-  <section class="sx" data-step="lektion" aria-label="Dein Thema">
-    <div class="k">Dein Thema</div>
-    <div class="sx-h" role="heading" aria-level="2">{{ S.lesson.title }}</div>
-    {% if L.stamp %}<div class="stamp {{ L.stamp[0] }}">{{ L.stamp[1] }}</div>{% endif %}
-    {% if L.says %}<div class="facts num">{{ L.says|join(" ") }}</div>{% endif %}
-    {% if S.trend %}{% set T = S.trend %}
-    <div class="tr" aria-label="Fehler pro 10 Runden in deinen letzten Matches">
-      <div class="tl" style="bottom: {{ (T.target / T.max * 70)|round(1) }}px"><span>Ziel {{ "%.1f"|format(T.target)|replace(".", ",") }}</span></div>
-      {% for q in T.pts %}<i class="{{ 'me' if q.me }} {{ 'ok' if q.rate <= T.target }}" style="height: {{ ([q.rate, 0.1]|max / T.max * 70)|round(1) }}px" title="{{ q.map }}: {{ q.rate }}"></i>{% endfor %}
-    </div>
-    <div class="trc">Fehler pro 10 Runden, deine letzten {{ T.pts|length }} Matches. Grün: im Ziel. Orange umrandet: dieses Match.</div>
-    {% endif %}
-    <div class="facts muted">{{ S.lesson.principle or S.lesson.why }}</div>
-    {% if L.util_late %}<div class="facts muted">{{ L.util_late }}</div>{% endif %}
-    {% if L.scene and not S.drills %}{% set sc = L.scene %}{# ohne Wiederholung: die Szene als Text #}
-    <div class="facts muted">{{ sc.where }} {{ sc.text }}</div>
-    {% if sc.nades %}<div class="pocket">In der Tasche beim Tod: {{ sc.nades|join(", ") }}.</div>{% endif %}
-    <a class="cta ghost" href="{{ sc.href }}">Runde {{ sc.round }} ansehen</a>
-    {% endif %}
-    <a class="cta ghost" href="/kurs/{{ S.lesson.id }}{% if many %}?p={{ r.sid }}{% endif %}">Zur Lektion</a>
-    {% if S.wissen %}<div class="facts muted">Mehr dazu im CS-Wissen: {% for w in S.wissen %}<a href="/wissen/{{ w.id }}{% if many %}?p={{ r.sid }}{% endif %}" style="color:var(--orange);font-weight:700">{{ w.title }}</a>{{ ", " if not loop.last }}{% endfor %}</div>{% endif %}
-  </section>
-
   {# 6. Dein Plan: Wenn-dann (Durchführungsvorsatz) #}
-  {% if S.plan and S.plan.options %}
+  {% if S.lesson and S.plan and S.plan.options %}
   <section class="sx" data-step="plan" aria-label="Dein Plan">
     <div class="k">Dein Plan fürs nächste Match</div>
     <div class="sx-h" role="heading" aria-level="2">Wenn das passiert, dann machst du das.</div>
-    <div class="facts muted">Such dir einen Satz aus. Je genauer die Situation, desto eher fällt er dir im Spiel ein.</div>
+    {% if S.story %}{{ say([S.story.plan]) }}{% else %}<div class="facts muted">Such dir einen Satz aus. Je genauer die Situation, desto eher fällt er dir im Spiel ein.</div>{% endif %}
     <div class="pl" data-lesson="{{ S.lesson.id }}">
       {% for o in S.plan.options %}<button type="button" class="pl-o{{ ' on' if S.plan.chosen == o }}" data-text="{{ o }}">{{ o }}</button>{% endfor %}
       <div class="pl-ob"{% if not S.plan.chosen %} hidden{% endif %}>
@@ -275,15 +293,17 @@ html.js .sx-h { font-size: 40px; }
       {% if S.routine %}<div class="pl-cue pl-rt"{% if not S.plan.chosen %} hidden{% endif %}><span>Deine Kaufzeit-Routine, jede Runde</span>
         <ol class="rt">{% for x in S.routine %}<li>{{ x }}</li>{% endfor %}</ol><i>Etwa zehn Sekunden. Immer gleich, damit sie im Stress von selbst läuft.</i></div>{% endif %}
       <div class="pl-ok"{% if not S.plan.chosen %} hidden{% endif %}>Abgemacht. Vor dem nächsten Match erinnert dich das Warm-up daran.</div>
+      {% if S.story and S.story.drill %}<div class="todo"><b>Deine Übung</b>{{ S.story.drill }}</div>{% endif %}
+      {% if S.story and S.story.check %}<div class="todo"><b>Was ich prüfe</b>{{ S.story.check }}</div>{% endif %}
     </div>
   </section>
-  {% endif %}
   {% endif %}
 
   {# 7. Fertig #}
   <section class="sx" data-step="fertig" aria-label="Fertig">
     <div class="k">Session geschafft</div>
     <div class="sx-h" role="heading" aria-level="2">Gut gemacht.</div>
+    {% if S.story %}{{ say([S.story.close]) }}{% endif %}
     <div class="facts">{% if S.drills %}Du hast {{ S.drills|length }} {{ "Szene" if S.drills|length == 1 else "Szenen" }} selbst entschieden. {% endif %}Die Szenen kommen in deinen nächsten Warm-ups wieder, mit wachsendem Abstand. So bleibt es hängen.</div>
     {% if S.ai %}<a class="cta" href="/coach/{{ file }}{% if many %}?p={{ r.sid }}{% endif %}">Mit dem Coach besprechen</a>{% endif %}
     <a class="cta{{ ' ghost' if S.ai }}" href="/{% if many %}?p={{ r.sid }}{% endif %}">Fertig</a>

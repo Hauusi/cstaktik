@@ -72,6 +72,15 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
   <button class="btn2" type="submit">Schlüssel speichern</button>
 </form>
 
+<h2 id="ki">KI-Coach</h2>
+<form class="card kf" method="post" action="/konto/ki">
+  <div class="small">Der Coach in der App braucht keine KI: Session, Plan und Auswertung kommen aus deinen Demos und kosten nichts. Die KI kann zusätzlich eine Nachbesprechung schreiben (etwa 3 bis 8 US-Cent je Match) und Fragen beantworten (unter 0,1 Cent je Frage).</div>
+  {% if not ai_on %}<div class="small muted" style="margin-top:6px">Auf dem Server ist kein API-Schlüssel hinterlegt. Ohne Schlüssel läuft alles außer der KI.</div>{% endif %}
+  <label style="display:flex;gap:10px;align-items:center;margin-top:10px"><input type="checkbox" name="auto" value="1"{% if ai_auto %} checked{% endif %}> KI-Nachbesprechung nach jedem Match automatisch schreiben</label>
+  <div class="hint">Aus: Die KI schreibt eine Nachbesprechung nur, wenn du im Gespräch auf den Knopf tippst. Fragen kannst du immer stellen.</div>
+  <button class="btn2" type="submit">Speichern</button>
+</form>
+
 <h2 id="push">Benachrichtigungen</h2>
 <div class="card kf">
   <div class="small">Der Coach meldet sich auf diesem Gerät, sobald ein neues Match automatisch ausgewertet ist: Ergebnis, dein Impact und das Thema. Antippen öffnet den Report.</div>
