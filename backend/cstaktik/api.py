@@ -2951,9 +2951,12 @@ def _progress_ctx(p: str) -> dict:
 @app.get("/progress", response_class=HTMLResponse)
 def progress_page(p: str = "") -> str:
     """Fortschritt auf einen Blick: Fokus-Verlauf, Impact-Trend, Stärke und Baustelle. Der Rest liegt unter Details."""
+    from cstaktik import spielerprofil
+
     ctx = _progress_ctx(p)
     sw = _strength_weakness(ctx["p"]) if ctx["p"] else {}
-    return _env.get_template("profil.html").render(nav_active="progress", sw=sw, **ctx)
+    sp = spielerprofil.build(_load_hist(), ctx["p"]["sid"]) if ctx["p"] else None
+    return _env.get_template("profil.html").render(nav_active="progress", sw=sw, sp=sp, **ctx)
 
 
 @app.get("/progress/details", response_class=HTMLResponse)

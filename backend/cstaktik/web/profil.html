@@ -24,6 +24,31 @@
 .alld { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; padding: 16px; border-radius: 16px;
   border: 1px solid rgba(255,159,28,.4); background: rgba(255,159,28,.07); font-weight: 800; font-size: 16px; }
 .alld span { font-weight: 500; font-size: 13px; color: var(--muted); display: block; } .alld i { font-style: normal; color: var(--orange); }
+.sp { margin-top: 18px; }
+.sp-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.sp-h h2 { margin: 0; } .sp-h span { font-size: 13px; color: var(--muted); }
+.sp-sum { margin: 6px 0 0; font-size: 14.5px; line-height: 1.45; color: var(--muted); } .sp-sum b { color: var(--text); }
+.spg { display: grid; gap: 10px; margin-top: 12px; }
+@media (min-width: 700px) { .spg { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .spg { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.ar { padding: 14px 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
+.ar.baustelle { border-color: rgba(240,86,106,.45); } .ar.staerke { border-color: rgba(63,191,127,.45); }
+.ar-t { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ar-t b { font-family: var(--cond); font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: .03em; }
+.vchip { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.vchip.baustelle { border-color: rgba(240,86,106,.5); color: #ff9aa8; } .vchip.staerke { border-color: rgba(63,191,127,.5); color: #6fe0a6; }
+.vchip svg { width: 11px; height: 11px; }
+.ar-w { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); margin-top: 8px; }
+.mrow + .mrow { margin-top: 0; }
+.mrow .mt { font-size: 13.5px; } .mrow .mv { font-weight: 800; font-size: 15px; text-align: right; font-variant-numeric: tabular-nums; }
+.mrow .md { grid-column: 1 / -1; display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+.mrow .md svg { width: 11px; height: 11px; flex: none; } .mrow .md.up svg { color: var(--win); } .mrow .md.down svg { color: var(--loss); }
+.ar-l { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13.5px; font-weight: 700; }
+.ar-l a { color: var(--orange); display: inline-flex; align-items: center; min-height: 36px; }
+.sides { display: flex; gap: 10px; margin-top: 10px; } .sides div { flex: 1; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); font-size: 13px; color: var(--muted); }
+.sides b { display: block; font-family: var(--cond); font-size: 24px; color: var(--text); }
 </style>
 {% endblock %}
 {% block hero %}
@@ -33,6 +58,29 @@
 {% endblock %}
 {% block content %}
 {% if p %}
+{% macro arr(c) %}<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% if c == "up" %}<path d="M6 10V2M2.5 5.5L6 2l3.5 3.5"/>{% elif c == "down" %}<path d="M6 2v8M2.5 6.5L6 10l3.5-3.5"/>{% else %}<path d="M2 6h8"/>{% endif %}</svg>{% endmacro %}
+{% if sp %}{% set q = "?p=" ~ p.sid if tabs|length > 1 else "" %}
+<section class="sp" data-block="spielerprofil">
+  <div class="sp-h"><h2>Wo du stehst</h2><span>letzte {{ sp.n }} {{ "Match" if sp.n == 1 else "Matches" }}{% if sp.rating %} · Rating {{ sp.rating }}{% endif %}</span></div>
+  <p class="sp-sum">{% if sp.weak %}Baustelle: <b>{{ sp.weak|join(", ") }}</b>. {% endif %}{% if sp.strengths %}Stärke: <b>{{ sp.strengths|join(", ") }}</b>. {% endif %}Jeder Bereich des Spiels aus deinen Demos{% if sp.has_prev %}, mit Vergleich zu den {{ sp.prev_n if sp.prev_n < 10 else 10 }} Matches davor{% endif %}.</p>
+  <div class="spg">
+  {% for a in sp.areas %}
+    <div class="ar {{ a.verdict or '' }}" data-area="{{ a.key }}">
+      <div class="ar-t"><b>{{ a.title }}</b>{% if a.verdict %}<span class="vchip {{ a.verdict }}">{{ {"baustelle": "Baustelle", "staerke": "Stärke", "rahmen": "Im Rahmen", "offen": "Zu wenig Daten"}[a.verdict] }}</span>{% endif %}</div>
+      <p class="ar-w">{{ a.why }}</p>
+      {% for m in a.metrics %}
+      <div class="mrow"><span class="mt">{{ m.title }}</span><span class="mv">{{ m.value }}</span>
+        {% if m.trend or m.ref %}<span class="md {{ m.trend or '' }}">{% if m.trend %}{{ arr(m.trend) }}{{ {"up": "besser", "down": "schlechter", "same": "etwa gleich"}[m.trend] }}{% if m.prev %} (davor {{ m.prev }}){% endif %}{% endif %}{% if m.ref %}{{ " · " if m.trend }}{{ m.ref }} % = ausgeglichen{% endif %}</span>{% endif %}
+      </div>
+      {% endfor %}
+      <div class="ar-l">{% if a.worst %}<a href="/kurs/{{ a.worst }}{{ q }}">Lektion üben ›</a>{% endif %}<a href="/wissen{{ q }}#b-{{ a.key }}">CS-Wissen ›</a></div>
+    </div>
+  {% endfor %}
+  </div>
+  {% if sp.sides.t and sp.sides.ct %}<div class="sides num"><div><b>{{ sp.sides.t.won_pct }} %</b>Runden gewonnen als T ({{ sp.sides.t.rounds }})</div><div><b>{{ sp.sides.ct.won_pct }} %</b>als CT ({{ sp.sides.ct.rounds }})</div></div>{% endif %}
+  <div class="src">Urteil aus den Kurs-Lektionen des Bereichs, mit denselben Grenzen wie im Kurs. „Besser“ und „schlechter“ nur bei klarem Abstand. Überzahl und Economy zählen fürs ganze Team.</div>
+</section>
+{% endif %}
 <div class="pgrid">
   {# 0. Kurs-Fortschritt #}
   {% if kurs %}

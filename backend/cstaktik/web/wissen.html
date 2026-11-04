@@ -37,7 +37,7 @@
   {% if ov.due %}<a class="go" href="/warmup{% if sid %}?p={{ sid }}{% endif %}">{{ ov.due }} {{ "Frage" if ov.due == 1 else "Fragen" }} fällig: im Warm-up beantworten ›</a>{% endif %}
 </div>
 {% for a in ov.areas %}
-<section class="area">
+<section class="area" id="b-{{ a.key }}">
   <h2>{{ a.title }} <small>{{ a.done }} / {{ a.topics|length }}</small></h2>
   <p class="intro">{{ a.intro }}</p>
   <div class="tl">{% for t in a.topics %}
