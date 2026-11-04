@@ -41,9 +41,12 @@ def test_home_is_coach_card_and_tiles():
     _entry("m2", "2999-01-02T10:00")
     _focus()
     home = _login().get("/").text
-    assert re.findall(r'data-block="([a-z-]+)"', home) == ["coach", "tiles"]  # Coach oben, darunter die Kacheln
+    assert re.findall(r'data-block="([a-z-]+)"', home) == ["coach", "day", "tiles"]  # Coach, Tagesplan, Kacheln
+    day = home[home.index('data-block="day"'):home.index('data-block="tiles"')]
+    assert re.findall(r'data-step="([a-z]+)"', day) == ["session", "drill", "wissen", "warmup"]
+    assert "0 von 4 erledigt" in day
     # Coach-Karte zum letzten Match (ohne KI-Schlüssel: Weg in die Match-Story)
-    card = home[home.index('data-block="coach"'):home.index('data-block="tiles"')]
+    card = home[home.index('data-block="coach"'):home.index('data-block="day"')]
     assert "Neu" in card and "Mirage" in card and "13:7" in card and 'href="/m/m2.html"' in card
     tiles = re.findall(r'data-tile="([a-z]+)"', home)
     assert home.count("class=\"tbar\"") == 1  # nur der Kurs hat einen Balken

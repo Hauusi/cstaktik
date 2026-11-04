@@ -789,7 +789,10 @@ def index(p: str = "") -> str:
     sid, tabs = _course_player(hist, p)
     kurs = _course_overview(hist, sid) if sid else None
     coach = _home_coach(hist, sid, news)
-    return _env.get_template("index.html").render(coach=coach, tiles=_home_tiles(hist, sid, coach, kurs, tabs),
+    from cstaktik import dayplan
+
+    day = dayplan.build(sid, coach, _players_state().get(sid), _pq(tabs, sid)) if sid and hist else None
+    return _env.get_template("index.html").render(coach=coach, tiles=_home_tiles(hist, sid, coach, kurs, tabs), day=day,
         nav_active="coach", jobs=jobs, n_history=len(hist), news=news[:1], n_new=len(news),
         missing_players=missing if hist else 0, me_name=names.get(_me()) if _me() else None,
         need_link=_USER.get() is not None and not _me(), auto=auto and bool(hist), push_hint=push_hint,
