@@ -32,6 +32,7 @@
 .cdeal svg { flex: none; width: 22px; height: 22px; fill: none; stroke: var(--orange); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .cdeal b { display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .cstory { justify-self: start; color: var(--orange); font-weight: 700; font-size: 14px; }
+.cob { color: var(--muted); font-size: 14px; } .ccw { font-family: var(--cond); font-size: 22px; font-weight: 800; color: var(--orange); }
 .clinks { display: flex; flex-wrap: wrap; gap: 4px 18px; } .clinks a { color: var(--orange); font-weight: 700; font-size: 14px; }
 .clinks:empty { display: none; } .cstat { margin: 0; color: var(--muted); font-size: 14.5px; }
 .cwait { margin: 0; color: var(--muted); }
@@ -149,7 +150,7 @@ body.wide main { max-width: 560px; }
     <div class="kicker">Vor dem nächsten Match</div>
     {% if coach.plan %}
     <div class="cdeal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
-      <div><b>Dein Plan</b>{{ coach.plan.text }}</div></div>
+      <div><b>Dein Plan</b>{{ coach.plan.text }}{% if coach.plan.if_obstacle %}<br><span class="cob">{{ coach.plan.if_obstacle }}</span>{% endif %}{% if coach.cueword %}<br><span class="ccw">„{{ coach.cueword }}“</span>{% endif %}</div></div>
     {% else %}<p class="cquote">Du hast noch keinen Plan fürs nächste Match. Den legst du am Ende der Session fest.</p>{% endif %}
     {% if coach.warm_n %}<a class="go" href="/warmup{{ q }}">Warm-up · {{ coach.warm_n }} {{ "Szene" if coach.warm_n == 1 else "Szenen" }} · 2 Min ›</a>
     {% else %}<p class="cstat">Warm-up erledigt{% if coach.streak %}, {{ coach.streak }} {{ "Tag" if coach.streak == 1 else "Tage" }} in Folge{% endif %}. Neue Szenen kommen nach dem nächsten Match.</p>{% endif %}

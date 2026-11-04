@@ -194,25 +194,43 @@
   var ctx = document.querySelector("[data-session]");
   var who = ctx ? {p: ctx.dataset.sid || ""} : {};
   document.querySelectorAll(".dr").forEach(function (dr) {
-    var box = dr.parentNode.querySelector(".rp");
-    dr.querySelectorAll(".dr-o").forEach(function (b) {
-      b.addEventListener("click", function () {
-        if (dr.dataset.done) return; dr.dataset.done = "1";
-        b.classList.add("pick");
-        dr.querySelectorAll(".dr-o").forEach(function (o) {
-          o.disabled = true;
-          if (o.dataset.choice === dr.dataset.aktion) o.classList.add("mine");
-          if (o.dataset.choice === dr.dataset.best) o.classList.add("best");
-          var r = o.querySelector(".dr-r"); if (r && r.textContent.trim()) r.hidden = false;
-        });
-        dr.querySelector(".dr-q").hidden = true;
-        dr.querySelector(".dr-res").hidden = false;
-        if (box && box._answered) box._answered();
-        post("/session/answer", Object.assign({key: dr.dataset.key, choice: b.dataset.choice}, who));
+    var box = dr.parentNode.querySelector(".rp"), choice = null;
+    function reveal(reason) {
+      dr.dataset.done = "1";
+      dr.querySelectorAll(".dr-o").forEach(function (o) {
+        o.disabled = true;
+        if (o.dataset.choice === dr.dataset.aktion) o.classList.add("mine");
+        if (o.dataset.choice === dr.dataset.best) o.classList.add("best");
+        if (o.dataset.reason && o.dataset.reason === reason) o.classList.add("pick");
+        var r = o.querySelector(".dr-r"); if (r && r.textContent.trim()) r.hidden = false;
       });
+      var cue = dr.querySelector(".dr-cue");
+      if (cue) {
+        var mine = reason ? dr.querySelector('[data-reason="' + reason + '"]') : null;
+        cue.textContent = !reason ? "" : reason === cue.dataset.cue
+          ? "Genau darauf kommt es hier an: " + cue.dataset.label + "."
+          : "Du hast vor allem darauf geachtet: " + mine.textContent.trim() + ". Hier zählt vor allem: " + cue.dataset.label + ".";
+      }
+      dr.querySelectorAll(".dr-q").forEach(function (q) { q.hidden = true; });
+      dr.querySelector(".dr-res").hidden = false;
+      if (box && box._answered) box._answered();
+      post("/session/answer", Object.assign({key: dr.dataset.key, choice: choice, reason: reason || ""}, who));
+    }
+    dr.querySelectorAll(".dr-o[data-choice]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (choice) return; choice = b.dataset.choice;
+        b.classList.add("pick");
+        dr.querySelectorAll(".dr-o[data-choice]").forEach(function (o) { o.disabled = true; });
+        var why = dr.querySelector(".dr-why");
+        if (why) why.hidden = false; else reveal(null);  // erst begründen, dann auflösen (Selbsterklärung)
+      });
+    });
+    dr.querySelectorAll(".dr-w").forEach(function (b) {
+      b.addEventListener("click", function () { if (choice && !dr.dataset.done) reveal(b.dataset.reason); });
     });
   });
   document.querySelectorAll(".ck").forEach(function (ck) {
+    var sec = ck.parentNode;
     ck.querySelectorAll(".ck-o").forEach(function (b) {
       b.addEventListener("click", function () {
         if (ck.dataset.done) return; ck.dataset.done = "1";
@@ -225,13 +243,34 @@
         res.querySelector(".ck-v").textContent = ok ? "Genau. Den Plan hattest du im Kopf." : "Nicht ganz. Das war dein Plan (grün). Gut, dass du ihn jetzt noch einmal siehst.";
       });
     });
+    ck.querySelectorAll(".ck-r").forEach(function (b) {  // Selbsteinschätzung, dann die gemessenen Zahlen
+      b.addEventListener("click", function () {
+        ck.querySelectorAll(".ck-r").forEach(function (o) { o.classList.toggle("on", o === b); });
+        var m = sec.querySelector(".ck-meas"); if (m) m.hidden = false;
+        post("/session/rate", Object.assign({report: ctx && ctx.dataset.file, rating: b.dataset.rating}, who));
+      });
+    });
   });
   document.querySelectorAll(".pl").forEach(function (pl) {
+    var text = (pl.querySelector(".pl-o.on") || {}).dataset ? pl.querySelector(".pl-o.on").dataset.text : null;
+    var ob = (pl.querySelector(".pl-b.on") || {dataset: {}}).dataset.obstacle || "";
+    function save() {
+      return post("/session/plan", Object.assign({report: ctx && ctx.dataset.file, lesson: pl.dataset.lesson, text: text, obstacle: ob}, who))
+        .then(function (ok) {
+          pl.querySelector(".pl-ok").hidden = !ok;
+          pl.querySelectorAll(".pl-ob, .pl-cue").forEach(function (e) { e.hidden = !ok; });
+        });
+    }
     pl.querySelectorAll(".pl-o").forEach(function (b) {
       b.addEventListener("click", function () {
         pl.querySelectorAll(".pl-o").forEach(function (o) { o.classList.toggle("on", o === b); });
-        post("/session/plan", Object.assign({report: ctx && ctx.dataset.file, lesson: pl.dataset.lesson, text: b.dataset.text}, who))
-          .then(function (ok) { pl.querySelector(".pl-ok").hidden = !ok; });
+        text = b.dataset.text; save();
+      });
+    });
+    pl.querySelectorAll(".pl-b").forEach(function (b) {  // Hindernis und Gegenplan (mentales Kontrastieren)
+      b.addEventListener("click", function () {
+        pl.querySelectorAll(".pl-b").forEach(function (o) { o.classList.toggle("on", o === b); });
+        ob = b.dataset.obstacle; pl.querySelector(".pl-line").textContent = b.dataset.line; save();
       });
     });
   });

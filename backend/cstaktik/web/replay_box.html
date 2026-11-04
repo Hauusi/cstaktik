@@ -19,7 +19,12 @@
       <small class="dr-r" hidden>{% if k == d.aktion %}Das hast du gemacht. Danach: Tod.{% endif %}{% if rt %} Pros: {{ rt[0] }} von {{ rt[1] }} Runden gewonnen.{% endif %}</small></button>
     {% endfor %}
   </div>
+  <div class="dr-why" hidden>
+    <div class="dr-q">Warum? Worauf hast du in dem Moment geachtet?</div>
+    <div class="dr-opts">{% for k, label in d.reasons %}<button type="button" class="dr-o dr-w" data-reason="{{ k }}">{{ label }}</button>{% endfor %}</div>
+  </div>
   <div class="dr-res" hidden>
+    {% if d.cue_label %}<p class="dr-cue" data-cue="{{ d.cue }}" data-label="{{ d.cue_label }}"></p>{% endif %}
     <p class="dr-v">{% if d.best %}Pros gewinnen diese Lage am häufigsten mit: {{ ACT[d.best] }}.{% else %}Für diese Lage gibt es zu wenige Pro-Runden für einen klaren Favoriten. Entscheidend ist die Regel deines Coaches.{% endif %}</p>
     {% if d.did_note %}<p class="dr-m">{{ d.did_note }}</p>{% endif %}
     {% if d.reveal_info %}<p class="dr-m">Radar: {{ d.reveal_info }}</p>{% endif %}

@@ -53,6 +53,17 @@ body.story-page .hero { display: none; }
 .ck-res, .dr-res { margin-top: 6px; font-size: 15px; line-height: 1.45; } .ck-res p, .dr-res p { margin: 8px 0 0; }
 .ck-v { font-weight: 700; }
 .pl-ok { margin-top: 4px; color: var(--win); font-weight: 700; font-size: 15px; }
+.pl-ob { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; } .pl-ob .dr-q { width: 100%; margin-top: 4px; font-size: 15.5px; }
+.pl-b, .ck-r { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 14px; cursor: pointer; } .pl-b.on, .ck-r.on { border-color: var(--accent); background: rgba(255,159,28,.12); }
+.pl-line { width: 100%; margin: 6px 0 0; font-size: 15px; font-weight: 650; line-height: 1.4; } .pl-line:empty { display: none; }
+.pl-cue { display: grid; gap: 2px; margin-top: 6px; padding: 12px 14px; border-radius: 14px; background: rgba(255,159,28,.1); }
+.pl-cue span { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.pl-cue b { font-family: var(--cond); font-size: 26px; font-weight: 800; color: var(--accent); } .pl-cue i { font-style: normal; font-size: 13px; color: var(--muted); }
+.pl-cue[hidden], .pl-ob[hidden] { display: none; }
+.ck-rs { display: flex; gap: 6px; margin-top: 8px; } .ck-meas { margin-top: 10px; } .ck-mv { margin: 0; font-weight: 700; }
+.ck-meas[hidden] { display: none; }
+.dr-cue { font-weight: 700; color: var(--text); }
 .dr { margin-top: 10px; } .dr-lage { font-size: 14px; color: var(--muted); line-height: 1.4; }
 .dr-q { margin-top: 8px; font-size: 17px; font-weight: 700; }
 .dr-opts { display: grid; gap: 8px; margin-top: 10px; } .dr-o small { display: block; margin-top: 4px; font-size: 13px; color: var(--muted); }
@@ -160,9 +171,17 @@ html.js .sx-h { font-size: 40px; }
       {% for o in ck.options %}<button type="button" class="ck-o" data-text="{{ o }}">{{ o }}</button>{% endfor %}
       <div class="ck-res" hidden>
         <p class="ck-v"></p>
+        <div class="ck-rate"{% if ck.self %} data-done="1"{% endif %}>
+          <div class="dr-q">Hast du dich im Match daran gehalten?</div>
+          <div class="ck-rs">{% for k, label in ck.ratings.items() %}<button type="button" class="ck-r{{ ' on' if ck.self == k }}" data-rating="{{ k }}">{{ label }}</button>{% endfor %}</div>
+        </div>
+      </div>
+      <div class="ck-meas"{% if not ck.self %} hidden{% endif %}>
+        <p class="ck-mv">Das sagen deine Zahlen:</p>
         {% if ck.stamp %}<div class="stamp {{ ck.stamp[0] }}">{{ ck.stamp[1] }}</div>{% endif %}
         {% if ck.says %}<div class="facts num">{{ ck.says|join(" ") }}</div>
         {% elif ck.count is not none and ck.rounds %}<div class="facts num">Der Fehler aus der Lektion „{{ ck.lesson_title }}“ kam heute {{ "keinmal" if ck.count == 0 else ("einmal" if ck.count == 1 else ck.count ~ " Mal") }} in {{ ck.rounds }} Runden vor.</div>{% endif %}
+        <div class="facts muted">Wer seinen Fortschritt festhält und mit den Zahlen vergleicht, erreicht Ziele öfter.</div>
       </div>
     </div>
   </section>
@@ -202,6 +221,12 @@ html.js .sx-h { font-size: 40px; }
     <div class="facts muted">Such dir einen Satz aus. Je genauer die Situation, desto eher fällt er dir im Spiel ein.</div>
     <div class="pl" data-lesson="{{ S.lesson.id }}">
       {% for o in S.plan.options %}<button type="button" class="pl-o{{ ' on' if S.plan.chosen == o }}" data-text="{{ o }}">{{ o }}</button>{% endfor %}
+      <div class="pl-ob"{% if not S.plan.chosen %} hidden{% endif %}>
+        <div class="dr-q">Was könnte dich im Match davon abhalten?</div>
+        {% for k, label, line in S.plan.obstacles %}<button type="button" class="pl-b{{ ' on' if S.plan.obstacle == k }}" data-obstacle="{{ k }}" data-line="{{ line }}">{{ label }}</button>{% endfor %}
+        <p class="pl-line">{% for k, label, line in S.plan.obstacles %}{% if S.plan.obstacle == k %}{{ line }}{% endif %}{% endfor %}</p>
+      </div>
+      {% if S.plan.cueword %}<div class="pl-cue"{% if not S.plan.chosen %} hidden{% endif %}><span>Dein Schlüsselwort</span><b>„{{ S.plan.cueword }}“</b><i>Sag es dir im Spiel leise vor, bevor es drauf ankommt.</i></div>{% endif %}
       <div class="pl-ok"{% if not S.plan.chosen %} hidden{% endif %}>Abgemacht. Vor dem nächsten Match erinnert dich das Warm-up daran.</div>
     </div>
   </section>

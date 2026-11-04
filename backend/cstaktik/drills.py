@@ -54,12 +54,18 @@ def scene_key(sc: dict) -> str:
 
 # --- Plan ------------------------------------------------------------------------------------------------------
 
-def set_plan(sid: str, lesson: str, text: str, report: str, match_at: str | None) -> dict:
+def set_plan(sid: str, lesson: str, text: str, report: str, match_at: str | None, obstacle: str | None = None) -> dict:
+    """Plan fürs nächste Match. Gleicher Match-Bezug: ersetzt den Plan, statt einen zweiten anzulegen."""
+    from cstaktik.course_texts import obstacle_line
+
     with LOCK:
         d = load(sid)
         plan = {"lesson": lesson, "text": text, "report": report, "match_at": match_at, "at": _now()}
+        if obstacle and obstacle_line(obstacle, lesson):
+            plan["obstacle"], plan["if_obstacle"] = obstacle, obstacle_line(obstacle, lesson)
+        d["plans"] = [x for x in d.get("plans") or [] if x.get("report") != report]
         d["plan"] = plan
-        d.setdefault("plans", []).append(plan)
+        d["plans"].append(plan)
         d["plans"] = d["plans"][-30:]
         _save(sid, d)
         return plan
@@ -75,9 +81,65 @@ def current_plan(sid: str) -> dict | None:
     return load(sid).get("plan")
 
 
+RATINGS = {"ja": "Ja", "teils": "Teilweise", "nein": "Nein"}
+
+
+def rate_plan(sid: str, report: str, rating: str) -> None:
+    """Selbsteinschätzung nach dem Match: Hast du dich an den Plan gehalten? (zu dem Plan, der für ``report`` galt)."""
+    if rating not in RATINGS:
+        raise ValueError("unbekannte Einschätzung")
+    with LOCK:
+        d = load(sid)
+        target = next((x for x in d.get("plans") or [] if x.get("checked_in") == report), None)
+        if target is None:
+            return
+        target["self"] = rating
+        _save(sid, d)
+
+
+def attach_check(sid: str, plan_at: str, report: str) -> None:
+    """Merkt sich, in welchem Match ein Plan geprüft wurde (für Selbsteinschätzung und Verlauf)."""
+    with LOCK:
+        d = load(sid)
+        for x in d.get("plans") or []:
+            if x.get("at") == plan_at and not x.get("checked_in"):
+                x["checked_in"] = report
+                _save(sid, d)
+                return
+
+
+def plan_log(sid: str, hist: list[dict], cfg: dict, n: int = 6) -> list[dict]:
+    """Verlauf der Pläne: je Plan das Match danach mit gemessenen Fehlern der Lektion, Ziel und Selbsteinschätzung."""
+    from cstaktik.course import threshold
+    from cstaktik.course_texts import LESSONS
+
+    mine = sorted((h for h in hist if sid in (h.get("players") or {})), key=lambda h: h.get("analyzed_at") or "")
+    out = []
+    for p in (load(sid).get("plans") or [])[-n:]:
+        nxt = next((h for h in mine if (h.get("analyzed_at") or "") > (p.get("match_at") or "")), None)
+        row = {"lesson": p.get("lesson"), "title": (LESSONS.get(p.get("lesson")) or {}).get("title"),
+               "text": p.get("text"), "self": RATINGS.get(p.get("self") or ""), "map": None, "count": None,
+               "rounds": None, "met": None}
+        if nxt is not None:
+            rounds = ((nxt.get("players") or {}).get(sid) or {}).get("rounds") or nxt.get("rounds")
+            counted = sid in (nxt.get("lessons") or {})
+            cnt = ((nxt.get("lessons") or {}).get(sid) or {}).get(p.get("lesson"), 0) if counted else None
+            row.update(map=(nxt.get("map") or "?").removeprefix("de_").capitalize(), count=cnt, rounds=rounds)
+            if cnt is not None and rounds:
+                # Ziel wie in der Session: das des laufenden Auftrags, sonst die Kurs-Grenze der Lektion
+                fo = (((nxt.get("focus_check") or {}).get(sid) or {}).get("focus") or {})
+                lim = float(fo["target"]) if fo.get("lesson") == p.get("lesson") and fo.get("target") is not None \
+                    else threshold(p.get("lesson"), cfg)
+                row["allowed"] = int(lim * rounds / 10)
+                row["met"] = cnt <= row["allowed"]
+        out.append(row)
+    return out[::-1]
+
+
 # --- Entscheidungen --------------------------------------------------------------------------------------------
 
-def record(sid: str, key: str, choice: str, actual: str | None, best: str | None) -> dict:
+def record(sid: str, key: str, choice: str, actual: str | None, best: str | None, reason: str | None = None,
+           cue: str | None = None) -> dict:
     """Entscheidung speichern. ``ok``: wie die Pros entschieden (nur mit Pro-Favorit), sonst None. Als "anders als
     in der Demo" zählt eine Wahl, die nicht der eigenen Aktion vor dem Tod entspricht."""
     if choice not in ACTIONS:
@@ -87,6 +149,8 @@ def record(sid: str, key: str, choice: str, actual: str | None, best: str | None
         ans = d.setdefault("answers", {}).setdefault(key, [])
         row = {"at": _now(), "choice": choice, "ok": (choice == best) if best else None,
                "same": choice == actual if actual else None}
+        if reason:
+            row["reason"], row["cue_ok"] = reason, (reason == cue) if cue else None
         ans.append(row)
         d["answers"][key] = ans[-6:]
         _save(sid, d)

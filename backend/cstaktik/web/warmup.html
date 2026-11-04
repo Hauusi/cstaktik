@@ -8,6 +8,11 @@
   background: linear-gradient(135deg, rgba(255,159,28,.14), rgba(255,159,28,.02) 60%), var(--surface); }
 .wplan .k { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .wplan p { margin: 8px 0 0; font-size: 18px; font-weight: 700; line-height: 1.35; }
+.wob { font-size: 15px !important; font-weight: 600 !important; color: var(--muted); }
+.wcue { margin-top: 10px; font-family: var(--cond); font-size: 30px; font-weight: 800; color: var(--orange); }
+.wcl { font-size: 13px; color: var(--muted); }
+.wlog { width: 100%; border-collapse: collapse; font-size: 14px; } .wlog th { text-align: left; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 6px 6px 6px 0; }
+.wlog td { padding: 9px 6px 9px 0; border-top: 1px solid var(--line); vertical-align: top; } .wlog .good { color: var(--win); } .wlog .bad { color: var(--loss); }
 .wi { margin-top: 18px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
 .wi h2 { margin: 0 0 8px; }
 .wdone { margin-top: 18px; padding: 16px; border-radius: 16px; border: 1px solid rgba(63,191,127,.45); color: #6fe0a6; font-weight: 700; }
@@ -22,7 +27,7 @@
 .dr-o.pick { border-color: var(--orange); background: rgba(255,159,28,.12); } .dr-o.mine { border-color: rgba(240,86,106,.6); }
 .dr-o.best { border-color: var(--win); } .dr-o:disabled { cursor: default; }
 .dr-res { margin-top: 6px; font-size: 15px; line-height: 1.45; } .dr-res p { margin: 8px 0 0; }
-.dr-v { font-weight: 700; } .dr-m { color: var(--muted); } .dr-n b { color: var(--win); }
+.dr-v { font-weight: 700; } .dr-m { color: var(--muted); } .dr-n b { color: var(--win); } .dr-cue { font-weight: 700; }
 .dr-l { display: inline-block; margin-top: 8px; color: var(--orange); font-weight: 700; font-size: 14px; }
 </style>
 {% endblock %}
@@ -36,7 +41,10 @@
 <div data-session data-sid="{{ sid or '' }}" data-file="{{ report or '' }}" data-warmup="1">
 {% if radars %}<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>{% for m, img in radars.items() %}<image id="rad-{{ m }}" href="{{ img }}" width="1024" height="1024"/>{% endfor %}</defs></svg>{% endif %}
 {% if plan %}
-<div class="wplan"><div class="k">Dein Plan heute</div><p>{{ plan.text }}</p></div>
+<div class="wplan"><div class="k">Dein Plan heute</div><p>{{ plan.text }}</p>
+  {% if plan.if_obstacle %}<p class="wob">{{ plan.if_obstacle }}</p>{% endif %}
+  {% if cueword %}<div class="wcue">„{{ cueword }}“</div><div class="wcl">Dein Schlüsselwort. Sag es dir im Spiel leise vor.</div>{% endif %}
+</div>
 {% endif %}
 {% if streak %}<p style="color:var(--muted);font-size:14px;margin:10px 0 0">{{ streak }} {{ "Tag" if streak == 1 else "Tage" }} in Folge aufgewärmt.</p>{% endif %}
 {% for d in items %}
@@ -49,6 +57,18 @@
 <div class="box" style="margin-top:18px">Gerade ist keine Szene fällig. Jede Szene kommt wieder, sobald ihr Abstand um ist: nach 1, 3, 7 und 21 Tagen.</div>
 {% endfor %}
 <div class="wdone" id="wdone" hidden>Warm-up erledigt. Viel Erfolg im Match.</div>
+{% if log %}
+<h2 style="margin-top:26px">Deine letzten Pläne</h2>
+<table class="wlog num">
+  <tr><th>Plan</th><th>Du sagst</th><th>Gemessen</th></tr>
+  {% for x in log %}
+  <tr><td>{{ x.title }}{% if x.map %} <span class="muted">· {{ x.map }}</span>{% endif %}</td>
+    <td>{{ x.self or "–" }}</td>
+    <td class="{{ 'good' if x.met else 'bad' if x.met is sameas false }}">{% if x.met is none %}{{ "noch kein Match" if not x.map else "–" }}{% else %}{{ x.count }} in {{ x.rounds }} Runden{% if x.allowed is defined %} (Ziel ≤ {{ x.allowed }}){% endif %}{% endif %}</td></tr>
+  {% endfor %}
+</table>
+<p class="muted" style="font-size:13px">Festhalten und Vergleichen hilft: Wer seinen Fortschritt aufschreibt, erreicht Ziele öfter.</p>
+{% endif %}
 </div>
 {% include "coach_assets.html" %}
 <script>

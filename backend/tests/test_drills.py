@@ -85,11 +85,19 @@ def test_session_endpoints_and_check():
     assert 'data-step="check"' not in a.get("/m/m1.html").text  # für das erste Match gab es noch keinen Plan
     # Entscheidung speichern
     key = "m2.html#3-3000"
-    r = a.post("/session/answer", json={"key": key, "choice": "gehalten"}, headers=O).json()
-    assert r == {"ok": True, "pro": True}
+    r = a.post("/session/answer", json={"key": key, "choice": "gehalten", "reason": "partner"}, headers=O).json()
+    assert r == {"ok": True, "pro": True, "cue": False}  # Utility-Szene: es zählte die Granate, nicht der Partner
+    assert a.post("/session/answer", json={"key": key, "choice": "gehalten", "reason": "x"}, headers=O).status_code == 400
     assert a.post("/session/answer", json={"key": key, "choice": "tanzen"}, headers=O).status_code == 404
     assert a.post("/session/answer", json={"key": "m2.html#9-1", "choice": "gehalten"}, headers=O).status_code == 404
     assert drills.load(ME)["answers"][key][0]["same"] is False
+    assert drills.load(ME)["answers"][key][0]["reason"] == "partner"
+    # Selbsteinschätzung zum Plan, der in m2 geprüft wurde, und Plan-Verlauf mit gemessenen Fehlern
+    assert a.post("/session/rate", json={"report": "m2.html", "rating": "teils"}, headers=O).json()["ok"]
+    assert a.post("/session/rate", json={"report": "m2.html", "rating": "super"}, headers=O).status_code == 400
+    log = drills.plan_log(ME, history.load_all(pipeline.HISTORY_DIR), {"max_per_10": 1.0, "per_lesson": {}})
+    assert log[0]["self"] == "Teilweise" and log[0]["count"] == 1 and log[0]["rounds"] == 20
+    assert log[0]["allowed"] == 2 and log[0]["met"] is True  # Auftragsziel 1,0 pro 10 Runden
     # Session erledigt: Startseite zeigt Plan und Warm-up statt "Session starten"
     assert "Session starten" in a.get("/").text
     assert a.post("/session/done", json={"report": "m2.html"}, headers=O).json()["ok"]
@@ -98,9 +106,25 @@ def test_session_endpoints_and_check():
     assert a.post("/session/done", json={"report": "m2.html", "warmup": True}, headers=O).json()["ok"]
     assert drills.warmup_streak(ME) == 1
     w = a.get("/warmup").text
-    assert "Dein Plan heute" in w and plan in w
+    assert "Dein Plan heute" in w and plan in w and "„Granate zuerst“" in w and "Deine letzten Pläne" in w
+    # Plan mit Hindernis: Gegenplan und Schlüsselwort erscheinen auf der Startseite
+    assert a.post("/session/plan", json={"report": "m2.html", "lesson": "utility", "text": plan, "obstacle": "tilt"},
+                  headers=O).json()["ok"]
+    assert a.post("/session/plan", json={"report": "m2.html", "lesson": "utility", "text": plan, "obstacle": "x"},
+                  headers=O).status_code == 400
+    home = a.get("/").text
+    assert "Wenn ich mich über eine Runde ärgere, dann atme ich in der Kaufzeit tief durch" in home
+    assert len([x for x in drills.load(ME)["plans"] if x["report"] == "m2.html"]) == 1  # ersetzt, nicht doppelt
     b = TestClient(api.app)
     accounts.add_user("Bruder", "Geheim-12345")
     accounts.link_steamid("Bruder", BRO)
     b.post("/login", data={"name": "Bruder", "password": "Geheim-12345"}, headers=O)
     assert b.post("/session/answer", json={"key": key, "choice": "gehalten"}, headers=O).status_code == 404
+
+
+def test_cues_and_obstacles():
+    assert set(course_texts.CUEWORDS) == set(course_texts.LESSONS) == set(course_texts.CUE)
+    assert set(course_texts.CUE.values()) <= set(course_texts.REASONS)
+    line = course_texts.obstacle_line("stress", "alone")
+    assert line == "Wenn es hektisch wird, dann sage ich mir: „Nie ohne Partner“."
+    assert course_texts.obstacle_line("x", "alone") is None

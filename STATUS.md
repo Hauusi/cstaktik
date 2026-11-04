@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branch `ccr-b08d5abb-e1pzde` · Tests: 371 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branch `ccr-b08d5abb-e1pzde` · Tests: 372 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -95,11 +95,11 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 | coach.py, coach_voice.py | Diagnose und Coach-Ansagen je Tod, Lektions-IDs (`LESSONS`) |
 | situation.py, duels.py, impact.py, clutch.py, mechanics.py, stats.py, tilt.py | Lagebild/Gewinnchance, Duell-Werte, Win Probability Added, Clutches, Mechanik, Statistik, Tilt |
 | scene_clip.py | Szenen-Clip je Tod: Positionen aller Spieler bis 8 s (max. 12 s) davor bis 1 s danach, Kills, Smokes/Molotovs/Flashes; Weltkoordinaten, Zeit relativ zum Tod |
-| drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan (set_plan, plan_before), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
+| drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | scoreboard.py | Stats: Rohzahlen je Match (K/D/A, Schaden, HS, KAST, 1K–5K, Openings, Trades), Summen über Matches, Kennzahlen inkl. HLTV-Rating 1.0 und Rating-2.0-Näherung (awpy-Formel, gegengeprüft: gleiche Werte wie awpy) |
 | nade_effect.py | Granaten-Wirkung: Flash-Blendzeit, Flash-Assists, Team geblendet, HE/Molotov-Schaden, Tod mit Granaten |
 | utility_cmp.py | Utility gegen Pros, Flash-Wirkung, Granaten vor dem ersten Duell |
-| course.py, course_texts.py, curriculum.py | Kurs: 5 Stufen, 12 Lektionen, Einstufung aus den letzten Matches; `course_texts.PLANS`: je Lektion 3 Wenn-dann-Pläne |
+| course.py, course_texts.py, curriculum.py | Kurs: 5 Stufen, 12 Lektionen, Einstufung aus den letzten Matches; `course_texts.PLANS`: je Lektion 3 Wenn-dann-Pläne; `CUEWORDS` (Schlüsselwort), `CUE`/`REASONS` (worauf es ankommt, für "Warum?"), `OBSTACLES` + `obstacle_line` (Hindernis und Gegenplan) |
 | coaching.py, goals.py, weekplan.py, session.py | Auftrag (aktuelle Lektion) und Check je Match, Ziele, Wochenplan, Spielabend |
 | ai_coach.py | KI-Coach (Claude API): Fakten, Nachbesprechung (JSON-Schema), Fragen, Gedächtnis, Kosten |
 | playbook.py, setups.py, lineups.py, mapbook.py, briefing.py, reference.py, pro.py, faceit.py | Pro-Taktiken (T/CT), Lineups, Map-Buch, Briefing, Vorbild-Runden, Pro-Demos |
@@ -117,11 +117,14 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - `/coach/{report}` GET/POST: Nachbesprechung (`coach_talk.html`, `coach_assets.html`), Antwort auf die Frage
   des Coaches, weitere Fragen.
 - `/m/{report}` Coaching-Session (Story, `api._session`): Ergebnis mit Rating und Schnitt (+ KI-Eröffnung), bester
-  Moment als Wiederholung, Kurz-Check des alten Plans (Abruf, 3 Optionen), 2 Szenen "Entscheide selbst" (Wiederholung
-  hält bei `dec`, Wahl, Auflösung, läuft weiter), Thema mit Warum, Wenn-dann-Plan wählen, Fertig (markiert Session).
+  Moment als Wiederholung, Kurz-Check des alten Plans (Abruf, 3 Optionen, dann Selbsteinschätzung Ja/Teilweise/Nein,
+  dann gemessene Zahlen), 2 Szenen "Entscheide selbst" (Wiederholung hält bei `dec`, Wahl, dann "Warum?" mit 4 Gründen,
+  Auflösung inkl. worauf es ankam, läuft weiter), Thema mit Warum, Wenn-dann-Plan wählen + Hindernis mit Gegenplan +
+  Schlüsselwort, Fertig (markiert Session).
   Bausteine in `replay_box.html` (Makros replay, drill_choice), Logik in `coach_assets.html`.
-- `/warmup`: Plan plus 3 fällige Szenen aus früheren Matches zum Entscheiden; alle entschieden = Warm-up erledigt.
-- `POST /session/answer|plan|done`: Entscheidung, Plan, Session/Warm-up erledigt (nur eigener Spieler). `/reports/{datei}` Report mit 2D-Replay.
+- `/warmup`: Plan mit Gegenplan und Schlüsselwort, 3 fällige Szenen zum Entscheiden, Tabelle "Deine letzten Pläne"
+  (du sagst / gemessen); alle entschieden = Warm-up erledigt.
+- `POST /session/answer|plan|rate|done`: Entscheidung, Plan, Session/Warm-up erledigt (nur eigener Spieler). `/reports/{datei}` Report mit 2D-Replay.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
 - `/stats` (Reiter "Stats"): Rating, K/D, ADR, KAST, HS, KPR/DPR, Assists, Überleben, Openings, Multi-Kills,
@@ -160,6 +163,10 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - Abrufen statt Nochmal-Ansehen (Roediger & Karpicke 2006): Kurz-Check, Warm-up.
 - Verteiltes Wiederholen (Cepeda u. a. 2006): Abstände 1/3/7/21 Tage, anders als Pros entschieden = zurück auf 1 Tag.
 - Rückmeldung zur Aufgabe, nicht zur Person (Kluger & DeNisi 1996); im KI-Prompt festgelegt.
+- Selbsterklärung (Bisra u. a. 2018, g = 0,55): "Warum?" nach jeder Entscheidung.
+- Mentales Kontrastieren mit Wenn-dann-Plan (Wang u. a. 2021, g = 0,34): Hindernis und Gegenplan.
+- Instruktives Selbstgespräch (Hatzigeorgiadis u. a. 2011, ES 0,48): Schlüsselwort je Lektion.
+- Fortschritt beobachten und festhalten (Harkin u. a. 2016, d = 0,40): Selbsteinschätzung + Plan-Verlauf.
 - Bester Moment zur Motivation; Wirkung eigener Highlight-Videos ist in Studien uneinheitlich, so steht es auch in der App.
 
 ## 8b. Kurs und Auftrag
@@ -198,6 +205,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-04: "Warum?" nach jeder Entscheidung, Hindernis mit Gegenplan und Schlüsselwort beim Plan,
+  Selbsteinschätzung im Kurz-Check, Plan-Verlauf im Warm-up, vier weitere Studien auf /mehr.
 
 - 2026-11-04: Coaching-Session statt Match-Story (`/m`), Warm-up (`/warmup`), `drills.py`, Wenn-dann-Pläne
   (`course_texts.PLANS`), Entscheidungsmoment in Clips (`dec`), Highlight-Clips für beste Momente, Startseite mit

@@ -525,3 +525,45 @@ PLANS: dict[str, list[str]] = {
         "Wenn ich in Unterzahl allein bin, dann suche ich Duelle nur einzeln, einen Gegner nach dem anderen.",
     ],
 }
+
+
+# Schlüsselwort je Lektion: kurzer Satz zum Selbstgespräch im Spiel (instruktives Self-Talk,
+# Hatzigeorgiadis u. a. 2011). Steht groß im Warm-up und beim Plan.
+CUEWORDS: dict[str, str] = {
+    "moving_shot": "Stopp, dann Schuss", "crosshair": "Kopfhöhe an die Kante", "no_shot_close": "Ecke vorzielen",
+    "seen_first": "Erst sehen, dann zeigen", "angle": "Nur ein Winkel", "no_shot_far": "Linie nie offen",
+    "moving": "Stehend in den Winkel", "utility": "Granate zuerst", "blind": "Flash: wegdrehen",
+    "alone": "Nie ohne Partner", "low_hp": "Wenig HP, kein Duell", "outnumbered": "Zusammen oder Zeit",
+}
+
+# Worauf es in einer Szene der Lektion vor allem ankommt ("Warum?"-Frage nach der Entscheidung, Selbsterklärung).
+REASONS: dict[str, str] = {
+    "zahlen": "Wie viele wir gegen wie viele sind",
+    "partner": "Wie weit mein Mitspieler weg ist",
+    "hp": "Wie viele HP ich noch habe",
+    "info": "Was ich über die Gegner weiß",
+    "utility": "Ob ich eine Granate dabei habe",
+    "position": "Von wie vielen Seiten man mich treffen kann",
+    "technik": "Wie ich ins Duell gehe: stehen und zielen",
+}
+CUE: dict[str, str] = {
+    "moving_shot": "technik", "crosshair": "technik", "no_shot_close": "technik", "moving": "technik",
+    "blind": "technik", "seen_first": "position", "angle": "position", "no_shot_far": "position",
+    "utility": "utility", "alone": "partner", "low_hp": "hp", "outnumbered": "zahlen",
+}
+
+# Hindernisse beim Umsetzen des Plans mit Gegenplan (mentales Kontrastieren mit Wenn-dann-Plan, Wang u. a. 2021).
+# {cue} wird durch das Schlüsselwort der Lektion ersetzt.
+OBSTACLES: dict[str, tuple[str, str, str]] = {
+    "stress": ("Im Stress vergesse ich es", "es hektisch wird", "sage ich mir: „{cue}“"),
+    "vergessen": ("Ich denke im Spiel nicht daran", "eine neue Runde beginnt", "denke ich in der Kaufzeit einmal: „{cue}“"),
+    "team": ("Mein Team läuft ohne mich los", "mein Team losläuft", "calle ich kurz, was ich mache, und bleibe bei meinem Plan"),
+    "tilt": ("Ich ärgere mich über eine Runde", "ich mich über eine Runde ärgere", "atme ich in der Kaufzeit tief durch und denke nur an: „{cue}“"),
+}
+
+
+def obstacle_line(key: str, lesson: str) -> str | None:
+    o = OBSTACLES.get(key)
+    if not o or lesson not in CUEWORDS:
+        return None
+    return f"Wenn {o[1]}, dann {o[2].format(cue=CUEWORDS[lesson])}."

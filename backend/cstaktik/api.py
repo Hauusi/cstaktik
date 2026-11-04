@@ -814,6 +814,8 @@ def _home_coach(hist: list[dict], sid: str | None, news: list[dict]) -> dict | N
     focus = ((_players_state().get(sid) or {}).get("focus") or {}).get("lesson")
     return {"file": h["report_file"], "sid": sid, "when": _when(h), "cv": _coach_view(h, sid, chat),
             "done": drills.session_done(sid, h["report_file"]), "plan": drills.current_plan(sid),
+            "cueword": __import__("cstaktik.course_texts", fromlist=["CUEWORDS"]).CUEWORDS.get(
+                (drills.current_plan(sid) or {}).get("lesson") or ""),
             "warm_n": len(drills.due(sid, scenes, 3, focus=focus)), "streak": drills.warmup_streak(sid),
             "map_label": (h.get("map") or "?").removeprefix("de_").capitalize(),
             "score": f"{sc[0]}:{sc[1]}" if sc else None,
@@ -1559,7 +1561,17 @@ def _session_drill(sc: dict, radars_out: dict) -> dict | None:
     if not x.get("clipv"):
         return None
     rates = x.get("pro_rates") or {}
+    from cstaktik import course_texts
+
+    cue = course_texts.CUE.get(x.get("lesson") or "")
+    import zlib  # stabile Prüfsumme: Auswahl und Reihenfolge der Gründe je Szene fest, aber gemischt
+
+    mix = lambda k, salt="": zlib.crc32(f"{salt}{drills.scene_key(sc)}{k}".encode())  # noqa: E731
+    others = sorted((k for k in course_texts.REASONS if k != cue), key=lambda k: mix(k, "a"))
+    pick = sorted(([cue] if cue else []) + others[:4 - (1 if cue else 0)], key=mix)
     return {"key": drills.scene_key(sc), "round": x.get("round"), "map": x.get("map"), "clipv": x["clipv"],
+            "cue": cue, "cue_label": course_texts.REASONS.get(cue or ""),
+            "reasons": [(k, course_texts.REASONS[k]) for k in pick],
             "uhr": x.get("uhr"), "snap": x.get("snap") or {}, "lage_info": x.get("lage_info"),
             "reveal_info": x.get("reveal_info"), "did": x.get("did"), "did_note": x.get("did_note"),
             "aktion": x.get("aktion"), "best": x.get("pro_best"), "happened": x.get("happened"), "next": x.get("next"),
@@ -1608,7 +1620,10 @@ def _session(h: dict, sid: str, r: dict) -> tuple[dict, dict]:
         rnd.shuffle(opts)
         n = ((h.get("lessons") or {}).get(sid) or {}).get(plan["lesson"])
         L = r.get("lesson") or {}
+        drills.attach_check(sid, plan.get("at") or "", h.get("report_file") or "")
+        plan = next((x for x in drills.load(sid).get("plans") or [] if x.get("at") == plan.get("at")), plan)
         s["check"] = {"plan": plan, "options": opts, "lesson_title": course_texts.LESSONS[plan["lesson"]]["title"],
+                      "self": plan.get("self"), "ratings": drills.RATINGS,
                       "count": n, "rounds": ((h.get("players") or {}).get(sid) or {}).get("rounds"),
                       "says": L.get("says") if L.get("id") == plan["lesson"] else None,
                       "stamp": L.get("stamp") if L.get("id") == plan["lesson"] else None}
@@ -1627,7 +1642,10 @@ def _session(h: dict, sid: str, r: dict) -> tuple[dict, dict]:
         cur = drills.current_plan(sid)
         s["lesson"] = {"id": lid, "title": t["title"], "why": t["why"], "goal": t["goal"],
                        "principle": (d.get("topic") or {}).get("principle") if (d.get("topic") or {}).get("lesson") == lid else None}
-        s["plan"] = {"options": opts, "chosen": cur["text"] if cur and cur.get("report") == h.get("report_file") else None}
+        mine = cur if cur and cur.get("report") == h.get("report_file") else None
+        s["plan"] = {"options": opts, "chosen": (mine or {}).get("text"), "obstacle": (mine or {}).get("obstacle"),
+                     "cueword": course_texts.CUEWORDS.get(lid),
+                     "obstacles": [(k, v[0], course_texts.obstacle_line(k, lid)) for k, v in course_texts.OBSTACLES.items()]}
     s["headline"] = d.get("headline")
     s["ai"] = ai_coach.enabled() or bool(d)
     return s, radars
@@ -1653,8 +1671,28 @@ async def session_answer(request: Request) -> JSONResponse:
     sc = next((x for x in h.get("scenes") or [] if x.get("sid") == sid and drills.scene_key(x) == key), None)
     if sc is None or choice not in drills.ACTIONS:
         raise HTTPException(404, "Szene nicht gefunden.")
-    row = drills.record(sid, key, choice, sc.get("aktion"), sc.get("pro_best"))
-    return JSONResponse({"ok": True, "pro": row["ok"]})
+    from cstaktik import course_texts
+
+    reason = str(body.get("reason") or "") or None
+    if reason is not None and reason not in course_texts.REASONS:
+        raise HTTPException(400, "Unbekannter Grund.")
+    row = drills.record(sid, key, choice, sc.get("aktion"), sc.get("pro_best"), reason,
+                        course_texts.CUE.get(sc.get("lesson") or ""))
+    return JSONResponse({"ok": True, "pro": row["ok"], "cue": row.get("cue_ok")})
+
+
+@app.post("/session/rate")
+async def session_rate(request: Request) -> JSONResponse:
+    """Selbsteinschätzung: Hast du dich im Match an deinen Plan gehalten?"""
+    from cstaktik import drills
+
+    body = await _json_body(request)
+    h, sid = _session_target(body)
+    try:
+        drills.rate_plan(sid, h.get("report_file") or "", str(body.get("rating") or ""))
+    except ValueError:
+        raise HTTPException(400, "Unbekannte Einschätzung.") from None
+    return JSONResponse({"ok": True})
 
 
 @app.post("/session/plan")
@@ -1667,7 +1705,10 @@ async def session_plan(request: Request) -> JSONResponse:
     lesson, text = str(body.get("lesson") or ""), " ".join(str(body.get("text") or "").split())
     if lesson not in course_texts.LESSONS or not (10 <= len(text) <= 240):
         raise HTTPException(400, "Plan ungültig.")
-    drills.set_plan(sid, lesson, text, h.get("report_file") or "", h.get("analyzed_at"))
+    obstacle = str(body.get("obstacle") or "") or None
+    if obstacle is not None and obstacle not in course_texts.OBSTACLES:
+        raise HTTPException(400, "Unbekanntes Hindernis.")
+    drills.set_plan(sid, lesson, text, h.get("report_file") or "", h.get("analyzed_at"), obstacle)
     return JSONResponse({"ok": True})
 
 
@@ -1700,7 +1741,7 @@ def warmup_page(p: str = "") -> str:
     hist = _load_hist()
     sid, tabs = _course_player(hist, p)
     radars: dict = {}
-    items, plan, streak, last = [], None, 0, None
+    items, plan, streak, last, cueword, log = [], None, 0, None, None, []
     if sid:
         scenes = [x for h in hist for x in h.get("scenes") or [] if x.get("sid") == sid]
         focus = (_players_state().get(sid) or {}).get("focus") or {}
@@ -1710,10 +1751,14 @@ def warmup_page(p: str = "") -> str:
                 items.append(d)
         plan = drills.current_plan(sid)
         streak = drills.warmup_streak(sid)
+        from cstaktik import course, course_texts
+
+        cueword = course_texts.CUEWORDS.get((plan or {}).get("lesson") or "")
+        log = drills.plan_log(sid, hist, course.settings(load_rules_config()))
         last = next((h for h in reversed(hist) if sid in (h.get("players") or {}) and h.get("report_file")), None)
     return _env.get_template("warmup.html").render(
         nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, items=items, radars=radars, plan=plan,
-        streak=streak, report=(last or {}).get("report_file"))
+        streak=streak, report=(last or {}).get("report_file"), cueword=cueword, log=log)
 
 
 @app.get("/pro", response_class=HTMLResponse)
