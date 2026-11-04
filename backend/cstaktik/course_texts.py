@@ -567,3 +567,28 @@ def obstacle_line(key: str, lesson: str) -> str | None:
     if not o or lesson not in CUEWORDS:
         return None
     return f"Wenn {o[1]}, dann {o[2].format(cue=CUEWORDS[lesson])}."
+
+
+# Kaufzeit-Routine (Pre-Performance-Routine, Rupprecht, Tran & Gröpel 2021): jede Runde gleich, etwa 10 Sekunden.
+# Schritt 1 und 2 für alle, Schritt 3 passt zur Lektion.
+ROUTINE_BASE = ["Einmal tief ausatmen und die letzte Runde abhaken.",
+                "Schlüsselwort leise sagen: „{cue}“."]
+ROUTINE_STEP: dict[str, str] = {
+    "moving_shot": "Vor dem ersten Kontakt vornehmen: anhalten, dann schießen.",
+    "crosshair": "Die erste Kante der Runde suchen und das Fadenkreuz dort auf Kopfhöhe legen.",
+    "no_shot_close": "Die erste nahe Ecke der Runde suchen und mit Abstand vorzielen.",
+    "seen_first": "Die Position für den ersten Kontakt so wählen, dass du zuerst siehst.",
+    "angle": "Prüfen, von wie vielen Seiten man dich an deiner Position treffen kann.",
+    "no_shot_far": "Die lange Linie dieser Runde suchen: Smoke, Flash oder anderer Weg?",
+    "moving": "Vornehmen, vor der ersten Kante langsamer zu werden.",
+    "utility": "Die Granate für das erste Duell in die Hand nehmen und wissen, wohin sie fliegt.",
+    "blind": "Überlegen, wo die gegnerische Flash herkommt und wohin du dich wegdrehst.",
+    "alone": "Klären, wer dich in dieser Runde tradet, und nah bei ihm bleiben.",
+    "low_hp": "HP prüfen: unter 50 heißt Info und Trade statt neues Duell.",
+    "outnumbered": "Ausmachen, mit wem du zusammen spielst, falls ihr in Unterzahl geratet.",
+}
+
+
+def routine(lesson: str) -> list[str]:
+    cue = CUEWORDS.get(lesson, "")
+    return [s.format(cue=cue) for s in ROUTINE_BASE] + ([ROUTINE_STEP[lesson]] if lesson in ROUTINE_STEP else [])

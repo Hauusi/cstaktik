@@ -22,6 +22,19 @@
 .bars .one { position: absolute; left: 10px; right: 10px; border-top: 1px dashed rgba(255,255,255,.3); }
 .bars .one span { position: absolute; right: 0; top: -16px; font-size: 11px; color: var(--muted); }
 .box.note b { font: inherit; font-weight: 700; color: var(--text); }
+.ev { margin-top: 10px; } .ev-bars { display: flex; gap: 10px; align-items: flex-end; }
+.ev-c { flex: 1; display: grid; justify-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.ev-c b { font-size: 14px; color: var(--text); } .ev-c i { display: block; width: 100%; max-width: 46px; border-radius: 6px 6px 0 0; background: var(--muted); }
+.ev-c i.g { background: var(--win); } .ev-c i.r { background: var(--loss); } .ev-c small { font-size: 11px; }
+.ev-t { margin: 10px 0 0; font-size: 14.5px; line-height: 1.45; }
+.rt { margin: 10px 0 0; padding-left: 20px; font-size: 15px; line-height: 1.45; } .rt li + li { margin-top: 4px; }
+.tr { display: flex; gap: 6px; align-items: flex-end; height: 74px; margin-top: 12px; position: relative; }
+.tr i { flex: 1; max-width: 34px; border-radius: 4px 4px 0 0; background: rgba(255,255,255,.25); }
+.tr i.me { background: var(--accent); } .tr i.ok { background: var(--win); } .tr i.me.ok { background: var(--win); outline: 2px solid var(--accent); }
+.tr .tl { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,255,255,.45); }
+.tr .tl span { position: absolute; right: 0; top: -15px; font-size: 11px; color: var(--muted); }
+.trc { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.warn { margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--warn); background: rgba(245,165,36,.1); border-radius: 6px; font-size: 15px; line-height: 1.45; }
 .wrap { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
 table.st.wide { min-width: 520px; }
 </style>
@@ -30,7 +43,7 @@ table.st.wide { min-width: 520px; }
 <h1>Stats</h1>
 <p>Deine Zahlen aus den Demos: wie auf HLTV, nur für deine eigenen Matches.</p>
 {% endblock %}
-{% block content %}
+{% block content %}{% import "evening_curve.html" as ec %}
 {% if tabs %}<div class="ptabs">{% for x in tabs %}<a href="/stats?p={{ x.sid }}&n={{ n }}" class="{{ 'on' if x.on }}">{{ x.name }}</a>{% endfor %}</div>{% endif %}
 <div class="chips">
   <a href="/stats{{ q(n='10') }}" class="{{ 'on' if n != 'all' }}">Letzte 10</a>
@@ -87,6 +100,8 @@ table.st.wide { min-width: 520px; }
 </div>
 <div class="links"><a href="/granaten{% if tabs %}?p={{ sid }}{% endif %}">Alles zu Granaten ›</a><a href="/duelle{% if tabs %}?p={{ sid }}{% endif %}">Alles zu Duellen ›</a></div>
 {% endif %}
+
+{% if eve and eve.rows|length > 1 %}<div class="sk">Rating im Lauf eines Spielabends</div>{{ ec.curve(eve) }}{% endif %}
 
 <div class="sk">Matches</div>
 <div class="wrap"><table class="st wide num">

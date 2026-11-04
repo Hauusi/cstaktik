@@ -13,6 +13,21 @@
 .wcl { font-size: 13px; color: var(--muted); }
 .wlog { width: 100%; border-collapse: collapse; font-size: 14px; } .wlog th { text-align: left; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 6px 6px 6px 0; }
 .wlog td { padding: 9px 6px 9px 0; border-top: 1px solid var(--line); vertical-align: top; } .wlog .good { color: var(--win); } .wlog .bad { color: var(--loss); }
+.ev { margin-top: 10px; } .ev-bars { display: flex; gap: 10px; align-items: flex-end; }
+.ev-c { flex: 1; display: grid; justify-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.ev-c b { font-size: 14px; color: var(--text); } .ev-c i { display: block; width: 100%; max-width: 46px; border-radius: 6px 6px 0 0; background: var(--muted); }
+.ev-c i.g { background: var(--win); } .ev-c i.r { background: var(--loss); } .ev-c small { font-size: 11px; }
+.ev-t { margin: 10px 0 0; font-size: 14.5px; line-height: 1.45; }
+.rt { margin: 10px 0 0; padding-left: 20px; font-size: 15px; line-height: 1.45; } .rt li + li { margin-top: 4px; }
+.tr { display: flex; gap: 6px; align-items: flex-end; height: 74px; margin-top: 12px; position: relative; }
+.tr i { flex: 1; max-width: 34px; border-radius: 4px 4px 0 0; background: rgba(255,255,255,.25); }
+.tr i.me { background: var(--accent); } .tr i.ok { background: var(--win); } .tr i.me.ok { background: var(--win); outline: 2px solid var(--accent); }
+.tr .tl { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,255,255,.45); }
+.tr .tl span { position: absolute; right: 0; top: -15px; font-size: 11px; color: var(--muted); }
+.trc { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.warn { margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--warn); background: rgba(245,165,36,.1); border-radius: 6px; font-size: 15px; line-height: 1.45; }
+.wbox { margin-top: 14px; padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
+.wbox .k { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .wi { margin-top: 18px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
 .wi h2 { margin: 0 0 8px; }
 .wdone { margin-top: 18px; padding: 16px; border-radius: 16px; border: 1px solid rgba(63,191,127,.45); color: #6fe0a6; font-weight: 700; }
@@ -35,7 +50,7 @@
 <h1>Warm-up</h1>
 <p>Zwei Minuten vor dem Match: dein Plan und {{ items|length or "ein paar" }} Szenen aus früheren Matches. Wer Entscheidungen immer wieder abruft, trifft sie im Spiel schneller.</p>
 {% endblock %}
-{% block content %}{% import "replay_box.html" as rb with context %}
+{% block content %}{% import "replay_box.html" as rb with context %}{% import "evening_curve.html" as ec %}
 {% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/warmup?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
 <a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Coach</a>
 <div data-session data-sid="{{ sid or '' }}" data-file="{{ report or '' }}" data-warmup="1">
@@ -46,6 +61,10 @@
   {% if cueword %}<div class="wcue">„{{ cueword }}“</div><div class="wcl">Dein Schlüsselwort. Sag es dir im Spiel leise vor.</div>{% endif %}
 </div>
 {% endif %}
+{% if routine %}<div class="wbox"><div class="k">Kaufzeit-Routine, jede Runde</div><ol class="rt">{% for x in routine %}<li>{{ x }}</li>{% endfor %}</ol></div>{% endif %}
+{% if eve and eve.rows %}<div class="wbox"><div class="k">Dein Spielabend{% if today %} · heute {{ today }} {{ "Match" if today == 1 else "Matches" }}{% endif %}</div>
+  {% if eve.stop_after and today >= eve.stop_after %}<div class="warn">Du hast heute schon {{ today }} {{ "Match" if today == 1 else "Matches" }} gespielt. In deinen Daten sinkt das Rating danach deutlich. Eine Pause lohnt sich.</div>{% endif %}
+  {{ ec.curve(eve) }}</div>{% endif %}
 {% if streak %}<p style="color:var(--muted);font-size:14px;margin:10px 0 0">{{ streak }} {{ "Tag" if streak == 1 else "Tage" }} in Folge aufgewärmt.</p>{% endif %}
 {% for d in items %}
 <section class="wi">

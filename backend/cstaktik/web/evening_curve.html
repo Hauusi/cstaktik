@@ -1,0 +1,17 @@
+{# Spielabend-Kurve: Rating je Match-Nummer des Tages (evening.curve). Variable: eve #}
+{% macro curve(eve) %}{% if eve and eve.rows %}
+<div class="ev">
+  <div class="ev-bars">{% set mx = [1.6] + eve.rows|map(attribute="rating")|list %}{% set top = mx|max %}
+    {% for r in eve.rows %}<div class="ev-c"><b class="num">{{ "%.2f"|format(r.rating)|replace(".", ",") }}</b>
+      <i class="{{ 'g' if r.rating >= 1.1 else 'r' if r.rating < 0.9 }}" style="height: {{ ([r.rating, 0.05]|max / top * 70)|round(1) }}px"></i>
+      <span>{{ r.label }} Match</span><small>{{ r.n }}×</small></div>{% endfor %}
+  </div>
+  {% if eve.stop_after %}
+  <p class="ev-t">Ab dem {{ eve.drop[2] }}. Match an einem Tag sinkt dein Rating deutlich: von {{ "%.2f"|format(eve.drop[0])|replace(".", ",") }} im ersten auf {{ "%.2f"|format(eve.drop[1])|replace(".", ",") }}. Plan nach {{ eve.stop_after }} {{ "Match" if eve.stop_after == 1 else "Matches" }} eine Pause ein oder hör auf.</p>
+  {% elif eve.multi_days < 3 %}
+  <p class="ev-t muted">Noch zu wenig Abende für einen Rat: Der Coach braucht mindestens 3 Tage mit 2 oder mehr Matches (bisher {{ eve.multi_days }}).</p>
+  {% else %}
+  <p class="ev-t muted">Bisher kein deutlicher Abfall über den Abend. Weiter so.</p>
+  {% endif %}
+</div>
+{% endif %}{% endmacro %}

@@ -107,6 +107,8 @@ def test_session_endpoints_and_check():
     assert drills.warmup_streak(ME) == 1
     w = a.get("/warmup").text
     assert "Dein Plan heute" in w and plan in w and "„Granate zuerst“" in w and "Deine letzten Pläne" in w
+    assert "Kaufzeit-Routine" in w and "Die Granate für das erste Duell in die Hand nehmen" in w
+    assert "Kaufzeit-Routine, jede Runde" in a.get("/m/m2.html").text  # auch beim Plan in der Session
     # Plan mit Hindernis: Gegenplan und Schlüsselwort erscheinen auf der Startseite
     assert a.post("/session/plan", json={"report": "m2.html", "lesson": "utility", "text": plan, "obstacle": "tilt"},
                   headers=O).json()["ok"]

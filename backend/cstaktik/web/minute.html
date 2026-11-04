@@ -44,6 +44,19 @@ body.story-page .hero { display: none; }
 .cta[hidden] { display: none; }
 .cap { margin-top: 10px; color: var(--muted); font-size: 14px; }
 .hint { display: none; }
+.ev { margin-top: 10px; } .ev-bars { display: flex; gap: 10px; align-items: flex-end; }
+.ev-c { flex: 1; display: grid; justify-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.ev-c b { font-size: 14px; color: var(--text); } .ev-c i { display: block; width: 100%; max-width: 46px; border-radius: 6px 6px 0 0; background: var(--muted); }
+.ev-c i.g { background: var(--win); } .ev-c i.r { background: var(--loss); } .ev-c small { font-size: 11px; }
+.ev-t { margin: 10px 0 0; font-size: 14.5px; line-height: 1.45; }
+.rt { margin: 10px 0 0; padding-left: 20px; font-size: 15px; line-height: 1.45; } .rt li + li { margin-top: 4px; }
+.tr { display: flex; gap: 6px; align-items: flex-end; height: 74px; margin-top: 12px; position: relative; }
+.tr i { flex: 1; max-width: 34px; border-radius: 4px 4px 0 0; background: rgba(255,255,255,.25); }
+.tr i.me { background: var(--accent); } .tr i.ok { background: var(--win); } .tr i.me.ok { background: var(--win); outline: 2px solid var(--accent); }
+.tr .tl { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,255,255,.45); }
+.tr .tl span { position: absolute; right: 0; top: -15px; font-size: 11px; color: var(--muted); }
+.trc { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.warn { margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--warn); background: rgba(245,165,36,.1); border-radius: 6px; font-size: 15px; line-height: 1.45; }
 .line b.p { color: var(--win); } .line b.n { color: var(--loss); } .line b { color: var(--text); }
 .ck, .pl { display: grid; gap: 8px; margin-top: 16px; }
 .ck-o, .pl-o, .dr-o { display: block; width: 100%; padding: 13px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface);
@@ -147,6 +160,9 @@ html.js .sx-h { font-size: 40px; }
     <div class="line num">Rating <b class="{{ 'p' if rt.me >= 1.1 else 'n' if rt.me < 0.9 }}">{{ "%.2f"|format(rt.me)|replace(".", ",") }}</b>{% if rt.avg is not none %} · dein Schnitt {{ "%.2f"|format(rt.avg)|replace(".", ",") }} ({{ rt.n }} {{ "Match" if rt.n == 1 else "Matches" }} davor){% endif %}{% if rt.best %} · <b class="p">bestes Rating seit {{ rt.n }} Matches</b>{% endif %}</div>
     {% endif %}
     {% if r.s and r.s.headline %}<div class="say">„{{ r.s.headline }}“</div>{% endif %}
+    {% if r.s and r.s.evening and r.s.evening.idx and r.s.evening.stop_after and r.s.evening.idx >= r.s.evening.stop_after %}{% set ev = r.s.evening %}
+    <div class="warn">Das war dein {{ ev.idx }}. Match heute. In deinen Matches sinkt das Rating ab dem {{ ev.drop[2] }}. Match an einem Tag deutlich ({{ "%.2f"|format(ev.drop[0])|replace(".", ",") }} auf {{ "%.2f"|format(ev.drop[1])|replace(".", ",") }}). Mentale Ermüdung kostet Reaktion und Genauigkeit: Eine Pause lohnt sich jetzt.</div>
+    {% endif %}
     {% if r.today and r.today.line %}<div class="line num">{{ r.today.line }}</div>{% endif %}
     <div class="hint">Tippen oder wischen</div>
   </section>
@@ -203,6 +219,13 @@ html.js .sx-h { font-size: 40px; }
     <div class="sx-h" role="heading" aria-level="2">{{ S.lesson.title }}</div>
     {% if L.stamp %}<div class="stamp {{ L.stamp[0] }}">{{ L.stamp[1] }}</div>{% endif %}
     {% if L.says %}<div class="facts num">{{ L.says|join(" ") }}</div>{% endif %}
+    {% if S.trend %}{% set T = S.trend %}
+    <div class="tr" aria-label="Fehler pro 10 Runden in deinen letzten Matches">
+      <div class="tl" style="bottom: {{ (T.target / T.max * 70)|round(1) }}px"><span>Ziel {{ "%.1f"|format(T.target)|replace(".", ",") }}</span></div>
+      {% for q in T.pts %}<i class="{{ 'me' if q.me }} {{ 'ok' if q.rate <= T.target }}" style="height: {{ ([q.rate, 0.1]|max / T.max * 70)|round(1) }}px" title="{{ q.map }}: {{ q.rate }}"></i>{% endfor %}
+    </div>
+    <div class="trc">Fehler pro 10 Runden, deine letzten {{ T.pts|length }} Matches. Grün: im Ziel. Orange umrandet: dieses Match.</div>
+    {% endif %}
     <div class="facts muted">{{ S.lesson.principle or S.lesson.why }}</div>
     {% if L.util_late %}<div class="facts muted">{{ L.util_late }}</div>{% endif %}
     {% if L.scene and not S.drills %}{% set sc = L.scene %}{# ohne Wiederholung: die Szene als Text #}
@@ -227,6 +250,8 @@ html.js .sx-h { font-size: 40px; }
         <p class="pl-line">{% for k, label, line in S.plan.obstacles %}{% if S.plan.obstacle == k %}{{ line }}{% endif %}{% endfor %}</p>
       </div>
       {% if S.plan.cueword %}<div class="pl-cue"{% if not S.plan.chosen %} hidden{% endif %}><span>Dein Schlüsselwort</span><b>„{{ S.plan.cueword }}“</b><i>Sag es dir im Spiel leise vor, bevor es drauf ankommt.</i></div>{% endif %}
+      {% if S.routine %}<div class="pl-cue pl-rt"{% if not S.plan.chosen %} hidden{% endif %}><span>Deine Kaufzeit-Routine, jede Runde</span>
+        <ol class="rt">{% for x in S.routine %}<li>{{ x }}</li>{% endfor %}</ol><i>Etwa zehn Sekunden. Immer gleich, damit sie im Stress von selbst läuft.</i></div>{% endif %}
       <div class="pl-ok"{% if not S.plan.chosen %} hidden{% endif %}>Abgemacht. Vor dem nächsten Match erinnert dich das Warm-up daran.</div>
     </div>
   </section>

@@ -1044,8 +1044,11 @@ def stats_page(p: str = "", n: str = "10", map: str = "") -> str:
         by_map.append({"map": m, "label": m.removeprefix("de_").capitalize(), "n": len(hs),
                        "won": sum(1 for r in rs if r and r[0] > r[1]), **(d or {})})
     q = lambda **kw: "?" + "&".join(f"{k}={v}" for k, v in {"p": sid if tabs else "", "n": n, "map": map, **kw}.items() if v)  # noqa: E731
+    from cstaktik import evening
+
+    eve = evening.curve(hist, sid) if sid else None
     return _env.get_template("stats.html").render(
-        nav_active="stats", jobs=_running_jobs(), sid=sid, tabs=tabs, t=tot, won=won, lost=lost, clutch=clutch,
+        eve=eve, nav_active="stats", jobs=_running_jobs(), sid=sid, tabs=tabs, t=tot, won=won, lost=lost, clutch=clutch,
         nades=nades, matches=matches[::-1], by_map=by_map, maps=maps, cur_map=map, n=n, missing=missing,
         q=q, de=lambda x, d=2: f"{x:.{d}f}".replace(".", ","),
         rmax=max([1.6] + [m["rating2"] if m["rating2"] is not None else m["rating1"] for m in matches]))
@@ -1646,6 +1649,29 @@ def _session(h: dict, sid: str, r: dict) -> tuple[dict, dict]:
         s["plan"] = {"options": opts, "chosen": (mine or {}).get("text"), "obstacle": (mine or {}).get("obstacle"),
                      "cueword": course_texts.CUEWORDS.get(lid),
                      "obstacles": [(k, v[0], course_texts.obstacle_line(k, lid)) for k, v in course_texts.OBSTACLES.items()]}
+    # Spielabend: das wievielte Match heute, und ab wann dein Rating an einem Tag sinkt (eigene Daten)
+    from cstaktik import evening
+
+    allh = _load_hist()
+    cur = evening.curve(allh, sid)
+    s["evening"] = {"idx": evening.index_today(allh, sid, h), "stop_after": cur["stop_after"], "drop": cur["drop"]}
+    # Verlauf der Lektion: Fehler pro 10 Runden in den letzten Matches bis zu diesem (Fortschritt sichtbar machen)
+    if lid in course_texts.LESSONS:
+        from cstaktik import course
+
+        cfg = course.settings(load_rules_config())
+        fo = ((_focus_entry(h.get("focus_check"), sid) or {}).get("focus") or {})
+        lim = float(fo["target"]) if fo.get("lesson") == lid and fo.get("target") is not None else course.threshold(lid, cfg)
+        pts = []
+        for x in sorted(allh, key=lambda x: x.get("analyzed_at") or ""):
+            if (x.get("analyzed_at") or "") > (h.get("analyzed_at") or "") or sid not in (x.get("lessons") or {}):
+                continue
+            rounds = ((x.get("players") or {}).get(sid) or {}).get("rounds") or x.get("rounds")
+            if rounds:
+                pts.append({"rate": round(((x["lessons"][sid]).get(lid, 0)) * 10 / rounds, 1),
+                            "map": (x.get("map") or "?").removeprefix("de_").capitalize(), "me": x is h or x.get("id") == h.get("id")})
+        s["trend"] = {"pts": pts[-6:], "target": lim, "max": max([lim * 2] + [q["rate"] for q in pts[-6:]])} if len(pts) >= 2 else None
+        s["routine"] = course_texts.routine(lid)
     s["headline"] = d.get("headline")
     s["ai"] = ai_coach.enabled() or bool(d)
     return s, radars
@@ -1741,7 +1767,7 @@ def warmup_page(p: str = "") -> str:
     hist = _load_hist()
     sid, tabs = _course_player(hist, p)
     radars: dict = {}
-    items, plan, streak, last, cueword, log = [], None, 0, None, None, []
+    items, plan, streak, last, cueword, log, routine, eve, today = [], None, 0, None, None, [], [], None, 0
     if sid:
         scenes = [x for h in hist for x in h.get("scenes") or [] if x.get("sid") == sid]
         focus = (_players_state().get(sid) or {}).get("focus") or {}
@@ -1754,11 +1780,19 @@ def warmup_page(p: str = "") -> str:
         from cstaktik import course, course_texts
 
         cueword = course_texts.CUEWORDS.get((plan or {}).get("lesson") or "")
+        rl = (plan or {}).get("lesson") or focus.get("lesson")
+        routine = course_texts.routine(rl) if rl in course_texts.LESSONS else []
+        from cstaktik import evening
+
+        eve = evening.curve(hist, sid)
+        today = sum(1 for h in hist if sid in (h.get("board") or {})
+                    and (h.get("analyzed_at") or "")[:10] == pipeline.coaching_now()[:10])
         log = drills.plan_log(sid, hist, course.settings(load_rules_config()))
         last = next((h for h in reversed(hist) if sid in (h.get("players") or {}) and h.get("report_file")), None)
     return _env.get_template("warmup.html").render(
         nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, items=items, radars=radars, plan=plan,
-        streak=streak, report=(last or {}).get("report_file"), cueword=cueword, log=log)
+        streak=streak, report=(last or {}).get("report_file"), cueword=cueword, log=log, routine=routine, eve=eve,
+        today=today)
 
 
 @app.get("/pro", response_class=HTMLResponse)
