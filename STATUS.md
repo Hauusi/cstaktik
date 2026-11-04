@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branch `ccr-b08d5abb-e1pzde` · Tests: 376 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branch `ccr-cd3bec95-38h7uj` (baut auf `ccr-b08d5abb-e1pzde` auf) · Tests: 385 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -23,7 +23,8 @@ passiert ist, das eine Thema, eine Abmachung fürs nächste Match, ein Kurs mit 
 - Passwörter, SSH-Schlüssel, API-Schlüssel nie im Code, im Repo oder im Chat. Den Nutzer nie danach fragen.
 - Keine Umgehung von HLTV-Cloudflare, keine Tricks gegen Steam-Sicherheit (kein VPN-Trick).
 - Tests schreiben nie echte Daten (conftest isoliert alle Pfade, Accounts, API-Schlüssel).
-- Nur committen, wenn alle Tests grün sind. Nur auf Branch `ccr-b08d5abb-e1pzde` pushen, kein PR ohne Auftrag.
+- Nur committen, wenn alle Tests grün sind. Nur auf den Branch der aktuellen Sitzung pushen (zuletzt
+  `ccr-cd3bec95-38h7uj`), kein PR ohne Auftrag.
 - Commit-Trailer genau so:
   ```
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
@@ -95,6 +96,7 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 | coach.py, coach_voice.py | Diagnose und Coach-Ansagen je Tod, Lektions-IDs (`LESSONS`) |
 | situation.py, duels.py, impact.py, clutch.py, mechanics.py, stats.py, tilt.py (summary über Matches, match_facts je Match, progress) | Lagebild/Gewinnchance, Duell-Werte, Win Probability Added, Clutches, Mechanik, Statistik, Tilt |
 | scene_clip.py | Szenen-Clip je Tod: Positionen aller Spieler bis 8 s (max. 12 s) davor bis 1 s danach, Kills, Smokes/Molotovs/Flashes; Weltkoordinaten, Zeit relativ zum Tod |
+| academy.py, academy_texts.py | CS-Wissen: 11 Bereiche (`AREAS`), 47 Themen (`TOPICS`) mit Kernsatz, Erklärung, Beispiel in Schritten, Fehlern, Übung, Schlüsselwort, Frage für die eigene Demo, Wissens-Check; `answer` (Abstände 1/3/7/21 Tage, falsch = morgen), `due` (falsche zuerst, neue nur aus gelesenen Themen oder der aktuellen Lektion, Bereiche gemischt), `overview`, `related` (Lektion -> Themen). Lernstand in data/drills/<sid>.json unter `quiz` und `read` |
 | drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Tilt-Check (set_tilt, tilt_state: Gefühl je Match, Reset an/aus), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | evening.py | Spielabend: Rating je Match-Nummer des Tages (curve), Rat "Pause nach k Matches" erst ab 3 Tagen mit 2+ Matches und Abfall >= 0,10; index_today |
 | scoreboard.py | Stats: Rohzahlen je Match (K/D/A, Schaden, HS, KAST, 1K–5K, Openings, Trades), Summen über Matches, Kennzahlen inkl. HLTV-Rating 1.0 und Rating-2.0-Näherung (awpy-Formel, gegengeprüft: gleiche Werte wie awpy) |
@@ -127,9 +129,13 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
   mit Ziellinie (`s.trend`). Im Ergebnis: Pausen-Hinweis, wenn dieses Match das k-te des Tages ist und die eigene
   Spielabend-Kurve ab dort deutlich sinkt (`s.evening`).
   Bausteine in `replay_box.html` (Makros replay, drill_choice), Logik in `coach_assets.html`.
-- `/warmup`: Plan mit Gegenplan und Schlüsselwort, Kaufzeit-Routine, Reset-Routine (wenn übernommen oder Tilt belegt), Spielabend-Kurve (heute n Matches, ggf. Pause), 3 fällige Szenen zum Entscheiden, Tabelle "Deine letzten Pläne"
+- `/warmup`: Plan mit Gegenplan und Schlüsselwort, Kopfkino (`course_texts.imagery`) und "Zu zweit"-Satz,
+  Wissens-Check (2 fällige Fragen), Kaufzeit-Routine, Reset-Routine (wenn übernommen oder Tilt belegt), Spielabend-Kurve (heute n Matches, ggf. Pause), 3 fällige Szenen zum Entscheiden, Tabelle "Deine letzten Pläne"
   (du sagst / gemessen); alle entschieden = Warm-up erledigt.
 - `POST /session/answer|plan|rate|tilt|done`: Entscheidung, Plan, Session/Warm-up erledigt (nur eigener Spieler). `/reports/{datei}` Report mit 2D-Replay.
+- `/wissen` CS-Wissen (Bereiche, Stand je Thema: neu/gelesen/noch üben/sitzt), `/wissen/{thema}` (Kern, Verstehen, Beispiel,
+  Fehler, Üben, Prüfen, Weiter in der App), `POST /wissen/antwort` (nur eigener Spieler). Kachel "CS-Wissen" nach "Kurs".
+  Session-Thema und Lektion verlinken passende Themen; der KI-Coach bekommt sie in den Fakten und darf sie nennen.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
 - `/stats` (Reiter "Stats"): Rating, K/D, ADR, KAST, HS, KPR/DPR, Assists, Überleben, Openings, Multi-Kills,
@@ -177,6 +183,15 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - Mentale Ermüdung (Habay u. a. 2021, Sport; Esports nur kleine Studien): Pausen-Rat aus eigenen Daten.
 - Tilt (Tilt-Skala, Frontiers 2024; Palomäki u. a. 2013, Poker): Tilt-Check nur aus eigenen Daten; Reset-Routine mit
   langsamem Atmen (Zaccaro u. a. 2018), Kontrollierbares abhaken, feste Runde zu zweit.
+- Abfragen statt Nachlesen beim Wissen (Adesope u. a. 2017); ausgearbeitete Beispiele (van Gog & Rummel 2010).
+- Wahrnehmen und Entscheiden trainieren (Mann u. a. 2007); gezielt üben (Macnamara u. a. 2014: bei Spielen ca. 26 %
+  erklärte Varianz).
+- Fokus nach außen in den Anweisungen (Chua u. a. 2021; Kritik McKay u. a. 2024 steht auf /mehr dabei).
+- Feed up/back/forward als Aufbau der Session (Hattie & Timperley 2007); Rückmeldung nach Gutem (Chiviacowsky & Wulf 2007).
+- Kopfkino vor dem Match (Toth u. a. 2020, Driskell u. a. 1994; kleiner Effekt). Erklären an den Bruder (Fiorella &
+  Mayer 2013; Befunde gemischt).
+- Geprüfte Spielwerte im CS-Wissen: Loss-Bonus 1400–3400 $, Pistolen-Niederlage 1900 $, Sieg 3250/3500 $, Kill-Prämien,
+  Bombe 40 s, Entschärfen 10/5 s, Kit 400 $. Smoke-/Molotov-Dauer und Freeze-Time bewusst nicht genannt.
 - Bester Moment zur Motivation; Wirkung eigener Highlight-Videos ist in Studien uneinheitlich, so steht es auch in der App.
 
 ## 8b. Kurs und Auftrag
@@ -215,6 +230,10 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-04: CS-Wissen (`academy.py`, `/wissen`): 47 Themen in 11 Bereichen mit Wissens-Check und Wiederholung mit
+  Abstand; Wissens-Check, Kopfkino und Duo-Satz im Warm-up; Links aus Session, Lektion und KI-Coach; "Wie Coaches
+  arbeiten" und neun weitere Studien auf /mehr.
 
 - 2026-11-04: Tilt-Check als Session-Schritt (Selbsteinschätzung, Zahlen des Matches, Langzeit-Aussage), Reset-Routine
   in Plan und Warm-up, Studien auf /mehr.

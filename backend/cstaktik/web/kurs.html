@@ -165,5 +165,12 @@
 </section>
 {% endif %}
 
+{% if wissen %}
+<section class="part" data-extra="wissen">
+  <h2><span>+</span>Mehr im CS-Wissen</h2>
+  <p class="muted">Diese Themen gehören dazu. Jedes mit Beispiel, Übung und Wissens-Check.</p>
+  {% for w in wissen %}<div><a class="more" href="/wissen/{{ w.id }}{% if tabs %}?p={{ sid }}{% endif %}">{{ w.title }} ›</a></div>{% endfor %}
+</section>
+{% endif %}
 <a class="back" href="/kurs{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Kurs</a>
 {% endblock %}

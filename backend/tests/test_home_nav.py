@@ -47,7 +47,7 @@ def test_home_is_coach_card_and_tiles():
     assert "Neu" in card and "Mirage" in card and "13:7" in card and 'href="/m/m2.html"' in card
     tiles = re.findall(r'data-tile="([a-z]+)"', home)
     assert home.count("class=\"tbar\"") == 1  # nur der Kurs hat einen Balken
-    assert tiles == ["gespraech", "kurs", "granaten", "duelle", "taktiken", "lineups", "briefing", "training",
+    assert tiles == ["gespraech", "kurs", "wissen", "granaten", "duelle", "taktiken", "lineups", "briefing", "training",
                      "matches", "fortschritt"]
     from cstaktik import course_texts
 

@@ -607,3 +607,19 @@ TILT_FEEL = {"ruhig": "Ruhig", "genervt": "Genervt", "gekippt": "Gekippt"}
 def reset(lesson: str | None) -> list[str]:
     cue = CUEWORDS.get(lesson or "", "Ruhig bleiben")
     return [x.format(cue=cue) for x in RESET]
+
+
+# Kopfkino vor dem Match (mentales Üben): Die Situation aus dem Wenn-dann-Plan aus eigener Sicht und in echtem Tempo
+# vorstellen. Mentales Üben verbessert Leistung, der Effekt ist klein (Toth u. a. 2020, Nachfolge von Driskell,
+# Copper & Moran 1994). Kein Ersatz für echtes Üben, deshalb nur 30 Sekunden.
+def imagery(plan_text: str | None, cue: str | None) -> list[str]:
+    """Drei kurze Schritte zum Plan. Ohne Wenn-dann-Plan nichts (dann gibt es keine Situation zum Vorstellen)."""
+    t = " ".join((plan_text or "").split())
+    if not t.lower().startswith("wenn"):
+        return []
+    steps = [f"Augen zu. Dein Plan: „{t.rstrip('.')}“.",
+             "Stell dir die Lage aus deiner eigenen Sicht vor, auf deiner Map: was du siehst und was du hörst.",
+             "Sieh dich in echtem Tempo genau das tun, was der Plan sagt. Zweimal, dann Augen auf."]
+    if cue:
+        steps[2] = f"Sieh dich in echtem Tempo genau das tun, was der Plan sagt, und sag dir dabei „{cue}“. Zweimal, dann Augen auf."
+    return steps

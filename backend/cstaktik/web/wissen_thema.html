@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ t.title }} · CS-Wissen{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}{% import "quiz_box.html" as qb %}{{ qb.style() }}
+<style>
+.back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
+.kern { margin-top: 14px; padding: 16px; border-radius: 18px; border: 1px solid rgba(255,159,28,.5);
+  background: linear-gradient(135deg, rgba(255,159,28,.14), rgba(255,159,28,.02) 60%), var(--surface); font-size: 18px; font-weight: 700; line-height: 1.4; }
+.kern small { display: block; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.sec { margin-top: 16px; } .sec h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+.sec h2 span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--orange); color: #111; font-size: 14px; flex: none; }
+.sec p { margin: 8px 0 0; font-size: 15.5px; line-height: 1.55; }
+.ex { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.ex li { position: relative; padding: 10px 0 10px 38px; border-top: 1px solid var(--line); font-size: 15.5px; line-height: 1.45; counter-increment: s; }
+.ex li::before { content: counter(s); position: absolute; left: 0; top: 10px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--orange); font-weight: 800; font-size: 13px; }
+.bad { margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.5; } .bad li + li { margin-top: 4px; }
+.box2 { padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.box2 .k { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.box2 ol { margin: 8px 0 0; padding-left: 20px; font-size: 15px; line-height: 1.5; } .box2 ol li + li { margin-top: 4px; }
+.box2 .done { margin-top: 8px; font-size: 14px; color: var(--muted); }
+.cue { font-family: var(--cond); font-size: 28px; font-weight: 800; color: var(--orange); }
+.ask { font-size: 16px; font-weight: 700; line-height: 1.4; margin-top: 6px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 8px; font-size: 14px; font-weight: 700; }
+.links a { color: var(--orange); display: inline-flex; min-height: 40px; align-items: center; }
+.nav2 { display: flex; justify-content: space-between; gap: 10px; margin-top: 22px; font-size: 14px; font-weight: 700; }
+.nav2 a { color: var(--orange); }
+</style>
+{% endblock %}
+{% block hero %}
+<p style="margin:0;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">CS-Wissen · {{ area.title }}</p>
+<h1>{{ t.title }}</h1>
+{% endblock %}
+{% block content %}{% import "quiz_box.html" as qb %}
+<a class="back" href="/wissen{% if tabs %}?p={{ sid }}{% endif %}">‹ Alle Themen</a>
+<div class="kern"><small>Der Kern</small>{{ t.key }}</div>
+<section class="sec"><h2><span>1</span>Verstehen</h2>{% for x in t.teach %}<p>{{ x }}</p>{% endfor %}</section>
+<section class="sec"><h2><span>2</span>So sieht es richtig aus</h2><ol class="ex">{% for x in t.example %}<li>{{ x }}</li>{% endfor %}</ol></section>
+<section class="sec"><h2><span>3</span>Typische Fehler</h2><ul class="bad">{% for x in t.mistakes %}<li>{{ x }}</li>{% endfor %}</ul></section>
+<section class="sec"><h2><span>4</span>Üben</h2>
+  <div class="box2"><div class="k">{{ t.drill.where }}</div><ol>{% for x in t.drill.steps %}<li>{{ x }}</li>{% endfor %}</ol>
+  <div class="done">Sitzt, wenn: {{ t.drill.done }}</div></div>
+  <div class="box2" style="margin-top:10px"><div class="k">Schlüsselwort im Spiel</div><div class="cue">„{{ t.cue }}“</div></div>
+</section>
+<section class="sec"><h2><span>5</span>Prüfen</h2>
+  {% for q in quiz %}{{ qb.quiz(q, sid) }}{% endfor %}
+  <div class="box2" style="margin-top:12px"><div class="k">Frage für deine Demo</div><div class="ask">{{ t.ask }}</div>
+    <div class="done">So fragt ein Coach beim Ansehen der Demo. Halte an der Stelle an und beantworte sie, bevor du weiterschaust.</div></div>
+</section>
+{% if lessons or links %}<section class="sec"><h2><span>6</span>Weiter in der App</h2><div class="links">
+  {% for l in lessons %}<a href="/kurs/{{ l.id }}{% if tabs %}?p={{ sid }}{% endif %}">Lektion: {{ l.title }}</a>{% endfor %}
+  {% for l in links %}<a href="{{ l.href }}">{{ l.label }}</a>{% endfor %}
+</div></section>{% endif %}
+<div class="nav2">{% if prev %}<a href="/wissen/{{ prev.id }}{% if tabs %}?p={{ sid }}{% endif %}">‹ {{ prev.title }}</a>{% else %}<span></span>{% endif %}
+  {% if nxt %}<a href="/wissen/{{ nxt.id }}{% if tabs %}?p={{ sid }}{% endif %}">{{ nxt.title }} ›</a>{% endif %}</div>
+{% endblock %}
+{% block script %}{% import "quiz_box.html" as qb %}{{ qb.script() }}{% endblock %}

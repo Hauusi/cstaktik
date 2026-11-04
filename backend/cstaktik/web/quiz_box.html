@@ -1,0 +1,49 @@
+{# Wissens-Check: Fragen mit drei Antworten. Auflösung mit Erklärung kommt vom Server (/wissen/antwort).
+   Makro quiz(q, sid): q = {id, q, options, topic, topic_title}; style() einmal pro Seite. #}
+{% macro style() %}
+<style>
+.qz { margin-top: 12px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.qz .qt { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.qz .qq { margin-top: 6px; font-size: 17px; font-weight: 700; line-height: 1.35; }
+.qz .qo { display: block; width: 100%; margin-top: 8px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 15.5px; text-align: left; cursor: pointer; }
+.qz .qo:disabled { cursor: default; } .qz .qo.right { border-color: var(--win); background: rgba(63,191,127,.12); }
+.qz .qo.wrong { border-color: rgba(240,86,106,.7); background: rgba(240,86,106,.1); }
+.qz .qr { margin-top: 10px; font-size: 15px; line-height: 1.45; } .qz .qr[hidden] { display: none; }
+.qz .qr b.ok { color: var(--win); } .qz .qr b.no { color: var(--loss); } .qz .qr small { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+.qz .ql { display: inline-block; margin-top: 8px; color: var(--orange); font-weight: 700; font-size: 14px; }
+</style>
+{% endmacro %}
+{% macro quiz(q, sid, link=false) %}
+<div class="qz" data-quiz="{{ q.id }}" data-sid="{{ sid or '' }}">
+  <div class="qt">Wissens-Check{% if link %} · {{ q.topic_title }}{% endif %}</div>
+  <div class="qq">{{ q.q }}</div>
+  {% for o in q.options %}<button type="button" class="qo" data-pick="{{ loop.index0 }}">{{ o }}</button>{% endfor %}
+  <div class="qr" hidden></div>
+  {% if link %}<a class="ql" href="/wissen/{{ q.topic }}{% if sid %}?p={{ sid }}{% endif %}">Thema ansehen</a>{% endif %}
+</div>
+{% endmacro %}
+{% macro script() %}
+<script>
+(function () {
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest(".qz .qo"); if (!b) return;
+    var box = b.closest(".qz"); if (box.dataset.done) return; box.dataset.done = "1";
+    var all = box.querySelectorAll(".qo"); all.forEach(function (x) { x.disabled = true; });
+    fetch("/wissen/antwort", {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({qid: box.dataset.quiz, pick: +b.dataset.pick, p: box.dataset.sid})})
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function (j) {
+        all[j.a].classList.add("right"); if (!j.ok) b.classList.add("wrong");
+        var r = box.querySelector(".qr"), h = document.createElement("b"), p = document.createElement("span"), s = document.createElement("small");
+        h.className = j.ok ? "ok" : "no"; h.textContent = j.ok ? "Richtig. " : "Nicht ganz. ";
+        p.textContent = j.why;
+        s.textContent = j.ok ? ("Die Frage kommt in " + j.days + (j.days === 1 ? " Tag" : " Tagen") + " wieder.") : "Die Frage kommt morgen wieder.";
+        r.appendChild(h); r.appendChild(p); r.appendChild(s); r.hidden = false;
+        box.dispatchEvent(new CustomEvent("quizdone", {bubbles: true}));
+      })
+      .catch(function () { delete box.dataset.done; all.forEach(function (x) { x.disabled = false; }); });
+  });
+})();
+</script>
+{% endmacro %}

@@ -33,6 +33,8 @@ Wie du sprichst:
 - Keine Zahlenkolonnen. Höchstens eine Zahl pro Satz, und nur, wenn sie etwas zeigt.
 - Erkläre immer das Warum: welches CS-Prinzip dahintersteckt (Trades, Crossfire, Utility vor dem Peek, \
 Informationen, Timing, Economy). Das allgemeine Prinzip darfst du aus deinem CS-Wissen erklären.
+- Passt ein Thema aus "CS-Wissen der App" (Liste in den Daten), nenn seinen Titel, damit er es dort nachlesen und \
+üben kann. Erfinde keine Titel.
 
 Regeln für Fakten:
 - Über dieses Match sagst du nur, was in den Match-Daten steht. Jede Aussage über das Match hängt an einer Runde.
@@ -196,6 +198,12 @@ def facts(h: dict, sid: str, previous: list[dict] | None = None, lesson: dict | 
             out.append(" ".join(lesson["says"]))
         if lesson.get("util_late"):
             out.append(lesson["util_late"])
+        from cstaktik import academy
+
+        rel = academy.related(lesson.get("id"))
+        if rel:
+            out.append("\n## Passende Themen im CS-Wissen der App (zum Nachlesen und Üben)")
+            out += [f"- {x['title']}: {x['key']}" for x in rel]
 
     cl = [c for c in h.get("clutch") or [] if c.get("sid") == sid]
     if cl:

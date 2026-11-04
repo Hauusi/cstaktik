@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}CS-Wissen · cstaktik{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}
+<style>
+.back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
+.wsum { margin-top: 14px; padding: 16px; border-radius: 18px; border: 1px solid rgba(255,159,28,.5); background: var(--surface); }
+.wsum b { font-size: 18px; } .wsum p { margin: 6px 0 0; font-size: 14.5px; color: var(--muted); line-height: 1.45; }
+.wsum .bar { height: 8px; border-radius: 4px; background: var(--surface-2); margin-top: 10px; overflow: hidden; display: flex; }
+.wsum .bar i { display: block; height: 100%; } .wsum .bar .s { background: var(--win); } .wsum .bar .g { background: var(--orange); } .wsum .bar .u { background: var(--loss); }
+.wsum .go { display: inline-flex; margin-top: 12px; color: var(--orange); font-weight: 800; }
+.area { margin-top: 12px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.area h2 { margin: 0; font-family: var(--cond); font-weight: 800; font-size: 19px; letter-spacing: .04em; text-transform: uppercase; display: flex; justify-content: space-between; gap: 10px; }
+.area h2 small { font-family: inherit; font-size: 13px; color: var(--muted); letter-spacing: 0; text-transform: none; font-weight: 600; }
+.area .intro { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.4; }
+.tl { display: grid; margin-top: 8px; }
+.tl a { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 46px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.3; }
+.tl a span { min-width: 0; } .tl a small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.chip { flex: none; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.sitzt { background: rgba(63,191,127,.16); border-color: transparent; color: #6fe0a6; }
+.chip.ueben { border-color: rgba(240,86,106,.5); color: #ff9aa8; } .chip.gelesen { border-color: rgba(255,159,28,.45); color: var(--orange); }
+.chip.tip { background: var(--orange); border-color: transparent; color: #111; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>CS-Wissen</h1>
+<p>Jeder Bereich des Spiels, so erklärt, wie ein Coach es beibringt: verstehen, an einem Beispiel sehen, üben, prüfen.</p>
+{% endblock %}
+{% block content %}
+{% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/wissen?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Coach</a>
+{% set c = ov.counts %}
+<div class="wsum">
+  <b>{{ c.sitzt }} von {{ ov.total }} Themen sitzen</b>
+  <p>„Sitzt“ heißt: Du hast alle Fragen des Themas zuletzt richtig beantwortet. Fragen kommen mit wachsendem Abstand wieder, damit das Wissen bleibt.{% if c.ueben %} Bei {{ c.ueben }} {{ "Thema" if c.ueben == 1 else "Themen" }} war zuletzt eine Antwort falsch.{% endif %}</p>
+  <div class="bar" aria-hidden="true"><i class="s" style="width:{{ (100 * c.sitzt / ov.total)|round(1) }}%"></i><i class="g" style="width:{{ (100 * c.gelesen / ov.total)|round(1) }}%"></i><i class="u" style="width:{{ (100 * c.ueben / ov.total)|round(1) }}%"></i></div>
+  {% if ov.due %}<a class="go" href="/warmup{% if sid %}?p={{ sid }}{% endif %}">{{ ov.due }} {{ "Frage" if ov.due == 1 else "Fragen" }} fällig: im Warm-up beantworten ›</a>{% endif %}
+</div>
+{% for a in ov.areas %}
+<section class="area">
+  <h2>{{ a.title }} <small>{{ a.done }} / {{ a.topics|length }}</small></h2>
+  <p class="intro">{{ a.intro }}</p>
+  <div class="tl">{% for t in a.topics %}
+    <a href="/wissen/{{ t.id }}{% if tabs %}?p={{ sid }}{% endif %}"><span>{{ t.title }}<small>{{ t.key }}</small></span>
+      {% if t.id in tip and t.state != "sitzt" %}<em class="chip tip">Dein Thema</em>{% else %}<em class="chip {{ t.state }}">{{ t.label }}</em>{% endif %}</a>
+  {% endfor %}</div>
+</section>
+{% endfor %}
+{% endblock %}

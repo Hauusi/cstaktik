@@ -255,6 +255,7 @@ html.js .sx-h { font-size: 40px; }
     <a class="cta ghost" href="{{ sc.href }}">Runde {{ sc.round }} ansehen</a>
     {% endif %}
     <a class="cta ghost" href="/kurs/{{ S.lesson.id }}{% if many %}?p={{ r.sid }}{% endif %}">Zur Lektion</a>
+    {% if S.wissen %}<div class="facts muted">Mehr dazu im CS-Wissen: {% for w in S.wissen %}<a href="/wissen/{{ w.id }}{% if many %}?p={{ r.sid }}{% endif %}" style="color:var(--orange);font-weight:700">{{ w.title }}</a>{{ ", " if not loop.last }}{% endfor %}</div>{% endif %}
   </section>
 
   {# 6. Dein Plan: Wenn-dann (Durchführungsvorsatz) #}

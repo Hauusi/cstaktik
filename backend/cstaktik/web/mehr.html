@@ -37,12 +37,29 @@
   <div class="gs"><b>2. Vor dem Match: Warm-up (2 Minuten)</b>
     <ul>
       <li>Dein Plan, dazu drei Szenen aus früheren Matches zum Entscheiden.</li>
+      <li>Kopfkino: 30 Sekunden deinen Plan aus eigener Sicht vorstellen. Dazu ein Satz an deinen Bruder.</li>
+      <li>Wissens-Check: zwei fällige Fragen aus dem CS-Wissen, gemischt aus verschiedenen Bereichen.</li>
       <li>Jede Szene kommt mit wachsendem Abstand wieder: nach 1, 3, 7 und 21 Tagen. Wer anders als die Pros entscheidet, sieht sie früher wieder.</li>
     </ul></div>
   <div class="gs"><b>3. Üben und Kurs</b>
     <ul>
       <li>Der Coach sucht den Fehler, der dich die meisten Runden kostet. Er wird deine aktuelle Lektion.</li>
       <li>Jede Lektion hat eine Übung für den Offline-Server. Geschafft ist sie nach {{ goal_cfg.done_after }} Matches in Folge im Ziel.</li>
+    </ul></div>
+  <div class="gs"><b>4. CS-Wissen</b>
+    <p>Jeder Bereich des Spiels als eigenes Thema: Schießen, Peeks, Sound und Calls, Economy, Granaten, T- und CT-Seite, Bombe, Runden lesen, Rollen, Training. Jedes Thema hat einen Kernsatz, eine Erklärung, ein Beispiel in Schritten, typische Fehler, eine Übung, ein Schlüsselwort und einen Wissens-Check.</p>
+    <ul>
+      <li>Fragen, die du beantwortet hast, kommen im Warm-up wieder: richtig nach 1, 3, 7 und 21 Tagen, falsch am nächsten Tag.</li>
+      <li>Zu deinem aktuellen Thema schlägt der Coach passende Themen vor, in der Session, in der Lektion und im Warm-up.</li>
+      <li>Jedes Thema endet mit der Frage, die ein Coach dir beim Ansehen deiner Demo stellen würde.</li>
+    </ul></div>
+  <div class="gs"><b>Wie Coaches arbeiten, und was die App davon übernimmt</b>
+    <ul>
+      <li><b>Demo anhalten und fragen.</b> Ein Coach hält an dem Moment an, in dem sich die Runde entscheidet, und fragt zuerst dich: Was wusstest du, was hast du entschieden, warum? Das machen die Szenen in der Session.</li>
+      <li><b>Eine Sache auf einmal.</b> Ein Thema pro Match, ein Plan, ein Schlüsselwort.</li>
+      <li><b>Feste Abläufe.</b> Kaufzeit-Routine, Warm-up, Reset nach verlorenen Runden.</li>
+      <li><b>Rollen und Absprachen.</b> Wer ist Entry, wer Support, wo spielt ihr zu zweit. Dazu die Themen „Rollen im Team“ und „Zu zweit spielen“.</li>
+      <li><b>Hausaufgabe und Kontrolle.</b> Übung zur Lektion, danach misst die App im nächsten Match, ob es geklappt hat.</li>
     </ul></div>
   <div class="gs" id="wissenschaft"><b>Die Wissenschaft dahinter</b>
     <ul>
@@ -58,6 +75,15 @@
       <li><b>Eine feste Routine in der Kaufzeit.</b> Ausatmen, Schlüsselwort, ein Gedanke zur Lektion. Routinen vor der Aktion verbessern die Leistung, in Experimenten mit mittlerem bis großem Effekt, auch unter Druck. <a href="https://doi.org/10.1080/1750984X.2021.1944271">Rupprecht, Tran &amp; Gröpel 2021</a></li>
       <li><b>Pause, wenn es kippt.</b> Mentale Ermüdung verschlechtert Reaktion und Genauigkeit im Sport. <a href="https://researchportal.rma.ac.be/en/publications/mental-fatigue-and-sport-specific-psychomotor-performance-a-syste/">Habay u. a. 2021</a> Für Esports gibt es dazu erst kleine Studien. Deshalb schaut der Coach in deine eigenen Matches: Sinkt dein Rating ab einem bestimmten Match am Abend deutlich, rät er zur Pause. Ein Rat kommt erst nach mindestens 3 Abenden mit 2 oder mehr Matches.</li>
       <li><b>Tilt-Check.</b> Tilt heißt: Frust schaukelt sich zu Ärger auf, Aufmerksamkeit und Leistung sinken. <a href="https://www.frontiersin.org/articles/10.3389/fpsyg.2024.1409368/full">Tilt-Skala, Frontiers 2024</a> Ob du nach verlorenen Runden anders spielst, sagt der Coach nur aus deinen Matches: als Erster gestorben und ohne Trade gestorben, nach Niederlagen-Serien gegenüber nach Siegen, erst ab 25 Runden je Gruppe. Die Reset-Routine dazu: langsam atmen, das senkt Erregung und Ärger (<a href="https://pubmed.ncbi.nlm.nih.gov/30245619/">Zaccaro u. a. 2018</a>). Dann abhaken, was du nicht kontrollieren konntest: Genau das unterscheidet erfahrene Spieler (<a href="https://doi.org/10.1080/14459795.2013.780631">Palomäki u. a. 2013, Poker</a>). Und eine feste nächste Runde zu zweit. Zum Tilt im Esport selbst gibt es bisher nur wenige Studien.</li>
+      <li><b>Abfragen statt nachlesen, auch beim Wissen.</b> Der Wissens-Check fragt dich, bevor er erklärt. Üben mit Testfragen bringt mehr als erneutes Lesen, im Labor wie im Klassenzimmer (Meta-Analyse über 118 Arbeiten). <a href="https://doi.org/10.3102/0034654316689306">Adesope, Trevisan &amp; Sundararajan 2017</a></li>
+      <li><b>Erst ein Beispiel, dann selbst.</b> Jedes Thema zeigt Schritt für Schritt, wie es richtig abläuft, bevor du übst. Anfänger lernen mit ausgearbeiteten Beispielen mehr als mit Probieren allein. <a href="https://doi.org/10.1007/s10648-010-9134-7">van Gog &amp; Rummel 2010</a></li>
+      <li><b>Entscheidungen sind trainierbar.</b> Gute Spieler erkennen Hinweise schneller und genauer als weniger gute, über viele Sportarten hinweg (42 Studien). <a href="https://pubmed.ncbi.nlm.nih.gov/17968048/">Mann u. a. 2007</a> Deshalb trainiert der Coach Lesen und Entscheiden, nicht nur Aim.</li>
+      <li><b>Gezielt üben.</b> Eine Schwäche, eine Aufgabe, Rückmeldung, Wiederholung. Gezieltes Üben erklärt bei Spielen etwa ein Viertel der Unterschiede in der Leistung, also viel, aber nicht alles. <a href="https://pubmed.ncbi.nlm.nih.gov/24986855/">Macnamara, Hambrick &amp; Oswald 2014</a></li>
+      <li><b>Auf das Ziel achten, nicht auf die Hand.</b> Die Anweisungen sagen, wohin dein Fadenkreuz soll, nicht wie sich deine Hand bewegen soll. Ein Fokus nach außen verbesserte in einer Meta-Analyse Leistung und Lernen. <a href="https://doi.org/10.1037/bul0000335">Chua u. a. 2021</a> Eine Nachanalyse hält den Effekt für überschätzt, weil vor allem positive Studien veröffentlicht wurden (<a href="https://raw.github.com/cartermaclab/carterlab-papers/main/2024_mckay-etal_reporting-bias-not-external-focus-a-robust-bayesian-meta-analysis-and-systematic-review-of-the-external-focus-of-attention.pdf">McKay u. a. 2024</a>). Es schadet nicht, also bleibt es so.</li>
+      <li><b>Wo du stehst, wo du hinwillst, was als Nächstes kommt.</b> Gute Rückmeldung beantwortet diese drei Fragen. Die Session ist danach gebaut: Ergebnis, Thema mit Verlauf, Plan fürs nächste Match. <a href="https://doi.org/10.3102/003465430298487">Hattie &amp; Timperley 2007</a></li>
+      <li><b>Erst das Gute.</b> Rückmeldung nach gelungenen Versuchen verbesserte in einem Experiment das Lernen gegenüber Rückmeldung nach schlechten Versuchen, vermutlich über die Motivation. <a href="https://doi.org/10.1080/02701367.2007.10599402">Chiviacowsky &amp; Wulf 2007</a> Deshalb beginnt die Session mit deinem besten Moment.</li>
+      <li><b>Kopfkino.</b> Vor dem Match stellst du dir deinen Plan 30 Sekunden lang aus eigener Sicht vor. Mentales Üben verbessert die Leistung, der Effekt ist aber klein. <a href="https://doi.org/10.1016/j.psychsport.2020.101672">Toth u. a. 2020</a>, Nachfolge von <a href="https://doi.org/10.1037/0021-9010.79.4.481">Driskell, Copper &amp; Moran 1994</a>. Es ersetzt kein echtes Üben.</li>
+      <li><b>Erklär es deinem Bruder.</b> Wer etwas erklären muss, versteht es besser, in einem Experiment noch eine Woche später. <a href="https://alexandria.ucsb.edu/lib/ark:/48907/f3ms3qvb">Fiorella &amp; Mayer 2013</a> Andere Studien fanden nicht immer einen Effekt. Es kostet aber nur einen Satz.</li>
       <li><b>Rückmeldung zur Aufgabe, nicht zur Person.</b> In über einem Drittel der untersuchten Fälle machte Feedback die Leistung schlechter, vor allem, wenn es auf die Person statt auf die Aufgabe zielte. Der Coach spricht deshalb nur über Runden und Handlungen. <a href="https://doi.org/10.1037/0033-2909.119.2.254">Kluger &amp; DeNisi 1996</a></li>
       <li><b>Dein bester Moment.</b> Er steht am Anfang, damit die Session nicht nur aus Fehlern besteht. Ob eigene gute Szenen allein die Leistung steigern, ist in Studien uneinheitlich. Wir nutzen sie zur Motivation, nicht als Trainingsmethode.</li>
     </ul></div>

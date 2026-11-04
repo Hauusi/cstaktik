@@ -861,6 +861,14 @@ def _home_tiles(hist: list[dict], sid: str | None, coach: dict | None, kurs: dic
                   (Markup("") + b(f"{kurs['done']} von {kurs['total']}") + Markup(" Lektionen geschafft")) if kurs
                   else Markup("Zwölf Lektionen, Grundlagen zuerst"),
                   "bar": round(100 * c["streak"] / c["need"]) if c and c.get("focus") and c.get("need") else None})
+    from cstaktik import academy
+
+    ov = academy.overview(sid)
+    tiles.append({"id": "wissen", "title": "CS-Wissen", "icon": "book", "tone": "o", "href": f"/wissen{q}",
+                  "badge": f"{ov['due']} fällig" if ov["due"] else None,
+                  "text": Markup("") + b(f"{ov['counts']['sitzt']} von {ov['total']}") + Markup(" Themen sitzen")
+                  if ov["counts"]["sitzt"] else Markup("Jeder Bereich des Spiels, mit Beispiel und Wissens-Check"),
+                  "bar": round(100 * ov["counts"]["sitzt"] / ov["total"]) if ov["counts"]["sitzt"] else None})
     ne = next(((h, h["nade_eff"][sid]) for h in reversed(mine) if sid and (h.get("nade_eff") or {}).get(sid)), None)
     if ne:
         fl, he = ne[1]["flash"], ne[1]["he"]
@@ -946,6 +954,74 @@ def kurs_overview(p: str = "") -> str:
     return _env.get_template("kursplan.html").render(
         nav_active="coach", jobs=_running_jobs(), kurs=_course_overview(hist, sid) if sid else None, sid=sid,
         who=names.get(sid) if sid else None, tabs=tabs, deal=_deal_view(hist))
+
+
+_WISSEN_LINKS = {"granaten": ("Deine Granaten", "/granaten"), "duelle": ("Deine Duelle", "/duelle"),
+                 "stats": ("Deine Stats", "/stats")}
+_WISSEN_MAP_LINKS = {"lineups": ("Lineups", "/lineups/{m}"), "playbook": ("Pro-Taktiken", "/playbook/{m}"),
+                     "briefing": ("Briefing", "/briefing/{m}"), "mapbook": ("Map-Buch", "/mapbook/{m}")}
+
+
+@app.get("/wissen", response_class=HTMLResponse)
+def wissen_overview(p: str = "") -> str:
+    """CS-Wissen: alle Bereiche des Spiels als Themen mit dem Lernstand des Spielers."""
+    from cstaktik import academy
+
+    hist = _load_hist()
+    sid, tabs = _course_player(hist, p)
+    lesson = ((_players_state().get(sid) or {}).get("focus") or {}).get("lesson") if sid else None
+    return _env.get_template("wissen.html").render(
+        nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, ov=academy.overview(sid),
+        tip={x["id"] for x in academy.related(lesson)})
+
+
+@app.get("/wissen/{topic}", response_class=HTMLResponse)
+def wissen_topic(topic: str, p: str = "") -> str:
+    """Ein Thema: Kern, Verstehen, Beispiel, Fehler, Übung, Wissens-Check, Frage für die eigene Demo."""
+    from cstaktik import academy, course_texts
+
+    if topic not in academy.TOPICS:
+        raise HTTPException(404, "Thema nicht gefunden.")
+    hist = _load_hist()
+    sid, tabs = _course_player(hist, p)
+    t = academy.TOPICS[topic]
+    if sid and (not _me() or sid == _me()):
+        academy.mark_read(sid, topic)
+    keys = list(academy.TOPICS)
+    i = keys.index(topic)
+    nb = lambda k: {"id": k, "title": academy.TOPICS[k]["title"]} if k else None  # noqa: E731
+    lmap = next((h.get("map") for h in reversed(hist) if h.get("map") and (not sid or sid in (h.get("players") or {}))), None)
+    links = [{"label": _WISSEN_LINKS[x][0], "href": _WISSEN_LINKS[x][1] + (f"?p={sid}" if tabs else "")}
+             for x in t.get("links") or [] if x in _WISSEN_LINKS]
+    if lmap and re.fullmatch(r"[a-z0-9_]+", lmap):
+        ml = lmap.removeprefix("de_").capitalize()
+        links += [{"label": f"{_WISSEN_MAP_LINKS[x][0]} {ml}", "href": _WISSEN_MAP_LINKS[x][1].format(m=lmap)}
+                  for x in t.get("links") or [] if x in _WISSEN_MAP_LINKS]
+    quiz = [{"id": q["id"], "q": q["q"], "options": q["options"], "topic": topic, "topic_title": t["title"]}
+            for q in t.get("quiz") or []]
+    return _env.get_template("wissen_thema.html").render(
+        nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, t=t, quiz=quiz,
+        area=next(a for a in academy.AREAS if a["key"] == t["area"]),
+        lessons=[{"id": l, "title": course_texts.LESSONS[l]["title"]} for l in t.get("lessons") or []
+                 if l in course_texts.LESSONS],
+        links=links, prev=nb(keys[i - 1] if i > 0 else None), nxt=nb(keys[i + 1] if i + 1 < len(keys) else None))
+
+
+@app.post("/wissen/antwort")
+async def wissen_answer(request: Request) -> JSONResponse:
+    """Antwort im Wissens-Check werten und den nächsten Termin der Frage setzen (nur eigener Spieler)."""
+    from cstaktik import academy
+
+    body = await _json_body(request)
+    sid, _tabs = _course_player(_load_hist(), str(body.get("p") or ""))
+    if not sid:
+        raise HTTPException(404, "Kein Spieler.")
+    _own_only(sid)
+    try:
+        res = academy.answer(sid, str(body.get("qid") or ""), int(body.get("pick")))
+    except (KeyError, ValueError, TypeError):
+        raise HTTPException(400, "Unbekannte Frage oder Antwort.") from None
+    return JSONResponse(res)
 
 
 @app.get("/granaten", response_class=HTMLResponse)
@@ -1069,7 +1145,8 @@ def lesson_page(lesson: str, p: str = "", ok: int = 0) -> str:
     view = {"nav_active": "coach", "jobs": _running_jobs(), "t": t, "sid": sid, "who": names.get(sid) if sid else None,
             "tabs": tabs, "lesson": lesson, "n_history": len(hist)}
     if not sid:
-        return _env.get_template("kurs.html").render(**view, row=None)
+        return _env.get_template("kurs.html").render(**view, row=None,
+                                                      wissen=__import__("cstaktik.academy", fromlist=["related"]).related(lesson))
     slot = _players_state().get(sid) or {}
     ov = course.overview(hist, sid, slot, cfg)
     row = next(r for st in ov["stages"] for r in st["lessons"] if r["id"] == lesson)
@@ -1098,7 +1175,7 @@ def lesson_page(lesson: str, p: str = "", ok: int = 0) -> str:
         **view, row=row, pl=pl, focus=f, target=target, need=cfg["done_after"], streak=course.streak(f),
         own=course.own_scenes(hist, sid, lesson), pros=course.pro_scenes(hist, sid, lesson), extras=extras,
         drills=drills, trend=rows, top=top, check=course.check_sentences(rows, target, f, cfg["done_after"]),
-        current=ov["current"], ticked=bool(ok))
+        current=ov["current"], ticked=bool(ok), wissen=__import__("cstaktik.academy", fromlist=["related"]).related(lesson))
 
 
 def _ensure_weekplans(hist: list[dict], sids: list[str]) -> None:
@@ -1643,6 +1720,9 @@ def _session(h: dict, sid: str, r: dict) -> tuple[dict, dict]:
         ag = ((d.get("agreement") or {}).get("text") or "").strip()
         opts = ([ag] if ag.lower().startswith("wenn") else []) + course_texts.PLANS.get(lid, [])
         cur = drills.current_plan(sid)
+        from cstaktik import academy
+
+        s["wissen"] = academy.related(lid)
         s["lesson"] = {"id": lid, "title": t["title"], "why": t["why"], "goal": t["goal"],
                        "principle": (d.get("topic") or {}).get("principle") if (d.get("topic") or {}).get("lesson") == lid else None}
         mine = cur if cur and cur.get("report") == h.get("report_file") else None
@@ -1793,7 +1873,7 @@ def warmup_page(p: str = "") -> str:
     sid, tabs = _course_player(hist, p)
     radars: dict = {}
     items, plan, streak, last, cueword, log, routine, eve, today = [], None, 0, None, None, [], [], None, 0
-    reset, tilt_reading = [], None
+    reset, tilt_reading, quiz, imagery, related = [], None, [], [], []
     if sid:
         scenes = [x for h in hist for x in h.get("scenes") or [] if x.get("sid") == sid]
         focus = (_players_state().get(sid) or {}).get("focus") or {}
@@ -1820,10 +1900,15 @@ def warmup_page(p: str = "") -> str:
         reset = course_texts.reset(rl) if drills.load(sid).get("reset") or tl.get("bad") else []
         tilt_reading = tl.get("reading") if tl.get("bad") else None
         last = next((h for h in reversed(hist) if sid in (h.get("players") or {}) and h.get("report_file")), None)
+        from cstaktik import academy
+
+        related = academy.related(rl)
+        quiz = academy.due(sid, 2, prefer=[x["id"] for x in related])
+        imagery = course_texts.imagery((plan or {}).get("text"), cueword)
     return _env.get_template("warmup.html").render(
         nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, items=items, radars=radars, plan=plan,
         streak=streak, report=(last or {}).get("report_file"), cueword=cueword, log=log, routine=routine, eve=eve,
-        today=today, reset=reset, tilt_reading=tilt_reading)
+        today=today, reset=reset, tilt_reading=tilt_reading, quiz=quiz, imagery=imagery, related=related)
 
 
 @app.get("/pro", response_class=HTMLResponse)
