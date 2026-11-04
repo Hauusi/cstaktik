@@ -592,3 +592,18 @@ ROUTINE_STEP: dict[str, str] = {
 def routine(lesson: str) -> list[str]:
     cue = CUEWORDS.get(lesson, "")
     return [s.format(cue=cue) for s in ROUTINE_BASE] + ([ROUTINE_STEP[lesson]] if lesson in ROUTINE_STEP else [])
+
+
+
+# Reset-Routine nach 2+ verlorenen Runden in Folge (Tilt-Check). Atmung: langsames Atmen senkt Erregung und Ärger
+# (Zaccaro u. a. 2018); Kontrolle: erfahrene Spieler trennen, was sie beeinflussen können (Palomäki u. a. 2013);
+# feste Routine wirkt auch unter Druck (Rupprecht, Tran & Gröpel 2021).
+RESET = ["Zwei langsame Atemzüge, länger aus- als einatmen.",
+         "Abhaken, was du nicht kontrollieren konntest. Nur eine Frage zählt: Was mache ich diese Runde?",
+         "Diese Runde: Standard zu zweit, kein Einzel-Peek. Dein Schlüsselwort: „{cue}“."]
+TILT_FEEL = {"ruhig": "Ruhig", "genervt": "Genervt", "gekippt": "Gekippt"}
+
+
+def reset(lesson: str | None) -> list[str]:
+    cue = CUEWORDS.get(lesson or "", "Ruhig bleiben")
+    return [x.format(cue=cue) for x in RESET]

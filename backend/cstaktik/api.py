@@ -1672,6 +1672,15 @@ def _session(h: dict, sid: str, r: dict) -> tuple[dict, dict]:
                             "map": (x.get("map") or "?").removeprefix("de_").capitalize(), "me": x is h or x.get("id") == h.get("id")})
         s["trend"] = {"pts": pts[-6:], "target": lim, "max": max([lim * 2] + [q["rate"] for q in pts[-6:]])} if len(pts) >= 2 else None
         s["routine"] = course_texts.routine(lid)
+    # Tilt-Check: Runden nach 2+ Niederlagen in Folge in diesem Match, dazu die Langzeit-Aussage über alle Matches
+    from cstaktik import tilt
+
+    tf = tilt.match_facts(h, sid)
+    if tf:
+        long = tilt.summary([x for x in allh if (x.get("analyzed_at") or "") <= (h.get("analyzed_at") or "")], sid) or {}
+        s["tilt"] = {"f": tf, "reading": long.get("reading"), "enough": long.get("enough"), "bad": long.get("bad"),
+                     "progress": tilt.progress(allh, sid), "state": drills.tilt_state(sid, h.get("report_file") or ""),
+                     "feels": course_texts.TILT_FEEL, "reset": course_texts.reset(lid), "streak": tilt.STREAK}
     s["headline"] = d.get("headline")
     s["ai"] = ai_coach.enabled() or bool(d)
     return s, radars
@@ -1738,6 +1747,22 @@ async def session_plan(request: Request) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+@app.post("/session/tilt")
+async def session_tilt(request: Request) -> JSONResponse:
+    """Tilt-Check: Selbsteinschätzung nach verlorenen Runden und Reset-Routine an/aus."""
+    from cstaktik import drills
+
+    body = await _json_body(request)
+    h, sid = _session_target(body)
+    feel = str(body["feel"]) if body.get("feel") else None
+    reset = bool(body["reset"]) if "reset" in body else None
+    try:
+        drills.set_tilt(sid, h.get("report_file") or "", feel, reset)
+    except ValueError:
+        raise HTTPException(400, "Unbekannte Einschätzung.") from None
+    return JSONResponse({"ok": True})
+
+
 @app.post("/session/done")
 async def session_done(request: Request) -> JSONResponse:
     from cstaktik import drills
@@ -1768,6 +1793,7 @@ def warmup_page(p: str = "") -> str:
     sid, tabs = _course_player(hist, p)
     radars: dict = {}
     items, plan, streak, last, cueword, log, routine, eve, today = [], None, 0, None, None, [], [], None, 0
+    reset, tilt_reading = [], None
     if sid:
         scenes = [x for h in hist for x in h.get("scenes") or [] if x.get("sid") == sid]
         focus = (_players_state().get(sid) or {}).get("focus") or {}
@@ -1788,11 +1814,16 @@ def warmup_page(p: str = "") -> str:
         today = sum(1 for h in hist if sid in (h.get("board") or {})
                     and (h.get("analyzed_at") or "")[:10] == pipeline.coaching_now()[:10])
         log = drills.plan_log(sid, hist, course.settings(load_rules_config()))
+        from cstaktik import tilt
+
+        tl = tilt.summary(hist, sid) or {}
+        reset = course_texts.reset(rl) if drills.load(sid).get("reset") or tl.get("bad") else []
+        tilt_reading = tl.get("reading") if tl.get("bad") else None
         last = next((h for h in reversed(hist) if sid in (h.get("players") or {}) and h.get("report_file")), None)
     return _env.get_template("warmup.html").render(
         nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, items=items, radars=radars, plan=plan,
         streak=streak, report=(last or {}).get("report_file"), cueword=cueword, log=log, routine=routine, eve=eve,
-        today=today)
+        today=today, reset=reset, tilt_reading=tilt_reading)
 
 
 @app.get("/pro", response_class=HTMLResponse)

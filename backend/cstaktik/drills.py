@@ -237,3 +237,27 @@ def warmup_streak(sid: str, today: datetime | None = None) -> int:
         else:
             break
     return n
+
+
+
+def set_tilt(sid: str, report: str, feel: str | None = None, reset: bool | None = None) -> None:
+    """Tilt-Check einer Session: Selbsteinschätzung nach verlorenen Runden und ob die Reset-Routine gilt."""
+    from cstaktik.course_texts import TILT_FEEL
+
+    if feel is not None and feel not in TILT_FEEL:
+        raise ValueError("unbekannt")
+    with LOCK:
+        d = load(sid)
+        t = d.setdefault("tilt", {}).setdefault(report, {})
+        if feel is not None:
+            t["feel"] = feel
+        if reset is not None:
+            d["reset"] = bool(reset)
+            t["reset"] = bool(reset)
+        t["at"] = _now()
+        _save(sid, d)
+
+
+def tilt_state(sid: str, report: str) -> dict:
+    d = load(sid)
+    return {**((d.get("tilt") or {}).get(report) or {}), "reset_on": bool(d.get("reset"))}

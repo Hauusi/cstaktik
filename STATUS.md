@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branch `ccr-b08d5abb-e1pzde` · Tests: 375 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branch `ccr-b08d5abb-e1pzde` · Tests: 376 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -93,14 +93,14 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 | model.py | Datenmodell (Kill, Damage, Blind, GrenadeThrow, UtilityArea, Duel, Round ...) |
 | rules/ | Einzelregeln: death_review, untraded_death, unused_utility, entry_deaths, no_damage_death, repeated_death_spot, economy, positives |
 | coach.py, coach_voice.py | Diagnose und Coach-Ansagen je Tod, Lektions-IDs (`LESSONS`) |
-| situation.py, duels.py, impact.py, clutch.py, mechanics.py, stats.py, tilt.py | Lagebild/Gewinnchance, Duell-Werte, Win Probability Added, Clutches, Mechanik, Statistik, Tilt |
+| situation.py, duels.py, impact.py, clutch.py, mechanics.py, stats.py, tilt.py (summary über Matches, match_facts je Match, progress) | Lagebild/Gewinnchance, Duell-Werte, Win Probability Added, Clutches, Mechanik, Statistik, Tilt |
 | scene_clip.py | Szenen-Clip je Tod: Positionen aller Spieler bis 8 s (max. 12 s) davor bis 1 s danach, Kills, Smokes/Molotovs/Flashes; Weltkoordinaten, Zeit relativ zum Tod |
-| drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
+| drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Tilt-Check (set_tilt, tilt_state: Gefühl je Match, Reset an/aus), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | evening.py | Spielabend: Rating je Match-Nummer des Tages (curve), Rat "Pause nach k Matches" erst ab 3 Tagen mit 2+ Matches und Abfall >= 0,10; index_today |
 | scoreboard.py | Stats: Rohzahlen je Match (K/D/A, Schaden, HS, KAST, 1K–5K, Openings, Trades), Summen über Matches, Kennzahlen inkl. HLTV-Rating 1.0 und Rating-2.0-Näherung (awpy-Formel, gegengeprüft: gleiche Werte wie awpy) |
 | nade_effect.py | Granaten-Wirkung: Flash-Blendzeit, Flash-Assists, Team geblendet, HE/Molotov-Schaden, Tod mit Granaten |
 | utility_cmp.py | Utility gegen Pros, Flash-Wirkung, Granaten vor dem ersten Duell |
-| course.py, course_texts.py, curriculum.py | Kurs: 5 Stufen, 12 Lektionen, Einstufung aus den letzten Matches; `course_texts.PLANS`: je Lektion 3 Wenn-dann-Pläne; `CUEWORDS` (Schlüsselwort), `CUE`/`REASONS` (worauf es ankommt, für "Warum?"), `OBSTACLES` + `obstacle_line` (Hindernis und Gegenplan), `ROUTINE_BASE`/`ROUTINE_STEP` + `routine()` (Kaufzeit-Routine) |
+| course.py, course_texts.py, curriculum.py | Kurs: 5 Stufen, 12 Lektionen, Einstufung aus den letzten Matches; `course_texts.PLANS`: je Lektion 3 Wenn-dann-Pläne; `CUEWORDS` (Schlüsselwort), `CUE`/`REASONS` (worauf es ankommt, für "Warum?"), `OBSTACLES` + `obstacle_line` (Hindernis und Gegenplan), `ROUTINE_BASE`/`ROUTINE_STEP` + `routine()` (Kaufzeit-Routine), `RESET` + `reset()` und `TILT_FEEL` (Tilt-Check) |
 | coaching.py, goals.py, weekplan.py, session.py | Auftrag (aktuelle Lektion) und Check je Match, Ziele, Wochenplan, Spielabend |
 | ai_coach.py | KI-Coach (Claude API): Fakten, Nachbesprechung (JSON-Schema), Fragen, Gedächtnis, Kosten |
 | playbook.py, setups.py, lineups.py, mapbook.py, briefing.py, reference.py, pro.py, faceit.py | Pro-Taktiken (T/CT), Lineups, Map-Buch, Briefing, Vorbild-Runden, Pro-Demos |
@@ -121,13 +121,15 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
   Moment als Wiederholung, Kurz-Check des alten Plans (Abruf, 3 Optionen, dann Selbsteinschätzung Ja/Teilweise/Nein,
   dann gemessene Zahlen), 2 Szenen "Entscheide selbst" (Wiederholung hält bei `dec`, Wahl, dann "Warum?" mit 4 Gründen,
   Auflösung inkl. worauf es ankam, läuft weiter), Thema mit Warum, Wenn-dann-Plan wählen + Hindernis mit Gegenplan +
-  Schlüsselwort + Kaufzeit-Routine, Fertig (markiert Session). Im Thema: Fehler pro 10 Runden der letzten 6 Matches
+  Schlüsselwort + Kaufzeit-Routine, Fertig (markiert Session). Tilt-Check (vor dem Thema, nur bei 3+ Runden nach
+  2+ Niederlagen in Folge): erst "Wie warst du drauf?", dann Zahlen (als Erster / ohne Trade gestorben, gegen nach
+  Siegen), Langzeit-Aussage ab 25 Runden je Gruppe, Reset-Routine in den Plan übernehmen. Im Thema: Fehler pro 10 Runden der letzten 6 Matches
   mit Ziellinie (`s.trend`). Im Ergebnis: Pausen-Hinweis, wenn dieses Match das k-te des Tages ist und die eigene
   Spielabend-Kurve ab dort deutlich sinkt (`s.evening`).
   Bausteine in `replay_box.html` (Makros replay, drill_choice), Logik in `coach_assets.html`.
-- `/warmup`: Plan mit Gegenplan und Schlüsselwort, Kaufzeit-Routine, Spielabend-Kurve (heute n Matches, ggf. Pause), 3 fällige Szenen zum Entscheiden, Tabelle "Deine letzten Pläne"
+- `/warmup`: Plan mit Gegenplan und Schlüsselwort, Kaufzeit-Routine, Reset-Routine (wenn übernommen oder Tilt belegt), Spielabend-Kurve (heute n Matches, ggf. Pause), 3 fällige Szenen zum Entscheiden, Tabelle "Deine letzten Pläne"
   (du sagst / gemessen); alle entschieden = Warm-up erledigt.
-- `POST /session/answer|plan|rate|done`: Entscheidung, Plan, Session/Warm-up erledigt (nur eigener Spieler). `/reports/{datei}` Report mit 2D-Replay.
+- `POST /session/answer|plan|rate|tilt|done`: Entscheidung, Plan, Session/Warm-up erledigt (nur eigener Spieler). `/reports/{datei}` Report mit 2D-Replay.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
 - `/stats` (Reiter "Stats"): Rating, K/D, ADR, KAST, HS, KPR/DPR, Assists, Überleben, Openings, Multi-Kills,
@@ -173,6 +175,8 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - Gemischtes Üben (Brunmair & Richter 2019, g = 0,42): Warm-up mischt Lektionen.
 - Pre-Performance-Routine (Rupprecht, Tran & Gröpel 2021): Kaufzeit-Routine.
 - Mentale Ermüdung (Habay u. a. 2021, Sport; Esports nur kleine Studien): Pausen-Rat aus eigenen Daten.
+- Tilt (Tilt-Skala, Frontiers 2024; Palomäki u. a. 2013, Poker): Tilt-Check nur aus eigenen Daten; Reset-Routine mit
+  langsamem Atmen (Zaccaro u. a. 2018), Kontrollierbares abhaken, feste Runde zu zweit.
 - Bester Moment zur Motivation; Wirkung eigener Highlight-Videos ist in Studien uneinheitlich, so steht es auch in der App.
 
 ## 8b. Kurs und Auftrag
@@ -211,6 +215,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-04: Tilt-Check als Session-Schritt (Selbsteinschätzung, Zahlen des Matches, Langzeit-Aussage), Reset-Routine
+  in Plan und Warm-up, Studien auf /mehr.
 
 - 2026-11-04: Kaufzeit-Routine, Spielabend-Kurve mit Pausen-Rat (`evening.py`), Fehler-Verlauf der Lektion in der
   Session, drei weitere Studien auf /mehr.

@@ -90,3 +90,26 @@ def summary(hist: list[dict], sid: str) -> dict | None:
             out["reading"] = (f"Kein Tilt erkennbar. Nach Niederlagen-Serien spielst du nicht schlechter als "
                               f"nach Siegen. Verglichen wurden {a['n']} und {b['n']} Runden.")
     return out
+
+
+def match_facts(h: dict, sid: str) -> dict | None:
+    """Ein Match: Runden nach 2+ Niederlagen in Folge gegen Runden nach einem Sieg (nur Zählen, kein Urteil;
+    ein Match hat dafür zu wenige Runden). None ohne Daten oder ohne Serie."""
+    rs = rows([h], sid)
+    serie = [r for r in rs if r["group"] == "serie"]
+    sieg = [r for r in rs if r["group"] == "sieg"]
+    if len(serie) < 3:
+        return None
+    pct = lambda xs, k: round(100 * sum(r[k] for r in xs) / len(xs)) if xs else None  # noqa: E731
+    return {"n": len(serie), "first": sum(r["first"] for r in serie), "untraded": sum(r["untraded"] for r in serie),
+            "first_pct": pct(serie, "first"), "untraded_pct": pct(serie, "untraded"),
+            "n_win": len(sieg), "first_pct_win": pct(sieg, "first"), "untraded_pct_win": pct(sieg, "untraded"),
+            "worse": bool(sieg) and ((pct(serie, "first") or 0) - (pct(sieg, "first") or 0) >= FIRST_GAP
+                                     or (pct(serie, "untraded") or 0) - (pct(sieg, "untraded") or 0) >= FIRST_GAP)}
+
+
+def progress(hist: list[dict], sid: str) -> dict:
+    """Wie weit die Langzeit-Aussage ist: Runden je Gruppe gegen MIN_ROUNDS."""
+    rs = rows(hist, sid)
+    return {"serie": sum(1 for r in rs if r["group"] == "serie"), "sieg": sum(1 for r in rs if r["group"] == "sieg"),
+            "need": MIN_ROUNDS}

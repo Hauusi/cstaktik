@@ -251,6 +251,24 @@
       });
     });
   });
+  document.querySelectorAll(".tl-sec").forEach(function (sec) {  // Tilt-Check
+    sec.querySelectorAll(".tl-f").forEach(function (b) {
+      b.addEventListener("click", function () {
+        sec.querySelectorAll(".tl-f").forEach(function (o) { o.classList.toggle("on", o === b); });
+        sec.querySelector(".tl-res").hidden = false;
+        post("/session/tilt", Object.assign({report: ctx && ctx.dataset.file, feel: b.dataset.feel}, who));
+      });
+    });
+    var rb = sec.querySelector(".tl-reset");
+    if (rb) rb.addEventListener("click", function () {
+      var on = rb.dataset.reset === "1";
+      post("/session/tilt", Object.assign({report: ctx && ctx.dataset.file, reset: on}, who)).then(function (ok) {
+        if (!ok) return;
+        rb.classList.toggle("on", on); rb.dataset.reset = on ? "0" : "1";
+        rb.textContent = on ? "Reset-Routine ist in deinem Plan" : "Reset-Routine in meinen Plan aufnehmen";
+      });
+    });
+  });
   document.querySelectorAll(".pl").forEach(function (pl) {
     var text = (pl.querySelector(".pl-o.on") || {}).dataset ? pl.querySelector(".pl-o.on").dataset.text : null;
     var ob = (pl.querySelector(".pl-b.on") || {dataset: {}}).dataset.obstacle || "";

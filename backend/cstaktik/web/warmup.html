@@ -62,6 +62,9 @@
 </div>
 {% endif %}
 {% if routine %}<div class="wbox"><div class="k">Kaufzeit-Routine, jede Runde</div><ol class="rt">{% for x in routine %}<li>{{ x }}</li>{% endfor %}</ol></div>{% endif %}
+{% if reset %}<div class="wbox"><div class="k">Reset nach 2 verlorenen Runden</div>
+  {% if tilt_reading %}<p style="margin:8px 0 0;font-size:14.5px;line-height:1.45">{{ tilt_reading }}</p>{% endif %}
+  <ol class="rt">{% for x in reset %}<li>{{ x }}</li>{% endfor %}</ol></div>{% endif %}
 {% if eve and eve.rows %}<div class="wbox"><div class="k">Dein Spielabend{% if today %} · heute {{ today }} {{ "Match" if today == 1 else "Matches" }}{% endif %}</div>
   {% if eve.stop_after and today >= eve.stop_after %}<div class="warn">Du hast heute schon {{ today }} {{ "Match" if today == 1 else "Matches" }} gespielt. In deinen Daten sinkt das Rating danach deutlich. Eine Pause lohnt sich.</div>{% endif %}
   {{ ec.curve(eve) }}</div>{% endif %}

@@ -130,3 +130,38 @@ def test_cues_and_obstacles():
     line = course_texts.obstacle_line("stress", "alone")
     assert line == "Wenn es hektisch wird, dann sage ich mir: „Nie ohne Partner“."
     assert course_texts.obstacle_line("x", "alone") is None
+
+
+def test_tilt_check_in_session_and_warmup():
+    from cstaktik import tilt
+
+    pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    # Runden 2-3 verloren, danach 4-8 nach Serie (alle verloren), 9 gewonnen, 10 nach Sieg
+    seq = [[1, "t", True], [2, "t", False], [3, "t", False], [4, "t", False], [5, "t", False], [6, "t", False],
+           [7, "t", True], [8, "t", True], [9, "t", False]]
+    deaths = [{"sid": ME, "round": r, "first": r in (4, 5), "traded": r == 6} for r in (4, 5, 6)]
+    h = {"id": "t1", "map": "de_mirage", "rounds": 9, "analyzed_at": "2026-01-03T10:00", "report_file": "t1.html",
+         "players": {ME: {"name": "Ich", "rounds": 9}}, "seq": {ME: seq}, "deaths": deaths,
+         "impact": {ME: {"rounds": {}}}, "lessons": {ME: {"utility": 1}}, "scenes": [],
+         "focus_check": {ME: {"focus": {"lesson": "utility", "target": 1.0}, "check": None}}}
+    f = tilt.match_facts(h, ME)
+    assert f["n"] == 4 and f["first"] == 2 and f["untraded"] == 2  # Runden 4, 5, 6, 7 nach 2+ Niederlagen
+    assert tilt.match_facts({**h, "seq": {ME: seq[:4]}}, ME) is None  # unter 3 Serien-Runden kein Schritt
+    history.save(h, pipeline.HISTORY_DIR)
+    (pipeline.REPORTS_DIR / "t1.html").write_text("<html></html>")
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.link_steamid("Hausi", ME)
+    a = TestClient(api.app)
+    a.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
+    page = a.get("/m/t1.html").text
+    assert 'data-step="tilt"' in page and "4 Runden direkt nach 2 oder mehr Niederlagen" in page
+    assert "2 Mal als Erster und 2 Mal ohne Trade gestorben" in page and "bisher 4 und" in page
+    assert "Zwei langsame Atemzüge" in page and "„Granate zuerst“" in page
+    assert a.post("/session/tilt", json={"report": "t1.html", "feel": "genervt"}, headers=O).json()["ok"]
+    assert a.post("/session/tilt", json={"report": "t1.html", "feel": "wütend"}, headers=O).status_code == 400
+    assert "Reset nach 2 verlorenen Runden" not in a.get("/warmup").text  # noch nicht aufgenommen, kein Tilt belegt
+    assert a.post("/session/tilt", json={"report": "t1.html", "reset": True}, headers=O).json()["ok"]
+    assert drills.tilt_state(ME, "t1.html") == {"feel": "genervt", "reset": True, "at": drills.tilt_state(ME, "t1.html")["at"],
+                                               "reset_on": True}
+    assert "Reset nach 2 verlorenen Runden" in a.get("/warmup").text
+    assert "Reset-Routine ist in deinem Plan" in a.get("/m/t1.html").text

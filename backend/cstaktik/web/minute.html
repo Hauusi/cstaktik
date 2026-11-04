@@ -212,6 +212,27 @@ html.js .sx-h { font-size: 40px; }
   </section>
   {% endfor %}
 
+  {# Tilt-Check: nach Niederlagen-Serien, erst selbst einschätzen, dann Zahlen, dann Reset-Routine #}
+  {% if S.tilt %}{% set T = S.tilt %}{% set f = T.f %}
+  <section class="sx tl-sec" data-step="tilt" aria-label="Tilt-Check">
+    <div class="k">Tilt-Check</div>
+    <div class="sx-h" role="heading" aria-level="2">Nach {{ T.streak }} verlorenen Runden</div>
+    <div class="facts">In diesem Match hattet ihr {{ f.n }} Runden direkt nach {{ T.streak }} oder mehr Niederlagen in Folge.</div>
+    <div class="tl-feel" data-done="{{ '1' if T.state.feel }}">
+      <div class="dr-q">Wie warst du in diesen Runden drauf?</div>
+      <div class="ck-rs">{% for k, label in T.feels.items() %}<button type="button" class="ck-r tl-f{{ ' on' if T.state.feel == k }}" data-feel="{{ k }}">{{ label }}</button>{% endfor %}</div>
+    </div>
+    <div class="tl-res"{% if not T.state.feel %} hidden{% endif %}>
+      <div class="facts num">In diesen {{ f.n }} Runden bist du {{ "keinmal" if f.first == 0 else ("einmal" if f.first == 1 else f.first ~ " Mal") }} als Erster und {{ "keinmal" if f.untraded == 0 else ("einmal" if f.untraded == 1 else f.untraded ~ " Mal") }} ohne Trade gestorben{% if f.n_win %}. Nach gewonnenen Runden: {{ f.first_pct_win }} % als Erster, {{ f.untraded_pct_win }} % ohne Trade, gegenüber {{ f.first_pct }} % und {{ f.untraded_pct }} % nach den Niederlagen{% endif %}.</div>
+      {% if T.enough %}<div class="facts{{ '' if T.bad else ' muted' }}">Über deine Matches: {{ T.reading }}</div>
+      {% else %}<div class="facts muted">Ein Match allein sagt wenig. Über deine Matches braucht der Coach je {{ T.progress.need }} Runden nach Serien und nach Siegen (bisher {{ T.progress.serie }} und {{ T.progress.sieg }}).</div>{% endif %}
+      <div class="pl-cue"><span>Reset-Routine nach {{ T.streak }} verlorenen Runden</span>
+        <ol class="rt">{% for x in T.reset %}<li>{{ x }}</li>{% endfor %}</ol></div>
+      <button type="button" class="pl-o tl-reset{{ ' on' if T.state.reset_on }}" data-reset="{{ '0' if T.state.reset_on else '1' }}">{{ "Reset-Routine ist in deinem Plan" if T.state.reset_on else "Reset-Routine in meinen Plan aufnehmen" }}</button>
+    </div>
+  </section>
+  {% endif %}
+
   {# 5. Dein Thema: die aktuelle Lektion mit dem Warum #}
   {% if S.lesson %}{% set L = r.lesson or {} %}
   <section class="sx" data-step="lektion" aria-label="Dein Thema">
