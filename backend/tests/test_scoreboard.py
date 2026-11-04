@@ -1,5 +1,7 @@
 """Stats-Reiter: Scoreboard je Match (K/D/A, KAST, Multi-Kills, Openings, Rating) und Summen über Matches."""
 
+import re
+
 from fastapi.testclient import TestClient
 
 from cstaktik import accounts, api, history, pipeline, scoreboard
@@ -61,8 +63,10 @@ def test_stats_page():
     page = c.get("/stats").text
     r2 = scoreboard.derive(scoreboard.totals([board[ME], board[ME]]))["rating2"]
     assert f"{r2:.2f}".replace(".", ",") in page and "Rating 2.0 (Näherung)" in page
-    assert "<b>1,00</b><span>K/D</span>" in page and "<b>50,0</b><span>ADR</span>" in page
-    assert "75<small> %</small></b><span>KAST" in page and "2</b> Siege" in page and "0</b> Niederlagen" in page
+    assert re.search(r'data-m="kd">\s*<div class="kt">K/D</div>\s*<div class="kv num">1,00<', page)
+    assert re.search(r'data-m="adr">\s*<div class="kt">ADR</div>\s*<div class="kv num">50,0<', page)
+    assert re.search(r'<div class="kt">KAST</div>\s*<div class="kv num">75<small>%</small>', page)
+    assert '<b class="good">2</b> – <b class="bad">0</b>' in page
     assert "<b>2<small> / 2</small></b><span>Clutches gewonnen" in page
-    assert page.count('href="/m/s') >= 4  # Balken und Tabelle verlinken die Matches
-    assert "2-2-1" in page
+    assert page.count('href="/m/s') >= 4  # Liste und Tabelle verlinken die Matches
+    assert "2-2-1" in page and 'id="cdata"' in page and "Vergleich ab 3 früheren Matches" in page

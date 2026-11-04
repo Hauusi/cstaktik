@@ -4,131 +4,263 @@
 {% block head %}
 {% include "stats_style.html" %}
 <style>
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
-.chips a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); }
-.chips a.on { background: var(--surface-2); color: var(--text); border-color: rgba(255,159,28,.5); }
-.hero-r { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 18px; border-radius: 20px;
-  border: 1px solid rgba(255,159,28,.45); background: linear-gradient(135deg, rgba(255,159,28,.16), rgba(255,159,28,.02) 55%), var(--surface); }
-.hero-r .rv { font-family: var(--cond); font-weight: 800; font-size: 64px; line-height: .9; }
-.hero-r .rl { margin-top: 6px; font-size: 13px; color: var(--muted); }
-.hero-r .rs { text-align: right; font-size: 14px; line-height: 1.6; color: var(--muted); } .hero-r .rs b { color: var(--text); font-size: 16px; }
+/* Stats: Form oben, Verlauf als Graph, Kennzahlen mit Vergleich, T/CT, Impact, Maps, Matches. Serienfarben: T/CT
+   (geprüft auf Farbsehschwäche und Kontrast gegen --surface), sonst --accent. Text immer in Textfarben. */
+:root { --t: #c78322; --ct: #4d8fe6; --grid: rgba(255,255,255,.07); }
+.chips { display: flex; gap: 6px; margin-top: 14px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chips a, .chips button { flex: none; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; font: inherit; font-size: 13px;
+  font-weight: 700; color: var(--muted); background: none; cursor: pointer; }
+.chips a.on, .chips button.on { background: var(--surface-2); color: var(--text); border-color: rgba(255,159,28,.55); }
+.chips .sep { flex: none; width: 1px; background: var(--line); margin: 4px 2px; }
+.card { margin-top: 12px; padding: 16px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface); }
+.card h2 { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.card .sub { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.4; }
 .good { color: var(--win); } .bad { color: var(--loss); }
-.big4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (max-width: 520px) { .big4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.bars { display: flex; align-items: flex-end; gap: 4px; height: 110px; margin-top: 10px; padding: 10px 10px 0; border-radius: 16px;
-  border: 1px solid var(--line); background: var(--surface); position: relative; }
-.bars a { flex: 1; min-width: 6px; max-width: 34px; border-radius: 4px 4px 0 0; background: var(--muted); }
-.bars a.g { background: var(--win); } .bars a.r { background: var(--loss); }
-.bars .one { position: absolute; left: 10px; right: 10px; border-top: 1px dashed rgba(255,255,255,.3); }
-.bars .one span { position: absolute; right: 0; top: -16px; font-size: 11px; color: var(--muted); }
+/* Form */
+.form { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: end; margin-top: 14px; padding: 18px; border-radius: 22px;
+  border: 1px solid rgba(255,159,28,.45); background: radial-gradient(120% 140% at 0% 0%, rgba(255,159,28,.20), rgba(255,159,28,0) 60%), var(--surface); }
+.form .k { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.form .rv { margin-top: 4px; font-family: var(--cond); font-weight: 800; font-size: 76px; line-height: .85; letter-spacing: -.01em; }
+.form .rl { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.trend { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 5px 10px; border-radius: 999px; font-size: 13.5px; font-weight: 700;
+  background: var(--surface-2); color: var(--text); }
+.trend svg { width: 14px; height: 14px; flex: none; }
+.trend.up svg { color: var(--win); } .trend.down svg { color: var(--loss); } .trend.same svg { color: var(--muted); }
+.form .rs { text-align: right; font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+.form .rs b { font-family: var(--cond); font-size: 28px; color: var(--text); font-weight: 800; }
+.form .rs b.good { color: var(--win); } .form .rs b.bad { color: var(--loss); }
+.fdots { display: flex; gap: 4px; justify-content: flex-end; margin-top: 8px; }
+.fdots i { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 800; color: #0b0d12; background: var(--faint); }
+.fdots i.w { background: var(--win); } .fdots i.l { background: var(--loss); }
+/* Verlauf */
+.chart { position: relative; margin-top: 12px; touch-action: pan-y; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .ax { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.chart .gl { stroke: var(--grid); stroke-width: 1; }
+.chart .ref { stroke: rgba(255,255,255,.28); stroke-width: 1; }
+.chart .raw { fill: none; stroke: rgba(255,255,255,.22); stroke-width: 1.5; }
+.chart .dot { fill: #8d97a8; stroke: var(--surface); stroke-width: 2; }
+.chart .avg { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .area { fill: rgba(255,159,28,.10); }
+.chart .end { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.chart .xh { stroke: rgba(255,255,255,.35); stroke-width: 1; }
+.chart .hl { fill: var(--text); stroke: var(--surface); stroke-width: 2; }
+.tip { position: absolute; top: 0; pointer-events: none; transform: translateX(-50%); min-width: 130px; padding: 8px 10px; border-radius: 12px;
+  background: #0b0d12; border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 24px rgba(0,0,0,.4); font-size: 12.5px; line-height: 1.35; }
+.tip[hidden] { display: none; } .tip b { display: block; font-size: 17px; font-family: var(--cond); } .tip span { color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.legend i { display: inline-block; vertical-align: middle; margin-right: 6px; }
+.legend .l1 { width: 16px; height: 3px; border-radius: 2px; background: var(--accent); }
+.legend .l2 { width: 8px; height: 8px; border-radius: 50%; background: #8d97a8; }
+.legend .l3 { width: 16px; border-top: 1px solid rgba(255,255,255,.4); }
+.legend .lt { width: 12px; height: 12px; border-radius: 3px; background: var(--t); } .legend .lct { width: 12px; height: 12px; border-radius: 3px; background: var(--ct); }
+.chart-sum { margin: 10px 0 0; font-size: 14px; line-height: 1.45; }
+/* Kennzahlen */
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+@media (min-width: 760px) { .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.kpi { position: relative; display: block; width: 100%; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.kpi.on { border-color: rgba(255,159,28,.6); }
+.kpi .kt { font-size: 12.5px; color: var(--muted); line-height: 1.25; min-height: 2.5em; }
+.kpi .kv { margin-top: 4px; font-family: var(--cond); font-weight: 800; font-size: 34px; line-height: 1; }
+.kpi .kv small { font-size: 17px; color: var(--muted); margin-left: 2px; }
+.kpi .kd { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--muted); min-height: 16px; }
+.kpi .kd svg { width: 12px; height: 12px; } .kpi .kd.up svg { color: var(--win); } .kpi .kd.down svg { color: var(--loss); }
+.kpi .kd b { font: inherit; font-weight: 800; } .kpi .kd.up b, .kpi .kd.down b { color: var(--text); }
 .box.note b { font: inherit; font-weight: 700; color: var(--text); }
+.kpi svg.sp { display: block; width: 100%; height: 28px; margin-top: 8px; overflow: visible; }
+.kpi svg.sp path { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.kpi svg.sp circle { fill: var(--accent); }
+/* T gegen CT */
+.pair { margin-top: 14px; } .pair + .pair { margin-top: 12px; }
+.pair .pl { font-size: 13.5px; font-weight: 600; }
+.pair .pb { display: grid; grid-template-columns: 30px 1fr; gap: 4px 8px; align-items: center; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.pair .pbar { display: flex; align-items: center; gap: 8px; } .pair .pbar i { display: block; height: 12px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.pair .pbar i.t { background: var(--t); } .pair .pbar i.ct { background: var(--ct); }
+.pair .pbar b { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Impact */
+.split { display: flex; gap: 2px; height: 14px; margin-top: 10px; border-radius: 4px; overflow: hidden; background: var(--surface-2); }
+.split i { display: block; height: 100%; } .split .w { background: var(--win); } .split .l { background: var(--loss); }
+.split-l { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; color: var(--muted); } .split-l b { color: var(--text); }
+.cols { display: flex; align-items: flex-end; gap: 10px; height: 110px; margin-top: 14px; padding-bottom: 22px; position: relative; border-bottom: 1px solid var(--grid); }
+.cols div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative; }
+.cols i { display: block; width: 100%; max-width: 24px; border-radius: 4px 4px 0 0; background: var(--accent); min-height: 2px; }
+.cols b { font-size: 13px; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.cols span { position: absolute; bottom: -20px; font-size: 12px; color: var(--muted); }
+.mini { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.mini div { padding: 12px; border-radius: 14px; background: var(--surface-2); }
+.mini b { display: block; font-family: var(--cond); font-weight: 800; font-size: 26px; line-height: 1; } .mini b small { font-size: 15px; color: var(--muted); }
+.mini span { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+/* Maps */
+.maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.mapc { display: block; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); }
+.mapc.on { border-color: rgba(255,159,28,.6); }
+.mapc .mn { font-family: var(--cond); font-weight: 800; font-size: 20px; text-transform: uppercase; letter-spacing: .03em; }
+.mapc .mm { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.mapc .mr { margin-top: 10px; font-family: var(--cond); font-weight: 800; font-size: 30px; line-height: 1; }
+.mapc .mr small { font-family: var(--sans, inherit); font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+.mapc .wb { height: 6px; border-radius: 3px; background: var(--surface); margin-top: 10px; overflow: hidden; } .mapc .wb i { display: block; height: 100%; background: var(--win); border-radius: 3px; }
+.mapc .ws { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+/* Matches */
+.ml { margin-top: 10px; }
+.mr-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
+.mr-row .pill { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: #0b0d12; background: var(--faint); }
+.mr-row .pill.w { background: var(--win); } .mr-row .pill.l { background: var(--loss); }
+.mr-row .mt b { font-size: 15px; } .mr-row .mt span { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.mr-row .rr { text-align: right; } .mr-row .rr b { font-family: var(--cond); font-size: 22px; font-weight: 800; }
+.rbar { position: relative; width: 76px; height: 5px; border-radius: 3px; background: var(--surface-2); margin-top: 4px; }
+.rbar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; } .rbar i.g { background: var(--win); } .rbar i.r { background: var(--loss); }
+.rbar em { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: rgba(255,255,255,.4); }
+details.tbl summary { cursor: pointer; margin-top: 12px; font-size: 14px; font-weight: 700; color: var(--orange); list-style: none; }
+details.tbl summary::-webkit-details-marker { display: none; }
+.wrap { overflow-x: auto; margin: 0 -16px; padding: 0 16px; } table.st.wide { min-width: 560px; }
 .ev { margin-top: 10px; } .ev-bars { display: flex; gap: 10px; align-items: flex-end; }
 .ev-c { flex: 1; display: grid; justify-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
-.ev-c b { font-size: 14px; color: var(--text); } .ev-c i { display: block; width: 100%; max-width: 46px; border-radius: 6px 6px 0 0; background: var(--muted); }
+.ev-c b { font-size: 14px; color: var(--text); } .ev-c i { display: block; width: 100%; max-width: 24px; border-radius: 4px 4px 0 0; background: var(--muted); }
 .ev-c i.g { background: var(--win); } .ev-c i.r { background: var(--loss); } .ev-c small { font-size: 11px; }
 .ev-t { margin: 10px 0 0; font-size: 14.5px; line-height: 1.45; }
-.rt { margin: 10px 0 0; padding-left: 20px; font-size: 15px; line-height: 1.45; } .rt li + li { margin-top: 4px; }
-.tr { display: flex; gap: 6px; align-items: flex-end; height: 74px; margin-top: 12px; position: relative; }
-.tr i { flex: 1; max-width: 34px; border-radius: 4px 4px 0 0; background: rgba(255,255,255,.25); }
-.tr i.me { background: var(--accent); } .tr i.ok { background: var(--win); } .tr i.me.ok { background: var(--win); outline: 2px solid var(--accent); }
-.tr .tl { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,255,255,.45); }
-.tr .tl span { position: absolute; right: 0; top: -15px; font-size: 11px; color: var(--muted); }
-.trc { margin-top: 4px; font-size: 13px; color: var(--muted); }
-.warn { margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--warn); background: rgba(245,165,36,.1); border-radius: 6px; font-size: 15px; line-height: 1.45; }
-.wrap { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
-table.st.wide { min-width: 520px; }
+@media (min-width: 960px) { .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .two > .card { margin-top: 12px; } }
 </style>
 {% endblock %}
 {% block hero %}
 <h1>Stats</h1>
-<p>Deine Zahlen aus den Demos: wie auf HLTV, nur für deine eigenen Matches.</p>
+<p>Deine Zahlen aus den Demos, und ob sie besser werden.</p>
 {% endblock %}
 {% block content %}{% import "evening_curve.html" as ec %}
+{% macro arrow(c) %}<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% if c == "up" %}<path d="M6 10V2M2.5 5.5L6 2l3.5 3.5"/>{% elif c == "down" %}<path d="M6 2v8M2.5 6.5L6 10l3.5-3.5"/>{% else %}<path d="M2 6h8"/>{% endif %}</svg>{% endmacro %}
 {% if tabs %}<div class="ptabs">{% for x in tabs %}<a href="/stats?p={{ x.sid }}&n={{ n }}" class="{{ 'on' if x.on }}">{{ x.name }}</a>{% endfor %}</div>{% endif %}
-<div class="chips">
+<div class="chips" role="navigation" aria-label="Zeitraum und Map">
   <a href="/stats{{ q(n='10') }}" class="{{ 'on' if n != 'all' }}">Letzte 10</a>
   <a href="/stats{{ q(n='all') }}" class="{{ 'on' if n == 'all' }}">Alle</a>
+  <span class="sep"></span>
   <a href="/stats{{ q(map='') }}" class="{{ 'on' if not cur_map }}">Alle Maps</a>
-  {% for m in maps %}<a href="/stats{{ q(map=m) }}" class="{{ 'on' if cur_map == m }}">{{ m.removeprefix('de_')|capitalize }}</a>{% endfor %}
+  {% for m in v.maps %}<a href="/stats{{ q(map=m) }}" class="{{ 'on' if cur_map == m }}">{{ m.removeprefix('de_')|capitalize }}</a>{% endfor %}
 </div>
 {% if not t %}
 <div class="box"><p>Noch keine Stats. Sie entstehen bei jedem ausgewerteten Match.{% if missing %} Für {{ missing }} ältere Matches fehlen sie noch; der Admin kann sie mit der Neuberechnung nachholen.{% endif %}</p></div>
 {% else %}
-{% set rating = t.rating2 if t.rating2 is not none else t.rating1 %}
-<div class="hero-r num">
-  <div><div class="rv {{ 'good' if rating >= 1.1 else 'bad' if rating < 0.9 }}">{{ de(rating) }}</div>
-    <div class="rl">{% if t.rating2 is not none %}Rating 2.0 (Näherung){% else %}Rating 1.0 (HLTV){% endif %} · 1,00 ist Durchschnitt</div></div>
-  <div class="rs"><b>{{ t.matches }}</b> {{ "Match" if t.matches == 1 else "Matches" }} · <b>{{ t.rounds }}</b> Runden<br>
-    <b class="good">{{ won }}</b> {{ "Sieg" if won == 1 else "Siege" }} · <b class="bad">{{ lost }}</b> {{ "Niederlage" if lost == 1 else "Niederlagen" }}</div>
-</div>
-<div class="big big4 num">
-  <div><b>{{ de(t.kd) if t.kd is not none else "–" }}</b><span>K/D</span><i>{{ t.kills }} Kills, {{ t.deaths }} Tode ({{ "+" if t.diff > 0 }}{{ t.diff }})</i></div>
-  <div><b>{{ de(t.adr, 1) if t.adr is not none else "–" }}</b><span>ADR</span><i>Schaden je Runde</i></div>
-  <div><b>{{ t.kast if t.kast is not none else "–" }}<small> %</small></b><span>KAST</span><i>Runden mit Kill, Assist, überlebt oder getradet</i></div>
-  <div><b>{{ t.hs_pct if t.hs_pct is not none else "–" }}<small> %</small></b><span>Headshots</span><i>Anteil der Kills</i></div>
-</div>
+{% set rt = v.tiles[0] %}
+<section class="form" data-block="form">
+  <div>
+    <div class="k">Deine Form · {{ "alle" if n == "all" else "letzte" }} {{ v.sel_n }} {{ "Match" if v.sel_n == 1 else "Matches" }}</div>
+    <div class="rv num {{ 'good' if rt.raw >= 1.1 else 'bad' if rt.raw < 0.9 }}">{{ rt.value }}</div>
+    <div class="rl">{% if t.rating2 is not none %}Rating 2.0 (Näherung){% else %}Rating 1.0 (HLTV){% endif %} · 1,00 ist Durchschnitt</div>
+    {% if rt.cmp %}<div class="trend {{ rt.cmp }}">{{ arrow(rt.cmp) }}{% if rt.cmp == "same" %}Etwa gleich wie{% else %}{{ rt.delta }} {{ "besser" if rt.cmp == "up" else "schlechter" }} als{% endif %} die {{ v.prev_n }} Matches davor</div>
+    {% elif n != "all" %}<div class="trend same">Vergleich ab 3 früheren Matches</div>{% endif %}
+  </div>
+  <div class="rs num"><b class="good">{{ v.won }}</b> – <b class="bad">{{ v.lost }}</b><br>Siege – Niederlagen<br>{{ t.rounds }} Runden
+    {% if v.form %}<div class="fdots" aria-label="Letzte Ergebnisse, neuestes rechts">{% for r in v.form %}<i class="{{ r or '' }}">{{ 'S' if r == 'w' else 'N' if r == 'l' else 'U' }}</i>{% endfor %}</div>{% endif %}
+  </div>
+</section>
 
-<div class="sk">Rating je Match</div>
-<div class="bars" aria-label="Rating je Match, älteste links">
-  <div class="one" style="bottom: {{ (100 / rmax)|round(1) }}px"><span>1,00</span></div>
-  {% for m in matches|reverse %}{% set r = m.rating2 if m.rating2 is not none else m.rating1 %}
-  <a href="/m/{{ m.file }}" class="{{ 'g' if r >= 1.1 else 'r' if r < 0.9 }}" style="height: {{ ([r, 0.05]|max / rmax * 100)|round(1) }}px" title="{{ m.map }} {{ m.when }}: {{ de(r) }}"></a>
+<section class="card" data-block="verlauf">
+  <h2>Verlauf</h2>
+  <p class="sub">Ein Punkt je Match, die Linie ist dein Schnitt über die letzten {{ v.chart.roll }}. Wähle die Kennzahl, tippe auf den Graphen für Details.</p>
+  <div class="chips" id="mchips">{% for m in v.chart.metrics %}<button type="button" data-m="{{ m.key }}" class="{{ 'on' if loop.first }}">{{ m.title }}</button>{% endfor %}</div>
+  <div class="chart" id="chart"><svg id="csvg" viewBox="0 0 600 230" role="img" aria-label="Verlauf der gewählten Kennzahl je Match"></svg><div class="tip" id="ctip" hidden></div></div>
+  <div class="legend"><span><i class="l1"></i>Schnitt über {{ v.chart.roll }} Matches</span><span><i class="l2"></i>Je Match</span><span id="lref"><i class="l3"></i>1,00 = Durchschnitt</span></div>
+  <p class="chart-sum" id="csum"></p>
+  <script type="application/json" id="cdata">{{ v.chart|tojson }}</script>
+</section>
+
+<section data-block="kennzahlen">
+  <div class="sk">Kennzahlen{% if v.has_prev %} · gegen die {{ v.prev_n }} Matches davor{% endif %}</div>
+  <div class="kpis">
+  {% for k in v.tiles %}
+    <button type="button" class="kpi{{ ' on' if loop.first }}" data-m="{{ k.key }}">
+      <div class="kt">{{ k.title }}</div>
+      <div class="kv num">{{ k.value }}{% if k.unit and k.raw is not none %}<small>{{ k.unit }}</small>{% endif %}</div>
+      <div class="kd {{ k.cmp or '' }}">{% if k.cmp %}{{ arrow(k.cmp) }}{% if k.cmp == "same" %}etwa gleich{% else %}<b>{{ k.delta }}</b> {{ "besser" if k.cmp == "up" else "schlechter" }}{% endif %}{% endif %}</div>
+      {% if k.spark %}<svg class="sp" viewBox="0 0 {{ k.spark.w }} {{ k.spark.h }}" preserveAspectRatio="none" aria-hidden="true"><path d="{{ k.spark.d }}"/></svg>{% endif %}
+    </button>
   {% endfor %}
-</div>
+  </div>
+</section>
 
-<div class="sk">Kills und Tode</div>
-<div class="big num">
-  <div><b>{{ de(t.kpr) }}</b><span>Kills je Runde</span><i>KPR</i></div>
-  <div><b>{{ de(t.dpr) }}</b><span>Tode je Runde</span><i>DPR</i></div>
-  <div><b>{{ t.assists if t.assists is not none else "–" }}</b><span>Assists</span><i>{% if t.assists is none %}Für ältere Matches nicht in den Daten{% else %}Schaden am Gegner, den ein Mitspieler tötet{% endif %}</i></div>
-  <div><b>{{ t.survival_pct }}<small> %</small></b><span>Runden überlebt</span><i>{{ t.traded }} deiner Tode wurden getradet</i></div>
-</div>
+<div class="two">
+{% if v.sides %}{% set s0 = v.sides[0] %}
+<section class="card" data-block="seiten">
+  <h2>T gegen CT</h2>
+  <p class="sub">{{ s0.rounds_t }} Runden als T, {{ s0.rounds_ct }} als CT.</p>
+  <div class="legend"><span><i class="lt"></i>T-Seite</span><span><i class="lct"></i>CT-Seite</span></div>
+  {% for r in v.sides[1:] %}
+  <div class="pair"><div class="pl">{{ r.label }}</div>
+    <div class="pb"><span>T</span><div class="pbar"><i class="t" style="width:{{ r.t_w * 0.78 }}%"></i><b>{{ r.t_s }}</b></div>
+      <span>CT</span><div class="pbar"><i class="ct" style="width:{{ r.ct_w * 0.78 }}%"></i><b>{{ r.ct_s }}</b></div></div></div>
+  {% endfor %}
+</section>
+{% endif %}
 
-<div class="sk">Impact</div>
-<div class="big num">
-  <div><b>{{ t.ok }}<small> : {{ t.od }}</small></b><span>Opening-Duelle</span><i>Erster Kill der Runde für dich : gegen dich</i></div>
-  <div><b>{{ t.multi }}</b><span>Multi-Kill-Runden</span><i>davon {{ t.k3plus }} mit 3 oder mehr{% if t.aces %}, {{ t.aces }} Ace{% endif %}</i></div>
-  <div><b>{{ clutch.won }}<small> / {{ clutch.n }}</small></b><span>Clutches gewonnen</span><i>Als Letzter gegen 1 oder mehr</i></div>
-  <div><b>{{ de(t.impact) if t.impact is not none else "–" }}</b><span>Impact (HLTV-Formel)</span><i>Aus Kills und Assists je Runde</i></div>
+<section class="card" data-block="impact">
+  <h2>Impact</h2>
+  {% set od = t.ok + t.od %}
+  <p class="sub">Opening-Duelle: der erste Kill der Runde.</p>
+  {% if od %}<div class="split" role="img" aria-label="{{ t.ok }} gewonnen, {{ t.od }} verloren"><i class="w" style="width:{{ 100 * t.ok / od }}%"></i><i class="l" style="width:{{ 100 * t.od / od }}%"></i></div>
+  <div class="split-l"><span><b>{{ t.ok }}</b> gewonnen</span><span><b>{{ t.od }}</b> verloren</span></div>{% else %}<p class="sub">Keine Opening-Duelle in diesem Zeitraum.</p>{% endif %}
+  {% if v.multi %}
+  <p class="sub" style="margin-top:16px">Runden nach Anzahl deiner Kills</p>
+  <div class="cols" role="img" aria-label="Runden mit 1 bis 5 Kills">{% for b in v.multi.bars %}<div><b>{{ b.n }}</b><i style="height:{{ (b.w * 0.7)|round(1) }}%"></i><span>{{ b.label }}</span></div>{% endfor %}</div>
+  {% endif %}
+  <div class="mini num">
+    <div><b>{{ clutch.won }}<small> / {{ clutch.n }}</small></b><span>Clutches gewonnen</span></div>
+    <div><b>{{ de(t.impact) if t.impact is not none else "–" }}</b><span>Impact (HLTV-Formel)</span></div>
+    <div><b>{{ t.assists if t.assists is not none else "–" }}</b><span>Assists</span></div>
+    <div><b>{{ t.traded }}</b><span>deiner Tode getradet</span></div>
+  </div>
+</section>
 </div>
 
 {% if nades %}
-<div class="sk">Granaten</div>
-<div class="big num">
-  <div><b>{{ nades.flash_good }}<small> / {{ nades.flash_n }}</small></b><span>Flashes wirksam</span><i>{{ nades.assists }} Flash-Assists</i></div>
-  <div><b>{{ nades.he_dmg }}</b><span>HE-Schaden</span><i>{{ nades.he_n }} HE geworfen</i></div>
-</div>
-<div class="links"><a href="/granaten{% if tabs %}?p={{ sid }}{% endif %}">Alles zu Granaten ›</a><a href="/duelle{% if tabs %}?p={{ sid }}{% endif %}">Alles zu Duellen ›</a></div>
+<section class="card" data-block="granaten">
+  <h2>Granaten</h2>
+  <div class="mini num">
+    <div><b>{{ nades.flash_good }}<small> / {{ nades.flash_n }}</small></b><span>Flashes wirksam · {{ nades.assists }} Flash-Assists</span></div>
+    <div><b>{{ nades.he_dmg }}</b><span>HE-Schaden aus {{ nades.he_n }} HE</span></div>
+  </div>
+  <div class="links"><a href="/granaten{% if tabs %}?p={{ sid }}{% endif %}">Alles zu Granaten ›</a><a href="/duelle{% if tabs %}?p={{ sid }}{% endif %}">Alles zu Duellen ›</a></div>
+</section>
 {% endif %}
 
-{% if eve and eve.rows|length > 1 %}<div class="sk">Rating im Lauf eines Spielabends</div>{{ ec.curve(eve) }}{% endif %}
-
-<div class="sk">Matches</div>
-<div class="wrap"><table class="st wide num">
-  <tr><th>Match</th><th class="n">Ergebnis</th><th class="n">K-D-A</th><th class="n">+/-</th><th class="n">ADR</th><th class="n">KAST</th><th class="n">Rating</th></tr>
-  {% for m in matches %}{% set r = m.rating2 if m.rating2 is not none else m.rating1 %}
-  <tr><td><a href="/m/{{ m.file }}">{{ m.map }}</a> <span style="color:var(--muted)">{{ m.when }}</span></td>
-    <td class="n {{ 'good' if m.res == 'w' else 'bad' if m.res == 'l' }}">{{ m.score[0] ~ ":" ~ m.score[1] if m.score else "–" }}</td>
-    <td class="n">{{ m.kills }}-{{ m.deaths }}-{{ m.assists if m.assists is not none else "?" }}</td>
-    <td class="n {{ 'good' if m.diff > 0 else 'bad' if m.diff < 0 }}">{{ "+" if m.diff > 0 }}{{ m.diff }}</td>
-    <td class="n">{{ de(m.adr, 1) if m.adr is not none else "–" }}</td><td class="n">{{ m.kast ~ " %" if m.kast is not none else "–" }}</td>
-    <td class="n {{ 'good' if r >= 1.1 else 'bad' if r < 0.9 }}"><b>{{ de(r) }}</b>{% if m.rating2 is none %}*{% endif %}</td></tr>
-  {% endfor %}
-</table></div>
-
-{% if by_map|length > 1 %}
-<div class="sk">Je Map (alle Matches)</div>
-<table class="st num">
-  <tr><th>Map</th><th class="n">Matches</th><th class="n">Siege</th><th class="n">K/D</th><th class="n">ADR</th><th class="n">Rating</th></tr>
-  {% for m in by_map %}{% set r = m.rating2 if m.rating2 is not none else m.rating1 %}
-  <tr><td><a href="/stats{{ q(map=m.map) }}">{{ m.label }}</a></td><td class="n">{{ m.n }}</td><td class="n">{{ m.won }}</td>
-    <td class="n">{{ de(m.kd) if m.kd is not none else "–" }}</td><td class="n">{{ de(m.adr, 1) if m.adr is not none else "–" }}</td>
-    <td class="n {{ 'good' if r >= 1.1 else 'bad' if r < 0.9 }}">{{ de(r) }}</td></tr>
-  {% endfor %}
-</table>
+{% if v.by_map|length > 1 %}
+<section data-block="maps">
+  <div class="sk">Je Map · alle Matches</div>
+  <div class="maps">{% for m in v.by_map %}
+    <a class="mapc{{ ' on' if cur_map == m.map }}" href="/stats{{ q(map=m.map) }}">
+      <div class="mn">{{ m.label }}</div><div class="mm">{{ m.n }} {{ "Match" if m.n == 1 else "Matches" }}</div>
+      <div class="mr num {{ 'good' if m.rating and m.rating >= 1.1 else 'bad' if m.rating and m.rating < 0.9 }}">{{ m.rating_s }}<small>Rating</small></div>
+      {% if m.win_pct is not none %}<div class="wb"><i style="width:{{ m.win_pct }}%"></i></div><div class="ws">{{ m.won }} Siege · {{ m.win_pct }} %</div>{% endif %}
+      <div class="ws">K/D {{ m.kd_s }} · ADR {{ m.adr_s }}</div>
+    </a>{% endfor %}</div>
+</section>
 {% endif %}
+
+{% if eve and eve.rows|length > 1 %}<section class="card" data-block="abend"><h2>Rating im Lauf eines Spielabends</h2>{{ ec.curve(eve) }}</section>{% endif %}
+
+<section class="card" data-block="matches">
+  <h2>Matches</h2>
+  <div class="ml">{% for m in v.matches %}{% set r = m.v.rating %}
+    <a class="mr-row" href="/m/{{ m.file }}">
+      <span class="pill {{ m.res or '' }}">{{ 'S' if m.res == 'w' else 'N' if m.res == 'l' else 'U' if m.res == 'd' else '–' }}</span>
+      <span class="mt"><b>{{ m.map }}</b> <small class="muted">{{ m.date[8:10] }}.{{ m.date[5:7] }}.</small><span>{{ m.score or "–" }} · {{ m.kda }} · ADR {{ de(m.v.adr, 0) }}</span></span>
+      <span class="rr num"><b class="{{ 'good' if r >= 1.1 else 'bad' if r < 0.9 }}">{{ de(r) }}</b>{% if m.r1only %}*{% endif %}
+        {% set off = ((r - 1) * 50)|round(1) %}<div class="rbar" aria-hidden="true"><em></em><i class="{{ 'g' if r >= 1 else 'r' }}" style="{% if r >= 1 %}left:50%;width:{{ [off, 50]|min }}%{% else %}right:50%;width:{{ [-off, 50]|min }}%{% endif %}"></i></div></span>
+    </a>{% endfor %}</div>
+  <details class="tbl"><summary>Als Tabelle</summary>
+  <div class="wrap"><table class="st wide num">
+    <tr><th>Match</th><th class="n">Ergebnis</th><th class="n">K-D-A</th><th class="n">+/-</th><th class="n">ADR</th><th class="n">KAST</th><th class="n">HS</th><th class="n">Rating</th></tr>
+    {% for m in v.matches %}
+    <tr><td><a href="/m/{{ m.file }}">{{ m.map }}</a> <span style="color:var(--muted)">{{ m.date[8:10] }}.{{ m.date[5:7] }}.</span></td>
+      <td class="n">{{ m.score or "–" }}</td><td class="n">{{ m.kda }}</td>
+      <td class="n">{{ "+" if m.diff > 0 }}{{ m.diff }}</td><td class="n">{{ de(m.v.adr, 1) }}</td>
+      <td class="n">{{ m.v.kast ~ " %" if m.v.kast is not none else "–" }}</td><td class="n">{{ m.v.hs_pct ~ " %" if m.v.hs_pct is not none else "–" }}</td>
+      <td class="n"><b>{{ de(m.v.rating) }}</b>{% if m.r1only %}*{% endif %}</td></tr>
+    {% endfor %}
+  </table></div></details>
+</section>
 
 <div class="box note">
+  <p><b>Besser oder schlechter</b> steht nur bei klarem Abstand zum Zeitraum davor (zum Beispiel Rating 0,05, ADR 5, KAST 3 Prozentpunkte), und erst ab 3 Matches auf beiden Seiten. Sonst „etwa gleich“.</p>
   <p><b>Woher die Zahlen kommen:</b> alles aus deinen Demos. K/D zählt wie das Scoreboard (auch Kills nach Rundenende).
     KAST: Runden mit Kill, Assist, überlebt oder getradet (Killer fällt binnen 5 s).</p>
   <p><b>Rating 1.0</b> ist die öffentliche Formel von HLTV. <b>Rating 2.0</b> hat HLTV nie veröffentlicht; hier steht die
@@ -137,4 +269,77 @@ table.st.wide { min-width: 520px; }
   {% if missing %}<p>{{ missing }} ältere {{ "Match fehlt" if missing == 1 else "Matches fehlen" }} hier noch. Die Neuberechnung auf dem Server holt sie nach.</p>{% endif %}
 </div>
 {% endif %}
+{% endblock %}
+{% block script %}
+<script>
+(function () {
+  var el = document.getElementById("cdata"); if (!el) return;
+  var D = JSON.parse(el.textContent), svg = document.getElementById("csvg"), tip = document.getElementById("ctip"),
+      box = document.getElementById("chart"), sum = document.getElementById("csum"), lref = document.getElementById("lref");
+  var W = 600, H = 230, L = 40, R = 14, T = 14, B = 26, NS = "http://www.w3.org/2000/svg", cur = D.metrics[0].key, xs = [], ys = [];
+  function fmt(x, d) { return x == null ? "–" : x.toFixed(d).replace(".", ","); }
+  function dec(st) { for (var d = 0; d < 3; d++) if (Math.abs(st * Math.pow(10, d) - Math.round(st * Math.pow(10, d))) < 1e-6) return d; return 2; }
+  function meta(k) { return D.metrics.filter(function (m) { return m.key === k; })[0]; }
+  function node(t, a) { var n = document.createElementNS(NS, t); for (var k in a) n.setAttribute(k, a[k]); svg.appendChild(n); return n; }
+  function nice(lo, hi) {
+    var span = hi - lo || Math.abs(hi) || 1, raw = span / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+    var st = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p;
+    return {lo: Math.floor(lo / st) * st, hi: Math.ceil(hi / st) * st, st: st};
+  }
+  function draw(k) {
+    cur = k; var m = meta(k), P = D.points, n = P.length; while (svg.firstChild) svg.removeChild(svg.firstChild); tip.hidden = true;
+    var vals = P.map(function (p) { return p[k]; }), ok = vals.filter(function (v) { return v != null; });
+    lref.style.display = k === "rating" ? "" : "none";
+    if (ok.length < 2) { node("text", {x: W / 2, y: H / 2, "text-anchor": "middle", class: "ax"}).textContent = "Für einen Verlauf braucht es mindestens 2 Matches."; sum.textContent = ""; return; }
+    var avg = vals.map(function (_, i) { var w = vals.slice(Math.max(0, i - D.roll + 1), i + 1).filter(function (v) { return v != null; });
+      return w.length ? w.reduce(function (a, b) { return a + b; }, 0) / w.length : null; });
+    var lo = Math.min.apply(null, ok), hi = Math.max.apply(null, ok);
+    if (k === "rating") { lo = Math.min(lo, 1); hi = Math.max(hi, 1); }
+    if (m.unit === "%") { lo = Math.max(0, lo); hi = Math.min(100, hi); }
+    var s = nice(lo - (hi - lo) * .08, hi + (hi - lo) * .08);
+    var X = function (i) { return L + (n === 1 ? (W - L - R) / 2 : i * (W - L - R) / (n - 1)); },
+        Y = function (v) { return T + (H - T - B) * (1 - (v - s.lo) / (s.hi - s.lo)); };
+    for (var g = s.lo; g <= s.hi + s.st / 2; g += s.st) {
+      node("line", {x1: L, x2: W - R, y1: Y(g), y2: Y(g), class: "gl"});
+      node("text", {x: L - 8, y: Y(g) + 4, "text-anchor": "end", class: "ax"}).textContent = fmt(g, dec(s.st));
+    }
+    if (k === "rating") node("line", {x1: L, x2: W - R, y1: Y(1), y2: Y(1), class: "ref"});
+    var first = P[0].date, last = P[n - 1].date, d2 = function (d) { return d ? d.slice(8, 10) + "." + d.slice(5, 7) + "." : ""; };
+    node("text", {x: L, y: H - 6, class: "ax"}).textContent = d2(first);
+    node("text", {x: W - R, y: H - 6, "text-anchor": "end", class: "ax"}).textContent = d2(last);
+    var path = function (arr) { var d = "", pen = false; arr.forEach(function (v, i) { if (v == null) { pen = false; return; } d += (pen ? "L" : "M") + X(i).toFixed(1) + "," + Y(v).toFixed(1); pen = true; }); return d; };
+    node("path", {d: path(vals), class: "raw"});
+    var ap = path(avg), ia = avg.map(function (v, i) { return v == null ? -1 : i; }).filter(function (i) { return i >= 0; });
+    node("path", {d: ap + "L" + X(ia[ia.length - 1]).toFixed(1) + "," + (H - B) + "L" + X(ia[0]).toFixed(1) + "," + (H - B) + "Z", class: "area"});
+    node("path", {d: ap, class: "avg"});
+    xs = []; ys = [];
+    vals.forEach(function (v, i) { xs.push(X(i)); ys.push(v == null ? null : Y(v)); if (v != null) node("circle", {cx: X(i), cy: Y(v), r: n > 40 ? 3 : 4, class: "dot"}); });
+    var li = ia[ia.length - 1]; node("circle", {cx: X(li), cy: Y(avg[li]), r: 5, class: "end"});
+    var a0 = avg[li], ref = null, firstAvg = avg[Math.min(D.roll - 1, n - 1)];
+    sum.textContent = "Schnitt der letzten " + Math.min(D.roll, ok.length) + ": " + fmt(a0, m.dec) + (m.unit ? " " + m.unit : "") +
+      (k === "rating" ? (a0 >= 1 ? ", über" : ", unter") + " dem Durchschnitt von 1,00." : ".") +
+      (n >= D.roll * 2 && firstAvg != null ? " Vor " + (n - D.roll) + " Matches lag er bei " + fmt(firstAvg, m.dec) + (m.unit ? " " + m.unit : "") + "." : "");
+    svg.__h = [node("line", {x1: 0, x2: 0, y1: T, y2: H - B, class: "xh", visibility: "hidden"}), node("circle", {cx: 0, cy: 0, r: 6, class: "hl", visibility: "hidden"})];
+  }
+  function show(ev) {
+    if (!xs.length) return; var r = svg.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * W, best = 0;
+    xs.forEach(function (v, i) { if (Math.abs(v - x) < Math.abs(xs[best] - x)) best = i; });
+    var p = D.points[best], m = meta(cur), v = p[cur], h = svg.__h;
+    h[0].setAttribute("x1", xs[best]); h[0].setAttribute("x2", xs[best]); h[0].setAttribute("visibility", "visible");
+    if (ys[best] != null) { h[1].setAttribute("cx", xs[best]); h[1].setAttribute("cy", ys[best]); h[1].setAttribute("visibility", "visible"); } else h[1].setAttribute("visibility", "hidden");
+    tip.innerHTML = ""; var b = document.createElement("b"); b.textContent = fmt(v, m.dec) + (m.unit && v != null ? " " + m.unit : ""); tip.appendChild(b);
+    var s = document.createElement("span"); s.textContent = p.map + (p.score ? " " + p.score : "") + " · " + (p.date ? p.date.slice(8, 10) + "." + p.date.slice(5, 7) + "." : ""); tip.appendChild(s);
+    var px = xs[best] / W * r.width; tip.style.left = Math.max(70, Math.min(r.width - 70, px)) + "px"; tip.hidden = false;
+  }
+  svg.addEventListener("pointermove", show); svg.addEventListener("pointerdown", show);
+  svg.addEventListener("pointerleave", function () { tip.hidden = true; if (svg.__h) svg.__h.forEach(function (n) { n.setAttribute("visibility", "hidden"); }); });
+  function pick(k, scroll) {
+    document.querySelectorAll("#mchips button, .kpi").forEach(function (b) { b.classList.toggle("on", b.dataset.m === k); });
+    draw(k); if (scroll) document.querySelector('[data-block="verlauf"]').scrollIntoView({behavior: "smooth", block: "start"});
+  }
+  document.getElementById("mchips").addEventListener("click", function (e) { var b = e.target.closest("button"); if (b) pick(b.dataset.m); });
+  document.querySelectorAll(".kpi").forEach(function (b) { b.addEventListener("click", function () { pick(b.dataset.m, true); }); });
+  draw(cur);
+})();
+</script>
 {% endblock %}

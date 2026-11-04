@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branch `ccr-cd3bec95-38h7uj` (baut auf `ccr-b08d5abb-e1pzde` auf) · Tests: 385 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 391 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -99,6 +99,7 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 | academy.py, academy_texts.py | CS-Wissen: 11 Bereiche (`AREAS`), 47 Themen (`TOPICS`) mit Kernsatz, Erklärung, Beispiel in Schritten, Fehlern, Übung, Schlüsselwort, Frage für die eigene Demo, Wissens-Check; `answer` (Abstände 1/3/7/21 Tage, falsch = morgen), `due` (falsche zuerst, neue nur aus gelesenen Themen oder der aktuellen Lektion, Bereiche gemischt), `overview`, `related` (Lektion -> Themen). Lernstand in data/drills/<sid>.json unter `quiz` und `read` |
 | drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Tilt-Check (set_tilt, tilt_state: Gefühl je Match, Reset an/aus), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | evening.py | Spielabend: Rating je Match-Nummer des Tages (curve), Rat "Pause nach k Matches" erst ab 3 Tagen mit 2+ Matches und Abfall >= 0,10; index_today |
+| stats_view.py | Stats-Seite: Kennzahlen je Match (Verlauf), Vergleich mit gleich vielen Matches davor (ab 3, nur bei klarem Abstand `METRICS`), Sparklines, T gegen CT aus `by_round` (ab 10 Runden je Seite), Maps, Multi-Kills |
 | scoreboard.py | Stats: Rohzahlen je Match (K/D/A, Schaden, HS, KAST, 1K–5K, Openings, Trades), Summen über Matches, Kennzahlen inkl. HLTV-Rating 1.0 und Rating-2.0-Näherung (awpy-Formel, gegengeprüft: gleiche Werte wie awpy) |
 | nade_effect.py | Granaten-Wirkung: Flash-Blendzeit, Flash-Assists, Team geblendet, HE/Molotov-Schaden, Tod mit Granaten |
 | utility_cmp.py | Utility gegen Pros, Flash-Wirkung, Granaten vor dem ersten Duell |
@@ -138,8 +139,11 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
   Session-Thema und Lektion verlinken passende Themen; der KI-Coach bekommt sie in den Fakten und darf sie nennen.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
-- `/stats` (Reiter "Stats"): Rating, K/D, ADR, KAST, HS, KPR/DPR, Assists, Überleben, Openings, Multi-Kills,
-  Clutches, Impact, Granaten, Rating je Match (Balken), Match-Tabelle, je Map, Rating im Lauf eines Spielabends. Filter: letzte 10/alle, Map.
+- `/stats` (Reiter "Stats", `stats_view.py`): Form (Rating, Vergleich mit dem Zeitraum davor, Siege/Niederlagen, letzte 5),
+  interaktiver Verlauf je Kennzahl (Punkte je Match, Schnitt über 5, Tooltip), 8 Kennzahl-Kacheln mit besser/schlechter
+  und Sparkline (Antippen wechselt den Graphen), T gegen CT, Impact (Openings, 1K–5K, Clutches), Granaten, Map-Karten,
+  Spielabend, Match-Liste mit Rating-Balken und Tabelle. Filter: letzte 10/alle, Map. Farben T `#c78322`, CT `#4d8fe6`
+  (mit Palette-Prüfung auf Farbsehschwäche und Kontrast).
 - `/granaten`, `/duelle`: Statistik-Seiten mit letztem Match, Runde für Runde bzw. Kennzahlen, Verlauf.
 - `/matches`, `/progress`, `/progress/details`, `/progress/karte`, `/review`, `/highlights`.
 - `/training`, `/training/situationen` (Szenen-Quiz), `/training/deal|done|plan`.
@@ -230,6 +234,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-04: Stats-Seite neu (`stats_view.py`): Form mit Vergleich, Verlauf als Graph, Kennzahl-Kacheln mit Trend,
+  T gegen CT, Impact-Graphen, Map-Karten, neue Match-Liste.
 
 - 2026-11-04: CS-Wissen (`academy.py`, `/wissen`): 47 Themen in 11 Bereichen mit Wissens-Check und Wiederholung mit
   Abstand; Wissens-Check, Kopfkino und Duo-Satz im Warm-up; Links aus Session, Lektion und KI-Coach; "Wie Coaches

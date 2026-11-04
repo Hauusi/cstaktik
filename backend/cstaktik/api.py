@@ -1080,54 +1080,31 @@ def duelle_page(p: str = "") -> str:
 
 @app.get("/stats", response_class=HTMLResponse)
 def stats_page(p: str = "", n: str = "10", map: str = "") -> str:
-    """Stats: K/D/A, ADR, KAST, HS, Multi-Kills, Openings, Clutches, Rating – über die letzten 10 oder alle Matches,
-    wahlweise je Map, dazu Rating je Match und eine Tabelle aller Matches."""
-    from cstaktik import history, scoreboard
+    """Stats: Form (Rating und Vergleich mit dem Zeitraum davor), Verlauf je Kennzahl als Graph, T gegen CT,
+    Impact, Granaten, Maps, Spielabend, alle Matches. Über die letzten 10 oder alle Matches, wahlweise je Map."""
+    from cstaktik import evening, stats_view
 
     hist = _load_hist()
     sid, tabs = _course_player(hist, p)
-    mine = [h for h in hist if sid and ((h.get("board") or {}).get(sid) or {}).get("rounds")]
+    n = "all" if n == "all" else "10"
+    v = stats_view.build(hist, sid, n, map) if sid else {"tot": None, "maps": [], "fmt": stats_view.fmt}
+    cur_map = map if map in v["maps"] else ""
     missing = sum(1 for h in hist if sid and sid in (h.get("players") or {}) and not (h.get("board") or {}).get(sid))
-    maps = sorted({h.get("map") for h in mine if h.get("map")})
-    if map and map in maps:
-        mine = [h for h in mine if h.get("map") == map]
-    sel = mine if n == "all" else mine[-10:]
-    rows = [h["board"][sid] for h in sel]
-    tot = scoreboard.derive(scoreboard.totals(rows))
-    res = [history.score(h, sid) for h in sel]
-    won = sum(1 for r in res if r and r[0] > r[1])
-    lost = sum(1 for r in res if r and r[1] > r[0])
+    sel = [h for h in hist if sid and ((h.get("board") or {}).get(sid) or {}).get("rounds")
+           and (not cur_map or h.get("map") == cur_map)]
+    sel.sort(key=lambda h: h.get("analyzed_at") or "")
+    sel = sel if n == "all" else sel[-10:]
     cl = [c for h in sel for c in h.get("clutch") or [] if c.get("sid") == sid]
-    clutch = {"n": len(cl), "won": sum(1 for c in cl if c.get("won"))}
-    fl = [((h.get("nade_eff") or {}).get(sid) or {}).get("flash") for h in sel]
-    fl = [f for f in fl if f and f.get("n")]
-    he = [((h.get("nade_eff") or {}).get(sid) or {}).get("he") for h in sel]
-    he = [x for x in he if x and x.get("n")]
+    fl = [f for f in (((h.get("nade_eff") or {}).get(sid) or {}).get("flash") for h in sel) if f and f.get("n")]
+    he = [x for x in (((h.get("nade_eff") or {}).get(sid) or {}).get("he") for h in sel) if x and x.get("n")]
     nades = {"flash_n": sum(f["n"] for f in fl), "flash_good": sum(f["good"] for f in fl),
              "assists": sum(f.get("assists", 0) for f in fl), "he_dmg": sum(x["enemy_dmg"] for x in he),
              "he_n": sum(x["n"] for x in he)} if fl or he else None
-    matches = []
-    for h, r in zip(sel, res):
-        d = scoreboard.derive(h["board"][sid])
-        matches.append({"file": h.get("report_file"), "when": (_when(h) or "")[:6],
-                        "map": (h.get("map") or "?").removeprefix("de_").capitalize(), "score": r,
-                        "res": None if not r else "w" if r[0] > r[1] else "l" if r[1] > r[0] else "d", **d})
-    by_map = []
-    for m in maps:
-        hs = [h for h in hist if sid and h.get("map") == m and ((h.get("board") or {}).get(sid) or {}).get("rounds")]
-        d = scoreboard.derive(scoreboard.totals([h["board"][sid] for h in hs]))
-        rs = [history.score(h, sid) for h in hs]
-        by_map.append({"map": m, "label": m.removeprefix("de_").capitalize(), "n": len(hs),
-                       "won": sum(1 for r in rs if r and r[0] > r[1]), **(d or {})})
-    q = lambda **kw: "?" + "&".join(f"{k}={v}" for k, v in {"p": sid if tabs else "", "n": n, "map": map, **kw}.items() if v)  # noqa: E731
-    from cstaktik import evening
-
-    eve = evening.curve(hist, sid) if sid else None
+    q = lambda **kw: "?" + "&".join(f"{k}={val}" for k, val in {"p": sid if tabs else "", "n": n, "map": cur_map, **kw}.items() if val)  # noqa: E731
     return _env.get_template("stats.html").render(
-        eve=eve, nav_active="stats", jobs=_running_jobs(), sid=sid, tabs=tabs, t=tot, won=won, lost=lost, clutch=clutch,
-        nades=nades, matches=matches[::-1], by_map=by_map, maps=maps, cur_map=map, n=n, missing=missing,
-        q=q, de=lambda x, d=2: f"{x:.{d}f}".replace(".", ","),
-        rmax=max([1.6] + [m["rating2"] if m["rating2"] is not None else m["rating1"] for m in matches]))
+        nav_active="stats", jobs=_running_jobs(), sid=sid, tabs=tabs, v=v, t=v["tot"], n=n, cur_map=cur_map,
+        missing=missing, q=q, clutch={"n": len(cl), "won": sum(1 for c in cl if c.get("won"))}, nades=nades,
+        eve=evening.curve(hist, sid) if sid else None, de=lambda x, d=2: stats_view.fmt(x, d))
 
 
 @app.get("/kurs/{lesson}", response_class=HTMLResponse)
