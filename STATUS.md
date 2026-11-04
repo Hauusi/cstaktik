@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 391 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 388 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
