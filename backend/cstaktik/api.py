@@ -1001,6 +1001,7 @@ def wissen_topic(topic: str, p: str = "") -> str:
             for q in t.get("quiz") or []]
     return _env.get_template("wissen_thema.html").render(
         nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, t=t, quiz=quiz,
+        me=academy.mine(hist, sid, topic),
         area=next(a for a in academy.AREAS if a["key"] == t["area"]),
         lessons=[{"id": l, "title": course_texts.LESSONS[l]["title"]} for l in t.get("lessons") or []
                  if l in course_texts.LESSONS],

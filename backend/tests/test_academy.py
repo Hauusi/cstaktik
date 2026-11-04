@@ -138,3 +138,21 @@ def test_imagery_needs_if_then_plan():
     assert course_texts.imagery(None, "x") == [] and course_texts.imagery("Spiel gut.", "x") == []
     st = course_texts.imagery("Wenn A passiert, dann B.", "Cue")
     assert len(st) == 3 and "„Wenn A passiert, dann B“" in st[0] and "„Cue“" in st[2]
+
+
+def test_knowledge_topic_shows_own_numbers_and_scenes():
+    from cstaktik import spielerprofil
+
+    hist = []
+    for i in range(4):
+        hist.append({"id": f"k{i}", "map": "de_mirage", "rounds": 20, "analyzed_at": f"2026-01-0{i + 1}T10:00",
+                     "report_file": f"k{i}.html", "players": {ME: {"name": "Ich", "rounds": 20}},
+                     "lessons": {ME: {"alone": 4}}, "deaths": [{"sid": ME, "traded": d < 1} for d in range(4)],
+                     "scenes": [{"sid": ME, "round": 5, "tick": 500, "lesson": "alone", "happened": "Du peekst allein."}]})
+    me = academy.mine(hist, ME, "trading")
+    assert me["metrics"][0]["key"] == "traded" and me["metrics"][0]["value"] == "25 %"
+    assert me["lessons"][0]["id"] == "alone" and me["lessons"][0]["status"] == "baustelle"
+    assert len(me["scenes"]) == 2 and me["scenes"][0]["href"].startswith("/reports/k3.html")
+    assert academy.mine(hist, ME, "equipment") is None  # nichts messbar: kein Abschnitt
+    assert academy.mine(hist, None, "trading") is None
+    assert spielerprofil.build(hist, ME)["areas"][3]["verdict"] == "baustelle"

@@ -142,3 +142,47 @@ def related(lesson: str | None) -> list[dict]:
     if not lesson:
         return []
     return [{"id": tid, "title": TOPICS[tid]["title"], "key": TOPICS[tid]["key"]} for tid in topics_for_lesson(lesson)]
+
+
+# Thema -> Kennzahlen aus dem Spielerprofil, die zeigen, wie es bei dir aussieht (nur, was die Demos messen)
+MEASURES = {
+    "crosshair_placement": ["hit", "hs"], "counter_strafe": ["moving", "hit"], "first_bullet": ["hit"],
+    "spray_control": ["hs"], "peek_types": ["seen_me", "duel_won"], "peekers_advantage": ["seen_me", "duel_won"],
+    "isolation": ["duel_won"], "trading": ["traded", "kast"], "buy_types": ["economy"], "loss_bonus": ["economy"], "saving": ["economy"],
+    "smokes": ["util_death"], "flashes": ["flash"], "molotov": ["util_death"], "he_grenade": ["util_death"],
+    "utility_order": ["flash", "util_death"], "counter_utility": [], "t_execute": ["traded"],
+    "midround": ["advantage"], "man_advantage": ["advantage"], "clutch": ["clutch"], "low_hp_play": [],
+    "duo_play": ["traded"],
+}
+SIDE_TOPICS = {"t_default": "t", "t_execute": "t", "t_split_fake": "t", "lurk": "t", "midround": "t", "t_timing": "t",
+               "plant_postplant": "t", "ct_setup": "ct", "crossfire": "ct", "rotation": "ct", "ct_aggression": "ct",
+               "ct_stack": "ct", "retake": "ct", "defuse": "ct"}
+
+
+def mine(hist: list[dict], sid: str | None, tid: str, profile: dict | None = None) -> dict | None:
+    """"Bei dir" zu einem Thema: passende Kennzahlen mit Verlauf, Stand der verwandten Lektionen, eigene Szenen.
+
+    Nur Werte aus den Demos. Fehlt alles, None (dann zeigt die Seite keinen Abschnitt)."""
+    if not sid or tid not in TOPICS:
+        return None
+    from cstaktik import course, spielerprofil
+
+    prof = profile or spielerprofil.build(hist, sid)
+    if not prof:
+        return None
+    by_key = {m["key"]: m for a in prof["areas"] for m in a["metrics"]}
+    metrics = [by_key[k] for k in MEASURES.get(tid, []) if k in by_key]
+    rows = {r["id"]: r for a in prof["areas"] for r in a["lessons"]}
+    lessons = [rows[l] for l in TOPICS[tid].get("lessons") or [] if l in rows and rows[l]["rounds"]]
+    scenes, seen = [], set()
+    for l in TOPICS[tid].get("lessons") or []:
+        for sc in course.own_scenes(hist, sid, l, limit=2):
+            if sc["href"] not in seen and len(scenes) < 2:
+                seen.add(sc["href"])
+                scenes.append(sc)
+    side = SIDE_TOPICS.get(tid)
+    side_row = (prof.get("sides") or {}).get(side) if side else None
+    if not (metrics or lessons or scenes or side_row):
+        return None
+    return {"metrics": metrics, "lessons": lessons, "scenes": scenes, "n": prof["n"], "has_prev": prof["has_prev"],
+            "side": {"label": side.upper(), **side_row} if side_row else None}
