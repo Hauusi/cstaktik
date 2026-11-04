@@ -315,6 +315,8 @@ def duo(match: MatchData, cfg: dict) -> dict | None:
         "apart": p,
         "trades": {names[k]: v for k, v in trades.items()},
         "died_first": {names[k]: v for k, v in first.items()},
+        # dieselben Zahlen je SteamID (für den Verlauf über Matches, Namen können sich ändern)
+        "sids": [a, b], "trades_by": dict(trades), "first_by": dict(first),
         "sentence": sentence,
     }
 

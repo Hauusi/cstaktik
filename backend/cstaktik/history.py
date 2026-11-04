@@ -91,6 +91,9 @@ def summarize(match: MatchData, result: AnalysisResult, report_file: str | None 
         "cause_rounds": debrief["rounds_with"],
         "cause_order": [c["id"] for c in debrief["causes"]],
         "verdict": debrief["sentence"],
+        # Duo (genau zwei Fokus-Spieler im Match): Runden zusammen/getrennt, gegenseitige Trades, wer zuerst starb
+        "duo": {k: debrief["duo"][k] for k in ("sids", "avg_distance", "together", "apart", "trades_by", "first_by")}
+        if debrief.get("duo") else None,
         "mech": {m["steamid"]: {k: m[k] for k in ("moving_pct", "hit_pct", "hs_pct", "deaths_no_shot_pct",
                                                    "spray_early_pct", "spray_late_pct", "shots")}
                  for m in debrief["mechanics"]},

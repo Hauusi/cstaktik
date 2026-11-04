@@ -1108,7 +1108,10 @@ def stats_page(p: str = "", n: str = "10", map: str = "") -> str:
     return _env.get_template("stats.html").render(
         nav_active="stats", jobs=_running_jobs(), sid=sid, tabs=tabs, v=v, t=v["tot"], n=n, cur_map=cur_map,
         missing=missing, q=q, clutch={"n": len(cl), "won": sum(1 for c in cl if c.get("won"))}, nades=nades,
-        eve=evening.curve(hist, sid) if sid else None, de=lambda x, d=2: stats_view.fmt(x, d))
+        eve=evening.curve(hist, sid) if sid else None, de=lambda x, d=2: stats_view.fmt(x, d),
+        duo=__import__("cstaktik.duo", fromlist=["summary"]).summary(hist, sid, _names(hist)) if sid else None,
+        duo_missing=bool(sid) and not any((h.get("duo") or {}).get("sids") for h in hist)
+        and any(len(set(h.get("lessons") or {})) == 2 and sid in (h.get("lessons") or {}) for h in hist))
 
 
 @app.get("/kurs/{lesson}", response_class=HTMLResponse)

@@ -212,6 +212,18 @@ def facts(h: dict, sid: str, previous: list[dict] | None = None, lesson: dict | 
             out.append(f"- Runde {c.get('round')}: 1 gegen {c.get('vs')}, {'gewonnen' if c.get('won') else 'verloren'}, "
                        f"{c.get('kills', 0)} Kills, {'überlebt' if c.get('alive') else 'gestorben'}")
 
+    du = h.get("duo") or {}
+    if sid in (du.get("sids") or []):
+        mate = next(x for x in du["sids"] if x != sid)
+        mname = ((h.get("players") or {}).get(mate) or {}).get("name") or "Mitspieler"
+        t, a = du.get("together") or {}, du.get("apart") or {}
+        out.append(f"\n## Duo mit {mname} (Runden, in denen beide lebten; zusammen = im Schnitt unter 25 m)")
+        out.append(f"- Zusammen: {t.get('won', 0)} von {t.get('rounds', 0)} Runden gewonnen. "
+                   f"Getrennt: {a.get('won', 0)} von {a.get('rounds', 0)}.")
+        out.append(f"- Trades: er für {mname} {(du.get('trades_by') or {}).get(sid, 0)}, {mname} für ihn "
+                   f"{(du.get('trades_by') or {}).get(mate, 0)}. Zuerst gestorben: er {(du.get('first_by') or {}).get(sid, 0)}, "
+                   f"{mname} {(du.get('first_by') or {}).get(mate, 0)}.")
+
     scenes = [s for s in h.get("scenes") or [] if s.get("sid") == sid]
     if scenes:
         out.append("\n## Szenen (Tode und Situationen mit Fehler, aus der Demo beschrieben)")

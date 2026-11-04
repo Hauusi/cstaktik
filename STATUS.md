@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 393 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 397 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -81,7 +81,7 @@ Schaden], lessons {sid: {lektion: anzahl}}, scenes (Tod-Szenen mit happened/next
 Wiederholung der letzten Sekunden mit `dec` = Entscheidungsmoment, siehe scene_clip.py), moments (beste
 Momente, die zwei besten je Spieler mit clip), duel_stats, mech,
 util_stats, nade_eff (Granaten-Wirkung), board (Scoreboard-Rohzahlen für Stats), impact, moments, clutch, plays/ct_plays (Taktiken), timeline, deaths,
-focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler).
+duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nach Neuberechnung), focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler).
 
 ## 5. Module (backend/cstaktik)
 
@@ -99,6 +99,7 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 | academy.py, academy_texts.py | CS-Wissen: 11 Bereiche (`AREAS`), 47 Themen (`TOPICS`) mit Kernsatz, Erklärung, Beispiel in Schritten, Fehlern, Übung, Schlüsselwort, Frage für die eigene Demo, Wissens-Check; `answer` (Abstände 1/3/7/21 Tage, falsch = morgen), `due` (falsche zuerst, neue nur aus gelesenen Themen oder der aktuellen Lektion, Bereiche gemischt), `overview`, `related` (Lektion -> Themen), `mine` ("Bei dir": Kennzahlen aus dem Spielerprofil laut `MEASURES`, Stand der verwandten Lektionen, bis 2 eigene Szenen, T/CT-Siegquote laut `SIDE_TOPICS`). Lernstand in data/drills/<sid>.json unter `quiz` und `read` |
 | drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Tilt-Check (set_tilt, tilt_state: Gefühl je Match, Reset an/aus), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | evening.py | Spielabend: Rating je Match-Nummer des Tages (curve), Rat "Pause nach k Matches" erst ab 3 Tagen mit 2+ Matches und Abfall >= 0,10; index_today |
+| duo.py | Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
 | dayplan.py | Tagesplan der Startseite: Session, Übung der Lektion, Thema im CS-Wissen, Warm-up; erledigt nur aus gespeicherten Daten (Session markiert, Übung heute, Thema heute geöffnet/beantwortet, Warm-up heute) |
 | spielerprofil.py | Spielerprofil „Wo du stehst“ (oben auf /progress): 6 Bereiche wie im CS-Wissen, Urteil aus den Kurs-Lektionen des Bereichs (Baustelle/Stärke/Im Rahmen/Zu wenig Daten, Economy ohne Urteil), Kennzahlen mit Verlauf gegen die 10 Matches davor, 50 % als Bezug nur bei Duellen, T/CT-Siegquote |
 | stats_view.py | Stats-Seite: Kennzahlen je Match (Verlauf), Vergleich mit gleich vielen Matches davor (ab 3, nur bei klarem Abstand `METRICS`), Sparklines, T gegen CT aus `by_round` (ab 10 Runden je Seite), Maps, Multi-Kills |
@@ -144,7 +145,7 @@ focus_check (Auftrag-Check), goal_check, lead/lead_by (das eine Thema je Spieler
 - `/stats` (Reiter "Stats", `stats_view.py`): Form (Rating, Vergleich mit dem Zeitraum davor, Siege/Niederlagen, letzte 5),
   interaktiver Verlauf je Kennzahl (Punkte je Match, Schnitt über 5, Tooltip), 8 Kennzahl-Kacheln mit besser/schlechter
   und Sparkline (Antippen wechselt den Graphen), T gegen CT, Impact (Openings, 1K–5K, Clutches), Granaten, Map-Karten,
-  Spielabend, Match-Liste mit Rating-Balken und Tabelle. Filter: letzte 10/alle, Map. Farben T `#c78322`, CT `#4d8fe6`
+  Spielabend, „Ihr zwei“ (`duo.summary`), Match-Liste mit Rating-Balken und Tabelle. Filter: letzte 10/alle, Map. Farben T `#c78322`, CT `#4d8fe6`
   (mit Palette-Prüfung auf Farbsehschwäche und Kontrast).
 - `/granaten`, `/duelle`: Statistik-Seiten mit letztem Match, Runde für Runde bzw. Kennzahlen, Verlauf.
 - `/progress` beginnt mit dem Spielerprofil (`spielerprofil.build`), Links je Bereich zur Lektion und zu `/wissen#b-<bereich>`.
@@ -237,6 +238,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-04: Duo-Auswertung über Matches (`duo.py`, `h["duo"]`), Abschnitt „Ihr zwei“ auf /stats, Duo-Zahlen in den
+  KI-Fakten. Ältere Matches bekommen sie mit der Neuberechnung.
 
 - 2026-11-04: Tagesplan „Dein Tag“ auf der Startseite (`dayplan.py`).
 
