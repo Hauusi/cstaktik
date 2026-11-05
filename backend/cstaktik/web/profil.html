@@ -45,6 +45,8 @@
 .mrow .mt { font-size: 13.5px; } .mrow .mv { font-weight: 800; font-size: 15px; text-align: right; font-variant-numeric: tabular-nums; }
 .mrow .md { grid-column: 1 / -1; display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 .mrow .md svg { width: 11px; height: 11px; flex: none; } .mrow .md.up svg { color: var(--win); } .mrow .md.down svg { color: var(--loss); }
+.arm summary { cursor: pointer; list-style: none; margin-top: 8px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.arm summary::-webkit-details-marker { display: none; } .arm summary::before { content: "› "; color: var(--orange); } .arm[open] summary::before { content: "⌄ "; }
 .ar-l { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 13.5px; font-weight: 700; }
 .ar-l a { color: var(--orange); display: inline-flex; align-items: center; min-height: 36px; }
 .sides { display: flex; gap: 10px; margin-top: 10px; } .sides div { flex: 1; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); font-size: 13px; color: var(--muted); }
@@ -68,11 +70,13 @@
     <div class="ar {{ a.verdict or '' }}" data-area="{{ a.key }}">
       <div class="ar-t"><b>{{ a.title }}</b>{% if a.verdict %}<span class="vchip {{ a.verdict }}">{{ {"baustelle": "Baustelle", "staerke": "Stärke", "rahmen": "Im Rahmen", "offen": "Zu wenig Daten"}[a.verdict] }}</span>{% endif %}</div>
       <p class="ar-w">{{ a.why }}</p>
+      {% if a.metrics %}<details class="arm"{% if a.verdict == "baustelle" %} open{% endif %}><summary>{{ a.metrics|length }} {{ "Zahl" if a.metrics|length == 1 else "Zahlen" }} dazu</summary>{% endif %}
       {% for m in a.metrics %}
       <div class="mrow"><span class="mt">{{ m.title }}</span><span class="mv">{{ m.value }}</span>
         {% if m.trend or m.ref %}<span class="md {{ m.trend or '' }}">{% if m.trend %}{{ arr(m.trend) }}{{ {"up": "besser", "down": "schlechter", "same": "etwa gleich"}[m.trend] }}{% if m.prev %} (davor {{ m.prev }}){% endif %}{% endif %}{% if m.ref %}{{ " · " if m.trend }}{{ m.ref }} % = ausgeglichen{% endif %}</span>{% endif %}
       </div>
       {% endfor %}
+      {% if a.metrics %}</details>{% endif %}
       <div class="ar-l">{% if a.worst %}<a href="/kurs/{{ a.worst }}{{ q }}">Lektion üben ›</a>{% endif %}<a href="/wissen{{ q }}#b-{{ a.key }}">CS-Wissen ›</a></div>
     </div>
   {% endfor %}

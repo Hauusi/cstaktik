@@ -58,6 +58,8 @@
 .ccard .err { padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(240,86,106,.45); color: #f59aa6; font-size: 15px; }
 /* Kacheln */
 .tiles-h { margin: 12px 0 10px; }
+.more-tiles { margin-top: 10px; } .more-tiles summary { cursor: pointer; list-style: none; padding: 10px 0; color: var(--orange); font-weight: 700; font-size: 14px; }
+.more-tiles summary::-webkit-details-marker { display: none; } .more-tiles[open] summary { margin-bottom: 4px; }
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 body.wide main { max-width: 560px; }
 @media (min-width: 980px) {

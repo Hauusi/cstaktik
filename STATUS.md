@@ -245,6 +245,10 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-05: Weniger auf einmal (kognitive Belastung): Startseite zeigt 4 Werkzeuge (Taktiken, Lineups, Briefing,
+  Gespräch), Rest unter „Weitere Werkzeuge“; Stats: Duo oben, T/CT, Impact, Granaten, Maps, Spielabend unter „Mehr
+  Auswertungen“; Spielerprofil: Zahlen je Bereich aufklappbar, bei Baustellen offen.
+
 - 2026-11-04: Coach spricht ohne KI (`coach_story.py`) auf Startseite und in der Session, Thema vor den Szenen,
   Übung und Prüfung beim Plan; KI-Nachbesprechung als Schalter (Standard aus), Fragen ohne Nachbesprechung.
 

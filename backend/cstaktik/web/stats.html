@@ -100,6 +100,11 @@
 .duo-s { display: flex; align-items: flex-end; gap: 4px; height: 46px; margin-top: 12px; }
 .duo-s i { flex: 1; max-width: 22px; border-radius: 4px 4px 0 0; background: var(--accent); min-height: 2px; }
 .duo-sl { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.more-sec { margin-top: 14px; } .more-sec > summary { cursor: pointer; list-style: none; padding: 14px 16px; border-radius: 16px;
+  border: 1px solid var(--line); background: var(--surface); font-weight: 800; font-size: 15px; }
+.more-sec > summary::-webkit-details-marker { display: none; } .more-sec > summary span { display: block; margin-top: 2px; font-weight: 500; font-size: 13px; color: var(--muted); }
+.more-sec > summary::after { content: "›"; float: right; margin-top: -26px; color: var(--orange); font-size: 20px; }
+.more-sec[open] > summary::after { transform: rotate(90deg); }
 /* Maps */
 .maps { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
 .mapc { display: block; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); }
@@ -186,6 +191,32 @@ details.tbl summary::-webkit-details-marker { display: none; }
   </div>
 </section>
 
+{% if duo %}
+<section class="card" data-block="duo">
+  <h2>Ihr zwei · {{ duo.me_name }} und {{ duo.mate_name }}</h2>
+  <p class="sub">Runden, in denen ihr beide gelebt habt, letzte {{ duo.matches }} {{ "Match" if duo.matches == 1 else "Matches" }}. „Zusammen“ heißt im Schnitt unter 25 m Abstand.</p>
+  <div class="pair"><div class="pl">Runden gewonnen</div>
+    <div class="pb"><span>Zus.</span><div class="pbar"><i class="ct" style="width:{{ (duo.together.pct or 0) * 0.78 }}%"></i><b>{{ duo.together.pct if duo.together.pct is not none else "–" }} %</b></div>
+      <span>Getr.</span><div class="pbar"><i class="t" style="width:{{ (duo.apart.pct or 0) * 0.78 }}%"></i><b>{{ duo.apart.pct if duo.apart.pct is not none else "–" }} %</b></div></div></div>
+  <div class="legend"><span><i class="lct"></i>Zusammen ({{ duo.together.rounds }} Runden)</span><span><i class="lt"></i>Getrennt ({{ duo.apart.rounds }} Runden)</span></div>
+  <p class="duo-r {{ duo.tone }}">{{ duo.reading }}</p>
+  <div class="duo2 num">
+    <div><b>{{ duo.together_share if duo.together_share is not none else "–" }} %</b><span>der Runden zusammen{% if duo.avg_m %}, Ø Abstand {{ duo.avg_m }} m{% endif %}</span></div>
+    <div><b>{{ duo.trades_me }}<small style="font-size:16px;color:var(--muted)"> : {{ duo.trades_mate }}</small></b><span>Trades: du für ihn : er für dich</span></div>
+    <div><b>{{ duo.first_me }}<small style="font-size:16px;color:var(--muted)"> : {{ duo.first_mate }}</small></b><span>zuerst gestorben: du : er</span></div>
+    <div><b>{{ duo.matches }}</b><span>gemeinsame Matches mit Duo-Daten</span></div>
+  </div>
+  {% if duo.series|length > 1 %}<p class="sub" style="margin-top:14px">Anteil der Runden zusammen je Match</p>
+  <div class="duo-s" role="img" aria-label="Anteil der Runden zusammen je Match, ältestes links">{% for x in duo.series %}<i style="height:{{ [x.together_pct or 0, 3]|max }}%" title="{{ x.map }} {{ x.date }}: {{ x.together_pct }} %"></i>{% endfor %}</div>
+  <div class="duo-sl"><span>{{ duo.series[0].date[8:10] }}.{{ duo.series[0].date[5:7] }}.</span><span>{{ duo.series[-1].date[8:10] }}.{{ duo.series[-1].date[5:7] }}.</span></div>{% endif %}
+  <div class="links"><a href="/wissen/duo_play{% if tabs %}?p={{ sid }}{% endif %}">CS-Wissen: Zu zweit spielen ›</a><a href="/wissen/trading{% if tabs %}?p={{ sid }}{% endif %}">Trades und Abstand ›</a></div>
+</section>
+{% elif duo_missing %}
+<div class="box note"><p><b>Ihr zwei:</b> Die Duo-Auswertung (zusammen gegen getrennt, gegenseitige Trades) gibt es für neue Matches. Ältere kommen mit der Neuberechnung dazu.</p></div>
+{% endif %}
+
+<details class="more-sec" data-block="mehr">
+  <summary>Mehr Auswertungen <span>T gegen CT, Impact, Granaten, Maps, Spielabend</span></summary>
 <div class="two">
 {% if v.sides %}{% set s0 = v.sides[0] %}
 <section class="card" data-block="seiten">
@@ -230,30 +261,6 @@ details.tbl summary::-webkit-details-marker { display: none; }
 </section>
 {% endif %}
 
-{% if duo %}
-<section class="card" data-block="duo">
-  <h2>Ihr zwei · {{ duo.me_name }} und {{ duo.mate_name }}</h2>
-  <p class="sub">Runden, in denen ihr beide gelebt habt, letzte {{ duo.matches }} {{ "Match" if duo.matches == 1 else "Matches" }}. „Zusammen“ heißt im Schnitt unter 25 m Abstand.</p>
-  <div class="pair"><div class="pl">Runden gewonnen</div>
-    <div class="pb"><span>Zus.</span><div class="pbar"><i class="ct" style="width:{{ (duo.together.pct or 0) * 0.78 }}%"></i><b>{{ duo.together.pct if duo.together.pct is not none else "–" }} %</b></div>
-      <span>Getr.</span><div class="pbar"><i class="t" style="width:{{ (duo.apart.pct or 0) * 0.78 }}%"></i><b>{{ duo.apart.pct if duo.apart.pct is not none else "–" }} %</b></div></div></div>
-  <div class="legend"><span><i class="lct"></i>Zusammen ({{ duo.together.rounds }} Runden)</span><span><i class="lt"></i>Getrennt ({{ duo.apart.rounds }} Runden)</span></div>
-  <p class="duo-r {{ duo.tone }}">{{ duo.reading }}</p>
-  <div class="duo2 num">
-    <div><b>{{ duo.together_share if duo.together_share is not none else "–" }} %</b><span>der Runden zusammen{% if duo.avg_m %}, Ø Abstand {{ duo.avg_m }} m{% endif %}</span></div>
-    <div><b>{{ duo.trades_me }}<small style="font-size:16px;color:var(--muted)"> : {{ duo.trades_mate }}</small></b><span>Trades: du für ihn : er für dich</span></div>
-    <div><b>{{ duo.first_me }}<small style="font-size:16px;color:var(--muted)"> : {{ duo.first_mate }}</small></b><span>zuerst gestorben: du : er</span></div>
-    <div><b>{{ duo.matches }}</b><span>gemeinsame Matches mit Duo-Daten</span></div>
-  </div>
-  {% if duo.series|length > 1 %}<p class="sub" style="margin-top:14px">Anteil der Runden zusammen je Match</p>
-  <div class="duo-s" role="img" aria-label="Anteil der Runden zusammen je Match, ältestes links">{% for x in duo.series %}<i style="height:{{ [x.together_pct or 0, 3]|max }}%" title="{{ x.map }} {{ x.date }}: {{ x.together_pct }} %"></i>{% endfor %}</div>
-  <div class="duo-sl"><span>{{ duo.series[0].date[8:10] }}.{{ duo.series[0].date[5:7] }}.</span><span>{{ duo.series[-1].date[8:10] }}.{{ duo.series[-1].date[5:7] }}.</span></div>{% endif %}
-  <div class="links"><a href="/wissen/duo_play{% if tabs %}?p={{ sid }}{% endif %}">CS-Wissen: Zu zweit spielen ›</a><a href="/wissen/trading{% if tabs %}?p={{ sid }}{% endif %}">Trades und Abstand ›</a></div>
-</section>
-{% elif duo_missing %}
-<div class="box note"><p><b>Ihr zwei:</b> Die Duo-Auswertung (zusammen gegen getrennt, gegenseitige Trades) gibt es für neue Matches. Ältere kommen mit der Neuberechnung dazu.</p></div>
-{% endif %}
-
 {% if v.by_map|length > 1 %}
 <section data-block="maps">
   <div class="sk">Je Map · alle Matches</div>
@@ -268,6 +275,8 @@ details.tbl summary::-webkit-details-marker { display: none; }
 {% endif %}
 
 {% if eve and eve.rows|length > 1 %}<section class="card" data-block="abend"><h2>Rating im Lauf eines Spielabends</h2>{{ ec.curve(eve) }}</section>{% endif %}
+
+</details>
 
 <section class="card" data-block="matches">
   <h2>Matches</h2>

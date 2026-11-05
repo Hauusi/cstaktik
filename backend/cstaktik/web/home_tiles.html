@@ -12,11 +12,7 @@
   "book": '<path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4z"/><path d="M20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z"/>',
   "chart": '<path d="M4 19h16M6 16l4-5 3 3 5-7"/>',
 } %}
-{% if tiles %}
-<section class="tiles-sec" data-block="tiles">
-  <h2 class="tiles-h">Deine Werkzeuge</h2>
-  <div class="tiles">
-  {% for t in tiles %}
+{% macro tile(t) %}
     <a class="tile" href="{{ t.href }}" data-tile="{{ t.id }}">
       {% if t.get("badge") %}<span class="tbadge">{{ t.badge }}</span>{% endif %}
       <span class="tico {{ t.tone }}"><svg viewBox="0 0 24 24" aria-hidden="true">{{ ICONS[t.icon]|safe }}</svg></span>
@@ -24,7 +20,16 @@
       <span class="tsub">{{ t.text }}</span>
       {% if t.get("bar") is not none %}<span class="tbar"><i style="width:{{ t.bar }}%"></i></span>{% endif %}
     </a>
-  {% endfor %}
-  </div>
+{% endmacro %}
+{# Weniger auf einmal (kognitive Belastung): Werkzeuge vor dem Match sichtbar, der Rest aufklappbar. Kurs, CS-Wissen und
+   Warm-up stehen schon im Tagesplan. #}
+{% set FIRST = ["taktiken", "lineups", "briefing", "gespraech"] %}
+{% if tiles %}
+<section class="tiles-sec" data-block="tiles">
+  <h2 class="tiles-h">Deine Werkzeuge</h2>
+  <div class="tiles">{% for t in tiles if t.id in FIRST %}{{ tile(t) }}{% endfor %}</div>
+  {% set rest = tiles|rejectattr("id", "in", FIRST)|list %}
+  {% if rest %}<details class="more-tiles"><summary>Weitere Werkzeuge ({{ rest|length }})</summary>
+  <div class="tiles">{% for t in rest %}{{ tile(t) }}{% endfor %}</div></details>{% endif %}
 </section>
 {% endif %}

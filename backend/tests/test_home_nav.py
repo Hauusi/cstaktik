@@ -50,8 +50,10 @@ def test_home_is_coach_card_and_tiles():
     assert "Neu" in card and "Mirage" in card and "13:7" in card and 'href="/m/m2.html"' in card
     tiles = re.findall(r'data-tile="([a-z]+)"', home)
     assert home.count("class=\"tbar\"") == 1  # nur der Kurs hat einen Balken
-    assert tiles == ["gespraech", "kurs", "wissen", "granaten", "duelle", "taktiken", "lineups", "briefing", "training",
+    # sichtbar: Werkzeuge vor dem Match; der Rest steht aufklappbar darunter (Kurs, Wissen, Warm-up auch im Tagesplan)
+    assert tiles == ["gespraech", "taktiken", "lineups", "briefing", "kurs", "wissen", "granaten", "duelle", "training",
                      "matches", "fortschritt"]
+    assert "Weitere Werkzeuge (7)" in home
     from cstaktik import course_texts
 
     assert 'href="/kurs"' in home and course_texts.LESSONS["utility"]["title"] in home  # Kachel Kurs: aktuelle Lektion
