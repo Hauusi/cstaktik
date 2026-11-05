@@ -843,6 +843,12 @@ def index(p: str = "") -> str:
         ml = _minute_lesson(h_last, sid) if h_last else None
         coach["say"] = coach_story.home_message(h_last, sid, (ml or {}).get("id"), hist, _players_state().get(sid),
                                                 coach["done"], drills.current_plan(sid), _USER.get() or names.get(sid))
+        from cstaktik import duo as _duo
+
+        _mate = _duo.partner(hist, sid)
+        _dp = _duo.get_plan(sid, _mate) if _mate else None
+        if coach["say"] and coach["say"]["mode"] == "prep" and _dp:
+            coach["say"]["lines"].append(f"Und zu zweit mit {names.get(_mate, 'deinem Mitspieler')}: „{_dp['text'].rstrip('.')}.“")
     return _env.get_template("index.html").render(coach=coach, tiles=_home_tiles(hist, sid, coach, kurs, tabs), day=day,
         nav_active="coach", jobs=jobs, n_history=len(hist), news=news[:1], n_new=len(news),
         missing_players=missing if hist else 0, me_name=names.get(_me()) if _me() else None,
@@ -1160,7 +1166,7 @@ def stats_page(p: str = "", n: str = "10", map: str = "") -> str:
         nav_active="stats", jobs=_running_jobs(), sid=sid, tabs=tabs, v=v, t=v["tot"], n=n, cur_map=cur_map,
         missing=missing, q=q, clutch={"n": len(cl), "won": sum(1 for c in cl if c.get("won"))}, nades=nades,
         eve=evening.curve(hist, sid) if sid else None, de=lambda x, d=2: stats_view.fmt(x, d),
-        duo=__import__("cstaktik.duo", fromlist=["summary"]).summary(hist, sid, _names(hist)) if sid else None,
+        duo=_duo_stats(hist, sid) if sid else None,
         duo_missing=bool(sid) and not any((h.get("duo") or {}).get("sids") for h in hist)
         and any(len(set(h.get("lessons") or {})) == 2 and sid in (h.get("lessons") or {}) for h in hist))
 
@@ -1923,7 +1929,7 @@ def warmup_page(p: str = "") -> str:
     sid, tabs = _course_player(hist, p)
     radars: dict = {}
     items, plan, streak, last, cueword, log, routine, eve, today = [], None, 0, None, None, [], [], None, 0
-    reset, tilt_reading, quiz, imagery, related = [], None, [], [], []
+    reset, tilt_reading, quiz, imagery, related, duo_box = [], None, [], [], [], None
     if sid:
         scenes = [x for h in hist for x in h.get("scenes") or [] if x.get("sid") == sid]
         focus = (_players_state().get(sid) or {}).get("focus") or {}
@@ -1955,10 +1961,59 @@ def warmup_page(p: str = "") -> str:
         related = academy.related(rl)
         quiz = academy.due(sid, 2, prefer=[x["id"] for x in related])
         imagery = course_texts.imagery((plan or {}).get("text"), cueword)
+        duo_box = _duo_box(hist, sid)
     return _env.get_template("warmup.html").render(
         nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, items=items, radars=radars, plan=plan,
         streak=streak, report=(last or {}).get("report_file"), cueword=cueword, log=log, routine=routine, eve=eve,
-        today=today, reset=reset, tilt_reading=tilt_reading, quiz=quiz, imagery=imagery, related=related)
+        today=today, reset=reset, tilt_reading=tilt_reading, quiz=quiz, imagery=imagery, related=related, duo=duo_box)
+
+
+def _duo_stats(hist: list[dict], sid: str) -> dict | None:
+    """Duo-Auswertung für /stats, dazu eure gemeinsame Abmachung und was seitdem passiert ist."""
+    from cstaktik import duo
+
+    s = duo.summary(hist, sid, _names(hist))
+    if s:
+        s["plan"] = duo.get_plan(sid, s["mate"])
+        s["check"] = duo.plan_check(hist, sid, s["mate"], s["plan"])
+    return s
+
+
+def _duo_box(hist: list[dict], sid: str) -> dict | None:
+    """Zu zweit: gemeinsame Abmachung (oder Vorschlag), was der Partner gerade übt, was seit der Abmachung passiert ist."""
+    from cstaktik import course_texts, drills, duo
+
+    mate = duo.partner(hist, sid)
+    if not mate:
+        return None
+    names = _names(hist)
+    s = duo.summary(hist, sid, names)
+    plan = duo.get_plan(sid, mate)
+    mp = drills.current_plan(mate)
+    return {"mate": mate, "mate_name": names.get(mate), "plan": plan,
+            "options": [{"key": k, "text": t, "rec": k == duo.recommend(s)} for k, t in duo.PLANS.items()],
+            "mate_plan": {"text": mp["text"], "title": course_texts.LESSONS.get(mp.get("lesson"), {}).get("title")} if mp else None,
+            "check": duo.plan_check(hist, sid, mate, plan), "reading": (s or {}).get("reading")}
+
+
+@app.post("/duo/plan")
+async def duo_plan(request: Request) -> JSONResponse:
+    """Gemeinsame Abmachung für euch zwei festlegen (gilt für beide)."""
+    from cstaktik import duo
+
+    body = await _json_body(request)
+    sid, _tabs = _course_player(_load_hist(), str(body.get("p") or ""))
+    if not sid:
+        raise HTTPException(404, "Kein Spieler.")
+    _own_only(sid)
+    mate = duo.partner(_load_hist(), sid)
+    if not mate:
+        raise HTTPException(404, "Kein Duo-Partner.")
+    try:
+        plan = duo.set_plan(sid, mate, str(body.get("key") or ""), sid, pipeline.coaching_now())
+    except ValueError:
+        raise HTTPException(400, "Unbekannte Abmachung.") from None
+    return JSONResponse({"ok": True, "text": plan["text"]})
 
 
 @app.get("/pro", response_class=HTMLResponse)

@@ -71,3 +71,103 @@ def summary(hist: list[dict], sid: str, names: dict | None = None) -> dict | Non
             "together_share": _pct(tog["rounds"], total), "avg_m": round(sum(dists) / len(dists) * 0.0254) if dists else None,
             "trades_me": trades[sid], "trades_mate": trades[mate], "first_me": first[sid], "first_mate": first[mate],
             "reading": reading, "tone": tone, "enough": enough, "series": series}
+
+
+# --- Gemeinsame Abmachung (Verbundenheit: ihr arbeitet zu zweit an einer Sache) -------------------------------------
+# Wenn-dann-Sätze in der Wir-Form; welche passt, schlägt der Coach aus euren Duo-Zahlen vor.
+PLANS = {
+    "together": "Wenn wir auf T den ersten Kontakt haben, dann gehen wir zu zweit dorthin und nicht getrennt.",
+    "trade": "Wenn einer von uns peekt, dann steht der andere so nah, dass er sofort traden kann.",
+    "call": "Wenn einer von uns stirbt, dann sagt er sofort Ort und HP des Gegners, und der andere tradet genau dorthin.",
+    "reset": "Wenn wir zwei Runden in Folge verlieren, dann spielen wir die nächste Runde fest zusammen auf einer Seite.",
+}
+
+
+def _file(a: str, b: str):
+    import re
+
+    from cstaktik import pipeline
+
+    x, y = sorted((a, b))
+    return pipeline.DRILLS_DIR / f"duo_{re.sub(r'[^0-9A-Za-z]', '_', x)}_{re.sub(r'[^0-9A-Za-z]', '_', y)}.json"
+
+
+def get_plan(a: str, b: str) -> dict | None:
+    import json
+
+    try:
+        d = json.loads(_file(a, b).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d.get("plan") if isinstance(d, dict) else None
+
+
+def set_plan(a: str, b: str, key: str, by: str, at: str) -> dict:
+    import json
+
+    from cstaktik import drills
+    from cstaktik.fsutil import write_atomic
+
+    if key not in PLANS:
+        raise ValueError("unbekannte Abmachung")
+    with drills.LOCK:
+        f = _file(a, b)
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            d = {}
+        plan = {"key": key, "text": PLANS[key], "by": by, "at": at}
+        d["plan"] = plan
+        d["plans"] = (d.get("plans") or [])[-19:] + [plan]
+        write_atomic(f, json.dumps(d, ensure_ascii=False, indent=1))
+        return plan
+
+
+def recommend(s: dict | None) -> str:
+    """Vorschlag aus euren Zahlen: getrennt deutlich schlechter -> zusammen; kaum Trades -> Calls; sonst Trade-Abstand."""
+    if not s:
+        return "trade"
+    if s.get("enough") and (s["together"]["pct"] or 0) - (s["apart"]["pct"] or 0) >= CLEAR_PTS:
+        return "together"
+    died = (s.get("first_me") or 0) + (s.get("first_mate") or 0)
+    if died >= 6 and (s.get("trades_me") or 0) + (s.get("trades_mate") or 0) < died / 3:
+        return "call"
+    return "trade"
+
+
+def plan_check(hist: list[dict], sid: str, mate: str, plan: dict | None) -> str | None:
+    """Seit der Abmachung: Anteil der Runden zusammen und Trades je Match, gegen die Matches davor (je min. 1)."""
+    if not plan:
+        return None
+    rows = sorted((h for h in hist if {sid, mate} <= set((h.get("duo") or {}).get("sids") or [])),
+                  key=lambda h: h.get("analyzed_at") or "")
+    after = [h for h in rows if (h.get("analyzed_at") or "") > (plan.get("at") or "")]
+    before = [h for h in rows if (h.get("analyzed_at") or "") <= (plan.get("at") or "")][-5:]
+    if not after or not before:
+        return None
+
+    def share(hs):
+        t = sum((h["duo"].get("together") or {}).get("rounds", 0) for h in hs)
+        a = sum((h["duo"].get("apart") or {}).get("rounds", 0) for h in hs)
+        return _pct(t, t + a)
+
+    def trades(hs):
+        return sum(sum((h["duo"].get("trades_by") or {}).values()) for h in hs) / len(hs)
+
+    s_after, s_before = share(after), share(before)
+    out = f"Seit eurer Abmachung ({len(after)} {'Match' if len(after) == 1 else 'Matches'}): "
+    out += f"zusammen in {s_after} % der Runden, davor {s_before} %. " if s_after is not None and s_before is not None else ""
+    de = lambda x: f"{x:.1f}".replace(".", ",")  # noqa: E731
+    out += f"Gegenseitige Trades je Match: {de(trades(after))} statt {de(trades(before))}."
+    return out
+
+
+def partner(hist: list[dict], sid: str) -> str | None:
+    """Duo-Partner: aus den Duo-Daten, sonst der andere eingestellte Fokus-Spieler (players.yaml)."""
+    s = summary(hist, sid)
+    if s:
+        return s["mate"]
+    from cstaktik.config import load_focus_steamids
+
+    others = sorted(set(load_focus_steamids()) - {sid})
+    return others[0] if len(others) == 1 else None

@@ -200,6 +200,8 @@ details.tbl summary::-webkit-details-marker { display: none; }
       <span>Getr.</span><div class="pbar"><i class="t" style="width:{{ (duo.apart.pct or 0) * 0.78 }}%"></i><b>{{ duo.apart.pct if duo.apart.pct is not none else "–" }} %</b></div></div></div>
   <div class="legend"><span><i class="lct"></i>Zusammen ({{ duo.together.rounds }} Runden)</span><span><i class="lt"></i>Getrennt ({{ duo.apart.rounds }} Runden)</span></div>
   <p class="duo-r {{ duo.tone }}">{{ duo.reading }}</p>
+  {% if duo.plan %}<p class="duo-r">Eure Abmachung: „{{ duo.plan.text }}“{% if duo.check %} {{ duo.check }}{% endif %}</p>
+  {% else %}<p class="duo-r" style="color:var(--muted)">Eine gemeinsame Abmachung legt ihr im <a href="/warmup{% if tabs %}?p={{ sid }}{% endif %}" style="color:var(--orange);font-weight:700">Warm-up</a> fest.</p>{% endif %}
   <div class="duo2 num">
     <div><b>{{ duo.together_share if duo.together_share is not none else "–" }} %</b><span>der Runden zusammen{% if duo.avg_m %}, Ø Abstand {{ duo.avg_m }} m{% endif %}</span></div>
     <div><b>{{ duo.trades_me }}<small style="font-size:16px;color:var(--muted)"> : {{ duo.trades_mate }}</small></b><span>Trades: du für ihn : er für dich</span></div>

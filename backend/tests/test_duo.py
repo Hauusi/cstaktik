@@ -53,3 +53,31 @@ def test_stats_page_and_ai_facts_show_duo():
     assert 'data-block="duo"' in page and "Zusammen gewinnt ihr 70 %" in page
     f = ai_coach.facts(_h(0), ME)
     assert "## Duo mit Bruder" in f and "Zusammen: 7 von 10" in f
+
+
+def test_shared_plan_recommend_and_check():
+    s = duo.summary([_h(i) for i in range(3)], ME)
+    assert duo.recommend(s) == "together"  # zusammen 70 %, getrennt 30 %
+    assert duo.recommend(None) == "trade"
+    p = duo.set_plan(ME, BRO, "together", ME, "2026-02-02T12:00")
+    assert duo.get_plan(BRO, ME) == p and p["text"].startswith("Wenn wir auf T")  # gilt für beide
+    hist = [_h(0, tog=(5, 3), apart=(15, 5)), _h(1, tog=(5, 3), apart=(15, 5)), _h(2, tog=(15, 9), apart=(5, 2))]
+    c = duo.plan_check(hist, ME, BRO, p)
+    assert c.startswith("Seit eurer Abmachung (1 Match): zusammen in 75 % der Runden, davor 25 %.")
+    assert "Trades je Match: 3,0 statt 3,0." in c
+
+
+def test_warmup_duo_box_and_endpoint():
+    pipeline.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    for i in range(3):
+        history.save(_h(i), pipeline.HISTORY_DIR)
+    accounts.add_user("Hausi", "Geheim-12345")
+    accounts.link_steamid("Hausi", ME)
+    c = TestClient(api.app)
+    c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
+    w = c.get("/warmup").text
+    assert "Zu zweit mit Bruder" in w and "noch keine gemeinsame Abmachung" in w and 'data-duokey="together"' in w
+    assert c.post("/duo/plan", json={"key": "call"}, headers=O).json()["ok"]
+    assert c.post("/duo/plan", json={"key": "xx"}, headers=O).status_code == 400
+    w = c.get("/warmup").text
+    assert "Eure Abmachung: „Wenn einer von uns stirbt" in w

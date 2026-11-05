@@ -28,6 +28,9 @@
 .warn { margin-top: 14px; padding: 10px 12px; border-left: 3px solid var(--warn); background: rgba(245,165,36,.1); border-radius: 6px; font-size: 15px; line-height: 1.45; }
 .wbox { margin-top: 14px; padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
 .wbox .k { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.wduo-t { margin: 8px 0 0; font-size: 17px; font-weight: 700; line-height: 1.4; } .wduo-s { margin: 8px 0 0; font-size: 14.5px; line-height: 1.45; color: var(--muted); }
+.wduo-o summary { cursor: pointer; margin-top: 10px; color: var(--orange); font-weight: 700; font-size: 14px; list-style: none; }
+.wduo-o summary::-webkit-details-marker { display: none; } .wduo-o .dr-o { margin-top: 8px; }
 .wi { margin-top: 18px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
 .wi h2 { margin: 0 0 8px; }
 .wdone { margin-top: 18px; padding: 16px; border-radius: 16px; border: 1px solid rgba(63,191,127,.45); color: #6fe0a6; font-weight: 700; }
@@ -63,7 +66,17 @@
 {% endif %}
 {% if imagery %}<div class="wbox"><div class="k">Kopfkino, 30 Sekunden</div><ol class="rt">{% for x in imagery %}<li>{{ x }}</li>{% endfor %}</ol>
   <p class="wcl" style="margin-top:8px">Mentales Üben hilft ein wenig, echtes Üben ersetzt es nicht.</p></div>
-<div class="wbox"><div class="k">Zu zweit</div><p style="margin:8px 0 0;font-size:15px;line-height:1.45">Erklär deinem Bruder in einem Satz deinen Plan und warum er Runden gewinnt. Dann erklärt er dir seinen. Wer etwas erklären muss, versteht es besser.</p></div>{% endif %}
+{% endif %}
+{% if duo %}<div class="wbox duo" data-duo data-sid="{{ sid }}"><div class="k">Zu zweit{% if duo.mate_name %} mit {{ duo.mate_name }}{% endif %}</div>
+  {% if duo.plan %}<p class="wduo-t">Eure Abmachung: „{{ duo.plan.text }}“</p>
+  {% else %}<p class="wduo-s">Ihr habt noch keine gemeinsame Abmachung. Wählt eine, sie gilt für euch beide:</p>{% endif %}
+  {% if duo.check %}<p class="wduo-s">{{ duo.check }}</p>{% elif duo.reading %}<p class="wduo-s">{{ duo.reading }}</p>{% endif %}
+  <details class="wduo-o"{% if not duo.plan %} open{% endif %}><summary>{{ "Abmachung ändern" if duo.plan else "Abmachungen" }}</summary>
+    {% for o in duo.options %}<button type="button" class="dr-o{{ ' pick' if duo.plan and duo.plan.key == o.key }}" data-duokey="{{ o.key }}">{{ o.text }}{% if o.rec %}<small>Vorschlag des Coaches, passend zu euren Zahlen</small>{% endif %}</button>{% endfor %}
+  </details>
+  {% if duo.mate_plan %}<p class="wduo-s">{{ duo.mate_name or "Dein Mitspieler" }} arbeitet gerade an „{{ duo.mate_plan.title }}“: {{ duo.mate_plan.text }}</p>{% endif %}
+  <p class="wduo-s">Sagt euch vor dem Match kurz eure Pläne. Wer etwas erklären muss, versteht es besser.</p>
+</div>{% endif %}
 {% if routine %}<div class="wbox"><div class="k">Kaufzeit-Routine, jede Runde</div><ol class="rt">{% for x in routine %}<li>{{ x }}</li>{% endfor %}</ol></div>{% endif %}
 {% if reset %}<div class="wbox"><div class="k">Reset nach 2 verlorenen Runden</div>
   {% if tilt_reading %}<p style="margin:8px 0 0;font-size:14.5px;line-height:1.45">{{ tilt_reading }}</p>{% endif %}
@@ -105,6 +118,14 @@
 {% include "coach_assets.html" %}
 {% import "quiz_box.html" as qb %}{{ qb.script() }}
 <script>
+document.querySelectorAll("[data-duokey]").forEach(function (b) {
+  b.addEventListener("click", function () {
+    var box = b.closest("[data-duo]");
+    fetch("/duo/plan", {method: "POST", credentials: "same-origin", headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({key: b.dataset.duokey, p: box.dataset.sid})})
+      .then(function (r) { if (r.ok) location.reload(); });
+  });
+});
 (function () {
   var all = document.querySelectorAll(".wi .dr"), box = document.querySelector("[data-warmup]");
   if (!all.length) return;

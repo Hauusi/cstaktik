@@ -129,7 +129,7 @@ def test_warmup_quiz_imagery_and_session_link():
     drills.set_plan(ME, "alone", course_texts.PLANS["alone"][0], "m1.html", "2026-01-01T10:00")
     w = a.get("/warmup").text
     assert "Wissens-Check" in w and len(re.findall(r'data-quiz="', w)) == 2
-    assert "Kopfkino" in w and "Zu zweit" in w
+    assert "Kopfkino" in w
     kurs = a.get("/kurs/alone").text
     assert "Mehr im CS-Wissen" in kurs and "/wissen/trading" in kurs
 

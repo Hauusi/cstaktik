@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 400 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 405 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -100,7 +100,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Tilt-Check (set_tilt, tilt_state: Gefühl je Match, Reset an/aus), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | evening.py | Spielabend: Rating je Match-Nummer des Tages (curve), Rat "Pause nach k Matches" erst ab 3 Tagen mit 2+ Matches und Abfall >= 0,10; index_today |
 | coach_story.py | Der Coach spricht, ohne KI: Eröffnung (Ergebnis, Rating gegen Schnitt), Rückblick auf den Plan (gemessen), das eine Muster mit Belegen (Runden, verlorene, Seite, Ort, Abstand zum Mitspieler, Granaten in der Tasche, Vergleich mit deinen Matches davor), Weg seit Lektionsstart (Gedächtnis), Ansage zur Szene, Plan, Übung, was im nächsten Match geprüft wird; `home_message` für die Startseite. Keine „pro 10 Runden“ in Sätzen, nur Anzahl in Runden |
-| duo.py | Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
+| duo.py | Gemeinsame Abmachung (`PLANS`, `get_plan`/`set_plan` in data/drills/duo_<a>_<b>.json, `recommend` aus den Duo-Zahlen, `plan_check` seit der Abmachung, `partner`); Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
 | reminder.py | Erinnerung vor dem Match: Push 15 min vor der eingestellten Spielzeit (/konto#erinnerung, Setting `reminder:<user>`), einmal am Tag (`reminder_sent:<user>`), nicht nach dem Warm-up; Hintergrund-Schleife jede Minute (`_start_reminder`) |
 | dayplan.py | Tagesplan der Startseite: Session, Übung der Lektion, Thema im CS-Wissen, Warm-up; erledigt nur aus gespeicherten Daten (Session markiert, Übung heute, Thema heute geöffnet/beantwortet, Warm-up heute) |
 | spielerprofil.py | Spielerprofil „Wo du stehst“ (oben auf /progress): 6 Bereiche wie im CS-Wissen, Urteil aus den Kurs-Lektionen des Bereichs (Baustelle/Stärke/Im Rahmen/Zu wenig Daten, Economy ohne Urteil), Kennzahlen mit Verlauf gegen die 10 Matches davor, 50 % als Bezug nur bei Duellen, T/CT-Siegquote |
@@ -135,7 +135,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
   mit Ziellinie (`s.trend`). Im Ergebnis: Pausen-Hinweis, wenn dieses Match das k-te des Tages ist und die eigene
   Spielabend-Kurve ab dort deutlich sinkt (`s.evening`).
   Bausteine in `replay_box.html` (Makros replay, drill_choice), Logik in `coach_assets.html`.
-- `/warmup`: Plan mit Gegenplan und Schlüsselwort, Kopfkino (`course_texts.imagery`) und "Zu zweit"-Satz,
+- `/warmup`: „Zu zweit“ (gemeinsame Abmachung wählen, `POST /duo/plan`, Plan des Partners), Plan mit Gegenplan und Schlüsselwort, Kopfkino (`course_texts.imagery`) und "Zu zweit"-Satz,
   Wissens-Check (2 fällige Fragen), Kaufzeit-Routine, Reset-Routine (wenn übernommen oder Tilt belegt), Spielabend-Kurve (heute n Matches, ggf. Pause), 3 fällige Szenen zum Entscheiden, Tabelle "Deine letzten Pläne"
   (du sagst / gemessen); alle entschieden = Warm-up erledigt.
 - `POST /session/answer|plan|rate|tilt|done`: Entscheidung, Plan, Session/Warm-up erledigt (nur eigener Spieler). `/reports/{datei}` Report mit 2D-Replay.
@@ -179,7 +179,10 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 - Geschätzte Kosten: Nachbesprechung 3–8 US-Cent (Sonnet), Fragen unter 0,1 Cent (Haiku).
 - Alte Fließtext-Gespräche werden mit Schlüssel neu geschrieben.
 
-## 8. Lernprinzipien (Quellen auf /mehr#wissenschaft)
+## 8. Lernprinzipien (Quellen auf /mehr#wissenschaft und /mehr#aufbau)
+
+- App-Aufbau: kognitive Belastung (Sweller 1988), Gewohnheit durch festen Auslöser (Lally u. a. 2010),
+  Selbstbestimmung inkl. Verbundenheit (Ryan & Deci 2000), Spielelemente sparsam (Sailer & Homner 2020).
 
 - Entscheiden statt zuschauen: Temporal-Occlusion-Training (Müller u. a., Sports Medicine 2024, Meta-Analyse).
 - Wenn-dann-Pläne: Durchführungsvorsätze (Gollwitzer & Sheeran 2006, d = 0,65 über 94 Tests). Gilt auch für die
@@ -244,6 +247,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-05: Gemeinsame Duo-Abmachung (Warm-up, Startseite, Stats), Studien zum App-Aufbau auf /mehr#aufbau.
 
 - 2026-11-05: Erinnerung vor dem Match per Push (`reminder.py`), `accounts.list_users`.
 
