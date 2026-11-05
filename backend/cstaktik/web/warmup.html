@@ -85,6 +85,7 @@
   {% if eve.stop_after and today >= eve.stop_after %}<div class="warn">Du hast heute schon {{ today }} {{ "Match" if today == 1 else "Matches" }} gespielt. In deinen Daten sinkt das Rating danach deutlich. Eine Pause lohnt sich.</div>{% endif %}
   {{ ec.curve(eve) }}</div>{% endif %}
 {% if streak %}<p style="color:var(--muted);font-size:14px;margin:10px 0 0">{{ streak }} {{ "Tag" if streak == 1 else "Tage" }} in Folge aufgewärmt.</p>{% endif %}
+{% if decisions %}<div class="wbox"><div class="k">Was mir bei deinen Entscheidungen auffällt</div>{% for x in decisions %}<p style="margin:8px 0 0;font-size:15px;line-height:1.45">{{ x }}</p>{% endfor %}</div>{% endif %}
 {% for d in items %}
 <section class="wi">
   <h2>Szene {{ loop.index }} von {{ items|length }} · {{ d.lesson_title }}</h2>

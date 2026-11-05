@@ -38,7 +38,7 @@ def test_pattern_with_evidence():
 def test_opening_callback_journey_and_check():
     before = [_h(i, rating_kills=10) for i in range(4)]
     o = coach_story.opening(_h(9, rating_kills=25), ME, before)
-    assert o[0] == "Mirage, 13:7 gewonnen. Ich habe mir alle 20 Runden angesehen."
+    assert o[0].startswith("Mirage, 13:7 gewonnen. Ich ") and "20 Runden" in o[0]
     assert "klar über deinem Schnitt" in o[1]
     cb = coach_story.callback(_h(9, alone=1), ME, {"lesson": "alone", "text": "Wenn A, dann B."}, 1.0)
     assert cb["met"] and "einmal in 20 Runden vor, erlaubt waren 2" in cb["lines"][1] and "gegriffen" in cb["lines"][1]

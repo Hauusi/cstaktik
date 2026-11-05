@@ -27,6 +27,13 @@ def _de(x: float, d: int = 1) -> str:
     return f"{x:.{d}f}".replace(".", ",")
 
 
+def pick(options: list[str], seed: str) -> str:
+    """Eine von mehreren Formulierungen, fest je Match (gleiches Match = gleicher Satz, verschiedene Matches = Abwechslung)."""
+    import hashlib
+
+    return options[int(hashlib.sha1(seed.encode()).hexdigest(), 16) % len(options)]
+
+
 def _cap(t: str) -> str:
     return t[:1].upper() + t[1:]
 
@@ -74,7 +81,9 @@ def opening(h: dict, sid: str, before: list[dict]) -> list[str]:
     else:
         first += "."
     n = _rounds(h, sid)
-    out.append(first + (f" Ich habe mir alle {n} Runden angesehen." if n else ""))
+    seed = str(h.get("id") or h.get("report_file") or "")
+    out.append(first + (" " + pick([f"Ich habe mir alle {n} Runden angesehen.", f"Ich bin alle {n} Runden durchgegangen.",
+                                     f"Ich habe mir jede der {n} Runden angeschaut."], seed) if n else ""))
     me = _rating((h.get("board") or {}).get(sid))
     prev = [r for r in (_rating((x.get("board") or {}).get(sid)) for x in before[-10:]) if r is not None]
     if me is not None and len(prev) >= 3:
@@ -223,6 +232,38 @@ def journey(slot: dict | None, lid: str, need: int, rounds: int = 24) -> list[st
     return out
 
 
+def milestones(h: dict, sid: str, before: list[dict], warm_streak: int = 0) -> list[str]:
+    """Momente, die ein Coach ausdrücklich anspricht: Lektion geschafft, Rückfall, neues Thema, bestes Rating seit
+    Langem, Warm-up-Serie. Nur aus gespeicherten Daten."""
+    from cstaktik.coach_voice import LESSONS
+
+    fc = (h.get("focus_check") or {}).get(sid) or {}
+    if "check" not in fc and "focus" not in fc and ("check" in (h.get("focus_check") or {})):
+        fc = h["focus_check"]  # altes Format: ein Auftrag für alle
+    out = []
+    seed = str(h.get("id") or "")
+    if fc.get("mastered") in LESSONS:
+        out.append(pick([f"Bevor wir anfangen: Du hast „{LESSONS[fc['mastered']][0]}“ geschafft. Das sitzt jetzt. Stark.",
+                         f"Erst das Wichtigste: „{LESSONS[fc['mastered']][0]}“ ist geschafft. Daran haben wir lange gearbeitet.",
+                         f"Lektion geschafft: „{LESSONS[fc['mastered']][0]}“. Darauf kannst du stolz sein."], seed))
+    elif fc.get("settled") in LESSONS:
+        out.append(f"„{LESSONS[fc['settled']][0]}“ sitzt laut deinen letzten Matches. Die Lektion ist abgehakt.")
+    fo = fc.get("focus") or {}
+    if fc.get("new") and fo.get("lesson") in LESSONS:
+        if fo.get("rueckfall"):
+            out.append(f"Ein Rückfall: „{LESSONS[fo['lesson']][0]}“ war schon geschafft und ist zurückgekommen. Das passiert, "
+                       "wir nehmen es noch einmal auf.")
+        else:
+            out.append(f"Ab heute haben wir ein neues Thema: „{LESSONS[fo['lesson']][0]}“.")
+    me = _rating((h.get("board") or {}).get(sid))
+    prev = [r for r in (_rating((x.get("board") or {}).get(sid)) for x in before[-10:]) if r is not None]
+    if me is not None and len(prev) >= 5 and me > max(prev):
+        out.append(f"Dein bestes Rating seit {len(prev)} Matches.")
+    if warm_streak in (3, 7, 14, 30):
+        out.append(f"{warm_streak} Tage in Folge aufgewärmt. Genau so wird es zur Gewohnheit.")
+    return out
+
+
 def next_check(lid: str, target: float | None, rounds_hint: int | None) -> str | None:
     if target is None:
         return None
@@ -254,12 +295,21 @@ def match_story(h: dict, sid: str, lid: str | None, hist: list[dict], slot: dict
         plan_target = float(fo["target"]) if fo.get("lesson") == plan["lesson"] and fo.get("target") is not None \
             else course.threshold(plan["lesson"], course.settings())
     pat = pattern(h, sid, lid, before) if lid else None
-    return {"open": opening(h, sid, before), "callback": callback(h, sid, plan, plan_target), "pattern": pat,
+    from cstaktik import coach_memory, drills
+
+    seed = str(h.get("id") or "")
+    return {"open": milestones(h, sid, before, drills.warmup_streak(sid)) + opening(h, sid, before),
+            "decisions": coach_memory.lines(hist, sid),
+            "callback": callback(h, sid, plan, plan_target), "pattern": pat,
             "journey": journey(slot, lid, need, _rounds(h, sid) or 24) if lid else [],
-            "ask": "Jetzt du. Ich spiele dir eine deiner Szenen ab und halte kurz vorher an. Was machst du?",
+            "ask": pick(["Jetzt du. Ich spiele dir eine deiner Szenen ab und halte kurz vorher an. Was machst du?",
+                         "Schau dir das an. Ich halte an, kurz bevor es passiert. Was würdest du tun?",
+                         "Deine Szene. Ich stoppe im entscheidenden Moment, dann bist du dran."], seed),
             "plan": "Für das nächste Match machen wir genau eine Sache ab. Such dir den Satz aus, der zu deinen Runden passt.",
             "drill": drill_line(lid) if lid else None, "check": next_check(lid, target, _rounds(h, sid)) if lid else None,
-            "close": "Das war's für heute. Eine Sache, aber die, die dich gerade am meisten kostet."}
+            "close": pick(["Das war's für heute. Eine Sache, aber die, die dich gerade am meisten kostet.",
+                           "Fertig. Nimm die eine Sache mit, mehr braucht es heute nicht.",
+                           "Gut. Ein Thema, ein Plan, eine Übung. Wir sehen uns nach dem nächsten Match."], seed)}
 
 
 def home_message(h: dict | None, sid: str, lid: str | None, hist: list[dict], slot: dict | None, done: bool,
@@ -272,7 +322,7 @@ def home_message(h: dict | None, sid: str, lid: str | None, hist: list[dict], sl
     before = sorted((x for x in hist if sid in (x.get("players") or {}) and (x.get("analyzed_at") or "") < at),
                     key=lambda x: x.get("analyzed_at") or "")
     if not done:
-        lines = [hi] + opening(h, sid, before)[:1]
+        lines = [hi] + milestones(h, sid, before)[:1] + opening(h, sid, before)[:1]
         pat = pattern(h, sid, lid, before) if lid else None
         if pat and pat["n"]:
             lines.append(f"Eine Sache ist mir aufgefallen: „{pat['title']}“, {times(pat['n'])}. "

@@ -1929,7 +1929,7 @@ def warmup_page(p: str = "") -> str:
     sid, tabs = _course_player(hist, p)
     radars: dict = {}
     items, plan, streak, last, cueword, log, routine, eve, today = [], None, 0, None, None, [], [], None, 0
-    reset, tilt_reading, quiz, imagery, related, duo_box = [], None, [], [], [], None
+    reset, tilt_reading, quiz, imagery, related, duo_box, decisions = [], None, [], [], [], None, []
     if sid:
         scenes = [x for h in hist for x in h.get("scenes") or [] if x.get("sid") == sid]
         focus = (_players_state().get(sid) or {}).get("focus") or {}
@@ -1962,10 +1962,14 @@ def warmup_page(p: str = "") -> str:
         quiz = academy.due(sid, 2, prefer=[x["id"] for x in related])
         imagery = course_texts.imagery((plan or {}).get("text"), cueword)
         duo_box = _duo_box(hist, sid)
+        from cstaktik import coach_memory
+
+        decisions = coach_memory.lines(hist, sid)
     return _env.get_template("warmup.html").render(
         nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, items=items, radars=radars, plan=plan,
         streak=streak, report=(last or {}).get("report_file"), cueword=cueword, log=log, routine=routine, eve=eve,
-        today=today, reset=reset, tilt_reading=tilt_reading, quiz=quiz, imagery=imagery, related=related, duo=duo_box)
+        today=today, reset=reset, tilt_reading=tilt_reading, quiz=quiz, imagery=imagery, related=related, duo=duo_box,
+        decisions=decisions)
 
 
 def _duo_stats(hist: list[dict], sid: str) -> dict | None:

@@ -254,6 +254,11 @@ html.js .sx-h { font-size: 40px; }
     {{ rb.drill_choice(d) }}
   </section>
   {% endfor %}
+  {% if S.story and S.story.decisions and S.drills %}<section class="sx" data-step="muster" aria-label="Deine Entscheidungen">
+    <div class="k">Deine Entscheidungen</div>
+    <div class="sx-h" role="heading" aria-level="2">Was mir auffällt</div>
+    {{ say(S.story.decisions) }}
+  </section>{% endif %}
 
   {# Tilt-Check: nach Niederlagen-Serien, erst selbst einschätzen, dann Zahlen, dann Reset-Routine #}
   {% if S.tilt %}{% set T = S.tilt %}{% set f = T.f %}
