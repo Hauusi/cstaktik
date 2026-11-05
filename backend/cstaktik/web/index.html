@@ -197,6 +197,7 @@ body.wide main { max-width: 560px; }
     </a>
     {% endfor %}
     {% if not day.next %}<p class="day-done">Alles erledigt. Viel Erfolg im Match.</p>{% endif %}
+    <a class="ds" href="/woche{{ '?p=' ~ sid if tabs else '' }}" data-step="woche" style="border-top-style:dashed"><span class="ck" style="border-style:dashed"></span><span class="dt"><b>Dein Wochenrückblick</b><small>Was in den letzten 7 Tagen besser und schlechter wurde.</small></span><span class="tm">›</span></a>
   </section>
   {% endif %}
 

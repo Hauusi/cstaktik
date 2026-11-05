@@ -78,3 +78,33 @@ def check(now: datetime | None = None, post=None) -> list[str]:
         if notify.send_user(user, message(sid), post):
             sent.append(user)
     return sent
+
+
+WEEKLY_DAY, WEEKLY_HOUR = 6, 19  # sonntags ab 19 Uhr (deutsche Zeit)
+
+
+def weekly_check(now: datetime | None = None, post=None, hist: list[dict] | None = None) -> list[str]:
+    """Sonntagabend den Wochenrückblick schicken, einmal pro Kalenderwoche und nur nach einer Woche mit Match."""
+    from cstaktik import accounts, coaching, history, notify, pipeline, weekly
+
+    now = now or _local_now()
+    if now.weekday() != WEEKLY_DAY or now.hour < WEEKLY_HOUR:
+        return []
+    wk = f"{now.isocalendar()[0]}-W{now.isocalendar()[1]:02d}"
+    sent = []
+    if hist is None:
+        hist = history.load_all(pipeline.HISTORY_DIR) if pipeline.HISTORY_DIR.exists() else []
+    players = coaching.load(pipeline.COACHING_FILE).get("players", {})
+    for user in accounts.list_users():
+        if accounts.get_setting(f"weekly_sent:{user}") == wk or not notify.subs(user):
+            continue
+        sid = (accounts.get_steam(user) or {}).get("steamid")
+        if not sid:
+            continue
+        r = weekly.build(hist, sid, now, players.get(sid))
+        if not r or not r["matches"]:
+            continue
+        accounts.set_setting(f"weekly_sent:{user}", wk)
+        if notify.send_user(user, weekly.message(r), post):
+            sent.append(user)
+    return sent

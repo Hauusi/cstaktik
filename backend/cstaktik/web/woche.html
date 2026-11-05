@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Wochenrückblick · cstaktik{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}
+<style>
+.back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
+.csay { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; margin-top: 14px; }
+.csay .av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--orange); color: #111; font-family: var(--cond); font-weight: 800; font-size: 17px; }
+.csay .bub { padding: 14px 16px; border-radius: 4px 16px 16px 16px; background: var(--surface); border: 1px solid var(--line); font-size: 16px; line-height: 1.55; }
+.csay .bub p { margin: 0; } .csay .bub p + p { margin-top: 10px; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 16px; font-size: 14px; font-weight: 700; } .links a { color: var(--orange); min-height: 40px; display: inline-flex; align-items: center; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>Wochenrückblick</h1>
+<p>{% if r %}{{ r.from[8:10] }}.{{ r.from[5:7] }}. bis {{ r.to[8:10] }}.{{ r.to[5:7] }}., verglichen mit den vier Wochen davor.{% else %}Noch keine Matches.{% endif %}</p>
+{% endblock %}
+{% block content %}
+{% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/woche?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}
+<a class="back" href="/{% if tabs %}?p={{ sid }}{% endif %}">‹ Zurück zum Coach</a>
+{% if r %}
+<div class="csay" data-block="woche"><span class="av" aria-hidden="true">C</span><div class="bub">{% for x in r.lines %}<p>{{ x }}</p>{% endfor %}</div></div>
+<div class="links"><a href="/stats{% if tabs %}?p={{ sid }}{% endif %}">Zu deinen Stats ›</a><a href="/progress{% if tabs %}?p={{ sid }}{% endif %}">Wo du stehst ›</a></div>
+{% endif %}
+{% endblock %}

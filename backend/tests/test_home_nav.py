@@ -43,7 +43,7 @@ def test_home_is_coach_card_and_tiles():
     home = _login().get("/").text
     assert re.findall(r'data-block="([a-z-]+)"', home) == ["coach", "day", "tiles"]  # Coach, Tagesplan, Kacheln
     day = home[home.index('data-block="day"'):home.index('data-block="tiles"')]
-    assert re.findall(r'data-step="([a-z]+)"', day) == ["session", "drill", "wissen", "warmup"]
+    assert re.findall(r'data-step="([a-z]+)"', day) == ["session", "drill", "wissen", "warmup", "woche"]
     assert "0 von 4 erledigt" in day
     # Coach-Karte zum letzten Match (ohne KI-Schlüssel: Weg in die Match-Story)
     card = home[home.index('data-block="coach"'):home.index('data-block="day"')]

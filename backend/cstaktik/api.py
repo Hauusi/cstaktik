@@ -672,6 +672,7 @@ def _start_reminder() -> None:
         while True:
             try:
                 reminder.check()
+                reminder.weekly_check()
             except Exception:  # noqa: BLE001 - darf den Server nie stoppen
                 pass
             time.sleep(60)
@@ -1003,6 +1004,18 @@ def _course_overview(hist: list[dict], sid: str) -> dict:
     from cstaktik import course
 
     return course.overview(hist, sid, _players_state().get(sid))
+
+
+@app.get("/woche", response_class=HTMLResponse)
+def week_page(p: str = "") -> str:
+    """Wochenrückblick des Coaches: letzte 7 Tage gegen die 4 Wochen davor."""
+    from cstaktik import weekly
+
+    hist = _load_hist()
+    sid, tabs = _course_player(hist, p)
+    r = weekly.build(hist, sid, datetime.fromisoformat(pipeline.coaching_now()[:19]), _players_state().get(sid)) \
+        if sid else None
+    return _env.get_template("woche.html").render(nav_active="coach", jobs=_running_jobs(), sid=sid, tabs=tabs, r=r)
 
 
 @app.get("/kurs", response_class=HTMLResponse)
