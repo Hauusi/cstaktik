@@ -341,3 +341,56 @@ def home_message(h: dict | None, sid: str, lid: str | None, hist: list[dict], sl
     if j:
         lines.append(j[0])
     return {"lines": lines, "mode": "prep"}
+
+
+def map_brief(hist: list[dict], sid: str, map_name: str, plan: dict | None = None, duo_plan: dict | None = None,
+              cue: str | None = None) -> list[str]:
+    """Ansprache vor dem Match auf einer Map: Bilanz, T/CT, dein häufigster Fehler und Todesort hier, Abmachungen."""
+    from cstaktik.callouts import place
+
+    label = map_name.removeprefix("de_").capitalize()
+    ms = sorted((h for h in hist if h.get("map") == map_name and sid in (h.get("players") or {})),
+                key=lambda h: h.get("analyzed_at") or "")[-10:]
+    if not ms:
+        out = [f"Auf {label} hast du noch kein Match, das ich kenne. Schau dir unten an, wie die Pros die Map spielen."]
+    else:
+        from cstaktik import history
+
+        res = [history.score(h, sid) for h in ms]
+        w = sum(1 for r in res if r and r[0] > r[1])
+        out = [f"{label}. Deine letzten {len(ms)} {'Match' if len(ms) == 1 else 'Matches'} hier: {w} gewonnen, "
+               f"{sum(1 for r in res if r and r[1] > r[0])} verloren."]
+        sides = {}
+        for s in ("t", "ct"):
+            rr = [row for h in ms for row in ((h.get("by_round") or {}).get(sid) or []) if str(row[1]).lower() == s]
+            if len(rr) >= 10:
+                sides[s] = round(100 * sum(1 for r in rr if r[2]) / len(rr))
+        if len(sides) == 2:
+            weak = min(sides, key=sides.get)
+            if abs(sides["t"] - sides["ct"]) >= 10:
+                out.append(f"Als T gewinnt ihr hier {sides['t']} % der Runden, als CT {sides['ct']} %. "
+                           f"Die {weak.upper()}-Seite ist eure Baustelle auf {label}.")
+            else:
+                out.append(f"Als T gewinnt ihr hier {sides['t']} % der Runden, als CT {sides['ct']} %.")
+        les = Counter()
+        for h in ms:
+            les.update(((h.get("lessons") or {}).get(sid) or {}))
+        les.pop("duel", None)
+        if les:
+            lid, k = les.most_common(1)[0]
+            if k >= 3 and lid in course_texts.LESSONS:
+                out.append(f"Dein häufigster Fehler hier: „{course_texts.LESSONS[lid]['title']}“, "
+                           f"{k} Mal in {len(ms)} {'Match' if len(ms) == 1 else 'Matches'}.")
+        deaths = [d for h in ms for d in h.get("deaths") or [] if d.get("sid") == sid and d.get("place")]
+        if len(deaths) >= 8:
+            pl, k = Counter(d["place"] for d in deaths).most_common(1)[0]
+            if k * 5 >= len(deaths) and place(pl):
+                out.append(f"Am häufigsten stirbst du in {place(pl)} ({k} von {len(deaths)} Toden). "
+                           "Dort zuerst vorzielen oder Granate.")
+    if plan and plan.get("text"):
+        out.append(f"Deine Abmachung gilt auch hier: „{plan['text'].rstrip('.')}.“")
+    if duo_plan and duo_plan.get("text"):
+        out.append(f"Und zu zweit: „{duo_plan['text'].rstrip('.')}.“")
+    if cue:
+        out.append(f"Dein Schlüsselwort: „{cue}“. Viel Erfolg.")
+    return out

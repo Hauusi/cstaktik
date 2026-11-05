@@ -214,6 +214,9 @@ def match_message(h: dict, sid: str, hist: list[dict] | None = None) -> dict:
     today = _session_line(h, sid, hist)
     if today:
         body += " " + today
+    pause = _pause_line(h, sid, hist)
+    if pause:
+        body += " " + pause
     return {"title": title, "body": body,
             "url": f"/m/{h['report_file']}" if h.get("report_file") else "/matches"}
 
@@ -232,6 +235,23 @@ def _session_line(h: dict, sid: str, hist: list[dict] | None) -> str | None:
         return None
     s = session(hist, sid, day, until=h["analyzed_at"])
     return s["line"] if s else None
+
+
+def _pause_line(h: dict, sid: str, hist: list[dict] | None) -> str | None:
+    """Pausen-Hinweis aus den eigenen Daten (evening.curve): ab dem Match des Tages, ab dem dein Rating deutlich sinkt."""
+    if not hist:
+        return None
+    from cstaktik import evening
+
+    try:
+        cur = evening.curve(hist, sid)
+        idx = evening.index_today(hist, sid, h)
+    except Exception:  # noqa: BLE001 - ohne Kurve keine Zeile
+        return None
+    if not idx or not cur.get("stop_after") or idx < cur["stop_after"]:
+        return None
+    return (f"Das war dein {idx}. Match heute. In deinen Daten sinkt das Rating danach deutlich. "
+            "Eine Pause lohnt sich jetzt.")
 
 
 def notify_match(h: dict, post=None, hist: list[dict] | None = None) -> int:

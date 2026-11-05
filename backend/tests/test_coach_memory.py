@@ -39,3 +39,29 @@ def test_milestones():
     assert m[2] == "Dein bestes Rating seit 5 Matches." and m[3].startswith("7 Tage in Folge")
     assert coach_story.milestones({"id": "x"}, ME, []) == []
     assert coach_story.pick(["a", "b", "c"], "m1") == coach_story.pick(["a", "b", "c"], "m1")
+
+
+def test_map_brief():
+    rows = [[r, "t" if r <= 10 else "ct", r > 10 or r % 3 == 0, 1, 1, 50] for r in range(1, 21)]
+    ms = [{"id": f"m{i}", "map": "de_mirage", "analyzed_at": f"2026-01-0{i + 1}T10:00", "players": {ME: {}},
+           "score_by": {ME: [13, 7] if i else [7, 13]}, "by_round": {ME: rows}, "lessons": {ME: {"alone": 2, "duel": 9}},
+           "deaths": [{"sid": ME, "place": "Apartments"}] * 3 + [{"sid": ME, "place": "Mid"}] * 2} for i in range(3)]
+    b = coach_story.map_brief(ms, ME, "de_mirage", {"text": "Wenn A, dann B."}, {"text": "Wenn wir C, dann D."}, "Cue")
+    assert b[0] == "Mirage. Deine letzten 3 Matches hier: 2 gewonnen, 1 verloren."
+    assert "Als T gewinnt ihr hier 30 % der Runden, als CT 100 %. Die T-Seite ist eure Baustelle" in b[1]
+    assert b[2] == "Dein häufigster Fehler hier: „Nicht ohne Trade-Partner peeken“, 6 Mal in 3 Matches."
+    assert b[3].startswith("Am häufigsten stirbst du in") and "(9 von 15 Toden)" in b[3]
+    assert b[4:] == ["Deine Abmachung gilt auch hier: „Wenn A, dann B.“", "Und zu zweit: „Wenn wir C, dann D.“",
+                     "Dein Schlüsselwort: „Cue“. Viel Erfolg."]
+    assert coach_story.map_brief([], ME, "de_inferno")[0].startswith("Auf Inferno hast du noch kein Match")
+
+
+def test_pause_line_in_push(monkeypatch):
+    from cstaktik import evening, notify
+
+    monkeypatch.setattr(evening, "curve", lambda hist, sid: {"stop_after": 2})
+    monkeypatch.setattr(evening, "index_today", lambda hist, sid, h: 3)
+    m = notify.match_message({"id": "x", "map": "de_mirage"}, ME, [{"id": "x"}])
+    assert "Das war dein 3. Match heute." in m["body"] and "Pause" in m["body"]
+    monkeypatch.setattr(evening, "index_today", lambda hist, sid, h: 1)
+    assert "Pause" not in notify.match_message({"id": "x", "map": "de_mirage"}, ME, [{"id": "x"}])["body"]

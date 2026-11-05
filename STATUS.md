@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 410 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 412 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -100,8 +100,9 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | drills.py | Coaching-Session und Warm-up: Wenn-dann-Plan mit Hindernis (set_plan, plan_before), Selbsteinschätzung (attach_check, rate_plan), Plan-Verlauf mit gemessenen Fehlern gegen das Auftragsziel (plan_log), Begründung je Entscheidung (record reason/cue_ok), Tilt-Check (set_tilt, tilt_state: Gefühl je Match, Reset an/aus), Entscheidungen (record), fällige Szenen mit Abständen 1/3/7/21 Tage und gemischten Lektionen (due), erledigte Sessions, Warm-up-Serie |
 | evening.py | Spielabend: Rating je Match-Nummer des Tages (curve), Rat "Pause nach k Matches" erst ab 3 Tagen mit 2+ Matches und Abfall >= 0,10; index_today |
 | coach_memory.py | Gedächtnis für Entscheidungen: je Lage (Unterzahl/Überzahl/gleich) häufigste Wahl, wie oft wie die Pros, Treffer bei „worauf es ankam“; erst ab 5 Szenen je Lage. In Session (Schritt „muster“) und Warm-up |
-| coach_story.py | Der Coach spricht, ohne KI: Eröffnung (Ergebnis, Rating gegen Schnitt), Rückblick auf den Plan (gemessen), das eine Muster mit Belegen (Runden, verlorene, Seite, Ort, Abstand zum Mitspieler, Granaten in der Tasche, Vergleich mit deinen Matches davor), Weg seit Lektionsstart (Gedächtnis), Ansage zur Szene, Plan, Übung, was im nächsten Match geprüft wird; `home_message` für die Startseite, `milestones` (Lektion geschafft, Rückfall, neues Thema, bestes Rating seit ≥5 Matches, Warm-up-Serie 3/7/14/30), `pick` (Formulierungen je Match abwechselnd). Keine „pro 10 Runden“ in Sätzen, nur Anzahl in Runden |
+| coach_story.py | Der Coach spricht, ohne KI: Eröffnung (Ergebnis, Rating gegen Schnitt), Rückblick auf den Plan (gemessen), das eine Muster mit Belegen (Runden, verlorene, Seite, Ort, Abstand zum Mitspieler, Granaten in der Tasche, Vergleich mit deinen Matches davor), Weg seit Lektionsstart (Gedächtnis), Ansage zur Szene, Plan, Übung, was im nächsten Match geprüft wird; `home_message` für die Startseite, `milestones` (Lektion geschafft, Rückfall, neues Thema, bestes Rating seit ≥5 Matches, Warm-up-Serie 3/7/14/30), `pick` (Formulierungen je Match abwechselnd), `map_brief` (Ansprache oben im Briefing: Bilanz auf der Map, T/CT, häufigster Fehler, häufigster Todesort, Abmachungen, Schlüsselwort). Keine „pro 10 Runden“ in Sätzen, nur Anzahl in Runden |
 | duo.py | Gemeinsame Abmachung (`PLANS`, `get_plan`/`set_plan` in data/drills/duo_<a>_<b>.json, `recommend` aus den Duo-Zahlen, `plan_check` seit der Abmachung, `partner`); Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
+| notify.py (Ergänzung) | `_pause_line`: Push nach dem Match mit Pausen-Hinweis, wenn dieses Match das k-te des Tages ist und die eigene Spielabend-Kurve danach deutlich sinkt |
 | weekly.py | Wochenrückblick: letzte 7 Tage gegen die 28 Tage davor (Ergebnisse, Rating, klar besser/schlechter aus spielerprofil.METRICS, Lektion, Geschafftes, Warm-ups/Sessions, Entscheidungs-Muster, nächste Woche); Seite `/woche`, Push sonntags ab 19 Uhr einmal je Kalenderwoche (`reminder.weekly_check`, Setting `weekly_sent:<user>`) |
 | reminder.py | Erinnerung vor dem Match: Push 15 min vor der eingestellten Spielzeit (/konto#erinnerung, Setting `reminder:<user>`), einmal am Tag (`reminder_sent:<user>`), nicht nach dem Warm-up; Hintergrund-Schleife jede Minute (`_start_reminder`) |
 | dayplan.py | Tagesplan der Startseite: Session, Übung der Lektion, Thema im CS-Wissen, Warm-up; erledigt nur aus gespeicherten Daten (Session markiert, Übung heute, Thema heute geöffnet/beantwortet, Warm-up heute) |
@@ -249,6 +250,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-05: Coach-Ansprache im Briefing je Map (`coach_story.map_brief`), Pausen-Hinweis in der Push nach dem Match.
 
 - 2026-11-05: Wochenrückblick (`weekly.py`, `/woche`, Push sonntags), Link im Tagesplan.
 

@@ -2779,7 +2779,16 @@ def briefing_page(map_name: str) -> str:
     if kab and not has_own:
         for pl in kab["players"]:
             pl["mind"] = []  # Hinweise aus anderen Maps gehören nicht in die Kabine dieser Map
-    return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name),
+    from cstaktik import coach_story, course_texts, drills, duo
+
+    sid, _tabs = _course_player(hist, "")
+    say = None
+    if sid:
+        mp = drills.current_plan(sid)
+        mate = duo.partner(hist, sid)
+        say = coach_story.map_brief(hist, sid, map_name, mp, duo.get_plan(sid, mate) if mate else None,
+                                    course_texts.CUEWORDS.get((mp or {}).get("lesson") or ""))
+    return _env.get_template("briefing.html").render(nav_active="coach", b=b, map_lessons=_map_lessons(hist, map_name), say=say,
                                                      kabine=kab, plan=plan, map_name=map_name, has_own=has_own,
                                                      kabine_min=KABINE_MIN)
 

@@ -26,6 +26,11 @@
   background: var(--surface-2); color: var(--text) !important; }
 .mk.t { background: rgba(222,155,53,.2); color: #de9b35 !important; } .mk.ct { background: rgba(93,121,174,.25); color: #8fb4ff !important; }
 .mk.no { background: rgba(255,90,110,.15); color: var(--loss) !important; }
+.csay { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; margin-top: 14px; }
+.csay .av { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--orange); color: #111; font-family: var(--cond); font-weight: 800; font-size: 17px; }
+.csay .bub { padding: 14px 16px; border-radius: 4px 16px 16px 16px; background: var(--surface); border: 1px solid rgba(255,159,28,.4); font-size: 16px; line-height: 1.55; }
+.csay .bub p { margin: 0; } .csay .bub p + p { margin-top: 8px; }
+.csay .who { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
 </style>
 {% endblock %}
 {% block hero %}
@@ -33,6 +38,7 @@
 <p>{% if b.matches %}{{ b.matches }} {{ "Match" if b.matches == 1 else "Matches" }} auf {{ b.label }} ausgewertet, {{ b.won_matches }} gewonnen.{% else %}Noch kein Match auf {{ b.label }} ausgewertet.{% endif %}</p>
 {% endblock %}
 {% block content %}
+{% if say %}<div class="csay" data-block="ansprache"><span class="av" aria-hidden="true">C</span><div class="bub"><div class="who">Dein Coach vor dem Match</div>{% for x in say %}<p>{{ x }}</p>{% endfor %}</div></div>{% endif %}
 {% if kabine %}
 <h2>Kabine</h2>
 {% for a in kabine.players %}
