@@ -435,7 +435,24 @@ def konto_page(request: Request, saved: str = "", error: str = "") -> str:
         has_key=bool(key), key_hint=f"…{key[-4:]}" if key else None, autodl=autodl.status(),
         bot_user=accounts.get_setting("autodl_bot_user"), docker_cmd=autodl.docker_command(),
         ai_on=__import__("cstaktik.ai_coach", fromlist=["enabled"]).enabled(),
-        ai_auto=__import__("cstaktik.ai_coach", fromlist=["auto_debrief"]).auto_debrief())
+        ai_auto=__import__("cstaktik.ai_coach", fromlist=["auto_debrief"]).auto_debrief(),
+        reminder_time=__import__("cstaktik.reminder", fromlist=["get"]).get(user) if user else None)
+
+
+@app.post("/konto/erinnerung")
+async def konto_reminder(request: Request) -> Response:
+    """Spielzeit für die Erinnerung vor dem Match (leer = aus)."""
+    from urllib.parse import quote
+
+    from cstaktik import reminder
+
+    user = _need_user(request)
+    form = await request.form()
+    try:
+        reminder.set_time(user, str(form.get("time") or ""))
+    except ValueError as exc:
+        return RedirectResponse("/konto?error=" + quote(str(exc)) + "#erinnerung", status_code=303)
+    return RedirectResponse("/konto?saved=" + quote("Erinnerung gespeichert.") + "#erinnerung", status_code=303)
 
 
 @app.post("/konto/ki")
@@ -644,6 +661,22 @@ def _start_autodl() -> None:
             time.sleep(autodl.SCAN_S)
 
     threading.Thread(target=loop, daemon=True, name="autodl").start()
+
+
+@app.on_event("startup")
+def _start_reminder() -> None:
+    """Jede Minute prüfen, ob jemand kurz vor seiner Spielzeit an das Warm-up erinnert werden soll."""
+    from cstaktik import reminder
+
+    def loop():
+        while True:
+            try:
+                reminder.check()
+            except Exception:  # noqa: BLE001 - darf den Server nie stoppen
+                pass
+            time.sleep(60)
+
+    threading.Thread(target=loop, daemon=True, name="reminder").start()
 
 
 @app.on_event("startup")

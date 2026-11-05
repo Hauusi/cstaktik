@@ -72,6 +72,15 @@ details.opt > summary { cursor: pointer; padding: 4px 0; }
   <button class="btn2" type="submit">Schlüssel speichern</button>
 </form>
 
+{% if user %}<h2 id="erinnerung">Erinnerung vor dem Match</h2>
+<form class="card kf" method="post" action="/konto/erinnerung">
+  <label for="rt">Wann spielt ihr meistens?</label>
+  <input class="field" id="rt" name="time" type="time" value="{{ reminder_time or '' }}">
+  <div class="hint">15 Minuten vorher kommt eine Nachricht mit deiner Abmachung und dem Weg ins Warm-up, höchstens einmal am Tag und nicht, wenn du schon aufgewärmt hast. Ein fester Auslöser zur selben Zeit macht das Warm-up mit der Zeit zur Gewohnheit. Braucht Benachrichtigungen auf diesem Gerät (siehe unten). Leer lassen = aus.</div>
+  <button class="btn2" type="submit">Speichern</button>
+</form>
+{% endif %}
+
 <h2 id="ki">KI-Coach</h2>
 <form class="card kf" method="post" action="/konto/ki">
   <div class="small">Der Coach in der App braucht keine KI: Session, Plan und Auswertung kommen aus deinen Demos und kosten nichts. Die KI kann zusätzlich eine Nachbesprechung schreiben (etwa 3 bis 8 US-Cent je Match) und Fragen beantworten (unter 0,1 Cent je Frage).</div>

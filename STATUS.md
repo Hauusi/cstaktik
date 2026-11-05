@@ -101,6 +101,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | evening.py | Spielabend: Rating je Match-Nummer des Tages (curve), Rat "Pause nach k Matches" erst ab 3 Tagen mit 2+ Matches und Abfall >= 0,10; index_today |
 | coach_story.py | Der Coach spricht, ohne KI: Eröffnung (Ergebnis, Rating gegen Schnitt), Rückblick auf den Plan (gemessen), das eine Muster mit Belegen (Runden, verlorene, Seite, Ort, Abstand zum Mitspieler, Granaten in der Tasche, Vergleich mit deinen Matches davor), Weg seit Lektionsstart (Gedächtnis), Ansage zur Szene, Plan, Übung, was im nächsten Match geprüft wird; `home_message` für die Startseite. Keine „pro 10 Runden“ in Sätzen, nur Anzahl in Runden |
 | duo.py | Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
+| reminder.py | Erinnerung vor dem Match: Push 15 min vor der eingestellten Spielzeit (/konto#erinnerung, Setting `reminder:<user>`), einmal am Tag (`reminder_sent:<user>`), nicht nach dem Warm-up; Hintergrund-Schleife jede Minute (`_start_reminder`) |
 | dayplan.py | Tagesplan der Startseite: Session, Übung der Lektion, Thema im CS-Wissen, Warm-up; erledigt nur aus gespeicherten Daten (Session markiert, Übung heute, Thema heute geöffnet/beantwortet, Warm-up heute) |
 | spielerprofil.py | Spielerprofil „Wo du stehst“ (oben auf /progress): 6 Bereiche wie im CS-Wissen, Urteil aus den Kurs-Lektionen des Bereichs (Baustelle/Stärke/Im Rahmen/Zu wenig Daten, Economy ohne Urteil), Kennzahlen mit Verlauf gegen die 10 Matches davor, 50 % als Bezug nur bei Duellen, T/CT-Siegquote |
 | stats_view.py | Stats-Seite: Kennzahlen je Match (Verlauf), Vergleich mit gleich vielen Matches davor (ab 3, nur bei klarem Abstand `METRICS`), Sparklines, T gegen CT aus `by_round` (ab 10 Runden je Seite), Maps, Multi-Kills |
@@ -227,7 +228,6 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   SteamIDs): Kurz-Check und Warm-up mit älteren Matches nur in Tests geprüft.
 
 - Erste echte Nachbesprechung vom Nutzer ansehen (Screenshot), Ton und Länge abstimmen.
-- Push-Nachricht vor dem Match mit der Abmachung.
 - Game State Integration (Live-Daten von Valve) prüfen: Aufwand und was erlaubt ist. Noch nicht entschieden.
 - Knopf "Nachbesprechung neu schreiben" (vorgeschlagen, nicht entschieden).
 - Ältere Matches nachladen (braucht einen älteren Sharecode vom Nutzer).
@@ -244,6 +244,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-05: Erinnerung vor dem Match per Push (`reminder.py`), `accounts.list_users`.
 
 - 2026-11-05: Weniger auf einmal (kognitive Belastung): Startseite zeigt 4 Werkzeuge (Taktiken, Lineups, Briefing,
   Gespräch), Rest unter „Weitere Werkzeuge“; Stats: Duo oben, T/CT, Impact, Granaten, Maps, Spielabend unter „Mehr

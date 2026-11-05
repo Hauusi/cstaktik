@@ -112,6 +112,14 @@ def verify(name: str, pw: str, path: Path | None = None) -> bool:
     return check_password(pw, row["pw_hash"])
 
 
+def list_users(path: Path | None = None) -> list[str]:
+    p = path or DB_FILE
+    if not p.exists():
+        return []
+    with closing(db(p)) as con:
+        return [r["name"] for r in con.execute("SELECT name FROM users ORDER BY name")]
+
+
 def has_users(path: Path | None = None) -> bool:
     p = path or DB_FILE
     if not p.exists():
