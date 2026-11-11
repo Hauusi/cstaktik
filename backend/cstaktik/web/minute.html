@@ -167,7 +167,7 @@ html.js .sx-h { font-size: 40px; }
     {% if r.imp %}
     <div class="imp">Impact <b class="num {{ 'p' if r.imp.pos else 'n' }}">{{ r.imp.total }}</b>{% if r.imp.rank and r.imp.of %} · Platz {{ r.imp.rank }} von {{ r.imp.of }}{% endif %}. {{ r.imp.meaning }}</div>
     {% endif %}
-    {% if r.s and r.s.rating %}{% set rt = r.s.rating %}
+    {% if r.s and r.s.rating and not r.s.story %}{% set rt = r.s.rating %}
     <div class="line num">Rating <b class="{{ 'p' if rt.me >= 1.1 else 'n' if rt.me < 0.9 }}">{{ "%.2f"|format(rt.me)|replace(".", ",") }}</b>{% if rt.avg is not none %} · dein Schnitt {{ "%.2f"|format(rt.avg)|replace(".", ",") }} ({{ rt.n }} {{ "Match" if rt.n == 1 else "Matches" }} davor){% endif %}{% if rt.best %} · <b class="p">bestes Rating seit {{ rt.n }} Matches</b>{% endif %}</div>
     {% endif %}
     {% if r.s and r.s.headline %}<div class="say">„{{ r.s.headline }}“</div>{% endif %}
@@ -225,7 +225,7 @@ html.js .sx-h { font-size: 40px; }
     {% if P %}{% call say([P.headline] + P.lines) %}{% endcall %}{% endif %}
     {% if S.story and S.story.journey %}{{ say(S.story.journey) }}{% endif %}
     {% if L.stamp %}<div class="stamp {{ L.stamp[0] }}">{{ L.stamp[1] }}</div>{% endif %}
-    {% if L.says %}{{ say([L.says|join(" ")]) }}{% endif %}
+    {% if L.says %}<div class="facts num muted">{{ L.says|join(" ") }}</div>{% endif %}
     {% if S.trend %}{% set T = S.trend %}
     <div class="tr" aria-label="Fehler pro 10 Runden in deinen letzten Matches">
       <div class="tl" style="bottom: {{ (T.target / T.max * 70)|round(1) }}px"><span>Ziel {{ "%.1f"|format(T.target)|replace(".", ",") }}</span></div>

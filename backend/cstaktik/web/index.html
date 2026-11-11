@@ -135,11 +135,10 @@ body.wide main { max-width: 560px; }
 </style>
 {% endblock %}
 {% block hero %}
-<h1>{% if me_name %}Hi {{ me_name }}{% else %}Dein Kurs{% endif %}</h1>
-<p>{% if jobs %}Dein Match wird ausgewertet. Gleich ist der Report da.
+<h1>{% if coach and coach.say %}Dein Coach{% elif me_name %}Hi {{ me_name }}{% else %}Dein Kurs{% endif %}</h1>
+{% if jobs or need_link or not n_history %}<p>{% if jobs %}Dein Match wird ausgewertet. Gleich ist der Report da.
 {% elif need_link %}Verbinde deinen Steam-Account. Dann zeigt der Coach deine Matches.
-{% elif not n_history %}Lade dein erstes Match hoch. Danach weiß der Coach, mit welcher Lektion dein Kurs beginnt.
-{% else %}Nach jedem Match eine kurze Session, vor jedem Match zwei Minuten Warm-up. So bleibt hängen, woran du arbeitest.{% endif %}</p>
+{% else %}Lade dein erstes Match hoch. Danach weiß der Coach, mit welcher Lektion dein Kurs beginnt.{% endif %}</p>{% endif %}
 {% endblock %}
 {% block content %}
 {% if tabs %}<div class="ptabs">{% for t in tabs %}<a href="/?p={{ t.sid }}" class="{{ 'on' if t.on }}">{{ t.name }}</a>{% endfor %}</div>{% endif %}

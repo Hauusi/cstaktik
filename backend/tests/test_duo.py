@@ -76,8 +76,8 @@ def test_warmup_duo_box_and_endpoint():
     c = TestClient(api.app)
     c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers=O)
     w = c.get("/warmup").text
-    assert "Zu zweit mit Bruder" in w and "noch keine gemeinsame Abmachung" in w and 'data-duokey="together"' in w
+    assert "Zu zweit mit Bruder" in w and "Mein Vorschlag für euch beide" in w and 'data-duokey="together"' in w
     assert c.post("/duo/plan", json={"key": "call"}, headers=O).json()["ok"]
     assert c.post("/duo/plan", json={"key": "xx"}, headers=O).status_code == 400
     w = c.get("/warmup").text
-    assert "Eure Abmachung: „Wenn einer von uns stirbt" in w
+    assert "„Wenn einer von uns stirbt" in w and "Abmachung ändern" in w

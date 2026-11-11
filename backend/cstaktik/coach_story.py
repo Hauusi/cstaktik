@@ -322,9 +322,12 @@ def home_message(h: dict | None, sid: str, lid: str | None, hist: list[dict], sl
     before = sorted((x for x in hist if sid in (x.get("players") or {}) and (x.get("analyzed_at") or "") < at),
                     key=lambda x: x.get("analyzed_at") or "")
     if not done:
-        lines = [hi] + milestones(h, sid, before)[:1] + opening(h, sid, before)[:1]
+        ms = milestones(h, sid, before)[:1]
+        lines = [hi] + ms + opening(h, sid, before)[:1]
         pat = pattern(h, sid, lid, before) if lid else None
-        if pat and pat["n"]:
+        if pat and pat["n"] and ms and pat["title"] in ms[0]:  # Thema steht schon im Meilenstein: nicht doppelt nennen
+            lines.append(f"Das ist dir heute {times(pat['n'])} passiert. Lass uns das in vier Minuten durchgehen.")
+        elif pat and pat["n"]:
             lines.append(f"Eine Sache ist mir aufgefallen: „{pat['title']}“, {times(pat['n'])}. "
                          "Lass uns das in vier Minuten durchgehen.")
         else:

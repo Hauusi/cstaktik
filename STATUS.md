@@ -27,8 +27,8 @@ passiert ist, das eine Thema, eine Abmachung fürs nächste Match, ein Kurs mit 
   `ccr-cd3bec95-38h7uj`), kein PR ohne Auftrag.
 - Commit-Trailer genau so:
   ```
-  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  Claude-Session: https://claude.ai/code/session_01Sq7VdYxo5iH6EmqfpWHPc9
+  Co-Authored-By: <Modell der Sitzung> <noreply@anthropic.com>
+  Claude-Session: <Link der aktuellen Sitzung>
   ```
   Sonst nirgends Modellnamen (Code, Kommentare, Texte).
 - Antworten an den Nutzer: Deutsch, klar, ehrlich, kurz, keine Emojis, bei Unklarheit nachfragen.
@@ -250,6 +250,11 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-11: Qualitäts-Durchgang: alle 136 Seiten automatisch geprüft (kein Fehler, kein Überlauf am Handy);
+  Startseite ohne doppelte Begrüßung und ohne doppeltes Thema; Warm-up mit Coach-Ansage, Duo-Vorschlag kompakt
+  („Abgemacht“), Spielabend nur mit Aussage; 65 Quiz-Antworten durch plausible Denkfehler ersetzt; Session ohne
+  doppeltes Rating, Lektions-Zahlen als Text statt dritter Sprechblase.
 
 - 2026-11-05: Coach-Ansprache im Briefing je Map (`coach_story.map_brief`), Pausen-Hinweis in der Push nach dem Match.
 
