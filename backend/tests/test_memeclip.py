@@ -14,9 +14,10 @@ def test_plan_cuts_dead_time_and_ends_on_freeze():
     box = (1100, 80, 1270, 105)
     segs = memeclip.plan([{"t": 4.15, "box": box}, {"t": 10.1, "box": box}], 18.0)
     kinds = [s["kind"] for s in segs]
-    assert kinds == ["lead", "hit", "freeze", "after", "lead", "hit", "freeze"]
-    assert [s["text"] for s in segs if s["kind"] == "freeze"] == ["+1", "2 KILLS"]
-    assert segs[4]["ss"] > segs[3]["ss"] + segs[3]["d"] + 2  # Totzeit zwischen den Kills fällt weg
-    assert all(s["d"] > 0 for s in segs) and segs[-1]["d"] == memeclip.LAST_FREEZE_S
+    assert kinds == ["lead", "hit", "lead", "hit", "hold"]
+    assert [s["text"] for s in segs if s["kind"] != "lead"] == ["+1", "+2", "2 KILLS"]
+    assert segs[2]["ss"] > segs[1]["ss"] + segs[1]["d"] + 2  # Totzeit zwischen den Kills fällt weg
+    assert segs[1]["ss"] < 4.05 < segs[1]["ss"] + segs[1]["d"]  # der Kill liegt in der Zeitlupe, nicht davor
+    assert all(s["d"] > 0 for s in segs) and segs[-1]["d"] == memeclip.LAST_HOLD_S
     one = memeclip.plan([{"t": 0.2, "box": box}], 3.0)
     assert one[-1]["text"] == "KILL" and one[0]["ss"] >= 0
