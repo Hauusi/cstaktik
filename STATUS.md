@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 412 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 414 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -103,6 +103,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | coach_story.py | Der Coach spricht, ohne KI: Eröffnung (Ergebnis, Rating gegen Schnitt), Rückblick auf den Plan (gemessen), das eine Muster mit Belegen (Runden, verlorene, Seite, Ort, Abstand zum Mitspieler, Granaten in der Tasche, Vergleich mit deinen Matches davor), Weg seit Lektionsstart (Gedächtnis), Ansage zur Szene, Plan, Übung, was im nächsten Match geprüft wird; `home_message` für die Startseite, `milestones` (Lektion geschafft, Rückfall, neues Thema, bestes Rating seit ≥5 Matches, Warm-up-Serie 3/7/14/30), `pick` (Formulierungen je Match abwechselnd), `map_brief` (Ansprache oben im Briefing: Bilanz auf der Map, T/CT, häufigster Fehler, häufigster Todesort, Abmachungen, Schlüsselwort). Keine „pro 10 Runden“ in Sätzen, nur Anzahl in Runden |
 | duo.py | Gemeinsame Abmachung (`PLANS`, `get_plan`/`set_plan` in data/drills/duo_<a>_<b>.json, `recommend` aus den Duo-Zahlen, `plan_check` seit der Abmachung, `partner`); Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
 | notify.py (Ergänzung) | `_pause_line`: Push nach dem Match mit Pausen-Hinweis, wenn dieses Match das k-te des Tages ist und die eigene Spielabend-Kurve danach deutlich sinkt |
+| memeclip.py | Prototyp Meme-Clip (eigener Bereich, noch ohne Seite): eigene Kills im hochgeladenen Video über den roten Killfeed-Rahmen finden (`detect`, `kills_from_counts`), Schnittplan (`plan`: Anlauf, Zeitlupe mit Zoom, Standbild mit Blitz/Wackeln/Zähler/Killfeed-Einblendung, zurück; Totzeit fällt weg), Rendern mit ffmpeg ins Hochformat 1080x1920 (`make`). Aufruf: `python -m cstaktik.memeclip clip.mp4 out.mp4`. Sound selbst erzeugt, keine KI |
 | weekly.py | Wochenrückblick: letzte 7 Tage gegen die 28 Tage davor (Ergebnisse, Rating, klar besser/schlechter aus spielerprofil.METRICS, Lektion, Geschafftes, Warm-ups/Sessions, Entscheidungs-Muster, nächste Woche); Seite `/woche`, Push sonntags ab 19 Uhr einmal je Kalenderwoche (`reminder.weekly_check`, Setting `weekly_sent:<user>`) |
 | reminder.py | Erinnerung vor dem Match: Push 15 min vor der eingestellten Spielzeit (/konto#erinnerung, Setting `reminder:<user>`), einmal am Tag (`reminder_sent:<user>`), nicht nach dem Warm-up; Hintergrund-Schleife jede Minute (`_start_reminder`) |
 | dayplan.py | Tagesplan der Startseite: Session, Übung der Lektion, Thema im CS-Wissen, Warm-up; erledigt nur aus gespeicherten Daten (Session markiert, Übung heute, Thema heute geöffnet/beantwortet, Warm-up heute) |
@@ -230,6 +231,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 10. Offen
 
+- Meme-Clip: Urteil des Nutzers zum ersten Edit abwarten; danach ggf. Upload-Seite, weitere Vorlagen, eigene Sounds,
+  Tode/Fails erkennen. ffmpeg muss auf dem Server installiert sein (noch nicht geprüft).
+
 - Mehrere echte Matches eines Spielers zum Testen fehlen in der Spielwiese (nur 1 FACEIT-Match mit unseren
   SteamIDs): Kurz-Check und Warm-up mit älteren Matches nur in Tests geprüft.
 
@@ -250,6 +254,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-15: Prototyp Meme-Clip (`memeclip.py`): Kill-Erkennung im Video und automatischer Hochformat-Edit.
 
 - 2026-11-11: Qualitäts-Durchgang: alle 136 Seiten automatisch geprüft (kein Fehler, kein Überlauf am Handy);
   Startseite ohne doppelte Begrüßung und ohne doppeltes Thema; Warm-up mit Coach-Ansage, Duo-Vorschlag kompakt
