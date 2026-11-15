@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 414 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 415 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -104,6 +104,8 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | duo.py | Gemeinsame Abmachung (`PLANS`, `get_plan`/`set_plan` in data/drills/duo_<a>_<b>.json, `recommend` aus den Duo-Zahlen, `plan_check` seit der Abmachung, `partner`); Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
 | notify.py (Ergänzung) | `_pause_line`: Push nach dem Match mit Pausen-Hinweis, wenn dieses Match das k-te des Tages ist und die eigene Spielabend-Kurve danach deutlich sinkt |
 | memeclip.py | Prototyp Meme-Clip (eigener Bereich, noch ohne Seite): eigene Kills im hochgeladenen Video über den roten Killfeed-Rahmen finden (`detect`, `kills_from_counts`), Schnittplan (`plan`: Anlauf normal ohne Zoom; `hit` = Zoom schlägt kurz vor dem Kill zu, Kill läuft in Zeitlupe 0,4x aus, Zähler/Killfeed/Sound genau im Kill-Moment; `hold` nur am Ende mit Summe; Totzeit fällt weg; kein Wackeln, kein langsamer Zoom), Aufbau: Spielbild als Quadrat in der Mitte auf unscharfem Hintergrund, Killfeed darüber, Zähler darunter (`_vf`), Rendern mit ffmpeg ins Hochformat 1080x1920 (`make`). Aufruf: `python -m cstaktik.memeclip clip.mp4 out.mp4`. Sound selbst erzeugt, keine KI |
+| beats.py | Beat eines Musikstücks finden (ffmpeg + numpy): Onset-Stärke je 10 ms, Tempo per Autokorrelation (70–180 BPM), gleichmäßiges Beat-Raster (`beats`, `beat_grid`) |
+| memeclip.py (Beat-Edit) | `make_beat(src, music, out, music_ss, music_d, words)`: Musik-Ausschnitt gibt den Takt vor, `plan_beat` legt jeden Kill exakt auf einen Schlag (Anlauf 1,6x, Annäherung 0,5x, Kill 0,4x über einen Schlag), Zoom-Stoß je Schlag, Songtext Wort für Wort in der Bildmitte (`word_times`: ein Wort je Schlag oder "Sekunde:WORT"; während eines Kills kein Text), Spielton leise unter der Musik |
 | weekly.py | Wochenrückblick: letzte 7 Tage gegen die 28 Tage davor (Ergebnisse, Rating, klar besser/schlechter aus spielerprofil.METRICS, Lektion, Geschafftes, Warm-ups/Sessions, Entscheidungs-Muster, nächste Woche); Seite `/woche`, Push sonntags ab 19 Uhr einmal je Kalenderwoche (`reminder.weekly_check`, Setting `weekly_sent:<user>`) |
 | reminder.py | Erinnerung vor dem Match: Push 15 min vor der eingestellten Spielzeit (/konto#erinnerung, Setting `reminder:<user>`), einmal am Tag (`reminder_sent:<user>`), nicht nach dem Warm-up; Hintergrund-Schleife jede Minute (`_start_reminder`) |
 | dayplan.py | Tagesplan der Startseite: Session, Übung der Lektion, Thema im CS-Wissen, Warm-up; erledigt nur aus gespeicherten Daten (Session markiert, Übung heute, Thema heute geöffnet/beantwortet, Warm-up heute) |
@@ -231,6 +233,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 10. Offen
 
+- Meme-Clip Beat-Edit: Wort-Zeiten des Songtexts sind nur aufs Beat-Raster gelegt (keine Spracherkennung: Installation
+  in der Cloud-Sitzung wurde abgelehnt); Text perspektivisch auf Wänden, Farbeffekte, mehrere Clips, Upload-Seite fehlen.
+  Musik-Rechte liegen beim Nutzer. Test-Musik war der Ton aus der TikTok-Aufnahme des Nutzers (nicht im Repo).
 - Meme-Clip: Urteil des Nutzers zum ersten Edit abwarten; danach ggf. Upload-Seite, weitere Vorlagen, eigene Sounds,
   Tode/Fails erkennen. ffmpeg muss auf dem Server installiert sein (noch nicht geprüft).
 
@@ -254,6 +259,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-15: Beat-Edit (`beats.py`, `memeclip.make_beat`): Kills auf den Beat, Songtext Wort für Wort.
 
 - 2026-11-15: Meme-Clip v2 nach Rückmeldung: Zoom-Schlag statt langsamem Zoom, Kill in Zeitlupe sichtbar, kein
   Wackeln, Quadrat-Aufbau, damit der Gegner nicht aus dem Bild fällt.
