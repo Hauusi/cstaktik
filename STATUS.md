@@ -266,6 +266,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: /clips zeigt unten den laufenden Code-Stand (`api._code_version`, git-Commit beim Start), um zu sehen,
+  ob ein Update auf dem Server angekommen ist.
+
 - 2026-11-16: Wand-Wörter nach Gesang: Spracherkennung liefert Start und Ende je Wort ("a-e:WORT", `word_list`),
   `wall_picks` wählt Wörter, die gezogen werden (ab 0,35 s) oder vor einer Pause stehen (ab 0,25 s), höchstens 40 %;
   diese bleiben an der Wand bis zum nächsten Wort (max. 2,5 s, endet beim Schnitt). Gezogene Wörter werden nicht mehr

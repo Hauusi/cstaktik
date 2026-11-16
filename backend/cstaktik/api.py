@@ -1018,7 +1018,25 @@ def clips_page() -> str:
     js = clips.jobs(_USER.get())
     return _env.get_template("clips.html").render(
         nav_active="coach", jobs=_running_jobs(), items=js, busy=any(j.get("status") in ("wartet", "läuft") for j in js),
-        ffmpeg=bool(shutil.which("ffmpeg")))
+        ffmpeg=bool(shutil.which("ffmpeg")), version=_code_version())
+
+
+def _code_version() -> str:
+    """Stand des laufenden Codes (git-Commit beim Start), damit man sieht, ob ein Update angekommen ist."""
+    global _CODE_VERSION
+    if _CODE_VERSION is None:
+        import subprocess
+
+        try:
+            _CODE_VERSION = subprocess.run(["git", "-C", str(Path(__file__).parent), "log", "-1", "--format=%h %cd",
+                                            "--date=format:%d.%m. %H:%M"], capture_output=True, text=True,
+                                           timeout=5).stdout.strip() or "unbekannt"
+        except Exception:  # noqa: BLE001
+            _CODE_VERSION = "unbekannt"
+    return _CODE_VERSION
+
+
+_CODE_VERSION: str | None = None
 
 
 async def _save_upload(up: UploadFile, target: Path, limit: int) -> None:
