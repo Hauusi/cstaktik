@@ -265,6 +265,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips: Songtext deutlich kleiner (höchstens 150 px Schrift, 640 px breit) im unteren Drittel des
+  Spielbilds statt in der Mitte, schwächeres Aufploppen; verdeckte vorher den Kill.
+
 - 2026-11-16: Clips nach Studien und Plattform-Vorgaben: Schnittpunkte dort, wo Bewegung einsetzt (`motion`,
   `onset_cut`; Smith & Henderson 2008, Edit Blindness), 60 fps, Lautheit -14 LUFS / -1 dBTP (`LOUDNORM`), Musik beim
   Kill kurz -4 dB (Ducking), Zähler und Killfeed oben statt unten (Oberfläche von TikTok/Shorts), zu kurz

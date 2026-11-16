@@ -478,7 +478,7 @@ def sung_words(music: str, ss: float, d: float) -> list[str] | None:
 
 LYRIC_COLORS = [((255, 255, 255), (255, 159, 28)), ((255, 210, 63), (20, 20, 20)), ((255, 255, 255), (240, 86, 106)),
                 ((77, 224, 138), (20, 20, 20)), ((255, 255, 255), (74, 138, 224)), ((255, 90, 110), (20, 20, 20))]
-LYRIC_DY = (-130, 110, -10, 150, -90, 60)
+LYRIC_DY = (0, -40, 20, -25, 35, -15)  # kleine Sprünge im unteren Drittel des Spielbilds
 LYRIC_ROT = (-5, 4, -3, 5, -4, 3)
 
 
@@ -489,11 +489,11 @@ def word_png(text: str, path: Path, j: int, font_file: str) -> None:
 
     text = text.upper()
     fill, shadow = LYRIC_COLORS[j % len(LYRIC_COLORS)]
-    size = 330
-    while size > 90:
+    size = 150  # klein genug, dass der Kill sichtbar bleibt
+    while size > 60:
         font = ImageFont.truetype(font_file, size)
         l, t, r, b = font.getbbox(text)
-        if r - l <= 860:
+        if r - l <= 640:
             break
         size -= 10
     stroke, off = max(size // 13, 6), max(size // 16, 8)
@@ -554,9 +554,9 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(png)]
                 # während eines Kills gehört die Bildmitte dem Kill: das Wort steht dann kleiner am unteren Bildrand
                 low = any(x0 - 0.05 <= a < x1 - 0.05 for x0, x1 in busy)
-                cy = BOX_Y + BOX - 150 if low else BOX_Y + BOX // 2 + LYRIC_DY[j % len(LYRIC_DY)]
-                sc = 0.55 if low else 1.0
-                fc += (f"[{k}:v]format=rgba,scale=w='2*trunc(iw*{sc}*(1+0.55*exp(-22*max(t-{a}\\,0)))/2)':h=-2:eval=frame[w{j}];"
+                cy = BOX_Y + BOX - 95 if low else BOX_Y + int(BOX * 0.80) + LYRIC_DY[j % len(LYRIC_DY)]
+                sc = 0.7 if low else 1.0
+                fc += (f"[{k}:v]format=rgba,scale=w='2*trunc(iw*{sc}*(1+0.2*exp(-22*max(t-{a}\\,0)))/2)':h=-2:eval=frame[w{j}];"
                        f"[{last}][w{j}]overlay=x='(W-w)/2':y='{cy}-h/2':eval=frame:"
                        f"enable='between(t,{a},{min(b, total)})'[t{j}];")
                 last, k, shown = f"t{j}", k + 1, shown + 1
