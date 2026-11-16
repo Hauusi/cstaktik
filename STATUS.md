@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 445 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 446 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Song-Vorschläge laufen beim Nutzer (echte LRCLIB-/Deezer-Daten). Aufgeräumt: `clean_title` entfernt Künstlernamen aus Nutzer-Uploads ("Lady Gaga - Bad Romance", "Poker Face Lady GaGa"), Doppelte nach dem Aufräumen weg, Einträge mit echtem Albumnamen zuerst, Künstler als Album nicht angezeigt.
 
 - 2026-11-16: Song-Vorschläge erschienen beim Nutzer nicht (Ursache von hier nicht prüfbar, Hosts gesperrt): Fehler jetzt sichtbar statt stumm ("Suche …", Grund bei Fehler: LRCLIB/Deezer nicht erreichbar, kein JSON + Status), `suggest_full` mit Fehlertext, LRCLIB und Deezer parallel, Fehler nicht gecacht, Endpunkt fängt Ausnahmen ab. Diagnose: /clips/song-suggest?q=Paparazzi im Browser öffnen.
 

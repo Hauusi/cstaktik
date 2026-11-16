@@ -150,24 +150,46 @@ def suggestions(lrc_data, deezer_data, limit: int = 5) -> list[dict]:
         alb = x.get("album") or {}
         if alb.get("cover_medium"):
             covers.setdefault((a, _norm(x.get("title") or "")), alb["cover_medium"])
-    out, seen = [], set()
-    for x in lrc_data or []:
+    cands = []
+    for pos, x in enumerate(lrc_data or []):
         if not isinstance(x, dict) or not x.get("syncedLyrics"):
             continue
-        track, artist = (x.get("trackName") or "").strip(), (x.get("artistName") or "").strip()
+        raw, artist = (x.get("trackName") or "").strip(), (x.get("artistName") or "").strip()
+        track = clean_title(raw, artist)
+        if not track:
+            continue
+        album = (x.get("albumName") or "").strip()
+        # sauber gepflegte Einträge zuerst: echter Albumname (nicht der Künstler, nicht "Künstler - Titel") und der
+        # Titel kam ohne Künstlernamen an (Nutzer-Uploads heißen oft "Lady Gaga - Bad Romance")
+        score = (2 if album and _norm(album) not in (_norm(artist), _norm(raw)) and _norm(artist) not in _norm(album)
+                 else 0) + (1 if track == raw else 0)
+        cands.append((-score, pos, track, artist, album, x))
+    cands.sort(key=lambda c: (c[0], c[1]))
+    out, seen = [], set()
+    for _, _, track, artist, album, x in cands:
         key = (_norm(track), _norm(artist))
-        if not track or key in seen:
+        if key in seen:
             continue
         seen.add(key)
         main = _norm(re.split(r",|&| feat\.| ft\.", artist, flags=re.I)[0])
         img = pics.get(key[1]) or pics.get(main) or covers.get((key[1], key[0])) or ""
         dur = x.get("duration")
-        out.append({"track": track, "artist": artist, "album": x.get("albumName") or "",
+        out.append({"track": track, "artist": artist, "album": album if _norm(album) != _norm(artist) else "",
                     "duration": f"{int(dur) // 60}:{int(dur) % 60:02d}" if dur else "",
                     "image": img if img.startswith("https://") else ""})
         if len(out) >= limit:
             break
     return out
+
+
+def clean_title(title: str, artist: str) -> str:
+    """Künstlernamen aus dem Titel nehmen: "Lady Gaga - Bad Romance" und "Poker Face Lady GaGa" -> Titel allein."""
+    t = " ".join((title or "").split())
+    a = re.escape(" ".join((artist or "").split()))
+    if a:
+        t = re.sub(rf"^{a}\s*[-–—:]\s*", "", t, flags=re.I)
+        t = re.sub(rf"\s*[-–—]?\s*{a}$", "", t, flags=re.I)
+    return t.strip(" -–—") or (title or "").strip()
 
 
 def suggest(query: str) -> list[dict]:

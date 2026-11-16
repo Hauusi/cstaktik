@@ -81,3 +81,15 @@ def test_suggest_reports_network_error(monkeypatch):
     r = lrclib.suggest_full("Paparazzi Lady Gaga")
     assert r["items"] == [] and "LRCLIB nicht erreichbar" in r["error"] and "TimeoutError" in r["error"]
     assert "paparazzi lady gaga" not in lrclib._CACHE  # Fehler nicht zwischenspeichern
+
+
+def test_suggestions_clean_messy_uploads():
+    syn = "[00:01.00] x"
+    lrc = [{"trackName": "Lady Gaga - Bad Romance", "artistName": "Lady Gaga", "albumName": "Lady Gaga", "duration": 292, "syncedLyrics": syn},
+           {"trackName": "Poker Face Lady GaGa", "artistName": "Lady Gaga", "albumName": "Lady Gaga", "duration": 221, "syncedLyrics": syn},
+           {"trackName": "Bad Romance", "artistName": "Lady Gaga", "albumName": "The Fame Monster", "duration": 294, "syncedLyrics": syn},
+           {"trackName": "Lady Gaga - Judas", "artistName": "Lady Gaga", "albumName": "Lady Gaga - Judas", "duration": 335, "syncedLyrics": syn}]
+    s = lrclib.suggestions(lrc, None)
+    assert [x["track"] for x in s] == ["Bad Romance", "Poker Face", "Judas"]  # aufgeräumt, doppelte weg, Album zuerst
+    assert s[0]["album"] == "The Fame Monster" and s[1]["album"] == ""  # Künstler als Album nicht anzeigen
+    assert lrclib.clean_title("Paparazzi", "Lady Gaga") == "Paparazzi"
