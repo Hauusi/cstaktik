@@ -1039,17 +1039,13 @@ async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | 
     from cstaktik import clips
 
     video = video[:clips.MAX_CLIPS]
-    if any(Path(v.filename or "").suffix.lower() not in clips.VIDEO_EXT for v in video):
-        raise HTTPException(400, "Video bitte als .mp4, .mov, .mkv oder .webm.")
     d = clips.new_job(_USER.get())
     try:
         for i, v in enumerate(video):
-            await _save_upload(v, d / f"in{i}{Path(v.filename).suffix.lower()}", clips.MAX_VIDEO_BYTES)
+            await _save_upload(v, d / f"in{i}{clips.safe_ext(v.filename, '.mp4')}", clips.MAX_VIDEO_BYTES)
         has_music = bool(music and music.filename)
         if has_music:
-            mext = Path(music.filename).suffix.lower()
-            if mext not in clips.MUSIC_EXT:
-                raise HTTPException(400, "Musik bitte als .mp3, .m4a, .wav, .ogg oder .aac.")
+            mext = clips.safe_ext(music.filename, ".mp3")
             await _save_upload(music, d / f"music{mext}", clips.MAX_MUSIC_BYTES)
         try:
             ss = max(0.0, float((music_ss or "0").replace(",", ".")))
@@ -1077,12 +1073,10 @@ async def clips_new(request: Request) -> JSONResponse:
 
     body = await _json_body(request)
     names = [str(x) for x in (body.get("videos") or ([body["video"]] if body.get("video") else []))][:clips.MAX_CLIPS]
-    exts = [Path(x).suffix.lower() for x in names]
-    mext = Path(str(body.get("music") or "")).suffix.lower() if body.get("music") else ""
-    if not exts or any(e not in clips.VIDEO_EXT for e in exts):
-        raise HTTPException(400, "Video bitte als .mp4, .mov, .mkv oder .webm.")
-    if mext and mext not in clips.MUSIC_EXT:
-        raise HTTPException(400, "Musik bitte als .mp3, .m4a, .wav, .ogg oder .aac.")
+    exts = [clips.safe_ext(x, ".mp4") for x in names]
+    mext = clips.safe_ext(str(body["music"]), ".mp3") if body.get("music") else ""
+    if not exts:
+        raise HTTPException(400, "Bitte mindestens einen Clip auswählen.")
     try:
         ss = max(0.0, float(str(body.get("music_ss") or "0").replace(",", ".")))
     except ValueError:

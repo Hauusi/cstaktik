@@ -23,6 +23,13 @@ VIDEO_EXT, MUSIC_EXT = (".mp4", ".mov", ".mkv", ".webm"), (".mp3", ".m4a", ".wav
 _render_lock = threading.Lock()
 
 
+def safe_ext(name: str, default: str) -> str:
+    """Dateiendung für die Ablage. Handys liefern oft Namen ohne oder mit unbekannter Endung: Die Endung entscheidet
+    nicht, ob die Datei angenommen wird. ffmpeg erkennt das Format am Inhalt."""
+    ext = Path(name or "").suffix.lower()
+    return ext if re.fullmatch(r"\.[a-z0-9]{1,5}", ext) else default
+
+
 def _user_dir(user: str | None) -> Path:
     return pipeline.CLIPS_DIR / re.sub(r"[^0-9A-Za-z_.-]", "_", user or "alle")
 
@@ -97,6 +104,11 @@ def render(d: Path, user: str | None = None) -> None:
                       bpm=r.get("bpm"), words=r.get("words"), found=len(r["kills"]))
         except ValueError as e:
             set_state(d, status="fehler", step=None, error=str(e))
+        except RuntimeError as e:  # ffmpeg konnte eine Datei nicht lesen oder schneiden
+            msg = str(e)
+            hint = "Eine der Dateien ist kein lesbares Video oder Audio." if "Invalid data" in msg or "moov atom" in msg \
+                else "Der Schnitt ist fehlgeschlagen: " + msg[:300]
+            set_state(d, status="fehler", step=None, error=hint)
         except Exception as e:  # noqa: BLE001 - ffmpeg-Fehler u. Ä. sollen im Auftrag stehen, nicht den Server stoppen
             set_state(d, status="fehler", step=None, error="Der Schnitt ist fehlgeschlagen: " + str(e)[:300])
     _cleanup(user)
