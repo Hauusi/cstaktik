@@ -78,31 +78,58 @@
       return r.json();
     });
   }
-  function send(id, kind, file, done, total) {
+  var sent = 0;  // hochgeladene Bytes über alle Dateien
+  function show(total) {
+    var mb = (sent / 1048576).toFixed(1).replace(".", ",") + " MB";
+    if (total > 0) { var p = Math.min(100, 100 * sent / total); bar.style.width = p + "%"; msg.textContent = "Lädt hoch … " + Math.round(p) + " % (" + mb + ")"; }
+    else { bar.style.width = "100%"; msg.textContent = "Lädt hoch … " + mb; }
+  }
+  function put(url, blob, tries) {  // ein Stück senden; bei Funkloch bis zu 4 Mal neu versuchen
+    return post(url, blob).catch(function (e) {
+      if (tries >= 4 || /zu groß|nicht gefunden/.test(e.message)) throw e;
+      return new Promise(function (ok) { setTimeout(ok, 1500 * (tries + 1)); }).then(function () { return put(url, blob, tries + 1); });
+    });
+  }
+  function pieces(url, blob, total) {  // einen Block in Stücke von höchstens CH teilen und nacheinander senden
     var pos = 0;
-    function next(tries) {
-      if (pos >= file.size) return Promise.resolve();
-      return post("/clips/" + id + "/chunk?kind=" + kind, file.slice(pos, pos + CH)).then(function () {
-        pos += CH; var p = Math.min(100, 100 * (done + Math.min(pos, file.size)) / total);
-        bar.style.width = p + "%"; msg.textContent = "Lädt hoch … " + Math.round(p) + " %";
-        return next(0);
-      }, function (e) {  // Funkloch: dasselbe Stück bis zu 4 Mal neu versuchen
-        if (tries >= 4 || /zu groß|nicht gefunden/.test(e.message)) throw e;
-        return new Promise(function (ok) { setTimeout(ok, 1500 * (tries + 1)); }).then(function () { return next(tries + 1); });
+    function next() {
+      if (pos >= blob.size) return Promise.resolve();
+      var part = blob.slice(pos, pos + CH); pos += CH;
+      return put(url, part, 0).then(function () { sent += part.size; show(total); return next(); });
+    }
+    return next();
+  }
+  /* Manche Handys melden für Dateien aus Galerie oder Cloud die Größe 0. Deshalb wird die Datei gelesen (stream),
+     statt sich auf die gemeldete Größe zu verlassen. Rückgabe: gesendete Bytes dieser Datei. */
+  function send(id, kind, file, total) {
+    var url = "/clips/" + id + "/chunk?kind=" + kind, before = sent;
+    if (file.size > 0 || !file.stream) return pieces(url, file, total).then(function () { return sent - before; });
+    var rd = file.stream().getReader(), buf = [], n = 0;
+    function flush() { var blob = new Blob(buf); buf = []; n = 0; return pieces(url, blob, total); }
+    function pump() {
+      return rd.read().then(function (r) {
+        if (r.done) return n ? flush() : null;
+        buf.push(r.value); n += r.value.length;
+        return (n >= CH ? flush() : Promise.resolve()).then(pump);
       });
     }
-    return next(0);
+    return pump().then(function () { return sent - before; });
   }
   f.addEventListener("submit", function (ev) {
     ev.preventDefault();
     var vs = Array.prototype.slice.call(f.video.files, 0, 8), m = f.music.files[0]; if (!vs.length) return;
     document.getElementById("cgo").disabled = true; document.getElementById("cup").hidden = false;
-    var vsize = vs.reduce(function (a, x) { return a + x.size; }, 0), total = vsize + (m ? m.size : 0);
+    var total = vs.reduce(function (a, x) { return a + x.size; }, 0) + (m ? m.size : 0);
+    if (vs.some(function (x) { return !x.size; }) || (m && !m.size)) total = 0;  // Größe unbekannt: nur MB anzeigen
+    sent = 0;
     post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value}), true)
       .then(function (j) {
-        var chain = Promise.resolve(), done = 0;
-        vs.forEach(function (v, i) { chain = chain.then(function () { var d0 = done; done += v.size; return send(j.id, "video&n=" + i, v, d0, total); }); });
-        return chain.then(function () { return m ? send(j.id, "music", m, vsize, total) : null; })
+        var chain = Promise.resolve();
+        vs.forEach(function (v, i) { chain = chain.then(function () { return send(j.id, "video&n=" + i, v, total); }).then(function (n) {
+          if (!n) throw new Error("Clip " + (i + 1) + " ließ sich nicht lesen (0 Bytes). Liegt er nur in der Cloud? Bitte zuerst aufs Handy herunterladen oder über „Dateien“ auswählen.");
+        }); });
+        return chain.then(function () { return m ? send(j.id, "music", m, total) : 1; })
+          .then(function (n) { if (!n) throw new Error("Die Musikdatei ließ sich nicht lesen (0 Bytes)."); })
           .then(function () { return post("/clips/" + j.id + "/start", "{}", true); });
       }).then(function () { location.href = "/clips"; })
       .catch(function (e) { msg.textContent = "Upload fehlgeschlagen: " + e.message; document.getElementById("cgo").disabled = false; });

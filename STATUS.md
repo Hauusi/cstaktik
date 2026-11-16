@@ -266,6 +266,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips-Upload liest Dateien per stream, wenn das Handy Größe 0 meldet (vorher kam kein Stück an);
+  klare Meldung, wenn eine Datei wirklich 0 Bytes liefert (z. B. nur in der Cloud).
+
 - 2026-11-16: Clips-Upload: genaue Fehlermeldungen je Ursache; `CLIPS_API` (api.py) gegen `v` in clips.html meldet,
   wenn nach einem Update der Neustart fehlt (Templates kommen frisch von der Platte, der Python-Code nicht).
 
