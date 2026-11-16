@@ -266,6 +266,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips nehmen Dateien unabhängig von der Endung an (`clips.safe_ext`; Handy-Namen ohne Endung führten zu
+  „Video bitte als .mp4 …“); unlesbare Dateien melden sich erst beim Schnitt als Fehler.
+
 - 2026-11-16: Clips: mehrere Videos je Auftrag, gleitendes Tempo statt Sprüngen, fester Kill-Abstand im Takt,
   Songtext als gestaltete Schrift (Pillow + Anton); neue Abhängigkeit pillow (Server: pip install -e backend).
 
