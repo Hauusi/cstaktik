@@ -28,3 +28,13 @@ def test_track_shift_and_slopes():
     g = 100 * (1 + np.sin(2 * np.pi * (yy - 0.2 * xx) / 25))  # weiche schräge Fugen wie an einer Wand: Steigung 0,2
     top, bot = wt.edge_slopes(g, (0, 0, 200, 200))
     assert abs(top - 0.2) < 0.05 and abs(bot - 0.2) < 0.05
+
+
+def test_similarity_robust():
+    rng = np.random.default_rng(3)
+    src = rng.uniform(10, 200, (25, 2))
+    dst = src * 1.1 + [7.0, -4.0]
+    dst[:4] += 30  # Ausreißer
+    sc, t, err = wt.similarity(src, dst)
+    assert abs(sc - 1.1) < 0.01 and np.allclose(t, [7, -4], atol=0.5) and err < 0.5
+    assert wt.similarity(src[:4], dst[:4]) is None

@@ -82,6 +82,6 @@ def test_wall_picks_held_words_before_pause():
     assert wb["sung"] == 2.4 and wb["next"] == 2.9  # an der Wand bis zum nächsten Wort  # steht bis zum nächsten Wort
     picks = memeclip.wall_picks(wl)
     assert [x["txt"] for x in wl] == ["TALK TO", "ME", "BABY", "IM GOING", "SO FAST"]
-    assert "BABY" in [wl[j]["txt"] for j in picks] and not {0, 1, 3} & picks  # gezogen + Pause ja, schnelle Wörter nein
+    assert "BABY" in [wl[j]["txt"] for j in picks] and not {0, 1} & picks  # gezogen + Pause ja, schnelle Wörter nein
     assert memeclip.wall_picks(memeclip.word_list(["EINS", "ZWEI"], bt)) == set()  # eingetippt: einfache Regel
     assert memeclip.word_times(["1.45:A"], bt) == [(1.45, 1.95, "A")]

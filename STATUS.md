@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 422 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 423 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,11 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Wand-Text stabil: Verfolgung als Verschiebung + Größe (`wall_text.similarity`, robust, geglättet)
+  statt voller Homographie (zitterte), bei kurzem Verlust 0,15 s Ausblenden statt Sprung; Wort kleiner und immer im
+  Spielbild; bei einem Schnitt im Zeitfenster sucht das Wort im neuen Bild eine neue Wand (`cuts`), Wörter dürfen auch
+  in Kills an die Wand; mehr Wand-Wörter (`wall_picks`: ab 0,28 s gezogen oder 0,2 s Pause, bis 60 %).
 
 - 2026-11-16: /clips zeigt unten den laufenden Code-Stand (`api._code_version`, git-Commit beim Start), um zu sehen,
   ob ein Update auf dem Server angekommen ist.

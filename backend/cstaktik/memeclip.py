@@ -447,7 +447,7 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
     return [(x["a"], x["b"], x["txt"]) for x in word_list(words, beat_times, per_beat)]
 
 
-def wall_picks(ws: list[dict], max_share: float = 0.4) -> set[int]:
+def wall_picks(ws: list[dict], max_share: float = 0.6) -> set[int]:
     """Welche Wörter an die Wand: die, bei denen sich der Sänger Zeit lässt. Punkte = wie lange das Wort gesungen
     wird + die Pause danach (bis zum nächsten Wort). Gezogene Wörter vor einer Pause gewinnen. Nur Wörter mit
     mindestens 0,35 s gesungen oder 0,25 s Pause danach, höchstens ``max_share`` aller Wörter, mindestens eins.
@@ -459,7 +459,7 @@ def wall_picks(ws: list[dict], max_share: float = 0.4) -> set[int]:
     for j, x in timed:
         held = max(x["sung"] - x["a"], 0.0)
         pause = max(x["next"] - x["sung"], 0.0)
-        if (held >= 0.35 or pause >= 0.25) and len(x["txt"].replace(" ", "")) >= 3:
+        if (held >= 0.28 or pause >= 0.2) and len(x["txt"].replace(" ", "")) >= 3:
             scored.append((held + pause, j))
     scored.sort(reverse=True)
     n = max(1, int(len(ws) * max_share))
@@ -598,14 +598,14 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 # an der Wand beim Schnitt (die Wand ist danach weg), sofern bis dahin genug Zeit bleibt.
                 if j in picks:  # gezogenes Wort: bleibt durch die Pause an der Wand, bis das nächste Wort kommt
                     b = min(max(b, wd["next"]), a + 2.5, total)
-                cut = min((c for c in cuts if a + 0.02 < c < b - 0.02), default=b)
-                no_kill = not any(x0 - 0.05 <= a < x1 for x0, x1 in busy)
-                # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: jedes zweite
-                wanted = (j in picks) if picks else (len(txt) >= 3 and len(wall_words) * 2 <= shown + 1)
-                if wall_on and no_kill and cut - a >= WALL_MIN_S and wanted:
+                # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: alle passenden.
+                # Bei einem Schnitt im Zeitfenster sucht das Wort im neuen Bild eine neue Wand (wall_text.apply).
+                wanted = (j in picks) if picks else len(txt) >= 3
+                if wall_on and b - a >= WALL_MIN_S and wanted:
                     png = tmp / f"wall{j:02d}.png"
                     word_png(txt, png, j, font, wall=True)
-                    wall_words.append({"a": a, "b": cut, "png": str(png)})
+                    wall_words.append({"a": a, "b": b, "png": str(png),
+                                       "cuts": [c for c in cuts if a + 0.02 < c < b - 0.02]})
                     shown += 1
                     continue
                 png = tmp / f"w{j:02d}.png"

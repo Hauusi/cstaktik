@@ -103,6 +103,23 @@ def apply_h(h: np.ndarray, pts: np.ndarray) -> np.ndarray:
     return p[:, :2] / p[:, 2:3]
 
 
+def similarity(src: np.ndarray, dst: np.ndarray) -> tuple[float, np.ndarray, float] | None:
+    """Verschiebung und Größe von src nach dst (ohne Drehung), robust gegen falsch verfolgte Punkte.
+    Rückgabe (Skalierung, Verschiebung, mittlerer Restfehler) oder None bei zu wenigen Punkten."""
+    keep = np.ones(len(src), bool)
+    for _ in range(3):
+        if keep.sum() < 6:
+            return None
+        cs, cd = np.median(src[keep], axis=0), np.median(dst[keep], axis=0)
+        ds, dd = src[keep] - cs, dst[keep] - cd
+        s = float(np.sqrt((dd ** 2).sum() / max((ds ** 2).sum(), 1e-6)))
+        s = min(max(s, 0.6), 1.7)
+        t = cd - s * cs
+        err = np.hypot(*(src * s + t - dst).T)
+        keep = err < max(2.0, 2.5 * float(np.median(err[keep])))
+    return s, t, float(np.median(err[keep]))
+
+
 def ransac_h(src: np.ndarray, dst: np.ndarray, iters: int = 120, tol: float = 1.5, seed: int = 0):
     """Robuste Homographie: Ausreißer (falsch verfolgte Punkte) werden ignoriert. Rückgabe (H, Anteil passend)."""
     n = len(src)
@@ -196,15 +213,20 @@ def place(g: np.ndarray, aspect: float) -> dict | None:
     if best is None:
         return None
     _, side, (x0, y0, x1, y1), (top, bot), pts = best
-    qw = (x1 - x0) * 0.95
-    qh = min(qw / aspect, (y1 - y0) * 0.6)
+    qw = (x1 - x0) * 0.70
+    qh = min(qw / aspect, (y1 - y0) * 0.35)
     qw = qh * aspect
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     xl, xr = cx - qw / 2, cx + qw / 2
     quad = np.array([[xl, cy - qh / 2 - top * qw / 2], [xr, cy - qh / 2 + top * qw / 2],
                      [xr, cy + qh / 2 + bot * qw / 2], [xl, cy + qh / 2 - bot * qw / 2]], np.float32)
     # Punkte rund um das Viereck verfolgen (dieselbe Wand)
-    pad = qw * 0.35
+    m = size * 0.03  # Rand: das Wort ragt nie über das Spielbild hinaus
+    sh = np.array([max(0.0, m - quad[:, 0].min()) - max(0.0, quad[:, 0].max() - (size - m)),
+                   max(0.0, m - quad[:, 1].min()) - max(0.0, quad[:, 1].max() - (size - m))], np.float32)
+    quad = quad + sh
+    xl, xr = quad[:, 0].min(), quad[:, 0].max()
+    pad = qw * 0.5
     near = pts[(pts[:, 0] > xl - pad) & (pts[:, 0] < xr + pad) & (pts[:, 1] > quad[:, 1].min() - pad) &
                (pts[:, 1] < quad[:, 1].max() + pad)]
     if len(near) < MIN_POINTS:
@@ -270,12 +292,17 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                     active.pop(i, None)
                     continue
                 st = active.get(i)
-                if st is None:  # Wortbeginn: Wand suchen
+                ncut = sum(1 for c in w.get("cuts") or [] if c <= t + 0.5 / fps)
+                if st is not None and st.get("ncut", 0) != ncut:  # Schnitt: neue Szene, neue Wand suchen
+                    st = None
+                if st is None:  # Wortbeginn oder nach einem Schnitt: Wand suchen
                     im = imgs[i]
                     pl = place(g, im.width / im.height)
                     st = active[i] = ({"mode": "wall", "quad0": pl["quad"], "pts0": pl["pts"], "pts": pl["pts"].copy(),
                                        "ok": np.ones(len(pl["pts"]), bool)} if pl else {"mode": "flat"})
-                    stats["wall" if pl else "flat"] += 1
+                    st["ncut"] = ncut
+                    if ncut == 0:
+                        stats["wall" if pl else "flat"] += 1
                 elif st["mode"] == "wall" and prev is not None:
                     st["pts"], ok = track(prev, g, st["pts"])
                     st["ok"] &= ok
@@ -290,15 +317,19 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                     continue
                 if st["mode"] == "lost":
                     continue
-                hm, frac = ransac_h(st["pts0"][st["ok"]], st["pts"][st["ok"]]) if st["ok"].sum() >= MIN_POINTS else (None, 0)
-                if hm is None or frac < 0.5:
-                    st["mode"] = "lost"
-                    continue
-                q = apply_h(hm, st["quad0"])
-                area0, area = _area(st["quad0"]), _area(q)
-                if not (0.4 < area / max(area0, 1e-6) < 2.5):
-                    st["mode"] = "lost"
-                    continue
+                sim = similarity(st["pts0"][st["ok"]], st["pts"][st["ok"]])
+                if sim is None or sim[2] > 3.0:  # Wand verloren: kurz ausblenden statt springen
+                    st["fade"] = st.get("fade", 1.0) - 1 / (0.15 * fps)
+                    if st["fade"] <= 0 or "q" not in st:
+                        st["mode"] = "lost"
+                        continue
+                    q = st["q"]
+                else:
+                    sc, tr, _err = sim
+                    q_new = st["quad0"] * sc + tr
+                    st["q"] = q = q_new if "q" not in st else st["q"] * 0.35 + q_new * 0.65  # glätten gegen Zittern
+                    st["fade"] = 1.0
+                k = min(k, st.get("fade", 1.0))
                 c = q.mean(axis=0)
                 pop = 0.85 + 0.15 * k
                 qf = ((q - c) * pop + c) * SCALE + [0, box_y]
