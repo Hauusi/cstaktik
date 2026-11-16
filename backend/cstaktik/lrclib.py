@@ -119,3 +119,69 @@ def clip_words(words: list[tuple[float, float, str]], offset: float, music_ss: f
         if 0 <= va < total:
             out.append(f"{va:.2f}-{min(ve, total):.2f}:{w}")
     return out
+
+
+DEEZER = "https://api.deezer.com/search"
+_CACHE: dict[str, tuple[float, list[dict]]] = {}
+CACHE_S = 600
+
+
+def _get_json(url: str, timeout: float = 5.0):
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except Exception:  # noqa: BLE001 - kein Netz / Zeitüberschreitung: keine Vorschläge
+        return None
+
+
+def suggestions(lrc_data, deezer_data, limit: int = 5) -> list[dict]:
+    """Vorschläge für das Songname-Feld: nur Songs, für die LRCLIB Text MIT Zeitstempeln hat (nur die funktionieren),
+    doppelte (gleicher Titel + Künstler) weg. Bild: Künstlerfoto von Deezer, sonst Albumcover, sonst keins."""
+    pics: dict[str, str] = {}
+    covers: dict[tuple[str, str], str] = {}
+    for x in (deezer_data or {}).get("data", []) if isinstance(deezer_data, dict) else []:
+        art = x.get("artist") or {}
+        a = _norm(art.get("name") or "")
+        if a and art.get("picture_medium") and a not in pics:
+            pics[a] = art["picture_medium"]
+        alb = x.get("album") or {}
+        if alb.get("cover_medium"):
+            covers.setdefault((a, _norm(x.get("title") or "")), alb["cover_medium"])
+    out, seen = [], set()
+    for x in lrc_data or []:
+        if not isinstance(x, dict) or not x.get("syncedLyrics"):
+            continue
+        track, artist = (x.get("trackName") or "").strip(), (x.get("artistName") or "").strip()
+        key = (_norm(track), _norm(artist))
+        if not track or key in seen:
+            continue
+        seen.add(key)
+        main = _norm(re.split(r",|&| feat\.| ft\.", artist, flags=re.I)[0])
+        img = pics.get(key[1]) or pics.get(main) or covers.get((key[1], key[0])) or ""
+        dur = x.get("duration")
+        out.append({"track": track, "artist": artist, "album": x.get("albumName") or "",
+                    "duration": f"{int(dur) // 60}:{int(dur) % 60:02d}" if dur else "",
+                    "image": img if img.startswith("https://") else ""})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def suggest(query: str) -> list[dict]:
+    """Suche für die Vorschlagsliste: LRCLIB (welche Songs Text mit Zeiten haben) + Deezer (Bilder). Gesendet wird
+    nur der getippte Suchtext. Ergebnisse 10 Minuten zwischengespeichert."""
+    import time
+
+    q = " ".join((query or "").split())[:80]
+    if len(q) < 3:
+        return []
+    hit = _CACHE.get(q.lower())
+    if hit and time.time() - hit[0] < CACHE_S:
+        return hit[1]
+    enc = urllib.parse.urlencode({"q": q})
+    res = suggestions(_get_json(f"{API}?{enc}"), _get_json(f"{DEEZER}?{enc}&limit=15"))
+    if len(_CACHE) > 200:
+        _CACHE.clear()
+    _CACHE[q.lower()] = (time.time(), res)
+    return res

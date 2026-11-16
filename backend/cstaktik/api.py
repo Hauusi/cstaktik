@@ -1160,6 +1160,14 @@ def clips_start(job_id: str) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+@app.get("/clips/song-suggest")
+def clips_song_suggest(q: str = "") -> JSONResponse:
+    """Vorschläge zum Songnamen (Titel, Künstler, Bild). Nur Songs mit Songtext samt Zeitstempeln bei LRCLIB."""
+    from cstaktik import lrclib
+
+    return JSONResponse({"items": lrclib.suggest(q)})
+
+
 @app.get("/clips/{job_id}/video")
 def clips_video(job_id: str, dl: int = 0):
     from fastapi.responses import FileResponse

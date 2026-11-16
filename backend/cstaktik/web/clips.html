@@ -11,6 +11,15 @@
 .cf button { height: 50px; border: 0; border-radius: 14px; background: var(--orange); color: #111; font: inherit; font-weight: 800; font-size: 16px; cursor: pointer; }
 .cf details summary { cursor: pointer; color: var(--orange); font-weight: 700; font-size: 14px; list-style: none; }
 .up .upb { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; } .up .upb i { display: block; height: 100%; width: 0; background: var(--orange); }
+.sg { position: relative; } .sg ul { list-style: none; margin: 6px 0 0; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); display: grid; gap: 2px; }
+.sg ul[hidden] { display: none; }
+.sg li { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 10px; cursor: pointer; }
+.sg li:hover, .sg li.on { background: var(--surface); }
+.sg li img, .sg li .ph { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: none; background: var(--line); }
+.sg li .tx { min-width: 0; display: grid; } .sg li .tx b { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sg li .tx span { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sg li .du { margin-left: auto; font-size: 12px; color: var(--muted); }
+.sg .hint { padding: 8px; font-size: 12.5px; color: var(--muted); }
 .cj { margin-top: 12px; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
 .cj b { font-size: 15px; } .cj .st { margin-top: 4px; font-size: 13.5px; color: var(--muted); line-height: 1.4; } .cj .st.err { color: #ff9aa8; }
 .cj video { display: block; width: 100%; max-width: 360px; margin: 10px auto 0; border-radius: 12px; background: #000; }
@@ -41,8 +50,9 @@
       <input id="cs" type="text" name="music_ss" inputmode="decimal" placeholder="leer = automatisch am Drop">
       <small>Leer lassen: Das Tool sucht den Drop (die Stelle, an der der Bass einsetzt) und legt den ersten Kill darauf. Den Songtext dann für die Stelle ab dem Drop einfügen.</small>
       <label for="cg">Songname und Künstler (für den Songtext)</label>
-      <input id="cg" type="text" name="song" maxlength="120" placeholder="z. B. Paparazzi Lady Gaga">
-      <small>Bekannte Songs: Die App holt den Songtext mit Zeitstempeln von LRCLIB (lrclib.net, kostenlos) und findet die Stelle im Song selbst. Gesendet wird nur dieser Songname. Ist der Song dort nicht zu finden, füll das Feld darunter aus.</small>
+      <div class="sg"><input id="cg" type="text" name="song" maxlength="120" placeholder="z. B. Paparazzi Lady Gaga" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="cgl">
+        <ul id="cgl" role="listbox" hidden></ul></div>
+      <small>Bekannte Songs: Beim Tippen erscheinen Vorschläge mit Bild. Die App holt den Songtext mit Zeitstempeln von LRCLIB (lrclib.net, kostenlos) und findet die Stelle im Song selbst. Gesendet wird nur der getippte Songname (an LRCLIB und, für die Bilder, an Deezer). Ist der Song dort nicht zu finden, füll das Feld darunter aus.</small>
       <label for="cl">Oder Songtext für den Ausschnitt einfügen</label>
       <textarea id="cl" name="lyrics" rows="2" maxlength="600" placeholder="Wörter mit Leerzeichen. Ein Wort je Schlag."></textarea>
       <small>Das Tool legt ein Wort auf jeden Schlag. Am besten: Text des Ausschnitts aus dem Netz kopieren und einfügen. Das Tool legt die Wörter dann automatisch auf den Gesang, der Text bleibt richtig. Leer lassen: Das Tool versucht, den Gesang selbst zu verstehen, das klappt bei lauter Musik oft nur teilweise.</small>
@@ -106,6 +116,55 @@
 {% endblock %}
 {% block script %}
 <script>
+(function () {  // Vorschläge zum Songnamen: Bild, Titel, Künstler (nur Songs mit Songtext samt Zeitstempeln)
+  var inp = document.getElementById("cg"), ul = document.getElementById("cgl"), timer = null, last = "", items = [], sel = -1;
+  if (!inp) return;
+  function close() { ul.hidden = true; inp.setAttribute("aria-expanded", "false"); sel = -1; }
+  function choose(it) { inp.value = it.track + " " + it.artist; last = inp.value; close(); }
+  function render(list, q) {
+    items = list; sel = -1; ul.textContent = "";
+    if (!list.length) {
+      var h = document.createElement("li"); h.className = "hint";
+      h.textContent = "Kein Song mit Songtext-Zeitstempeln gefunden. Du kannst den Text unten auch einfügen.";
+      ul.appendChild(h);
+    }
+    list.forEach(function (it, i) {
+      var li = document.createElement("li"); li.setAttribute("role", "option");
+      var pic;
+      if (it.image) { pic = document.createElement("img"); pic.src = it.image; pic.alt = ""; pic.loading = "lazy"; pic.referrerPolicy = "no-referrer"; }
+      else { pic = document.createElement("div"); pic.className = "ph"; }
+      var tx = document.createElement("div"); tx.className = "tx";
+      var b = document.createElement("b"); b.textContent = it.track;
+      var sp = document.createElement("span"); sp.textContent = it.artist + (it.album ? " · " + it.album : "");
+      tx.appendChild(b); tx.appendChild(sp);
+      var du = document.createElement("span"); du.className = "du"; du.textContent = it.duration || "";
+      li.appendChild(pic); li.appendChild(tx); li.appendChild(du);
+      li.addEventListener("mousedown", function (e) { e.preventDefault(); choose(it); });
+      ul.appendChild(li);
+    });
+    ul.hidden = false; inp.setAttribute("aria-expanded", "true");
+  }
+  inp.addEventListener("input", function () {
+    var q = inp.value.trim(); clearTimeout(timer);
+    if (q.length < 3 || q === last) { close(); return; }
+    timer = setTimeout(function () {
+      fetch("/clips/song-suggest?q=" + encodeURIComponent(q), {credentials: "same-origin"})
+        .then(function (r) { return r.ok ? r.json() : {items: []}; })
+        .then(function (d) { if (inp.value.trim() === q) render(d.items || [], q); })
+        .catch(close);
+    }, 300);
+  });
+  inp.addEventListener("keydown", function (e) {
+    var lis = ul.querySelectorAll("li[role=option]");
+    if (ul.hidden || !lis.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); sel = (sel + (e.key === "ArrowDown" ? 1 : -1) + lis.length) % lis.length;
+      lis.forEach(function (l, i) { l.classList.toggle("on", i === sel); });
+    } else if (e.key === "Enter" && sel >= 0) { e.preventDefault(); choose(items[sel]); }
+    else if (e.key === "Escape") close();
+  });
+  inp.addEventListener("blur", function () { setTimeout(close, 150); });
+})();
 /* Upload in kleinen Stücken: funktioniert auch, wenn der Webserver große Uploads ablehnt, und zeigt den Fortschritt. */
 (function () {
   var f = document.querySelector('form[data-block="upload"]'); if (!f || !window.fetch || !File.prototype.slice) return;

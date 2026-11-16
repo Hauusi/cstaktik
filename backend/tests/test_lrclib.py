@@ -44,3 +44,29 @@ def test_fetch_without_network_returns_none(monkeypatch):
     monkeypatch.setattr(lrclib.urllib.request, "urlopen", boom)
     assert lrclib.fetch("Paparazzi Lady Gaga") is None
     assert lrclib.fetch("") is None
+
+
+def test_suggestions_only_synced_with_images():
+    lrc = [{"trackName": "Paparazzi", "artistName": "Lady Gaga", "albumName": "The Fame", "duration": 208,
+            "syncedLyrics": "[00:01.00] x"},
+           {"trackName": "Paparazzi", "artistName": "Lady Gaga", "duration": 208, "syncedLyrics": "[00:01.00] x"},  # doppelt
+           {"trackName": "Paparazzi (Live)", "artistName": "Lady Gaga", "duration": 300, "syncedLyrics": None},  # ohne Zeiten
+           {"trackName": "Other", "artistName": "Unknown Band", "duration": 61, "syncedLyrics": "[00:01.00] y"}]
+    dz = {"data": [{"title": "Paparazzi", "artist": {"name": "Lady Gaga", "picture_medium": "https://img/gaga.jpg"},
+                    "album": {"cover_medium": "https://img/fame.jpg"}},
+                   {"title": "Evil", "artist": {"name": "Hacker", "picture_medium": "javascript:alert(1)"}}]}
+    s = lrclib.suggestions(lrc, dz)
+    assert [(x["track"], x["artist"]) for x in s] == [("Paparazzi", "Lady Gaga"), ("Other", "Unknown Band")]
+    assert s[0]["image"] == "https://img/gaga.jpg" and s[0]["duration"] == "3:28" and s[1]["image"] == ""
+    assert lrclib.suggestions(None, None) == [] and lrclib.suggest("ab") == []  # zu kurz: keine Anfrage
+
+
+def test_song_suggest_endpoint(monkeypatch):
+    from fastapi.testclient import TestClient
+    from cstaktik import accounts, api
+    monkeypatch.setattr(lrclib, "suggest", lambda q: [{"track": "T", "artist": "A", "album": "", "duration": "", "image": ""}])
+    accounts.add_user("Hausi", "Geheim-12345")
+    c = TestClient(api.app)
+    c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers={"Origin": "http://testserver"})
+    r = c.get("/clips/song-suggest?q=Paparazzi")
+    assert r.status_code == 200 and r.json()["items"][0]["track"] == "T"
