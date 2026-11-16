@@ -230,3 +230,7 @@ def test_frame_grid_whole_frames_no_drift():
         assert abs(a["o0"] + a["out"] - b["o0"]) < 1e-6  # lückenlos
     assert all(abs(s["out"] * 60 - round(s["out"] * 60)) < 1e-3 for s in pl["segments"])  # ganze Bilder
     assert abs(pl["segments"][2]["o0"] - 1.512) <= 1 / 120 + 1e-6  # höchstens halbe Bilddauer verschoben
+
+
+def test_render_workers_bounded():
+    assert 1 <= memeclip.render_workers() <= 4

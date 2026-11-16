@@ -991,6 +991,13 @@ def frame_grid(pl: dict, fps: int = OUT_FPS) -> None:
     pl["seconds"] = round(last["o0"] + last["out"], 6)
 
 
+def render_workers() -> int:
+    """So viele Segmente gleichzeitig: alle Kerne bis höchstens 4 (mehr bringt bei kurzen Videos kaum etwas)."""
+    import os
+
+    return max(1, min(4, os.cpu_count() or 1))
+
+
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None) -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
@@ -1033,13 +1040,16 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         source = "erkannt" if words else None
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
-        files = []
-        for i, seg in enumerate(pl["segments"]):
-            f = tmp / f"b{i:03d}.mp4"
-            _render_beat_seg(srcs[0], seg, f, tmp, font)
-            files.append(f)
-            if progress:
-                progress(i + 1, len(pl["segments"]) + 1)
+        files = [tmp / f"b{i:03d}.mp4" for i in range(len(pl["segments"]))]
+        # Segmente sind unabhängig: parallel rechnen (die Zwischenbild-Berechnung nutzt nur einen Kern)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        with ThreadPoolExecutor(max_workers=render_workers()) as ex:
+            futs = [ex.submit(_render_beat_seg, srcs[0], seg, f, tmp, font) for seg, f in zip(pl["segments"], files)]
+            for done, fu in enumerate(as_completed(futs), 1):
+                fu.result()
+                if progress:
+                    progress(done, len(pl["segments"]) + 1)
         n = len(files)
         ins = [x for f in files for x in ("-i", str(f))]
         total = pl["seconds"]

@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 437 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 438 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips: Segmente parallel rendern (`render_workers`, Kerne bis 4, ThreadPool). Echter Clip, 4 Kerne: 122 s → 81 s, Ergebnis bildgleich (Abweichung 0,0). Geprüft und verworfen: Übersteuerung (Messfehler durch Mono-Mischung; Stereo-Spitze −1,8 dBFS, ok), Kill-Schuss lauter/Riser-Lücke/stärkeres Ducking (gemessen kein Gewinn, da vor dem Kill gleich laute Schüsse liegen). Musik-Stille am Anfang liegt in der Musikdatei selbst.
 
 - 2026-11-16: Clips Kill "weggeschmissen" (Nutzer-Video analysiert): am Ende jedes Kills (außer dem letzten) sprang die Bewegung auf das 4–6-Fache, verursacht durch Velocity-Bogen (30 %, 2×) plus Hineinzoomen 80 ms vor dem Schnitt. Jetzt `OUT_FRAC` 0,2 / `OUT_V` 1,4, kein Bogen bei kurzen Kills (< 1,5 Schläge), Zoom-Übergang nur nach dem Schnitt (`TR_Z` 0,14, Unschärfe sigma 5). Am echten Clip gemessen: letzte Bilder vor dem Schnitt 14–28 → 4–8 (normale Bewegung der Aufnahme), Sync 9/10, 0 Standbilder.
 
