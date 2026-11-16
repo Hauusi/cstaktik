@@ -56,3 +56,42 @@ def beat_grid(env, lo_bpm: float = 70, hi_bpm: float = 180) -> dict:
 
 def beats(path: str, ss: float = 0.0, d: float | None = None) -> dict:
     return beat_grid(onset_envelope(path, ss, d))
+
+
+def find_drop(path: str, max_s: float = 240.0) -> float | None:
+    """Zeitpunkt des ersten großen Drops (Sekunde im Song): Stelle, an der der Bass nach einer ruhigeren Phase am
+    stärksten und dauerhaft einsetzt. Verglichen werden je 4 s Bass-Energie danach und davor. Nur Stellen ab 6 s und
+    mit mindestens 12 s Musik danach. None, wenn der Song keinen deutlichen Anstieg hat."""
+    import numpy as np
+
+    p = subprocess.run(["ffmpeg", "-v", "error", "-t", str(max_s), "-i", path, "-vn", "-ac", "1", "-ar", "8000",
+                        "-af", "lowpass=f=150", "-f", "f32le", "-"], capture_output=True)
+    if p.returncode:
+        return None
+    x = np.frombuffer(p.stdout, np.float32)
+    hop = 400  # 50 ms
+    n = len(x) // hop
+    if n < 20 * 20:
+        return None
+    e = np.sqrt((x[: n * hop].reshape(n, hop) ** 2).mean(axis=1))
+    return drop_time(e, 0.05)
+
+
+def drop_time(e, step: float) -> float | None:
+    """Wie find_drop, auf einer fertigen Energiekurve (ein Wert je ``step`` Sekunden)."""
+    import numpy as np
+
+    w = int(4 / step)
+    lo, hi = int(6 / step), len(e) - int(12 / step)
+    if hi <= lo:
+        return None
+    c = np.concatenate([[0.0], np.cumsum(e)])
+    idx = np.arange(lo, hi)
+    after = (c[idx + w] - c[idx]) / w
+    before = (c[idx] - c[idx - w]) / w
+    ref = float(np.percentile(e, 90)) or 1e-9
+    score = (after - before) / ref
+    k = int(np.argmax(score))
+    if score[k] < 0.25 or after[k] < 0.6 * ref:
+        return None
+    return round(float(idx[k] * step), 2)

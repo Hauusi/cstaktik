@@ -36,7 +36,8 @@
       <input id="cm" type="file" name="music" accept="audio/*">
       <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>
       <label for="cs">Start in der Musik (Sekunde)</label>
-      <input id="cs" type="text" name="music_ss" inputmode="decimal" placeholder="0">
+      <input id="cs" type="text" name="music_ss" inputmode="decimal" placeholder="leer = automatisch am Drop">
+      <small>Leer lassen: Das Tool sucht den Drop (die Stelle, an der der Bass einsetzt) und legt den ersten Kill darauf. Den Songtext dann für die Stelle ab dem Drop einfügen.</small>
       <label for="cl">Songtext für den Ausschnitt (am besten einfügen)</label>
       <textarea id="cl" name="lyrics" rows="2" maxlength="600" placeholder="Wörter mit Leerzeichen. Ein Wort je Schlag."></textarea>
       <small>Das Tool legt ein Wort auf jeden Schlag. Am besten: Text des Ausschnitts aus dem Netz kopieren und einfügen. Das Tool legt die Wörter dann automatisch auf den Gesang, der Text bleibt richtig. Leer lassen: Das Tool versucht, den Gesang selbst zu verstehen, das klappt bei lauter Musik oft nur teilweise.</small>
@@ -54,6 +55,9 @@
   · <b>Ein Look für alle Clips:</b> Helle und dunkle Maps werden in der Helligkeit angeglichen, die Ränder leicht abgedunkelt. Sichtbare Sprünge an Schnitten lenken ab; ohne sie wirkt das Video aus einem Guss (<a href="https://doi.org/10.3167/proj.2012.060102">Smith 2012</a>). Der Blick bleibt ohnehin meist in der Bildmitte (<a href="https://doi.org/10.1167/7.14.4">Tatler 2007</a>).<br>
   · <b>Sound-Design:</b> Vor jedem Kill steigt ein Riser an, auf dem Kill entlädt er sich in einem tiefen Schlag. Aufbau und Entladung auf dem Schlag ist das Grundmuster von Build-up und Drop, das in Studien mit den stärksten Gefühlsmomenten beim Hören zusammenfällt (Solberg 2014, Dancecult).<br>
   · <b>Übergänge:</b> Beginnt nach einem Kill eine neue Szene, fliegt das Bild mit einem Whoosh hinein (kurzer Zoom mit Unschärfe). Innerhalb einer Szene bleiben die Schnitte hart, damit der Szenenwechsel heraussticht.<br>
+  · <b>Start am Drop:</b> Wer in den ersten Sekunden nichts Packendes sieht, wischt weiter. In einer Studie mit Blickmessung wurden Videos seltener abgebrochen, wenn früh starke Gefühle wie Freude oder Überraschung kamen (Teixeira, Wedel &amp; Pieters 2012, Journal of Marketing Research). Lässt du den Musikstart leer, sucht das Tool deshalb den Drop und legt den ersten Kill darauf.<br>
+  · <b>Steigerung zum Höhepunkt:</b> Die Abstände zwischen den Kills werden eher kürzer, der letzte Kill läuft am langsamsten. Erinnert wird vor allem der stärkste Moment und das Ende (Kahneman u. a. 1993).<br>
+  · <b>Echte Zwischenbilder beim Kill:</b> Die Zeitlupe schätzt die Bewegung zwischen zwei Bildern und rechnet neue Bilder aus, wie Profi-Programme, statt zwei Bilder übereinanderzublenden. Das kostet beim Schneiden etwas mehr Zeit.<br>
   · <b>Ende auf dem Taktanfang:</b> Die Szene läuft nach dem letzten Kill in Zeitlupe weiter (kein Standbild), und das Video endet auf einem Taktanfang. Musik, die mitten im Takt abbricht, wirkt unfertig, ein Ende auf dem Taktanfang wirkt geschlossen (Huron 2006, Sweet Anticipation).<br>
   · <b>60 Bilder pro Sekunde:</b> Zeitlupe und Schwenks bleiben flüssig.<br>
   · <b>Schüsse auf dem Beat:</b> Das Tool erkennt die Schüsse im Spielton und verbiegt die Zeit so, dass jeder Schuss auf einem Achtelschlag landet, der Kill auf dem Schlag. Gleichzeitige Reize aus Bild und Ton verschmelzen im Kopf zu einem Ereignis, wenn sie nur wenige Dutzend Millisekunden auseinanderliegen (<a href="https://doi.org/10.3758/APP.72.4.871">Vroomen &amp; Keetels 2010</a>).<br>
@@ -66,6 +70,8 @@
   <b>{{ j.name }}</b>
   {% if j.status == "fertig" and j.has_video %}
   <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.synced %} · {{ j.synced }} {{ "Schuss" if j.synced == 1 else "Schüsse" }} auf dem Beat{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
+  {% if j.music and j.music_auto %}<div class="st">Musik ab Sekunde {{ j.music_used|string|replace(".", ",") }}: Drop automatisch gefunden, der erste Kill liegt etwa darauf.</div>
+  {% elif j.music and j.music_used == 0 and j.music_auto is sameas false %}<div class="st">Kein deutlicher Drop gefunden, die Musik startet am Anfang.</div>{% endif %}
   {% if j.music and j.words %}<div class="st">Auf Wänden: {% if j.wall %}{{ j.wall.wall }} {{ "Wort" if j.wall.wall == 1 else "Wörter" }}{% if j.wall.flat %}, bei {{ j.wall.flat }} keine Wand gefunden (flach gezeigt){% endif %}{% else %}keins (kein Wort hatte genug Zeit ohne Kill dazwischen){% endif %}.</div>{% endif %}
   {% if j.music and j.lyrics_source == "ausgerichtet" %}<div class="st">Dein Songtext wurde auf den Gesang gelegt ({{ j.lyrics_note }}).</div>
   {% elif j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt: {{ j.lyrics_note }} Fehlen Wörter oder stimmen sie nicht, trag den Text beim nächsten Mal selbst ein.</div>

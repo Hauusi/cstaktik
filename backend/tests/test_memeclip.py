@@ -155,3 +155,14 @@ def test_transitions_and_sfx_only_at_scene_changes():
     assert memeclip.transition_vf([]) == "" and "gblur" in memeclip.transition_vf(cuts)
     e = memeclip.sfx_expr(segs, 0.5, cuts)
     assert e.count("*pow((t-") == 2 and e.count("exp(-pow(") == 1 and "(t-1.000)" in e and "(t-3.000)" in e  # je Kill ein Riser und ein Impact
+
+
+def test_drop_found_where_bass_starts():
+    import numpy as np
+    from cstaktik import beats
+
+    e = np.concatenate([np.full(400, 0.1), np.full(600, 1.0)])  # 20 s ruhig, dann Bass (ein Wert je 50 ms)
+    assert abs(beats.drop_time(e, 0.05) - 20.0) < 0.3
+    assert beats.drop_time(np.full(1000, 0.5), 0.05) is None  # kein Anstieg: kein Drop
+    from cstaktik.api import _music_start
+    assert _music_start("") == -1.0 and _music_start("12,5") == 12.5 and _music_start("x") == -1.0

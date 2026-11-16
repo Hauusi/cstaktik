@@ -83,6 +83,8 @@ def _cleanup(user: str | None) -> None:
             shutil.rmtree(d, ignore_errors=True)
 
 
+DROP_LEAD_S = 1.0  # so viel vor dem Drop beginnen: der erste Kill fällt dann etwa auf den Drop
+
 def render(d: Path, user: str | None = None) -> None:
     """Einen Auftrag schneiden (blockiert; für den Hintergrund-Thread). Fehler landen als Text im Status."""
     from cstaktik import memeclip
@@ -96,7 +98,15 @@ def render(d: Path, user: str | None = None) -> None:
             prog = lambda i, n: set_state(d, step=f"Schneiden {i} von {n}")  # noqa: E731
             if music:
                 words = [w for w in re.split(r"\s+", st.get("lyrics") or "") if w]
-                r = memeclip.make_beat(src, music, str(d / "out.mp4"), music_ss=float(st.get("music_ss") or 0),
+                ss = float(st.get("music_ss") or 0)
+                if ss < 0:  # leer gelassen: am Drop starten
+                    from cstaktik import beats
+
+                    set_state(d, step="Drop in der Musik suchen")
+                    drop = beats.find_drop(music)
+                    ss = round(max(drop - DROP_LEAD_S, 0.0), 2) if drop is not None else 0.0
+                    set_state(d, music_auto=drop is not None, music_used=ss)
+                r = memeclip.make_beat(src, music, str(d / "out.mp4"), music_ss=ss,
                                        words=words or None, progress=prog)
             else:
                 r = memeclip.make(src, str(d / "out.mp4"), progress=prog)

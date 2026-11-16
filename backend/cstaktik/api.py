@@ -1053,7 +1053,7 @@ async def _save_upload(up: UploadFile, target: Path, limit: int) -> None:
 
 @app.post("/clips")
 async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | None = File(None),
-                       music_ss: str = Form("0"), lyrics: str = Form("")) -> RedirectResponse:
+                       music_ss: str = Form(""), lyrics: str = Form("")) -> RedirectResponse:
     from cstaktik import clips
 
     video = video[:clips.MAX_CLIPS]
@@ -1065,10 +1065,7 @@ async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | 
         if has_music:
             mext = clips.safe_ext(music.filename, ".mp3")
             await _save_upload(music, d / f"music{mext}", clips.MAX_MUSIC_BYTES)
-        try:
-            ss = max(0.0, float((music_ss or "0").replace(",", ".")))
-        except ValueError:
-            ss = 0.0
+        ss = _music_start(music_ss)
     except HTTPException:
         import shutil
 
@@ -1087,6 +1084,17 @@ def _clip_name(names: list[str]) -> str:
     return Path(names[0]).name[:80] if len(names) == 1 else f"{len(names)} Clips"
 
 
+def _music_start(v) -> float:
+    """Start in der Musik aus dem Formular. Leer: -1 = automatisch am Drop (wird beim Schneiden bestimmt)."""
+    v = str(v or "").strip().replace(",", ".")
+    if not v:
+        return -1.0
+    try:
+        return max(0.0, float(v))
+    except ValueError:
+        return -1.0
+
+
 @app.post("/clips/new")
 async def clips_new(request: Request) -> JSONResponse:
     """Upload in Stücken, Schritt 1: Auftrag anlegen (Dateinamen prüfen, Angaben merken)."""
@@ -1101,10 +1109,7 @@ async def clips_new(request: Request) -> JSONResponse:
     mext = clips.safe_ext(str(body["music"]), ".mp3") if body.get("music") else ""
     if not exts:
         raise HTTPException(400, "Bitte mindestens einen Clip auswählen.")
-    try:
-        ss = max(0.0, float(str(body.get("music_ss") or "0").replace(",", ".")))
-    except ValueError:
-        ss = 0.0
+    ss = _music_start(body.get("music_ss"))
     d = clips.new_job(_USER.get())
     clips.set_state(d, status="upload", name=_clip_name(names), music=bool(mext), music_ss=ss,
                     lyrics=" ".join(str(body.get("lyrics") or "").split())[:600], created=pipeline.coaching_now(),

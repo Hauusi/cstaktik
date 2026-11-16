@@ -285,6 +285,11 @@ def make(src: str, out: str, progress=None) -> dict:
 
 RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
 HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
+HIT_SLOW_LAST = 0.35  # der letzte Kill (Höhepunkt) noch langsamer: das Ende bleibt am stärksten im Kopf
+# Echte Zwischenbilder beim Kill (Bewegung wird geschätzt, wie bei Profi-Zeitlupe) statt Überblenden mit Doppelbildern.
+# Kostet Rechenzeit (etwa 7 s je Sekunde Zeitlupe), deshalb nur beim Kill selbst. False = wie vorher überblenden.
+MCI = True
+MCI_VF = f"minterpolate=fps={OUT_FPS}:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:search_param=16:scd=fdiff:scd_threshold=8"
 MAX_WORDS = 40
 WALL_MIN_S = 0.22  # so lange muss ein Wort an der Wand stehen können
 WALL_TEXT = True  # Songtext teils auf Wände legen (wall_text.py)
@@ -429,7 +434,9 @@ def kill_beats(n: int, nb: int, strength: list[float] | None, beat_times: list[f
             if i >= nb - 1:
                 break
             # stärkerer Schlag gewinnt; derselbe Abstand wie zuletzt kostet etwas; zu lange Pausen auch
-            score = st[i] - (0.15 if gap == prev_gap else 0) - 0.05 * max(0, gap - 4)
+            # Steigerung: Abstände werden zum Ende hin eher kürzer als länger (Spannung baut sich auf)
+            score = (st[i] - (0.15 if gap == prev_gap else 0) - 0.05 * max(0, gap - 4)
+                     - 0.08 * max(0, gap - (prev_gap or gap)))
             if score > bscore:
                 best, bscore = gap, score
         if best is None:
@@ -498,7 +505,8 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: d
             kb = o + shot_out                         # kein Anlauf möglich: Kill direkt
         nxt_gap = kb_idx[j + 1] - kb_idx[j] if j + 1 < len(kb_idx) else 4
         hit_out = beat * (2 if nxt_gap >= 4 else 1)   # der Kill bleibt zwei Schläge in Zeitlupe, bei kurzem Abstand einen
-        after_src = min(hit_out * HIT_SLOW, max(cdur - ks - 0.02, 0.05))
+        slow = HIT_SLOW_LAST if j == len(used) - 1 and len(used) > 1 else HIT_SLOW
+        after_src = min(hit_out * slow, max(cdur - ks - 0.02, 0.05))
         segs.append({"kind": "hit", "ss": round(ks, 3), "d": round(after_src, 3), "out": round(hit_out, 3), "o0": round(kb, 3),
                      "box": kill["box"], "feed_at": round(min(kill["t"] + 0.2, cdur - 0.05), 3), "text": f"+{j + 1}",
                      "kill_at": 0.0, "src": kill.get("src")})
@@ -562,7 +570,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
               f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
         fc = fc.replace(f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];",
                         f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f},"
-                        f"minterpolate=fps={OUT_FPS}:mi_mode=blend[s];")
+                        + (MCI_VF if MCI else f"minterpolate=fps={OUT_FPS}:mi_mode=blend") + "[s];")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return

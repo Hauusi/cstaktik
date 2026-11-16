@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 429 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 430 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips "nächstes Level": Musikstart leer = automatisch am Drop (`beats.find_drop`/`drop_time`: Bass-Energie 4 s danach vs. davor; `api._music_start` → -1; `clips.DROP_LEAD_S` 1 s vor dem Drop; Anzeige "Musik ab Sekunde …"); Kill-Zeitlupe mit echten Zwischenbildern (`MCI`, minterpolate mci, ca. 15 s Rechenzeit je Kill im Test, `MCI=False` = alt); Höhepunkt: letzter Kill langsamer (`HIT_SLOW_LAST` 0,35), Kill-Abstände eher kürzer werdend (kill_beats). Quellen: Teixeira u. a. 2012, Kahneman 1993.
 
 - 2026-11-16: Clips "gewisses Etwas" (Nutzer wählte Sound-Design + Übergänge): Effekt-Tonspur `sfx_expr` (Riser 1,5 Schläge vor jedem Kill, Impact auf dem Kill, Whoosh am Szenenwechsel, `SFX_VOL`); Zoom-Durchflug mit Unschärfe an Szenenwechseln nach einem Kill (`transition_cuts`, `transition_vf`, auf dem fertigen Bild vor dem Songtext). Quelle Solberg 2014 auf /clips. Test-Korrektur nachgezogen (war im ersten Commit rot).
 
