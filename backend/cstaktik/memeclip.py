@@ -160,13 +160,35 @@ def _font() -> str:
 BOX, BOX_Y = 1080, 440  # Spielbild als Quadrat in der Mitte: zeigt mehr Breite als ein voller Hochformat-Schnitt
 
 
-def _vf(src: str, z: str, out: str) -> str:
+LOOK = "vignette=angle=PI/6"  # Ränder leicht dunkler: der Blick bleibt in der Mitte, wo der Kill passiert
+LUMA_TARGET = 0.0  # 0 = Mittelwert der Clips (in make_beat gesetzt); Helligkeit jedes Clips wird dorthin geschoben
+
+
+def luma(src: str) -> float:
+    """Mittlere Helligkeit eines Clips (0..255), aus wenigen kleinen Bildern."""
+    import numpy as np
+
+    raw = _run(["ffmpeg", "-v", "error", "-i", src, "-vf", "fps=2,scale=64:36,format=gray", "-f", "rawvideo", "-"])
+    a = np.frombuffer(raw, np.uint8)
+    return float(a.mean()) if a.size else 128.0
+
+
+def brightness_offsets(lumas: dict) -> dict:
+    """Helligkeits-Ausgleich je Clip (für eq=brightness), damit Clips von hellen und dunklen Maps wie aus einem Guss
+    wirken. Nur sanft (höchstens ±0,08), damit nichts ausgewaschen oder abgesoffen aussieht."""
+    if len(lumas) < 2:
+        return {k: 0.0 for k in lumas}
+    tgt = sum(lumas.values()) / len(lumas)
+    return {k: round(max(-0.08, min(0.08, (tgt - v) / 255 * 0.8)), 3) for k, v in lumas.items()}
+
+
+def _vf(src: str, z: str, out: str, b: float = 0.0) -> str:
     """Hochformat-Aufbau: unscharfer, dunkler Hintergrund aus demselben Bild, darauf das Spielbild als Quadrat
     (Zoom auf die Bildmitte, dort ist das Fadenkreuz). Oben bleibt Platz für den Killfeed, unten für den Zähler,
     so verdeckt nichts den Kill. Kein Wackeln."""
     return (f"{src}split[m{out}][g{out}];"
             f"[g{out}]scale=-2:480,crop=270:480,boxblur=10:2,eq=brightness=-0.22,scale={OUT_W}:{OUT_H}[b{out}];"
-            f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=bilinear,crop={BOX}:{BOX},eq=contrast=1.06:saturation=1.2[f{out}];"
+            f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=bilinear,crop={BOX}:{BOX},eq=contrast=1.06:saturation=1.2:brightness={b},{LOOK}[f{out}];"
             f"[b{out}][f{out}]overlay=0:{BOX_Y}[{out}]")
 
 
@@ -416,6 +438,16 @@ def kill_beats(n: int, nb: int, strength: list[float] | None, beat_times: list[f
     return out
 
 
+def end_hold(o: float, beat_times: list[float], phase: int, beat: float) -> float:
+    """Länge des Schlusses: Das Video endet auf einem Taktanfang (gleiche Lage im Takt wie der erste Kill, der auf
+    einem betonten Schlag liegt), 2 bis 4 Schläge nach dem letzten Kill. Musik, die mitten im Takt abbricht, wirkt
+    unfertig; ein Ende auf dem Taktanfang wirkt geschlossen (Huron 2006). Passt nichts: 2 Schläge."""
+    for i, t in enumerate(beat_times):
+        if (i - phase) % 4 == 0 and o + 1.9 * beat <= t <= o + 4.1 * beat:
+            return round(t - o, 3)
+    return round(2 * beat, 3)
+
+
 def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: dict | None = None,
               strength: list[float] | None = None, shot_times: dict | None = None) -> dict:
     """Schnittplan auf dem Beat-Raster, ein Takt (4 Schläge) je Kill:
@@ -472,18 +504,46 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: d
                      "kill_at": 0.0, "src": kill.get("src")})
         o, src_prev = kb + hit_out, ks + after_src
     last = segs[-1]
-    hold = 2 * beat
-    segs.append({"kind": "hold", "ss": round(max(last["ss"] + last["d"] - 0.03, 0), 3), "d": round(hold, 3),
+    hold = end_hold(o, beat_times, kb_idx[0] if kb_idx else 0, beat)
+    h_ss = max(last["ss"] + last["d"] - 0.03, 0)
+    h_cdur = kills[used[-1]].get("dur", dur)
+    segs.append({"kind": "hold", "ss": round(h_ss, 3), "d": round(max(min(hold * HIT_SLOW, h_cdur - h_ss - 0.05), 0), 3),
                  "out": round(hold, 3), "o0": round(o, 3), "box": last["box"], "feed_at": last["feed_at"],
                  "text": f"{len(used)} KILLS" if len(used) > 1 else "KILL", "src": last.get("src")})
     return {"segments": segs, "seconds": round(o + hold, 3), "beat": round(beat, 4), "kills_used": len(used)}
 
 
+KILL_SND_S = 0.45  # so viel Originalton vom Kill-Schuss, in echtem Tempo
+
+
+def _render_end(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float = 0.0) -> None:
+    """Schluss: die Szene läuft nach dem letzten Kill in Zeitlupe weiter (kein Standbild), Summe und Killfeed stehen.
+    Kein Effektton: das Ende gehört der Musik, die auf einem Taktanfang endet."""
+    kf = _feed_png(src, seg, tmp, out.stem)
+    tail = f"fps={OUT_FPS},tpad=stop_mode=clone:stop_duration={seg['out'] + 1},trim=0:{seg['out']}"
+    over = f"[bg][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];[v0]{_draw(seg['text'], font)},{tail}[v]"
+    silent = f"anullsrc=r=48000:cl=stereo,atrim=0:{seg['out']}[a]"
+    if seg["d"] >= 0.2:
+        speed = max(seg["d"] / seg["out"], 0.05)
+        fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f},{SMOOTH[:-1]}[s];{_vf('[s]', str(Z_HIT), 'bg', b)};"
+              f"{over};{silent}")
+        _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src, "-i", str(kf),
+              "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
+        return
+    png = tmp / f"{out.stem}.png"  # Clip zu Ende: letztes Bild steht
+    _run(["ffmpeg", "-v", "error", "-y", "-ss", str(max(seg["ss"] - 0.05, 0)), "-i", src, "-frames:v", "1", "-vf",
+          f"scale={W}:{H}", str(png)])
+    fc = f"{_vf('[0:v]', str(Z_HIT), 'bg', b)};{over};{silent}"
+    _run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", str(OUT_FPS), "-t", str(seg["out"]), "-i", str(png),
+          "-i", str(kf), "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
+
+
 def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
     """Ein Segment des Beat-Edits, genau ``out`` Sekunden lang. Spielton leise unter der Musik."""
     src = seg.get("src") or src
+    b = seg.get("bright", 0.0)
     if seg["kind"] == "hold":
-        _render_seg(src, seg, out, tmp, font)
+        _render_end(src, seg, out, tmp, font, b)
         return
     speed = max(seg["d"] / seg["out"], 0.05)
     tempo = ",".join(["atempo=0.5"] * (1 if speed < 0.5 else 0) + [f"atempo={max(speed, 0.5) if speed >= 0.5 else speed / 0.5:.5f}"])
@@ -491,9 +551,12 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
              f"volume={0.8 if seg['kind'] == 'hit' else 0.3}[a]")
     tail = f"fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}"
     if seg["kind"] == "hit":
+        # Ton: der Kill-Schuss in echtem Tempo (gestreckter Ton klingt blechern), danach trägt die Musik die Zeitlupe
+        audio = (f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,atrim=0:{KILL_SND_S},afade=t=out:st={KILL_SND_S - 0.12}:d=0.12,"
+                 f"volume=0.9,apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
-        fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'bg')};"
+        fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'bg', b)};"
               f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
               f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];"
               f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
@@ -504,7 +567,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
     if seg["kind"] == "shot":  # eigener kurzer Schnitt: gleichmäßiges Tempo, Zoom-Schlag beim Bildwechsel
-        fc = (f"[0:v]scale={W}:{H},{BLUR}setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', CUT_POP, 'c')};[c]{tail}[v];{audio}")
+        fc = (f"[0:v]scale={W}:{H},{BLUR}setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', CUT_POP, 'c', b)};[c]{tail}[v];{audio}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -523,7 +586,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
                  f"amix=inputs={len(labels)}:duration=longest:normalize=0,volume=0.85,"
                  f"apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         blur = BLUR if v0 > 1.2 else ""
-        fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
+        fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -532,7 +595,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
     else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
         pts = f"({d}/({v1}-{v0}))*log(({v0}+({v1}-{v0})*((PTS-STARTPTS)*TB)/{d})/{v0})/TB"
     blur = BLUR if seg.get("v0", 1) > 1.2 else ""
-    fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
+    fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d), "-i", src,
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 
@@ -779,6 +842,12 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         mots = None
     shot_times = {x: shots(x) for x in srcs}
     pl = plan_beat(kills, duration(srcs[0]), bt["beats"], mots, bt.get("strength"), shot_times)
+    try:  # Clips von hellen und dunklen Maps angleichen: ein durchgehender Look statt Farbsprüngen an Schnitten
+        offs = brightness_offsets({x: luma(x) for x in srcs})
+    except Exception:  # noqa: BLE001
+        offs = {}
+    for sg in pl["segments"]:
+        sg["bright"] = offs.get(sg.get("src") or srcs[0], 0.0)
     font = _font()
     shown, source = 0, "eingetragen" if words else None
     if words and not any(":" in w for w in words):
@@ -803,7 +872,9 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         total = pl["seconds"]
         first_png = tmp / "loop.png"  # erstes Bild des Videos: am Ende eingeblendet, damit die Wiederholung nahtlos wirkt
         _run(["ffmpeg", "-v", "error", "-y", "-i", str(files[0]), "-frames:v", "1", str(first_png)])
-        fc = "".join(f"[{i}:v][{i}:a]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc][ga];"
+        # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar
+        fc = "".join(f"[{i}:a]afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];" for i in range(n))
+        fc += "".join(f"[{i}:v][e{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc][ga];"
         lp = max(total - LOOP_S, 0)
         fc += (f"[LOOPIN]format=rgba,fade=t=in:st={lp:.3f}:d={LOOP_S}:alpha=1[lp];"
                f"[vc][lp]overlay=0:0:enable='gte(t,{lp:.3f})'[v0];")
@@ -846,9 +917,11 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                        f"[{last}][w{j}]overlay=x='(W-w)/2':y='{cy}-h/2':eval=frame:"
                        f"enable='between(t,{a},{min(b, total)})'[t{j}];")
                 last, k, shown = f"t{j}", k + 1, shown + 1
-        hits = "+".join(f"between(t,{x['o0']},{round(x['o0'] + min(x['out'], 0.6), 3)})"
+        # Musik beim Kill-Schuss weich absenken (40 ms runter, 300 ms zurück) statt schlagartig: kein Pumpen
+        duck = "+".join(f"min(1\\,max(0\\,(t-{x['o0'] - 0.04:.3f})/0.04))*min(1\\,max(0\\,({x['o0'] + KILL_SND_S + 0.3:.3f}-t)/0.3))"
                         for x in pl["segments"] if x["kind"] == "hit") or "0"
-        fc += (f"[{last}]null[v];[{n}:a]aresample=48000,volume='if(gt({hits},0),0.6,1)':eval=frame,afade=t=out:st={max(total - 0.4, 0):.3f}:d=0.4[mu];"
+        fc += (f"[{last}]null[v];[{n}:a]aresample=48000,volume='1-0.35*min(1\\,{duck})':eval=frame,"
+               f"afade=t=out:st={max(total - 0.12, 0):.3f}:d=0.12[mu];"
                f"[ga][mu]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95,{LOUDNORM}[a]")
         fc = fc.replace("[LOOPIN]", f"[{k}:v]")  # Schleifenbild ist der letzte Eingang
         ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(first_png)]

@@ -134,3 +134,13 @@ def test_hallucinated_segments_dropped():
     assert memeclip._hallucinated(S(text=" Thanks for watching!", no_speech_prob=0.1, avg_logprob=-0.3))
     assert memeclip._hallucinated(S(text=" na na", no_speech_prob=0.8, avg_logprob=-1.4))
     assert not memeclip._hallucinated(S(text=" Im a diva", no_speech_prob=0.2, avg_logprob=-0.6))
+
+
+def test_end_on_bar_and_brightness_match():
+    bt = [round(0.5 * i, 3) for i in range(40)]
+    h = memeclip.end_hold(5.0, bt, 2, 0.5)  # erster Kill auf Schlag 2: Takte beginnen bei 2, 6, 10, 14 ...
+    assert 0.95 <= h <= 2.05 and round((5.0 + h) / 0.5) % 4 == 2
+    assert memeclip.end_hold(19.5, bt, 2, 0.5) == 1.0  # Musik zu Ende: 2 Schläge
+    off = memeclip.brightness_offsets({"hell.mp4": 150.0, "dunkel.mp4": 70.0})
+    assert off["hell.mp4"] < 0 < off["dunkel.mp4"] and max(abs(v) for v in off.values()) <= 0.08
+    assert memeclip.brightness_offsets({"a.mp4": 90.0}) == {"a.mp4": 0.0}
