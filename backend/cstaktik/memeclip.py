@@ -261,10 +261,10 @@ def make(src: str, out: str, progress=None) -> dict:
 # statt zu springen.
 
 RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
-HIT_SLOW = 0.3  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
+HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
 MAX_WORDS = 40
 SHOT_SPEED, SHOT_BACK = 1.25, 1.0  # eigener Schnitt vor dem Kill: leicht schnell, etwa 1 s früher im Clip
-CUT_POP = "1+0.13*exp(-13*t)"       # Zoom-Schlag bei jedem Bildwechsel (klingt in etwa 0,2 s ab, danach ruhig)
+CUT_POP = "1+0.06*exp(-13*t)"       # Zoom-Schlag bei jedem Bildwechsel (klingt in etwa 0,2 s ab, danach ruhig)
 
 
 def ramp_fit(gap: float, avail: float, v0max: float = RAMP_V0, v1: float = RAMP_V1) -> tuple[float, float, float]:
@@ -359,6 +359,9 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
               f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
               f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];"
               f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
+        fc = fc.replace(f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];",
+                        f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f},"
+                        f"minterpolate=fps={OUT_FPS}:mi_mode=blend[s];")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -372,7 +375,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
         pts = f"(PTS-STARTPTS)/{v0:.5f}"
     else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
         pts = f"({d}/({v1}-{v0}))*log(({v0}+({v1}-{v0})*((PTS-STARTPTS)*TB)/{d})/{v0})/TB"
-    fc = f"[0:v]scale={W}:{H},setpts='{pts}'[s];{_vf('[s]', CUT_POP, 'c')};[c]{tail}[v];{audio}"
+    fc = f"[0:v]scale={W}:{H},setpts='{pts}'[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d), "-i", src,
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 

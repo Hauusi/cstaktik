@@ -265,6 +265,10 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips, Wackeln beim Kill: kein Zoom-Schlag mehr im Anlauf direkt vor dem Kill, Zoom-Schlag bei den
+  Schnitten davor halbiert, Kill-Zeitlupe 0,5x statt 0,3x (`HIT_SLOW`) mit überblendeten Zwischenbildern
+  (minterpolate blend) statt verdoppelter Bilder.
+
 - 2026-11-16: `sung_words` liest den Ton selbst per ffmpeg ein und übergibt ihn als Array (auf dem Server scheiterte
   die Erkennung an einer alten PyAV-Version: open() ... metadata_errors).
 
