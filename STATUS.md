@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 430 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 431 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips Laggen behoben (Analyse eines Nutzer-Videos: 13 Stellen mit 3–10 stehenden Bildern, danach Sprung): jedes Segment friert am Ende ein, weil Zwischenbilder nur bis zum letzten Quellbild entstehen und tpad den Rest mit dem letzten Bild füllt (Test: Anlauf 9, Kill 3, Schluss 5 Bilder). Jetzt `_margin`: 0,15 s mehr Quelle einlesen, genau abschneiden (beim Anlauf begrenzt, damit die Tempo-Formel gültig bleibt) → 0 stehende Bilder. MCI ohne Szenenwechsel-Erkennung (`scd=none`), die bei schnellen Schwenks Bilder doppelte.
 
 - 2026-11-16: Clips "nächstes Level": Musikstart leer = automatisch am Drop (`beats.find_drop`/`drop_time`: Bass-Energie 4 s danach vs. davor; `api._music_start` → -1; `clips.DROP_LEAD_S` 1 s vor dem Drop; Anzeige "Musik ab Sekunde …"); Kill-Zeitlupe mit echten Zwischenbildern (`MCI`, minterpolate mci, ca. 15 s Rechenzeit je Kill im Test, `MCI=False` = alt); Höhepunkt: letzter Kill langsamer (`HIT_SLOW_LAST` 0,35), Kill-Abstände eher kürzer werdend (kill_beats). Quellen: Teixeira u. a. 2012, Kahneman 1993.
 

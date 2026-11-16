@@ -166,3 +166,10 @@ def test_drop_found_where_bass_starts():
     assert beats.drop_time(np.full(1000, 0.5), 0.05) is None  # kein Anstieg: kein Drop
     from cstaktik.api import _music_start
     assert _music_start("") == -1.0 and _music_start("12,5") == 12.5 and _music_start("x") == -1.0
+
+
+def test_margin_keeps_ramp_formula_valid():
+    r = {"kind": "ramp", "d": 0.3, "v0": 1.6, "v1": 0.4}
+    m = memeclip._margin(r)
+    assert 0 < m <= 0.15 and r["v1"] - (r["v0"] - r["v1"]) * m / r["d"] > 0  # Tempo bleibt positiv
+    assert memeclip._margin({"kind": "hit", "d": 0.5}) == 0.15
