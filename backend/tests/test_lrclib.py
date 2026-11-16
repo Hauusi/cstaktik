@@ -64,9 +64,20 @@ def test_suggestions_only_synced_with_images():
 def test_song_suggest_endpoint(monkeypatch):
     from fastapi.testclient import TestClient
     from cstaktik import accounts, api
-    monkeypatch.setattr(lrclib, "suggest", lambda q: [{"track": "T", "artist": "A", "album": "", "duration": "", "image": ""}])
+    monkeypatch.setattr(lrclib, "suggest_full", lambda q: {"items": [{"track": "T", "artist": "A", "album": "", "duration": "", "image": ""}], "error": None})
     accounts.add_user("Hausi", "Geheim-12345")
     c = TestClient(api.app)
     c.post("/login", data={"name": "Hausi", "password": "Geheim-12345"}, headers={"Origin": "http://testserver"})
     r = c.get("/clips/song-suggest?q=Paparazzi")
     assert r.status_code == 200 and r.json()["items"][0]["track"] == "T"
+
+
+
+def test_suggest_reports_network_error(monkeypatch):
+    def boom(*a, **k):
+        raise TimeoutError("timed out")
+    monkeypatch.setattr(lrclib.urllib.request, "urlopen", boom)
+    lrclib._CACHE.clear()
+    r = lrclib.suggest_full("Paparazzi Lady Gaga")
+    assert r["items"] == [] and "LRCLIB nicht erreichbar" in r["error"] and "TimeoutError" in r["error"]
+    assert "paparazzi lady gaga" not in lrclib._CACHE  # Fehler nicht zwischenspeichern

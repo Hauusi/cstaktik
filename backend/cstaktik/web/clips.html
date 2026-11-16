@@ -121,11 +121,17 @@
   if (!inp) return;
   function close() { ul.hidden = true; inp.setAttribute("aria-expanded", "false"); sel = -1; }
   function choose(it) { inp.value = it.track + " " + it.artist; last = inp.value; close(); }
-  function render(list, q) {
+  function note(text) {
+    items = []; sel = -1; ul.textContent = "";
+    var h = document.createElement("li"); h.className = "hint"; h.textContent = text; ul.appendChild(h);
+    ul.hidden = false; inp.setAttribute("aria-expanded", "true");
+  }
+  function render(list, q, err) {
     items = list; sel = -1; ul.textContent = "";
     if (!list.length) {
       var h = document.createElement("li"); h.className = "hint";
-      h.textContent = "Kein Song mit Songtext-Zeitstempeln gefunden. Du kannst den Text unten auch einfügen.";
+      h.textContent = err ? "Vorschläge gerade nicht möglich: " + err
+                          : "Kein Song mit Songtext-Zeitstempeln gefunden. Du kannst den Text unten auch einfügen.";
       ul.appendChild(h);
     }
     list.forEach(function (it, i) {
@@ -148,10 +154,16 @@
     var q = inp.value.trim(); clearTimeout(timer);
     if (q.length < 3 || q === last) { close(); return; }
     timer = setTimeout(function () {
-      fetch("/clips/song-suggest?q=" + encodeURIComponent(q), {credentials: "same-origin"})
-        .then(function (r) { return r.ok ? r.json() : {items: []}; })
-        .then(function (d) { if (inp.value.trim() === q) render(d.items || [], q); })
-        .catch(close);
+      note("Suche …");
+      fetch("/clips/song-suggest?q=" + encodeURIComponent(q), {credentials: "same-origin", headers: {"Accept": "application/json"}})
+        .then(function (r) {
+          return r.text().then(function (t) {
+            try { return JSON.parse(t); }
+            catch (e) { return {items: [], error: "Antwort war kein JSON (Status " + r.status + ")"}; }
+          });
+        })
+        .then(function (d) { if (inp.value.trim() === q) render(d.items || [], q, d.error); })
+        .catch(function (e) { if (inp.value.trim() === q) note("Vorschläge gerade nicht möglich: " + (e && e.message || "Netzwerkfehler")); });
     }, 300);
   });
   inp.addEventListener("keydown", function (e) {
@@ -164,6 +176,7 @@
     else if (e.key === "Escape") close();
   });
   inp.addEventListener("blur", function () { setTimeout(close, 150); });
+  inp.addEventListener("focus", function () { if (items.length && inp.value.trim() !== last) { ul.hidden = false; } });
 })();
 /* Upload in kleinen Stücken: funktioniert auch, wenn der Webserver große Uploads ablehnt, und zeigt den Fortschritt. */
 (function () {

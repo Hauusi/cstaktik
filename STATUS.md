@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 444 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 445 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Song-Vorschläge erschienen beim Nutzer nicht (Ursache von hier nicht prüfbar, Hosts gesperrt): Fehler jetzt sichtbar statt stumm ("Suche …", Grund bei Fehler: LRCLIB/Deezer nicht erreichbar, kein JSON + Status), `suggest_full` mit Fehlertext, LRCLIB und Deezer parallel, Fehler nicht gecacht, Endpunkt fängt Ausnahmen ab. Diagnose: /clips/song-suggest?q=Paparazzi im Browser öffnen.
 
 - 2026-11-16: Clips Song-Vorschläge beim Tippen (Nutzer-Wunsch): `GET /clips/song-suggest?q=` (Login nötig) → `lrclib.suggest` (LRCLIB-Suche, nur Songs mit syncedLyrics, doppelte weg; Bild = Künstlerfoto aus der Deezer-Suche api.deezer.com, sonst Albumcover, nur https; 10 min Cache). Liste unter dem Songname-Feld: rundes Bild, Titel, Künstler · Album, Länge; Maus/Tippen oder Pfeiltasten+Enter; externe Daten nur per textContent. Gesendet wird nur der Suchtext (LRCLIB, Deezer); Bilder lädt der Browser direkt von Deezer (no-referrer). In der Cloud-Session beide Hosts gesperrt: mit nachgebildeten Antworten getestet, Liste im Browser (Playwright) geprüft.
 

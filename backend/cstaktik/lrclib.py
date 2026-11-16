@@ -126,12 +126,14 @@ _CACHE: dict[str, tuple[float, list[dict]]] = {}
 CACHE_S = 600
 
 
-def _get_json(url: str, timeout: float = 5.0):
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+def _get_json(url: str, timeout: float = 6.0, errors: list | None = None, name: str = ""):
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode("utf-8"))
-    except Exception:  # noqa: BLE001 - kein Netz / Zeitüberschreitung: keine Vorschläge
+    except Exception as e:  # noqa: BLE001 - kein Netz / Zeitüberschreitung: keine Vorschläge, Grund merken
+        if errors is not None:
+            errors.append(f"{name} nicht erreichbar: {type(e).__name__}: {str(e)[:120]}")
         return None
 
 
@@ -169,19 +171,31 @@ def suggestions(lrc_data, deezer_data, limit: int = 5) -> list[dict]:
 
 
 def suggest(query: str) -> list[dict]:
+    return suggest_full(query)["items"]
+
+
+def suggest_full(query: str) -> dict:
     """Suche für die Vorschlagsliste: LRCLIB (welche Songs Text mit Zeiten haben) + Deezer (Bilder). Gesendet wird
     nur der getippte Suchtext. Ergebnisse 10 Minuten zwischengespeichert."""
     import time
 
+    from concurrent.futures import ThreadPoolExecutor
+
     q = " ".join((query or "").split())[:80]
     if len(q) < 3:
-        return []
+        return {"items": [], "error": None}
     hit = _CACHE.get(q.lower())
     if hit and time.time() - hit[0] < CACHE_S:
-        return hit[1]
+        return {"items": hit[1], "error": None}
     enc = urllib.parse.urlencode({"q": q})
-    res = suggestions(_get_json(f"{API}?{enc}"), _get_json(f"{DEEZER}?{enc}&limit=15"))
-    if len(_CACHE) > 200:
-        _CACHE.clear()
-    _CACHE[q.lower()] = (time.time(), res)
-    return res
+    errors: list[str] = []
+    with ThreadPoolExecutor(2) as ex:  # beide gleichzeitig: schneller
+        f_l = ex.submit(_get_json, f"{API}?{enc}", 6.0, errors, "LRCLIB")
+        f_d = ex.submit(_get_json, f"{DEEZER}?{enc}&limit=15", 4.0, errors, "Deezer (Bilder)")
+        lrc, dz = f_l.result(), f_d.result()
+    res = suggestions(lrc, dz)
+    if lrc is not None:  # nur erfolgreiche Suchen merken
+        if len(_CACHE) > 200:
+            _CACHE.clear()
+        _CACHE[q.lower()] = (time.time(), res)
+    return {"items": res, "error": "; ".join(errors) or None, "lrclib_ok": lrc is not None}

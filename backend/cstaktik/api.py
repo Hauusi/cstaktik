@@ -1165,7 +1165,10 @@ def clips_song_suggest(q: str = "") -> JSONResponse:
     """Vorschläge zum Songnamen (Titel, Künstler, Bild). Nur Songs mit Songtext samt Zeitstempeln bei LRCLIB."""
     from cstaktik import lrclib
 
-    return JSONResponse({"items": lrclib.suggest(q)})
+    try:
+        return JSONResponse(lrclib.suggest_full(q))
+    except Exception as e:  # noqa: BLE001 - Grund in der Liste anzeigen statt stumm scheitern
+        return JSONResponse({"items": [], "error": f"Fehler bei der Suche: {type(e).__name__}: {str(e)[:150]}"})
 
 
 @app.get("/clips/{job_id}/video")
