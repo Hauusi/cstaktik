@@ -266,6 +266,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips: Ruckeln in der Zeitlupe vor dem Kill beseitigt: Anlauf mit Zwischenbildern (minterpolate blend, wie beim Kill) statt doppelter Bilder; Schuss-Einrasten nur noch mit Tempo 0,5–1,7 und höchstens 2,5-fachem Tempowechsel zum Nachbarstück (`SYNC_JUMP`), vorher waren harte Sprünge 0,35↔2,3 möglich (Nutzer: wirkt ab und zu wie Laggen).
+
 - 2026-11-16: Clips: erfundene Erkennungs-Sätze ("Thanks for watching" u. ä., unsicher + keine Sprache) werden verworfen; Ton vor der Erkennung auf Stimmbereich gefiltert; eingefügter Songtext geht als Vorgabe (initial_prompt) in die Erkennung (Nutzer: bei Diva nur "thanks for watching" erkannt).
 
 - 2026-11-16: Clips: eingefügter Songtext wird mit der Spracherkennung auf den Gesang gelegt (`align_lyrics`, difflib), verpasste Wörter zwischen die Nachbarn verteilt, Text bleibt der eingefügte. Hinweis auf /clips: Text am besten einfügen.

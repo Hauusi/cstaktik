@@ -111,6 +111,8 @@ def test_sync_anchors_put_shots_on_eighth_notes():
         assert abs((1.5 - y) / half - round((1.5 - y) / half)) < 1e-6  # jeder Schuss auf einem Achtelschlag
     for (x0, y0), (x1, y1) in zip(anc[1:], anc[2:]):
         assert memeclip.SYNC_MIN <= (x1 - x0) / (y1 - y0) <= memeclip.SYNC_MAX
+    v = [(x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(anc, anc[1:])] + [memeclip.HIT_SLOW]
+    assert all(max(a / b, b / a) <= memeclip.SYNC_JUMP + 1e-6 for a, b in zip(v, v[1:]))  # keine Tempo-Sprünge
     assert len(anc) >= 4  # mehrere Schüsse eingerastet
     assert memeclip.sync_anchors([], 1.0, 3.2, 1.5, half) == [(1.0, 0.0), (3.2, 1.5)]
 

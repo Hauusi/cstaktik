@@ -336,7 +336,9 @@ def shots(src: str) -> list[float]:
     return out
 
 
-SYNC_MIN, SYNC_MAX = 0.35, 2.3  # erlaubtes Tempo zwischen zwei Schüssen beim Einrasten auf den Beat
+SYNC_MIN, SYNC_MAX = 0.5, 1.7  # erlaubtes Tempo zwischen zwei Schüssen beim Einrasten auf den Beat
+SYNC_JUMP = 2.5  # höchstens so viel schneller/langsamer als das Stück daneben: sonst wirkt der Wechsel wie ein Ruckler
+SMOOTH = f"minterpolate=fps={OUT_FPS}:mi_mode=blend,"  # Zeitlupe: Zwischenbilder überblenden statt Bilder doppeln
 
 
 def sync_anchors(shot_times: list[float], s0: float, ks: float, gap: float, half: float) -> list[tuple[float, float]]:
@@ -344,7 +346,8 @@ def sync_anchors(shot_times: list[float], s0: float, ks: float, gap: float, half
     füllt. Der Kill landet am Ende (auf dem Schlag); jeder Schuss davor auf einem Achtelschlag (``half`` = halber
     Schlag), rückwärts vom Kill aus, so dass das Tempo zwischen zwei Ankern in [SYNC_MIN, SYNC_MAX] bleibt. Schüsse,
     die sich so nicht einrasten lassen, werden übersprungen. Anfang (s0 -> 0) ist immer Anker."""
-    anchors = [(ks, gap)]
+    anchors, prev_v = [(ks, gap)], HIT_SLOW  # das Stück direkt vor dem Kill passt zum Tempo des Kills
+    jump = lambda a, b: max(a / b, b / a) <= SYNC_JUMP  # noqa: E731
     for t in sorted((x for x in shot_times if s0 + 0.05 < x < ks - 0.05), reverse=True):
         src_gap = anchors[-1][0] - t
         best = None
@@ -353,14 +356,16 @@ def sync_anchors(shot_times: list[float], s0: float, ks: float, gap: float, half
             if out_t < 0.08:
                 break
             v = src_gap / (k * half)
-            if SYNC_MIN <= v <= SYNC_MAX and (best is None or abs(v - 1) < abs(best[1] - 1)):
+            if SYNC_MIN <= v <= SYNC_MAX and jump(v, prev_v) and (best is None or abs(v - 1) < abs(best[1] - 1)):
                 best = (out_t, v)
         if best is None:
             continue
         # der Rest bis zum Anfang muss auch ein erlaubtes Tempo haben
-        if not (SYNC_MIN * 0.5 <= (t - s0) / best[0] <= SYNC_MAX * 1.6):
+        rest = (t - s0) / best[0]
+        if not (SYNC_MIN <= rest <= SYNC_MAX * 1.3 and jump(rest, best[1])):
             continue
         anchors.append((t, round(best[0], 4)))
+        prev_v = best[1]
         if len(anchors) >= 7:
             break
     anchors.append((s0, 0.0))
@@ -518,7 +523,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
                  f"amix=inputs={len(labels)}:duration=longest:normalize=0,volume=0.85,"
                  f"apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         blur = BLUR if v0 > 1.2 else ""
-        fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}'[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
+        fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -527,7 +532,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
     else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
         pts = f"({d}/({v1}-{v0}))*log(({v0}+({v1}-{v0})*((PTS-STARTPTS)*TB)/{d})/{v0})/TB"
     blur = BLUR if seg.get("v0", 1) > 1.2 else ""
-    fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}'[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
+    fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d), "-i", src,
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 
