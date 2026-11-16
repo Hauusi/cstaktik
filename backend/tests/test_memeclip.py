@@ -125,3 +125,10 @@ def test_align_lyrics_keeps_text_and_fills_gaps():
     assert 1.2 < t_to < 1.45 and 3.0 < t_going < 3.8  # verpasste Wörter zwischen die Nachbarn verteilt
     assert memeclip.align_lyrics(typed, None, 10.0) == typed
     assert memeclip.align_lyrics(typed, ["1.0-1.2:xyz"], 10.0) == typed  # nichts passt: unverändert
+
+
+def test_hallucinated_segments_dropped():
+    from types import SimpleNamespace as S
+    assert memeclip._hallucinated(S(text=" Thanks for watching!", no_speech_prob=0.1, avg_logprob=-0.3))
+    assert memeclip._hallucinated(S(text=" na na", no_speech_prob=0.8, avg_logprob=-1.4))
+    assert not memeclip._hallucinated(S(text=" Im a diva", no_speech_prob=0.2, avg_logprob=-0.6))

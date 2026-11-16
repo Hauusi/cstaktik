@@ -596,7 +596,22 @@ def wall_picks(ws: list[dict], max_share: float = 0.6) -> set[int]:
 SUNG_NOTE = ""  # warum die letzte Erkennung nichts geliefert hat (für die Anzeige in der App)
 
 
-def sung_words(music: str, ss: float, d: float) -> list[str] | None:
+# Sätze, die die Spracherkennung bei Musik ohne verständlichen Gesang erfindet: Sie wurde mit vielen untertitelten
+# Videos trainiert, deren Abspann so lautet. Solche Stücke werden verworfen.
+HALLUCINATIONS = ("thanks for watching", "thank you for watching", "subscribe", "like and subscribe",
+                  "see you in the next", "untertitel", "amara.org", "vielen dank fürs zuschauen",
+                  "danke fürs zuschauen", "copyright", "please like")
+
+
+def _hallucinated(seg) -> bool:
+    t = (seg.text or "").lower()
+    if any(h in t for h in HALLUCINATIONS):
+        return True
+    # wahrscheinlich keine Sprache und dabei unsicher: erfunden
+    return getattr(seg, "no_speech_prob", 0) > 0.6 and getattr(seg, "avg_logprob", 0) < -1.0
+
+
+def sung_words(music: str, ss: float, d: float, hint: str | None = None) -> list[str] | None:
     """Gesungene Wörter mit Zeitpunkt aus dem Musik-Ausschnitt, als "Sekunde:WORT". Braucht die Bibliothek
     faster-whisper (läuft lokal, ohne Kosten; lädt beim ersten Mal ein Sprachmodell). Ist sie nicht installiert oder
     geht etwas schief: None, dann bleibt es beim eingetragenen Text. Gesang wird nicht immer richtig erkannt."""
@@ -617,23 +632,30 @@ def sung_words(music: str, ss: float, d: float) -> list[str] | None:
 
         # Ton selbst einlesen (16 kHz, Mono) und als Zahlenreihe übergeben: So braucht die Erkennung ihre eigene
         # Datei-Bibliothek (PyAV) nicht, die auf manchen Servern zu alt ist.
+        # Bass und Höhen weg (Kick, Hi-Hats), Stimmbereich bleibt: weniger Musik, die die Erkennung stört
         raw = _run(["ffmpeg", "-v", "error", "-ss", str(ss), "-t", str(d), "-i", music, "-vn", "-ac", "1", "-ar", "16000",
-                    "-f", "f32le", "-"])
+                    "-af", "highpass=f=180,lowpass=f=4500", "-f", "f32le", "-"])
         audio = np.frombuffer(raw, np.float32)
         model = WhisperModel("small", device="cpu", compute_type="int8")
         # Gesang über Musik: nicht beim ersten unsicheren Stück aufhören (kein Abbruch bei "keine Sprache", kein
         # Fortschreiben des vorigen Texts, das sich sonst aufhängt), gründlichere Suche
+        # Eingefügter Songtext als Vorgabe: Die Erkennung sucht dann gezielt nach diesen Wörtern
         segs, _info = model.transcribe(audio, word_timestamps=True, beam_size=5, vad_filter=False,
                                        condition_on_previous_text=False, no_speech_threshold=0.95,
-                                       log_prob_threshold=-2.5, compression_ratio_threshold=3.0)
-        out = []
+                                       log_prob_threshold=-2.5, compression_ratio_threshold=3.0,
+                                       initial_prompt=(hint or None) and hint[:600])
+        out, dropped = [], 0
         for sg in segs:
+            if _hallucinated(sg):
+                dropped += 1
+                continue
             for w in sg.words or []:
                 txt = re.sub(r"[^0-9A-Za-zÄÖÜäöüß'-]", "", w.word)
                 if txt:
                     out.append(f"{max(w.start, 0):.2f}-{max(w.end, w.start):.2f}:{txt}")
         if not out:
-            SUNG_NOTE = "Die Spracherkennung lief, hat in diesem Ausschnitt aber keine Wörter erkannt."
+            SUNG_NOTE = "Die Spracherkennung lief, hat in diesem Ausschnitt aber keine Wörter erkannt." + (
+                f" {dropped} erfundene Stücke (z. B. „Thanks for watching“) verworfen." if dropped else "")
         else:
             t0 = float(out[0].split("-")[0])
             t1 = float(out[-1].split(":")[0].split("-")[-1])
@@ -756,7 +778,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     shown, source = 0, "eingetragen" if words else None
     if words and not any(":" in w for w in words):
         # Text eingefügt: mit der Spracherkennung (falls installiert) auf den Gesang legen, Text bleibt der eigene
-        sung = sung_words(music, music_ss, pl["seconds"])
+        sung = sung_words(music, music_ss, pl["seconds"], " ".join(words))
         if sung:
             words, source = align_lyrics(words, sung, pl["seconds"]), "ausgerichtet"
     elif not words:  # kein Text eingetragen: aus dem Gesang erkennen, falls die Spracherkennung installiert ist
