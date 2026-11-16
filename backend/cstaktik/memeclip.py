@@ -569,7 +569,7 @@ def _render_end(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float =
     """Schluss: die Szene läuft nach dem letzten Kill in Zeitlupe weiter (kein Standbild), Summe und Killfeed stehen.
     Kein Effektton: das Ende gehört der Musik, die auf einem Taktanfang endet."""
     kf = _feed_png(src, seg, tmp, out.stem)
-    tail = f"fps={OUT_FPS},tpad=stop_mode=clone:stop_duration={seg['out'] + 1},trim=0:{seg['out']}"
+    tail = f"setsar=1,fps={OUT_FPS},tpad=stop_mode=clone:stop_duration={seg['out'] + 1},trim=0:{seg['out']}"
     over = f"[bg][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];[v0]{_draw(seg['text'], font)},{tail}[v]"
     silent = f"anullsrc=r=48000:cl=stereo,atrim=0:{seg['out']}[a]"
     if seg["d"] >= 0.2:
@@ -613,7 +613,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
     tempo = ",".join(["atempo=0.5"] * (1 if speed < 0.5 else 0) + [f"atempo={max(speed, 0.5) if speed >= 0.5 else speed / 0.5:.5f}"])
     audio = (f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,{tempo},apad=whole_dur={seg['out']},atrim=0:{seg['out']},"
              f"volume={0.8 if seg['kind'] == 'hit' else 0.3}[a]")
-    tail = f"fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}"
+    tail = f"setsar=1,fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}"
     if seg["kind"] == "hit":
         # Ton: der Kill-Schuss in echtem Tempo (gestreckter Ton klingt blechern), danach trägt die Musik die Zeitlupe
         audio = (f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,atrim=0:{KILL_SND_S},afade=t=out:st={KILL_SND_S - 0.12}:d=0.12,"
@@ -1071,7 +1071,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         fc = "".join(f"[{i}:a]apad=whole_dur={sg['out']},atrim=end={sg['out']},asetpts=PTS-STARTPTS,"
                      f"afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];"
                      for i, sg in enumerate(pl["segments"]))
-        fc += "".join(f"[{i}:v][e{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc0][ga];"
+        # Pixel-Seitenverhältnis vereinheitlichen: Segmente kamen mit "nicht gesetzt" und 1280:1281 an, dann bricht
+        # concat ab (Fehler beim Nutzer)
+        fc += "".join(f"[{i}:v]setsar=1[sv{i}];" for i in range(n))
+        fc += "".join(f"[sv{i}][e{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc0][ga];"
         tcuts = transition_cuts(pl["segments"])
         fc += f"[vc0]{transition_vf(tcuts)}null[vc];"
         fc += (f"aevalsrc='{sfx_expr(pl['segments'], pl['beat'], tcuts)}':d={total:.3f}:s=48000,"

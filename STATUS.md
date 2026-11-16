@@ -266,6 +266,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips Absturz beim Nutzer (concat: SAR 0:1 vs 1280:1281): `setsar=1` am Ende jedes Segments und vor concat. Fehler lokal nicht exakt nachgestellt (Testclips behielten SAR nicht), Korrektur zielt direkt auf die Bedingung der Fehlermeldung. Kill-Verlust geprüft: Planung (guter Stand 1792319 vs. jetzt, 5–9 Kills, 13 s Musik) identisch, Erkennung seit 1792319 unverändert; Nutzer-Videos vor/nach den letzten Änderungen mit denselben Clips beide 5 Kills, 13,07 s. Ursache offen, Original-Clips nötig.
+
 - 2026-11-16: Clips Verschwimmen + Vorspulen (Nutzer-Video: Doppelbilder bei 8,5 s und 11 s im Anlauf vor dem Kill): tmix-Bewegungsunschärfe entfernt (`BLUR` leer), Anlauf/Schnitt/Schluss mit berechneten Zwischenbildern statt Überblenden (`SMOOTH` = `MCI_VF`, Schnitt mit `DEDUP`), Übergang ohne gblur (nur Zoom, Lanczos). Tempo begrenzt: `RAMP_V0` 1,6→1,3, `SHOT_SPEED` 1,25→1,15, `SYNC_MAX` 1,7→1,4, Reststück ≤ 1,1×SYNC_MAX. Echter Clip: höchstes Tempo 1,60→1,30×, Schärfe Median 352→446, unschärfste 5 % 132→174, 0 Standbilder, Sync 8/9; Rechenzeit 84→122 s.
 
 - 2026-11-16: Clips: Segmente parallel rendern (`render_workers`, Kerne bis 4, ThreadPool). Echter Clip, 4 Kerne: 122 s → 81 s, Ergebnis bildgleich (Abweichung 0,0). Geprüft und verworfen: Übersteuerung (Messfehler durch Mono-Mischung; Stereo-Spitze −1,8 dBFS, ok), Kill-Schuss lauter/Riser-Lücke/stärkeres Ducking (gemessen kein Gewinn, da vor dem Kill gleich laute Schüsse liegen). Musik-Stille am Anfang liegt in der Musikdatei selbst.
