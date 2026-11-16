@@ -194,6 +194,19 @@ def _match(prev, cur, x, y, r, R, base=(0.0, 0.0)):
     return bs
 
 
+MAX_PERSP = 1.3  # eine Seite des Worts höchstens so viel höher als die andere, sonst wirken Buchstaben verzerrt
+MAX_SLOPE = 0.45  # Neigung der Schrift höchstens so stark
+
+
+def limit_perspective(top: float, bot: float, qw: float, qh: float) -> tuple[float, float]:
+    """Neigung der Ober- und Unterkante begrenzen. Laufen sie stark auseinander, wird ein Ende des Worts winzig und
+    das andere riesig (gesehen bei "INFORMATION"). Die gemeinsame Neigung bleibt, nur der Unterschied wird kleiner."""
+    mean = max(-MAX_SLOPE, min(MAX_SLOPE, (top + bot) / 2))
+    maxd = 2 * qh * (MAX_PERSP - 1) / ((MAX_PERSP + 1) * qw)  # Höhe links/rechts = qh ± (top-bot)*qw/2
+    diff = max(-maxd, min(maxd, top - bot))
+    return mean + diff / 2, mean - diff / 2
+
+
 def place(g: np.ndarray, aspect: float) -> dict | None:
     """Wand im Spielbild suchen und das Wort-Viereck dort festlegen (kleine Auflösung, Koordinaten im Quadrat)."""
     size = g.shape[0]
@@ -216,6 +229,7 @@ def place(g: np.ndarray, aspect: float) -> dict | None:
     qw = (x1 - x0) * 0.70
     qh = min(qw / aspect, (y1 - y0) * 0.35)
     qw = qh * aspect
+    top, bot = limit_perspective(top, bot, qw, qh)
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     xl, xr = cx - qw / 2, cx + qw / 2
     quad = np.array([[xl, cy - qh / 2 - top * qw / 2], [xr, cy - qh / 2 + top * qw / 2],

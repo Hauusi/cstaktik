@@ -807,12 +807,47 @@ LYRIC_DY = (0, -40, 20, -25, 35, -15)  # kleine Sprünge im unteren Drittel des 
 LYRIC_ROT = (-5, 4, -3, 5, -4, 3)
 
 
+# Zeichen aus anderen Alphabeten, die wie lateinische aussehen (kopierter Songtext enthält sie manchmal),
+# und typografische Anführungszeichen
+LOOKALIKE = str.maketrans({
+    "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O",
+    "Р": "P", "С": "C", "Т": "T", "Х": "X", "У": "Y", "а": "a", "е": "e",
+    "о": "o", "р": "p", "с": "c", "у": "y", "х": "x", "і": "i", "ј": "j",
+    "ѕ": "s", "ʏ": "Y", "“": '"', "”": '"', "„": '"', "‘": "'", "’": "'",
+    "´": "'", "`": "'",
+})
+
+
+def printable(text: str, font_file: str) -> str:
+    """Text so umformen, dass die Schrift jedes Zeichen hat: Unicode vereinheitlichen, Doppelgänger aus anderen
+    Alphabeten ersetzen, Großbuchstaben, unsichtbare Zeichen weg. Was die Schrift dann noch nicht kennt, wird
+    weggelassen (vorher erschien dafür ein Kästchen, gesehen bei "MY")."""
+    import unicodedata
+
+    t = unicodedata.normalize("NFKC", text).translate(LOOKALIKE).upper()
+    t = "".join(c for c in t if unicodedata.category(c)[0] != "C")  # Steuer- und unsichtbare Zeichen
+    t = "".join(c for c in t if c == " " or _has_glyph(c, font_file))
+    return t.strip() or text.strip().upper()
+
+
+def _has_glyph(c: str, font_file: str) -> bool:
+    """Hat die Schrift dieses Zeichen? Ein fehlendes Zeichen zeichnet Pillow als Ersatz-Kästchen: vergleichen."""
+    from PIL import ImageFont
+
+    f = _GLYPH_FONT.get(font_file) or _GLYPH_FONT.setdefault(font_file, ImageFont.truetype(font_file, 40))
+    box = _GLYPH_FONT.get(font_file + "#") or _GLYPH_FONT.setdefault(font_file + "#", bytes(f.getmask("\uffff")))
+    return bytes(f.getmask(c)) != box
+
+
+_GLYPH_FONT: dict = {}
+
+
 def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) -> None:
     """Ein Wort als Bild: fette, enge Großbuchstaben, die die Breite füllen, schräg gestellt und leicht gedreht,
     dicker schwarzer Rand und ein farbiger, versetzter Schatten. Farbe und Drehung wechseln von Wort zu Wort."""
     from PIL import Image, ImageDraw, ImageFont
 
-    text = text.upper()
+    text = printable(text, font_file)
     fill, shadow = LYRIC_COLORS[j % len(LYRIC_COLORS)]
     size = 260 if wall else 150  # flach: klein genug, dass der Kill sichtbar bleibt; Wand: groß, wird verkleinert
     while size > 60:
