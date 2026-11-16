@@ -260,7 +260,8 @@ def make(src: str, out: str, progress=None) -> dict:
 # der erste Kill früh (die ersten Sekunden entscheiden, ob jemand dranbleibt), und das Tempo gleitet in die Zeitlupe,
 # statt zu springen.
 
-RAMP_V0, RAMP_V1 = 2.4, 0.45  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
+RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
+HIT_SLOW = 0.3  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
 MAX_WORDS = 40
 
 
@@ -310,11 +311,12 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float]) -> dict:
                          "v0": v0, "v1": v1, "src": kill.get("src")})
         else:
             kb = o                                    # kein Anlauf möglich: Kill direkt
-        after_src = min(beat * SLOW, max(cdur - ks - 0.02, 0.05))
-        segs.append({"kind": "hit", "ss": round(ks, 3), "d": round(after_src, 3), "out": round(beat, 3), "o0": round(kb, 3),
+        hit_out = beat * (2 if step == 4 else 1)      # der Kill bleibt zwei Schläge lang in Zeitlupe stehen
+        after_src = min(hit_out * HIT_SLOW, max(cdur - ks - 0.02, 0.05))
+        segs.append({"kind": "hit", "ss": round(ks, 3), "d": round(after_src, 3), "out": round(hit_out, 3), "o0": round(kb, 3),
                      "box": kill["box"], "feed_at": round(min(kill["t"] + 0.2, cdur - 0.05), 3), "text": f"+{j + 1}",
                      "kill_at": 0.0, "src": kill.get("src")})
-        o, src_prev = kb + beat, ks + after_src
+        o, src_prev = kb + hit_out, ks + after_src
     last = segs[-1]
     hold = 2 * beat
     segs.append({"kind": "hold", "ss": round(max(last["ss"] + last["d"] - 0.03, 0), 3), "d": round(hold, 3),
@@ -332,7 +334,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
     speed = max(seg["d"] / seg["out"], 0.05)
     tempo = ",".join(["atempo=0.5"] * (1 if speed < 0.5 else 0) + [f"atempo={max(speed, 0.5) if speed >= 0.5 else speed / 0.5:.5f}"])
     audio = (f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,{tempo},apad=whole_dur={seg['out']},atrim=0:{seg['out']},"
-             f"volume={0.9 if seg['kind'] == 'hit' else 0.5}[a]")
+             f"volume={0.8 if seg['kind'] == 'hit' else 0.3}[a]")
     tail = f"fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}"
     if seg["kind"] == "hit":
         kf = _feed_png(src, seg, tmp, out.stem)
@@ -435,18 +437,20 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         last, k = "v0", n + 1  # Eingang n ist die Musik, danach je Wort ein Bild
         if font and words:
             # während eines Kills gehört die Bildmitte dem Kill: dort kein Songtext
-            quiet = "".join(f"*(1-between(t,{x['o0']},{round(x['o0'] + x['out'], 3)}))"
-                            for x in pl["segments"] if x["kind"] in ("hit", "hold"))
+            busy = [(x["o0"], x["o0"] + x["out"]) for x in pl["segments"] if x["kind"] in ("hit", "hold")]
             for j, (a, b, txt) in enumerate(word_times(words, bt["beats"])[:MAX_WORDS]):
                 if a >= total or not txt.strip():
                     continue
                 png = tmp / f"w{j:02d}.png"
                 word_png(txt, png, j, font)
                 ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(png)]
-                cy = BOX_Y + BOX // 2 + LYRIC_DY[j % len(LYRIC_DY)]
-                fc += (f"[{k}:v]format=rgba,scale=w='2*trunc(iw*(1+0.55*exp(-22*max(t-{a}\\,0)))/2)':h=-2:eval=frame[w{j}];"
+                # während eines Kills gehört die Bildmitte dem Kill: das Wort steht dann kleiner am unteren Bildrand
+                low = any(x0 - 0.05 <= a < x1 - 0.05 for x0, x1 in busy)
+                cy = BOX_Y + BOX - 150 if low else BOX_Y + BOX // 2 + LYRIC_DY[j % len(LYRIC_DY)]
+                sc = 0.55 if low else 1.0
+                fc += (f"[{k}:v]format=rgba,scale=w='2*trunc(iw*{sc}*(1+0.55*exp(-22*max(t-{a}\\,0)))/2)':h=-2:eval=frame[w{j}];"
                        f"[{last}][w{j}]overlay=x='(W-w)/2':y='{cy}-h/2':eval=frame:"
-                       f"enable='between(t,{a},{min(b, total)}){quiet}'[t{j}];")
+                       f"enable='between(t,{a},{min(b, total)})'[t{j}];")
                 last, k, shown = f"t{j}", k + 1, shown + 1
         fc += (f"[{last}]null[v];[{n}:a]aresample=48000,afade=t=out:st={max(total - 0.4, 0):.3f}:d=0.4[mu];"
                f"[ga][mu]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]")

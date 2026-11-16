@@ -50,5 +50,6 @@ def test_beat_grid_finds_tempo_and_plan_puts_kills_on_beats():
 
     r = next(s for s in pl["segments"] if s["kind"] == "ramp" and s["v0"] != s["v1"])  # Tempo gleitet, füllt die Lücke genau
     assert abs(r["d"] / (r["v1"] - r["v0"]) * log(r["v1"] / r["v0"]) - r["out"]) < 0.01 and r["v0"] > 1 > r["v1"]
+    assert all(abs(h["out"] - 1.0) < 0.01 for h in hits)  # der Kill steht zwei Schläge lang in Zeitlupe
     assert memeclip.ramp_fit(2.0, 0.5)[1:] == (0.25, 0.25)  # zu wenig Material: gleichmäßig langsam
     assert memeclip.word_times(["A", "B", "1.45:C"], bt)[:3] == [(0.1, 0.6, "A"), (0.6, 1.45, "B"), (1.45, 1.95, "C")]

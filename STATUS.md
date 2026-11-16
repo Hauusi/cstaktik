@@ -266,6 +266,10 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Beat-Schnitt nach Rückmeldung: Anlauf höchstens 1,6x (vorher 2,4x), Kill bleibt zwei Schläge in
+  Zeitlupe 0,3x (`HIT_SLOW`), Spielton im Anlauf leiser; Songtext wird während des Kills nicht mehr ausgeblendet,
+  sondern klein am unteren Rand gezeigt; Hinweis auf /clips, dass Songtext eingetragen werden muss.
+
 - 2026-11-16: Clips: je Clip ein eigenes Auswahlfeld statt Mehrfach-Auswahl (Android meldete „network error“ beim
   Lesen), Knopf „+ Weiteren Clip“; Hinweis im Fehlertext. `backend/data/clips/` steht jetzt in .gitignore, versehentlich
   committete Testdateien wurden wieder entfernt (liegen noch im Verlauf, Bereinigung braucht die Erlaubnis des Nutzers).
