@@ -160,7 +160,11 @@ def _font() -> str:
 BOX, BOX_Y = 1080, 440  # Spielbild als Quadrat in der Mitte: zeigt mehr Breite als ein voller Hochformat-Schnitt
 
 
-LOOK = "setsar=1,vignette=angle=PI/10"  # Ecken etwa 19 % dunkler (PI/6 waren 46 %); setsar: sonst bei nicht quadratischen Pixeln harte schwarze Ellipse: der Blick bleibt in der Mitte, wo der Kill passiert
+# Farbabstimmung, gemessen am TikTok-Vorbild des Nutzers (Spielbild): Sättigung 0,48, Wärme (R−B) 0,23; unser
+# Ergebnis vorher 0,28 / 0,06. Mit diesen Werten am echten Clip gemessen: 0,44 / 0,17, ohne mehr ausgefressene Stellen.
+SAT = 1.6
+GRADE = "colorbalance=rm=0.08:bm=-0.08:rh=0.05:bh=-0.06,"
+LOOK = GRADE + "setsar=1,vignette=angle=PI/10"  # Ecken etwa 19 % dunkler (PI/6 waren 46 %); setsar: sonst bei nicht quadratischen Pixeln harte schwarze Ellipse: der Blick bleibt in der Mitte, wo der Kill passiert
 LUMA_TARGET = 0.0  # 0 = Mittelwert der Clips (in make_beat gesetzt); Helligkeit jedes Clips wird dorthin geschoben
 
 
@@ -188,7 +192,7 @@ def _vf(src: str, z: str, out: str, b: float = 0.0) -> str:
     so verdeckt nichts den Kill. Kein Wackeln."""
     return (f"{src}split[m{out}][g{out}];"
             f"[g{out}]scale=-2:480,crop=270:480,boxblur=10:2,eq=brightness=-0.22,scale={OUT_W}:{OUT_H}[b{out}];"
-            f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=bilinear,crop={BOX}:{BOX},eq=contrast=1.06:saturation=1.2:brightness={b},{LOOK}[f{out}];"
+            f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=bilinear,crop={BOX}:{BOX},eq=contrast=1.06:saturation={SAT}:brightness={b},{LOOK}[f{out}];"
             f"[b{out}][f{out}]overlay=0:{BOX_Y}[{out}]")
 
 
@@ -531,6 +535,12 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: d
 KILL_SND_S = 0.45  # so viel Originalton vom Kill-Schuss, in echtem Tempo
 
 
+# Doppelte Bilder aus der Aufnahme entfernen, bevor das Tempo geändert wird. Gemessen an einem echten Clip: 35 %
+# der Bilder waren Kopien des vorigen (40 Bilder/s Inhalt in 60 Bilder/s Datei). In der Zeitlupe wurden daraus
+# Standbilder von bis zu 7 Bildern (117 ms), sichtbar als Laggen. Die übrigen Bilder behalten ihren Zeitpunkt.
+DEDUP = "mpdecimate=max=0,"  # Standard-Schwellen: Kopien mit leichtem Kompressionsrauschen fallen auch heraus
+
+
 def _margin(seg: dict) -> float:
     """Etwas mehr Material einlesen, als das Segment braucht (danach wird genau abgeschnitten). Ohne das fehlen am
     Ende Bilder: Zwischenbilder gibt es nur bis zum letzten Quellbild, der Rest wurde mit dem letzten Bild aufgefüllt.
@@ -551,7 +561,7 @@ def _render_end(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float =
     silent = f"anullsrc=r=48000:cl=stereo,atrim=0:{seg['out']}[a]"
     if seg["d"] >= 0.2:
         speed = max(seg["d"] / seg["out"], 0.05)
-        fc = (f"[0:v]scale={W}:{H},settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f},{SMOOTH[:-1]}[s];{_vf('[s]', str(Z_HIT), 'bg', b)};"
+        fc = (f"[0:v]scale={W}:{H},{DEDUP}settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f},{SMOOTH[:-1]}[s];{_vf('[s]', str(Z_HIT), 'bg', b)};"
               f"{over};{silent}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
@@ -597,7 +607,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
                  f"volume=0.9,apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
-        fc = (f"[0:v]scale={W}:{H},{hit_pts(seg, speed)},"
+        fc = (f"[0:v]scale={W}:{H},{DEDUP}{hit_pts(seg, speed)},"
               + (MCI_VF if MCI else f"minterpolate=fps={OUT_FPS}:mi_mode=blend") + f"[s];{_vf('[s]', z, 'bg', b)};"
               f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
               f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];"
@@ -625,7 +635,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
                  f"amix=inputs={len(labels)}:duration=longest:normalize=0,volume=0.85,"
                  f"apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         blur = BLUR if v0 > 1.2 else ""
-        fc = f"[0:v]scale={W}:{H},{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
+        fc = f"[0:v]scale={W}:{H},{DEDUP}{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d + _margin(seg)), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -634,7 +644,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
     else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
         pts = f"({d}/({v1}-{v0}))*log(({v0}+({v1}-{v0})*((PTS-STARTPTS)*TB)/{d})/{v0})/TB"
     blur = BLUR if seg.get("v0", 1) > 1.2 else ""
-    fc = f"[0:v]scale={W}:{H},{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
+    fc = f"[0:v]scale={W}:{H},{DEDUP}{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d + _margin(seg)), "-i", src,
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 

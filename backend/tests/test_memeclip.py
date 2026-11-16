@@ -207,3 +207,8 @@ def test_drop_start_puts_drop_on_first_kill_beat(monkeypatch):
     monkeypatch.setattr(beats, "beats", lambda *a, **k: {"beats": [0.0, 0.3, 0.6, 0.9]})
     assert beats.drop_start("x.mp3", 12.0) == 10.95  # schnelles Tempo: Index 3
     assert "setsar=1" in memeclip.LOOK  # Vignette nie als schwarze Ellipse
+
+
+def test_look_and_dedup_settings():
+    assert memeclip.SAT > 1.2 and memeclip.GRADE in memeclip.LOOK  # Farbabstimmung nach Vorbild
+    assert memeclip.DEDUP.startswith("mpdecimate") and "max=0" in memeclip.DEDUP  # Doppelbilder vor der Zeitlupe weg
