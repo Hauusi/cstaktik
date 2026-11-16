@@ -211,8 +211,10 @@ def place(g: np.ndarray, aspect: float) -> dict | None:
     """Wand im Spielbild suchen und das Wort-Viereck dort festlegen (kleine Auflösung, Koordinaten im Quadrat)."""
     size = g.shape[0]
     best = None
-    for side in ("left", "right"):
-        x0, x1 = (int(size * 0.02), int(size * 0.46)) if side == "left" else (int(size * 0.54), int(size * 0.98))
+    regions = {"left": (0.02, 0.46), "right": (0.54, 0.98), "wide": (0.08, 0.92)}
+    found = {}
+    for side, (fa, fb) in regions.items():
+        x0, x1 = int(size * fa), int(size * fb)
         y0, y1 = int(size * 0.12), int(size * 0.62)
         pts = corners(g, (x0, y0, x1, y1))
         if len(pts) < MIN_POINTS * 2:
@@ -220,13 +222,16 @@ def place(g: np.ndarray, aspect: float) -> dict | None:
         sl = edge_slopes(g, (x0, y0, x1, y1))
         if sl is None:
             continue
-        score = len(pts)
-        if best is None or score > best[0]:
-            best = (score, side, (x0, y0, x1, y1), sl, pts)
-    if best is None:
+        found[side] = (len(pts), side, (x0, y0, x1, y1), sl, pts)
+    if not found:
         return None
+    # breite Fläche bevorzugen, wenn sie genug Halt bietet: das Wort wird dort groß (gemessen am Nutzer-Video: links/
+    # rechts allein ergab Wörter mit nur 31 % der Bildbreite, gute Wände blieben ungenutzt)
+    side_best = max((v for k, v in found.items() if k != "wide"), key=lambda v: v[0], default=None)
+    wide = found.get("wide")
+    best = wide if wide and (side_best is None or wide[0] >= 1.2 * side_best[0]) else (side_best or wide)
     _, side, (x0, y0, x1, y1), (top, bot), pts = best
-    qw = (x1 - x0) * 0.70
+    qw = (x1 - x0) * (0.80 if side == "wide" else 0.85)
     qh = min(qw / aspect, (y1 - y0) * 0.35)
     qw = qh * aspect
     top, bot = limit_perspective(top, bot, qw, qh)
@@ -325,7 +330,7 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 k = min(1.0, (t - w["a"]) / 0.08)  # kurzes Einblenden
                 if st["mode"] == "flat":
                     im = imgs[i]
-                    sc = min(1.0, w_out * 0.6 / im.width)
+                    sc = min(1.0, w_out * 0.8 / im.width)
                     small = im.resize((int(im.width * sc), int(im.height * sc)), Image.BICUBIC)
                     frame.alpha_composite(small, ((w_out - small.width) // 2, flat_y - small.height // 2))
                     continue

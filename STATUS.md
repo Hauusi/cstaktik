@@ -266,6 +266,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips Wand-Wörter (Nutzer: viele gute Wände ungenutzt; LRCLIB-Text "Paparazzi" kam korrekt): Messung am Nutzer-Video: Wand in 100 % der Bilder gefunden, Wort aber nur 31 % der Spielbildbreite, dazu 25-%-Grenze. `wall_text.place` prüft zusätzlich breite Fläche (8–92 %), bevorzugt bei ≥1,2× Halt, Wortbreite 80–85 % der Fläche → Ø 47 %; `wall_picks` wieder 60 %; flache Ersatz-Wörter 80 % Breite. Echter Clip: 7/12 Wörter auf Wänden, 0 Standbilder.
+
 - 2026-11-16: Clips nach Vorbild (Nutzer-Wunsch, alle drei): Format-Auswahl beim Hochladen (`fmt` hoch/quer; `set_layout`: quer = 1920x1080 ganzes Spielbild ohne Hintergrund, Wand-Suche im mittleren Quadrat `BOX_X` 420; `wall_text.apply` mit size/box_x), kein Zähler/Killfeed/"N KILLS" mehr (`SHOW_COUNTER` False), Songtext groß in Bildmitte (Schrift 240, bis 80 % Bildbreite; während Kill tiefer/kleiner), Wand-Wörter höchstens 25 % (`wall_picks`). Echter Clip beide Formate: richtige Größe, 0 Standbilder, Sync 8/8, 12 Wörter (3 Wand); Rechenzeit mit Songtext ~190–210 s.
 
 - 2026-11-16: Clips Ton nach Vorbild (Nutzer-Video, viraler CS2-Edit; gemessen −10,8 LUFS, LRA 3,9, 0,9 herausstechende Schüsse/s; wir −12,7 LUFS, LRA 1,4, 0,2/s). Ton jetzt eigener Graph → mix.wav, Lautheit gemessen und per `level_chain` gleichmäßig auf `TARGET_LUFS` −11 (+ Limiter −1 dBFS) statt loudnorm-Kompression; `GAME_VOL` 0,6, `SHOT_VOL` 1,15, `KILL_VOL` 2,0, `KILL_DUCK` 0,6, Musik bei jedem gemessenen Schuss kurz −45 % (`SHOT_DIP`). Echter Clip: 0,7 Schüsse/s hörbar, −11,1 LUFS, Kill-Schuss +0,7–1,0 dB über Umgebung. Stärkerer Spielton (0,85) getestet: kein Gewinn, verworfen.

@@ -735,7 +735,7 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
     return [(x["a"], x["b"], x["txt"]) for x in word_list(words, beat_times, per_beat)]
 
 
-def wall_picks(ws: list[dict], max_share: float = 0.25) -> set[int]:
+def wall_picks(ws: list[dict], max_share: float = 0.6) -> set[int]:
     """Welche Wörter an die Wand: die, bei denen sich der Sänger Zeit lässt. Punkte = wie lange das Wort gesungen
     wird + die Pause danach (bis zum nächsten Wort). Gezogene Wörter vor einer Pause gewinnen. Nur Wörter mit
     mindestens 0,35 s gesungen oder 0,25 s Pause danach, höchstens ``max_share`` aller Wörter, mindestens eins.
