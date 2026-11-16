@@ -212,3 +212,12 @@ def test_drop_start_puts_drop_on_first_kill_beat(monkeypatch):
 def test_look_and_dedup_settings():
     assert memeclip.SAT > 1.2 and memeclip.GRADE in memeclip.LOOK  # Farbabstimmung nach Vorbild
     assert memeclip.DEDUP.startswith("mpdecimate") and "max=0" in memeclip.DEDUP  # Doppelbilder vor der Zeitlupe weg
+
+
+def test_sync_report_and_sixteenths():
+    bt = [0.0, 0.5, 1.0, 1.5, 2.0]
+    r = memeclip.sync_report([0.26, 0.13, 0.69, 1.01], bt, 0.5)  # 0.26 Achtel, 0.13 Sechzehntel, 0.69 daneben (60 ms)
+    assert r["total"] == 4 and r["on"] == 3 and r["worst_ms"] == 10
+    # dichtes Feuer: Schuss 0,13 s vor dem Kill passt auf kein Achtel (0,25 s), aber auf ein Sechzehntel
+    anc = memeclip.sync_anchors([2.87, 2.95], s0=1.0, ks=3.0, gap=1.5, half=0.25)
+    assert any(abs((1.5 - y) / 0.125 - round((1.5 - y) / 0.125)) < 1e-6 for _, y in anc[1:-1])

@@ -383,13 +383,17 @@ def sync_anchors(shot_times: list[float], s0: float, ks: float, gap: float, half
     for t in sorted((x for x in shot_times if s0 + 0.05 < x < ks - 0.05), reverse=True):
         src_gap = anchors[-1][0] - t
         best = None
-        for k in range(1, 9):
-            out_t = anchors[-1][1] - k * half
+        # Raster: Sechzehntel (halber Achtel). Achtel werden bevorzugt; Sechzehntel nur, wenn Schüsse so dicht
+        # fallen, dass dazwischen kein Achtel passt (gemessen am echten Clip: sonst lag ein Schuss 112 ms daneben).
+        q, best_score = half / 2, None
+        for k in range(1, 17):
+            out_t = anchors[-1][1] - k * q
             if out_t < 0.08:
                 break
-            v = src_gap / (k * half)
-            if SYNC_MIN <= v <= SYNC_MAX and jump(v, prev_v) and (best is None or abs(v - 1) < abs(best[1] - 1)):
-                best = (out_t, v)
+            v = src_gap / (k * q)
+            score = abs(v - 1) + (0.25 if k % 2 else 0.0)
+            if SYNC_MIN <= v <= SYNC_MAX and jump(v, prev_v) and (best_score is None or score < best_score):
+                best, best_score = (out_t, v), score
         if best is None:
             continue
         # der Rest bis zum Anfang muss auch ein erlaubtes Tempo haben
@@ -952,6 +956,23 @@ def sfx_expr(segs: list[dict], beat: float, cuts: list[float]) -> str:
     return "+".join(parts) or "0"
 
 
+SYNC_TOL_MS = 45  # so weit darf ein Schuss vom Raster weg sein und gilt noch als "auf dem Beat"
+
+
+def sync_report(shot_times: list[float], beat_times: list[float], beat: float) -> dict:
+    """Wie viele Schüsse im fertigen Spielton auf dem Raster der Musik liegen (Achtel oder Sechzehntel, ±45 ms).
+    Gemessen, nicht geplant: die Schüsse werden im zusammengesetzten Spielton neu erkannt."""
+    import numpy as np
+
+    if not shot_times or not beat_times:
+        return {"on": 0, "total": len(shot_times), "worst_ms": None}
+    g = np.asarray(beat_times, float)
+    grid = np.sort(np.concatenate([g + k * beat / 4 for k in range(4)]))
+    offs = [abs(t - grid[int(np.argmin(np.abs(grid - t)))]) * 1000 for t in shot_times]
+    on = [o for o in offs if o <= SYNC_TOL_MS]
+    return {"on": len(on), "total": len(offs), "worst_ms": round(max(on)) if on else None}
+
+
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None) -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
@@ -1005,6 +1026,14 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         total = pl["seconds"]
         first_png = tmp / "loop.png"  # erstes Bild des Videos: am Ende eingeblendet, damit die Wiederholung nahtlos wirkt
         _run(["ffmpeg", "-v", "error", "-y", "-i", str(files[0]), "-frames:v", "1", str(first_png)])
+        try:  # Kontrolle: Spielton wie im Video zusammensetzen, Schüsse neu erkennen, Abstand zum Raster messen
+            lst = tmp / "segs.txt"
+            lst.write_text("".join(f"file '{f}'\n" for f in files))
+            _run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-vn", "-c:a", "pcm_s16le",
+                  str(tmp / "game.wav")])
+            measured = sync_report(shots(str(tmp / "game.wav")), bt["beats"], pl["beat"])
+        except Exception:  # noqa: BLE001 - die Messung ist nur eine Anzeige
+            measured = None
         # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar
         fc = "".join(f"[{i}:a]afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];" for i in range(n))
         fc += "".join(f"[{i}:v][e{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc0][ga];"
@@ -1080,7 +1109,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
             "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source,
             "lyrics_note": SUNG_NOTE, "wall": wall_stats,
-            "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors"))}
+            "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors")),
+            "sync_measured": measured}
 
 
 if __name__ == "__main__":

@@ -112,7 +112,8 @@ def render(d: Path, user: str | None = None) -> None:
             set_state(d, status="fertig", step=None, kills=r.get("kills_used", len(r["kills"])), seconds=r["seconds"],
                       bpm=r.get("bpm"), words=r.get("words"), found=len(r["kills"]),
                       lyrics_source=r.get("lyrics_source"), lyrics_note=r.get("lyrics_note"),
-                      wall=r.get("wall"), synced=r.get("synced_shots"))
+                      wall=r.get("wall"), synced=r.get("synced_shots"),
+                      sync_measured=r.get("sync_measured"))
         except ValueError as e:
             set_state(d, status="fehler", step=None, error=str(e))
         except RuntimeError as e:  # ffmpeg konnte eine Datei nicht lesen oder schneiden

@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 435 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 436 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips Schuss-Sync nachgemessen statt nur geplant (echter Clip): Spielton der Segmente wie im Video zusammengesetzt, Schüsse neu erkannt, Abstand zum Raster. Vorher 7/9 auf Achtel, 2 je 112 ms daneben (einer im kurzen Schnitt, einer zu dicht im Anlauf). `sync_anchors` rastet jetzt auch auf Sechzehntel ein (Achtel bevorzugt) → 8/8, max. 37 ms. Messung fest in `make_beat` (`sync_report`, ±45 ms, Achtel/Sechzehntel) und auf /clips angezeigt ("Nachgemessen: x von y Schüssen").
 
 - 2026-11-16: Clips, Test mit echtem Material (Original-Clip des Nutzers, 18 s, + Musik, + TikTok-Vorbild; Dateien nur lokal im Scratchpad): Original-Clip hat 35 % doppelte Bilder (40 fps Inhalt) → `DEDUP` (mpdecimate, Standard-Schwellen) vor Anlauf/Kill/Schluss, nicht vor dem kurzen Schnitt (dort entstanden sonst Doppelbilder); Kill-Zeitlupe 5–20 % gleichmäßiger, keine Standbilder. Farbe gemessen: Vorbild Sättigung 0,48 / Wärme 0,23, wir 0,28 / 0,06 → `SAT` 1,6 + `GRADE` (colorbalance), am echten Clip 0,44 / 0,17. Geprüft und verworfen: Anfang zu ruhig (gemessen: unser Anfang hat mehr Bewegung als das Vorbild).
 
