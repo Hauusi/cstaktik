@@ -1034,16 +1034,17 @@ async def _save_upload(up: UploadFile, target: Path, limit: int) -> None:
 
 
 @app.post("/clips")
-async def clips_upload(video: UploadFile = File(...), music: UploadFile | None = File(None), music_ss: str = Form("0"),
-                       lyrics: str = Form("")) -> RedirectResponse:
+async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | None = File(None),
+                       music_ss: str = Form("0"), lyrics: str = Form("")) -> RedirectResponse:
     from cstaktik import clips
 
-    ext = Path(video.filename or "").suffix.lower()
-    if ext not in clips.VIDEO_EXT:
+    video = video[:clips.MAX_CLIPS]
+    if any(Path(v.filename or "").suffix.lower() not in clips.VIDEO_EXT for v in video):
         raise HTTPException(400, "Video bitte als .mp4, .mov, .mkv oder .webm.")
     d = clips.new_job(_USER.get())
     try:
-        await _save_upload(video, d / f"in{ext}", clips.MAX_VIDEO_BYTES)
+        for i, v in enumerate(video):
+            await _save_upload(v, d / f"in{i}{Path(v.filename).suffix.lower()}", clips.MAX_VIDEO_BYTES)
         has_music = bool(music and music.filename)
         if has_music:
             mext = Path(music.filename).suffix.lower()
@@ -1059,10 +1060,14 @@ async def clips_upload(video: UploadFile = File(...), music: UploadFile | None =
 
         shutil.rmtree(d, ignore_errors=True)
         raise
-    clips.set_state(d, status="wartet", name=Path(video.filename or "Clip").name[:80], music=has_music, music_ss=ss,
+    clips.set_state(d, status="wartet", name=_clip_name([v.filename or "Clip" for v in video]), music=has_music, music_ss=ss,
                     lyrics=" ".join(lyrics.split())[:600], created=pipeline.coaching_now())
     clips.start(d, _USER.get())
     return RedirectResponse("/clips", status_code=303)
+
+
+def _clip_name(names: list[str]) -> str:
+    return Path(names[0]).name[:80] if len(names) == 1 else f"{len(names)} Clips"
 
 
 @app.post("/clips/new")
@@ -1071,9 +1076,10 @@ async def clips_new(request: Request) -> JSONResponse:
     from cstaktik import clips
 
     body = await _json_body(request)
-    ext = Path(str(body.get("video") or "")).suffix.lower()
+    names = [str(x) for x in (body.get("videos") or ([body["video"]] if body.get("video") else []))][:clips.MAX_CLIPS]
+    exts = [Path(x).suffix.lower() for x in names]
     mext = Path(str(body.get("music") or "")).suffix.lower() if body.get("music") else ""
-    if ext not in clips.VIDEO_EXT:
+    if not exts or any(e not in clips.VIDEO_EXT for e in exts):
         raise HTTPException(400, "Video bitte als .mp4, .mov, .mkv oder .webm.")
     if mext and mext not in clips.MUSIC_EXT:
         raise HTTPException(400, "Musik bitte als .mp3, .m4a, .wav, .ogg oder .aac.")
@@ -1082,22 +1088,22 @@ async def clips_new(request: Request) -> JSONResponse:
     except ValueError:
         ss = 0.0
     d = clips.new_job(_USER.get())
-    clips.set_state(d, status="upload", name=Path(str(body["video"])).name[:80], music=bool(mext), music_ss=ss,
+    clips.set_state(d, status="upload", name=_clip_name(names), music=bool(mext), music_ss=ss,
                     lyrics=" ".join(str(body.get("lyrics") or "").split())[:600], created=pipeline.coaching_now(),
-                    video_ext=ext, music_ext=mext)
+                    video_exts=exts, music_ext=mext)
     return JSONResponse({"id": d.name})
 
 
 @app.post("/clips/{job_id}/chunk")
-async def clips_chunk(job_id: str, request: Request, kind: str = "video") -> JSONResponse:
+async def clips_chunk(job_id: str, request: Request, kind: str = "video", n: int = 0) -> JSONResponse:
     """Schritt 2: ein Stück der Datei anhängen (klein genug für jede Upload-Grenze des Webservers)."""
     from cstaktik import clips
 
     d = clips.job_dir(_USER.get(), job_id)
     st = clips._state(d) if d else {}
-    if not d or st.get("status") != "upload" or kind not in ("video", "music"):
+    if not d or st.get("status") != "upload" or kind not in ("video", "music") or not (0 <= n < len(st["video_exts"])):
         raise HTTPException(404, "Upload nicht gefunden.")
-    target = d / (f"in{st['video_ext']}" if kind == "video" else f"music{st['music_ext']}")
+    target = d / (f"in{n}{st['video_exts'][n]}" if kind == "video" else f"music{st['music_ext']}")
     limit = clips.MAX_VIDEO_BYTES if kind == "video" else clips.MAX_MUSIC_BYTES
     data = await request.body()
     if len(data) > 2 * 1024 * 1024 or (target.stat().st_size if target.exists() else 0) + len(data) > limit:
@@ -1113,7 +1119,7 @@ def clips_start(job_id: str) -> JSONResponse:
     from cstaktik import clips
 
     d = clips.job_dir(_USER.get(), job_id)
-    if not d or clips._state(d).get("status") != "upload" or not any(d.glob("in.*")):
+    if not d or clips._state(d).get("status") != "upload" or not any(d.glob("in*.*")):
         raise HTTPException(404, "Upload nicht gefunden.")
     clips.set_state(d, status="wartet")
     clips.start(d, _USER.get())

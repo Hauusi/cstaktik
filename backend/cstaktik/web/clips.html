@@ -26,9 +26,9 @@
 <a class="back" href="/">‹ Zurück zum Coach</a>
 {% if not ffmpeg %}<div class="cj"><div class="st err">Auf dem Server fehlt das Programm ffmpeg. Als root installieren: <code>apt install -y ffmpeg</code></div></div>{% endif %}
 <form class="cf" method="post" action="/clips" enctype="multipart/form-data" data-block="upload">
-  <label for="cv">Dein Clip</label>
-  <input id="cv" type="file" name="video" accept="video/*" required>
-  <small>Der Killfeed oben rechts muss im Bild sein: Daran erkennt das Tool deine Kills. Höchstens 400 MB.</small>
+  <label for="cv">Deine Clips (einer oder mehrere, bis 8)</label>
+  <input id="cv" type="file" name="video" accept="video/*" multiple required>
+  <small>Der Killfeed oben rechts muss im Bild sein: Daran erkennt das Tool deine Kills. Mehrere Clips ergeben ein längeres Video, in der Reihenfolge der Auswahl. Je Clip höchstens 400 MB.</small>
   <details><summary>Mit Musik (Kills auf den Beat)</summary>
     <div style="display:grid;gap:10px;margin-top:10px">
       <label for="cm">Musik</label>
@@ -48,7 +48,8 @@
 <div class="cj" data-job="{{ j.id }}">
   <b>{{ j.name }}</b>
   {% if j.status == "fertig" and j.has_video %}
-  <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} gefunden · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}</div>
+  <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
+  {% if j.music and j.lyrics and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
   <video controls playsinline preload="metadata" src="/clips/{{ j.id }}/video"></video>
   <div class="row"><a href="/clips/{{ j.id }}/video?dl=1">Herunterladen</a>
     <form method="post" action="/clips/{{ j.id }}/delete"><button type="submit">Löschen</button></form></div>
@@ -94,12 +95,14 @@
   }
   f.addEventListener("submit", function (ev) {
     ev.preventDefault();
-    var v = f.video.files[0], m = f.music.files[0]; if (!v) return;
+    var vs = Array.prototype.slice.call(f.video.files, 0, 8), m = f.music.files[0]; if (!vs.length) return;
     document.getElementById("cgo").disabled = true; document.getElementById("cup").hidden = false;
-    var total = v.size + (m ? m.size : 0);
-    post("/clips/new", JSON.stringify({video: v.name, music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value}), true)
+    var vsize = vs.reduce(function (a, x) { return a + x.size; }, 0), total = vsize + (m ? m.size : 0);
+    post("/clips/new", JSON.stringify({videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value}), true)
       .then(function (j) {
-        return send(j.id, "video", v, 0, total).then(function () { return m ? send(j.id, "music", m, v.size, total) : null; })
+        var chain = Promise.resolve(), done = 0;
+        vs.forEach(function (v, i) { chain = chain.then(function () { var d0 = done; done += v.size; return send(j.id, "video&n=" + i, v, d0, total); }); });
+        return chain.then(function () { return m ? send(j.id, "music", m, vsize, total) : null; })
           .then(function () { return post("/clips/" + j.id + "/start", "{}", true); });
       }).then(function () { location.href = "/clips"; })
       .catch(function (e) { msg.textContent = "Upload fehlgeschlagen: " + e.message; document.getElementById("cgo").disabled = false; });

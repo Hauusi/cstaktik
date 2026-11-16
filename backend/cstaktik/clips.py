@@ -18,7 +18,7 @@ from pathlib import Path
 from cstaktik import pipeline
 from cstaktik.fsutil import write_atomic
 
-MAX_VIDEO_BYTES, MAX_MUSIC_BYTES, KEEP = 400 * 1024 * 1024, 40 * 1024 * 1024, 12
+MAX_VIDEO_BYTES, MAX_MUSIC_BYTES, KEEP, MAX_CLIPS = 400 * 1024 * 1024, 40 * 1024 * 1024, 12, 8
 VIDEO_EXT, MUSIC_EXT = (".mp4", ".mov", ".mkv", ".webm"), (".mp3", ".m4a", ".wav", ".ogg", ".aac", ".mp4")
 _render_lock = threading.Lock()
 
@@ -81,7 +81,7 @@ def render(d: Path, user: str | None = None) -> None:
     from cstaktik import memeclip
 
     st = _state(d)
-    src = next((str(p) for p in d.glob("in.*")), None)
+    src = [str(p) for p in sorted(d.glob("in*.*"))]  # in0.mp4, in1.mp4 ... in Reihenfolge der Auswahl
     music = next((str(p) for p in d.glob("music.*")), None)
     with _render_lock:
         set_state(d, status="läuft", step="Kills suchen")
@@ -93,7 +93,8 @@ def render(d: Path, user: str | None = None) -> None:
                                        words=words or None, progress=prog)
             else:
                 r = memeclip.make(src, str(d / "out.mp4"), progress=prog)
-            set_state(d, status="fertig", step=None, kills=len(r["kills"]), seconds=r["seconds"], bpm=r.get("bpm"))
+            set_state(d, status="fertig", step=None, kills=r.get("kills_used", len(r["kills"])), seconds=r["seconds"],
+                      bpm=r.get("bpm"), words=r.get("words"), found=len(r["kills"]))
         except ValueError as e:
             set_state(d, status="fehler", step=None, error=str(e))
         except Exception as e:  # noqa: BLE001 - ffmpeg-Fehler u. Ä. sollen im Auftrag stehen, nicht den Server stoppen

@@ -106,7 +106,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | memeclip.py | Prototyp Meme-Clip (eigener Bereich, noch ohne Seite): eigene Kills im hochgeladenen Video über den roten Killfeed-Rahmen finden (`detect`, `kills_from_counts`), Schnittplan (`plan`: Anlauf normal ohne Zoom; `hit` = Zoom schlägt kurz vor dem Kill zu, Kill läuft in Zeitlupe 0,4x aus, Zähler/Killfeed/Sound genau im Kill-Moment; `hold` nur am Ende mit Summe; Totzeit fällt weg; kein Wackeln, kein langsamer Zoom), Aufbau: Spielbild als Quadrat in der Mitte auf unscharfem Hintergrund, Killfeed darüber, Zähler darunter (`_vf`), Rendern mit ffmpeg ins Hochformat 1080x1920 (`make`). Aufruf: `python -m cstaktik.memeclip clip.mp4 out.mp4`. Sound selbst erzeugt, keine KI |
 | clips.py | Clips in der App: Aufträge je Nutzer in data/clips/<nutzer>/<id>/ (in.*, music.*, out.mp4, state.json), Schnitt im Hintergrund-Thread (immer nur einer gleichzeitig), letzte 12 bleiben; ohne Musik `memeclip.make`, mit Musik `memeclip.make_beat` |
 | beats.py | Beat eines Musikstücks finden (ffmpeg + numpy): Onset-Stärke je 10 ms, Tempo per Autokorrelation (70–180 BPM), gleichmäßiges Beat-Raster (`beats`, `beat_grid`) |
-| memeclip.py (Beat-Edit) | `make_beat(src, music, out, music_ss, music_d, words)`: Musik-Ausschnitt gibt den Takt vor, `plan_beat` legt jeden Kill exakt auf einen Schlag (Anlauf 1,6x, Annäherung 0,5x, Kill 0,4x über einen Schlag), Zoom-Stoß je Schlag, Songtext Wort für Wort in der Bildmitte (`word_times`: ein Wort je Schlag oder "Sekunde:WORT"; während eines Kills kein Text), Spielton leise unter der Musik |
+| memeclip.py (Beat-Edit) | `make_beat(src oder [srcs], music, out, music_ss, words)`: mehrere Clips (`detect_all`), `plan_beat`: erster Kill früh (Schlag 2), Kills im festen Abstand von 4 Schlägen (bei wenig Musik 2), je Kill `ramp` (Tempo gleitet von 2,4x auf 0,45x, `ramp_fit` füllt die Lücke genau) + `hit` (ein Schlag in Zeitlupe) + am Ende `hold`; Schnitte nur auf Schlägen; leichte Farbkorrektur. Songtext: je Wort ein Bild (`word_png`, Pillow, mitgelieferte Schrift Anton unter static/fonts, OFL): fette schräge Großbuchstaben mit Rand und farbigem Schatten, Farbe/Drehung/Höhe wechseln, Aufploppen; während eines Kills kein Text. Grundlage: Schnitte auf dem Schlag wirken angenehmer (Wenberg & Carlgren 2021; UCLA-Studie zu Schnitt und Beat) |
 | weekly.py | Wochenrückblick: letzte 7 Tage gegen die 28 Tage davor (Ergebnisse, Rating, klar besser/schlechter aus spielerprofil.METRICS, Lektion, Geschafftes, Warm-ups/Sessions, Entscheidungs-Muster, nächste Woche); Seite `/woche`, Push sonntags ab 19 Uhr einmal je Kalenderwoche (`reminder.weekly_check`, Setting `weekly_sent:<user>`) |
 | reminder.py | Erinnerung vor dem Match: Push 15 min vor der eingestellten Spielzeit (/konto#erinnerung, Setting `reminder:<user>`), einmal am Tag (`reminder_sent:<user>`), nicht nach dem Warm-up; Hintergrund-Schleife jede Minute (`_start_reminder`) |
 | dayplan.py | Tagesplan der Startseite: Session, Übung der Lektion, Thema im CS-Wissen, Warm-up; erledigt nur aus gespeicherten Daten (Session markiert, Übung heute, Thema heute geöffnet/beantwortet, Warm-up heute) |
@@ -149,7 +149,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 - `/wissen` CS-Wissen (Bereiche, Stand je Thema: neu/gelesen/noch üben/sitzt), `/wissen/{thema}` (Kern, Verstehen, Beispiel,
   Fehler, Üben, Prüfen, Weiter in der App), `POST /wissen/antwort` (nur eigener Spieler). Kachel "CS-Wissen" nach "Kurs".
   Session-Thema und Lektion verlinken passende Themen; der KI-Coach bekommt sie in den Fakten und darf sie nennen.
-- `/clips` (Kachel „Clips“): Video und optional Musik, Startsekunde und Songtext hochladen; Status lädt alle 5 s neu;
+- `/clips` (Kachel „Clips“): ein bis 8 Videos (in0.*, in1.* ...) und optional Musik, Startsekunde und Songtext hochladen; Status lädt alle 5 s neu;
   Upload in Stücken von 768 KB per JS (`POST /clips/new`, `/clips/{id}/chunk?kind=video|music`, `/clips/{id}/start`), weil
   nginx große Uploads abbrach (ERR_FAILED am Handy); mit Fortschritt und Wiederholung bei Funkloch.
   Fertiges Video ansehen (`/clips/{id}/video`), herunterladen, löschen (`POST /clips/{id}/delete`). Nur eigene Clips.
@@ -265,6 +265,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips: mehrere Videos je Auftrag, gleitendes Tempo statt Sprüngen, fester Kill-Abstand im Takt,
+  Songtext als gestaltete Schrift (Pillow + Anton); neue Abhängigkeit pillow (Server: pip install -e backend).
 
 - 2026-11-16: Clip-Upload in Stücken mit Fortschrittsanzeige (behebt ERR_FAILED beim Hochladen).
 

@@ -31,7 +31,7 @@ def test_upload_render_view_delete(monkeypatch):
     assert r.status_code == 303 and calls == {"music_ss": 12.5, "words": ["EINS", "ZWEI"]}
     page = c.get("/clips").text
     job = clips.jobs("Hausi")[0]
-    assert "2 Kills gefunden" in page and f'/clips/{job["id"]}/video' in page and "http-equiv" not in page
+    assert "2 Kills im Video" in page and f'/clips/{job["id"]}/video' in page and "http-equiv" not in page
     assert c.get(f"/clips/{job['id']}/video").content == b"video"
     other = _client("Bruder")
     assert other.get(f"/clips/{job['id']}/video").status_code == 404  # nur eigene Clips
@@ -53,19 +53,21 @@ def test_no_kill_and_bad_file(monkeypatch):
 
 def test_chunked_upload(monkeypatch):
     def fake(src, out, progress=None):
-        assert open(src, "rb").read() == b"aaabbb"  # Stücke in Reihenfolge zusammengesetzt
+        assert [open(x, "rb").read() for x in src] == [b"aaabbb", b"zz"]  # Stücke in Reihenfolge, zwei Clips
         open(out, "wb").write(b"v")
-        return {"kills": [1], "seconds": 3.0}
+        return {"kills": [1], "seconds": 3.0}  # noqa
 
     monkeypatch.setattr(memeclip, "make", fake)
     monkeypatch.setattr(clips, "start", lambda d, user=None: clips.render(d, user))
     c = _client()
     assert c.post("/clips/new", json={"video": "a.exe"}, headers=O).status_code == 400
-    jid = c.post("/clips/new", json={"video": "mein clip.mp4", "music_ss": "3"}, headers=O).json()["id"]
+    jid = c.post("/clips/new", json={"videos": ["mein clip.mp4", "b.mov"], "music_ss": "3"}, headers=O).json()["id"]
     assert "Upload nicht abgeschlossen" in c.get("/clips").text
     assert c.post(f"/clips/{jid}/start", headers=O).status_code == 404  # noch keine Datei
     for part in (b"aaa", b"bbb"):
         assert c.post(f"/clips/{jid}/chunk?kind=video", content=part, headers=O).json()["ok"]
+    assert c.post(f"/clips/{jid}/chunk?kind=video&n=1", content=b"zz", headers=O).json()["ok"]
+    assert c.post(f"/clips/{jid}/chunk?kind=video&n=2", content=b"zz", headers=O).status_code == 404
     assert c.post(f"/clips/{jid}/chunk?kind=video", content=b"x" * (2 * 1024 * 1024 + 1), headers=O).status_code == 413
     assert c.post(f"/clips/{jid}/start", headers=O).json()["ok"]
     assert clips.jobs("Hausi")[0]["status"] == "fertig"

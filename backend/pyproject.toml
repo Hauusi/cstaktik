@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "CS2-Coach: Post-Match-Analyse eigener Premier-Demos"
 requires-python = ">=3.11"
 dependencies = [
+    "pillow>=10",  # Clips: Songtext als Bild
     "awpy==2.0.2",
     "fastapi>=0.110",
     "uvicorn>=0.29",
@@ -30,7 +31,7 @@ build-backend = "setuptools.build_meta"
 include = ["cstaktik*"]
 
 [tool.setuptools.package-data]
-cstaktik = ["config/*.yaml", "report/templates/*.html", "web/*.html", "static/*.png", "vendor/cs_demo_downloader/*.js"]
+cstaktik = ["config/*.yaml", "report/templates/*.html", "web/*.html", "static/*.png", "static/fonts/*", "vendor/cs_demo_downloader/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

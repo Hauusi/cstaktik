@@ -109,29 +109,47 @@ def detect(path: str) -> list[dict]:
     return out
 
 
+def detect_all(srcs: list[str]) -> list[dict]:
+    """Kills aus mehreren Clips in Reihenfolge der Clips; jeder Kill kennt seinen Clip und dessen Länge."""
+    out = []
+    for src in srcs:
+        d = duration(src)
+        out += [{**k, "src": src, "dur": d} for k in detect(src)]
+    return out
+
+
 def plan(kills: list[dict], dur: float) -> list[dict]:
     """Schnittplan: Segmente in Reihenfolge. kind: lead (normal) | hit (Zoom-Schlag, Kill läuft in Zeitlupe aus) |
     hold (kurzes Standbild am Ende mit der Summe)."""
     segs: list[dict] = []
     end_prev = 0.0
     n = len(kills)
+    cur = None
     for k, kill in enumerate(kills, start=1):
+        dur = kill.get("dur", dur)
+        if kill.get("src") != cur:  # neuer Clip: wieder von vorne
+            cur, end_prev = kill.get("src"), 0.0
         t = max(kill["t"] - 0.10, 0.0)  # der Killfeed-Eintrag erscheint kurz nach dem Kill
         hit0, hit1 = max(t - HIT_BEFORE, end_prev), min(t + HIT_AFTER, dur)
         lead0 = max(hit0 - LEAD_S, end_prev)
         if hit0 - lead0 > 0.15:
-            segs.append({"kind": "lead", "ss": round(lead0, 3), "d": round(hit0 - lead0, 3)})
-        segs.append({"kind": "hit", "ss": round(hit0, 3), "d": round(hit1 - hit0, 3), "box": kill["box"],
+            segs.append({"kind": "lead", "ss": round(lead0, 3), "d": round(hit0 - lead0, 3), "src": kill.get("src")})
+        segs.append({"kind": "hit", "ss": round(hit0, 3), "d": round(hit1 - hit0, 3), "box": kill["box"], "src": kill.get("src"),
                      "feed_at": round(min(kill["t"] + 0.2, dur - 0.05), 3), "text": f"+{k}",
                      "kill_at": round((t - hit0) / SLOW, 3)})  # Kill-Moment im fertigen Segment: Zähler, Killfeed, Sound
         if k == n:
-            segs.append({"kind": "hold", "ss": round(max(hit1 - 0.03, 0), 3), "d": LAST_HOLD_S, "box": kill["box"],
+            segs.append({"kind": "hold", "ss": round(max(hit1 - 0.03, 0), 3), "d": LAST_HOLD_S, "box": kill["box"], "src": kill.get("src"),
                          "feed_at": round(min(kill["t"] + 0.2, dur - 0.05), 3), "text": f"{n} KILLS" if n > 1 else "KILL"})
         end_prev = hit1
     return segs
 
 
+FONT_FILE = Path(__file__).parent / "static" / "fonts" / "Anton-Regular.ttf"  # mitgeliefert (SIL Open Font License)
+
+
 def _font() -> str:
+    if FONT_FILE.exists():
+        return str(FONT_FILE)
     for want in ("Inter:style=ExtraBold", "DejaVu Sans:style=Bold", ":bold"):
         p = subprocess.run(["fc-match", "-f", "%{file}", want], capture_output=True, text=True).stdout.strip()
         if p:
@@ -148,7 +166,7 @@ def _vf(src: str, z: str, out: str) -> str:
     so verdeckt nichts den Kill. Kein Wackeln."""
     return (f"{src}split[m{out}][g{out}];"
             f"[g{out}]scale=-2:480,crop=270:480,boxblur=10:2,eq=brightness=-0.22,scale={OUT_W}:{OUT_H}[b{out}];"
-            f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=bilinear,crop={BOX}:{BOX}[f{out}];"
+            f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=bilinear,crop={BOX}:{BOX},eq=contrast=1.06:saturation=1.2[f{out}];"
             f"[b{out}][f{out}]overlay=0:{BOX_Y}[{out}]")
 
 
@@ -178,6 +196,7 @@ def _draw(text: str, font: str) -> str:
 
 
 def _render_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
+    src = seg.get("src") or src
     ss, d = seg["ss"], seg["d"]
     if seg["kind"] == "lead":  # normales Tempo, kein Zoom
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(ss), "-t", str(d), "-i", src, "-filter_complex",
@@ -210,7 +229,9 @@ def _render_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
 
 def make(src: str, out: str, progress=None) -> dict:
     """Clip analysieren und Hochformat-Video schreiben. Rückgabe: Kills, Segmente, Länge. Ohne Kill: ValueError."""
-    kills = detect(src)
+    srcs = [src] if isinstance(src, str) else list(src)
+    src = srcs[0]
+    kills = detect_all(srcs)
     if not kills:
         raise ValueError("Im Clip wurde kein eigener Kill gefunden (kein rot umrandeter Killfeed-Eintrag oben rechts).")
     segs = plan(kills, duration(src))
@@ -234,84 +255,101 @@ def make(src: str, out: str, progress=None) -> dict:
 
 
 # --- Beat-Edit: Musik gibt den Takt vor, jeder Kill fällt genau auf einen Schlag ------------------------------------
+# Warum so: Schnitte auf dem Schlag werden als angenehmer erlebt als Schnitte daneben (Studien zu Musikvideos, u. a.
+# Wenberg & Carlgren 2021). Deshalb: Kills und Schnitte nur auf Schlägen, fester Abstand zwischen den Kills (ein Takt),
+# der erste Kill früh (die ersten Sekunden entscheiden, ob jemand dranbleibt), und das Tempo gleitet in die Zeitlupe,
+# statt zu springen.
 
-APPROACH_SRC, APPROACH_SPEED, LEAD_SPEED = 0.30, 0.5, 1.6  # kurz vor dem Kill langsam, davor schneller Anlauf
+RAMP_V0, RAMP_V1 = 2.4, 0.45  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
+MAX_WORDS = 40
+
+
+def ramp_fit(gap: float, avail: float, v0max: float = RAMP_V0, v1: float = RAMP_V1) -> tuple[float, float, float]:
+    """Gleitendes Tempo von v0 auf v1, das genau ``gap`` Sekunden füllt. Rückgabe (Material in s, v0, v1).
+    Gibt es weniger Material als gewünscht, beginnt der Anlauf langsamer; reicht es gar nicht, läuft er gleichmäßig."""
+    from math import log
+
+    need = lambda v0: gap * (v0 - v1) / log(v0 / v1)  # noqa: E731
+    if avail >= need(v0max):
+        return round(need(v0max), 3), v0max, v1
+    if avail > gap * v1 * 1.05:
+        lo, hi = v1 * 1.01, v0max
+        for _ in range(40):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if need(mid) < avail else (lo, mid)
+        return round(need(lo), 3), round(lo, 4), v1
+    v = max(avail / gap, 0.05)
+    return round(avail, 3), round(v, 4), round(v, 4)
 
 
 def plan_beat(kills: list[dict], dur: float, beat_times: list[float]) -> dict:
-    """Schnittplan auf dem Beat-Raster. Jeder Kill bekommt einen Schlag; der Anlauf davor wird so gedehnt oder
-    gestaucht, dass der Kill-Moment exakt auf dem Schlag liegt. Rückgabe: Segmente mit ``out`` (Länge im fertigen
-    Video) und ``o0`` (Startzeit im fertigen Video), dazu die Gesamtlänge."""
+    """Schnittplan auf dem Beat-Raster: je Kill ein gleitender Anlauf (``ramp``), der Kill auf dem Schlag (``hit``,
+    ein Schlag lang in Zeitlupe), danach Schnitt auf dem nächsten Schlag. Am Ende ``hold`` mit der Summe."""
     n, nb = len(kills), len(beat_times)
     if nb < 6:
         raise ValueError("Zu wenige Schläge im Musik-Ausschnitt.")
     beat = (beat_times[-1] - beat_times[0]) / (nb - 1)
-    first = min(4, max(nb - 3 - (n - 1) * 2, 1))            # erster Kill nach etwa 4 Schlägen
-    step = max(2, min(8, (nb - 3 - first) // max(n - 1, 1)))  # Abstand der Kills in Schlägen
-    step -= step % 2 if step > 2 else 0
-    used = [k for k in range(n) if first + k * step < nb - 1]  # passen nicht alle Kills in die Musik: die ersten
-    segs, o, src_prev = [], 0.0, 0.0
+    first = 2 if beat_times[2] >= 0.9 else 3                      # erster Kill früh
+    step = 4 if first + (n - 1) * 4 < nb - 1 else 2                # ein Takt Abstand, bei wenig Musik ein halber
+    used = [k for k in range(n) if first + k * step < nb - 1]      # passen nicht alle Kills in die Musik: die ersten
+    segs, o, src_prev, cur = [], 0.0, 0.0, None
     for j, k in enumerate(used):
         kill = kills[k]
+        cdur = kill.get("dur", dur)
+        if kill.get("src") != cur:
+            cur, src_prev = kill.get("src"), 0.0
         ks = max(kill["t"] - 0.10, 0.0)               # Kill-Moment im Clip
-        kb = beat_times[first + j * step]             # Schlag, auf dem er landen soll
+        kb = beat_times[first + j * step]             # Schlag, auf dem er landet
         gap = kb - o
-        ap_src = min(APPROACH_SRC, max(ks - src_prev, 0.0))
-        ap_out = min(ap_src / APPROACH_SPEED, gap)
-        lead_out = gap - ap_out
-        if lead_out > 0.05:
-            want = lead_out * LEAD_SPEED
-            have = max(ks - ap_src - src_prev, 0.0)
-            src_len = min(want, have) if have > 0.05 else 0.0
-            if src_len > 0.05:
-                segs.append({"kind": "lead", "ss": round(ks - ap_src - src_len, 3), "d": round(src_len, 3),
-                             "out": round(lead_out, 3), "o0": round(o, 3)})
-            else:
-                ap_out = gap                           # kein Material für den Anlauf: Annäherung füllt die Lücke
-        if ap_src > 0.02:
-            segs.append({"kind": "approach", "ss": round(ks - ap_src, 3), "d": round(ap_src, 3), "out": round(ap_out, 3),
-                         "o0": round(kb - ap_out, 3)})
-        after_src = min(beat * SLOW, max(dur - ks - 0.02, 0.05))
+        avail = max(ks - src_prev, 0.0)
+        if avail < gap * 0.25:                        # kaum neues Material: früheres noch einmal zeigen
+            avail = min(ks, gap)
+        if avail > 0.05 and gap > 0.05:
+            d, v0, v1 = ramp_fit(gap, avail)
+            segs.append({"kind": "ramp", "ss": round(ks - d, 3), "d": d, "out": round(gap, 3), "o0": round(o, 3),
+                         "v0": v0, "v1": v1, "src": kill.get("src")})
+        else:
+            kb = o                                    # kein Anlauf möglich: Kill direkt
+        after_src = min(beat * SLOW, max(cdur - ks - 0.02, 0.05))
         segs.append({"kind": "hit", "ss": round(ks, 3), "d": round(after_src, 3), "out": round(beat, 3), "o0": round(kb, 3),
-                     "box": kill["box"], "feed_at": round(min(kill["t"] + 0.2, dur - 0.05), 3), "text": f"+{j + 1}",
-                     "kill_at": 0.0})
+                     "box": kill["box"], "feed_at": round(min(kill["t"] + 0.2, cdur - 0.05), 3), "text": f"+{j + 1}",
+                     "kill_at": 0.0, "src": kill.get("src")})
         o, src_prev = kb + beat, ks + after_src
     last = segs[-1]
-    hold = min(2 * beat, max(beat_times[-1] + beat - o, beat))
+    hold = 2 * beat
     segs.append({"kind": "hold", "ss": round(max(last["ss"] + last["d"] - 0.03, 0), 3), "d": round(hold, 3),
                  "out": round(hold, 3), "o0": round(o, 3), "box": last["box"], "feed_at": last["feed_at"],
-                 "text": f"{len(used)} KILLS" if len(used) > 1 else "KILL"})
+                 "text": f"{len(used)} KILLS" if len(used) > 1 else "KILL", "src": last.get("src")})
     return {"segments": segs, "seconds": round(o + hold, 3), "beat": round(beat, 4), "kills_used": len(used)}
 
 
-def _pulse(seg: dict, beat_times: list[float], amp: float = 0.07) -> str:
-    """Zoom-Stoß auf jedem Schlag innerhalb eines Segments (klingt schnell ab)."""
-    local = [round(b - seg["o0"], 3) for b in beat_times if seg["o0"] - 0.001 <= b < seg["o0"] + seg["out"] - 0.05]
-    return "1" + "".join(f"+{amp}*gte(t\\,{b})*exp(-11*(t-{b}))" for b in local[:10])
-
-
-def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str, beat_times: list[float]) -> None:
-    """Ein Segment des Beat-Edits: Tempo so, dass es genau ``out`` Sekunden füllt. Spielton leise, tiefer bei Zeitlupe."""
+def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
+    """Ein Segment des Beat-Edits, genau ``out`` Sekunden lang. Spielton leise unter der Musik."""
+    src = seg.get("src") or src
     if seg["kind"] == "hold":
         _render_seg(src, seg, out, tmp, font)
         return
-    speed = seg["d"] / seg["out"]
-    vol = 0.9 if seg["kind"] == "hit" else 0.55
-    audio = (f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,asetrate=48000*{speed:.5f},aresample=48000,"
-             f"apad=whole_dur={seg['out']},atrim=0:{seg['out']},volume={vol}[a]")
+    speed = max(seg["d"] / seg["out"], 0.05)
+    tempo = ",".join(["atempo=0.5"] * (1 if speed < 0.5 else 0) + [f"atempo={max(speed, 0.5) if speed >= 0.5 else speed / 0.5:.5f}"])
+    audio = (f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,{tempo},apad=whole_dur={seg['out']},atrim=0:{seg['out']},"
+             f"volume={0.9 if seg['kind'] == 'hit' else 0.5}[a]")
+    tail = f"fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}"
     if seg["kind"] == "hit":
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
         fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'bg')};"
               f"[bg]fade=t=in:st=0:d=0.05:color=white[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];"
-              f"[v0]{_draw(seg['text'], font)},fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}[v];{audio}")
+              f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
-    z = "1"  # ruhiges Bild: kein Zoom im Anlauf, damit man den Kill kommen sieht
-    fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'c')};"
-          f"[c]fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}[v];{audio}")
-    _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src,
+    v0, v1, d = seg["v0"], seg["v1"], seg["d"]
+    if abs(v0 - v1) < 1e-3:
+        pts = f"(PTS-STARTPTS)/{v0:.5f}"
+    else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
+        pts = f"({d}/({v1}-{v0}))*log(({v0}+({v1}-{v0})*((PTS-STARTPTS)*TB)/{d})/{v0})/TB"
+    fc = f"[0:v]scale={W}:{H},setpts='{pts}'[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
+    _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d), "-i", src,
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 
 
@@ -335,58 +373,92 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
     return [(round(a, 3), round(b, 3), t) for a, b, t in out]
 
 
-LYRIC_COLORS = ["white", "0xFFD23F", "white", "0x4DE08A", "white", "0xFF5A6E"]
+LYRIC_COLORS = [((255, 255, 255), (255, 159, 28)), ((255, 210, 63), (20, 20, 20)), ((255, 255, 255), (240, 86, 106)),
+                ((77, 224, 138), (20, 20, 20)), ((255, 255, 255), (74, 138, 224)), ((255, 90, 110), (20, 20, 20))]
+LYRIC_DY = (-130, 110, -10, 150, -90, 60)
+LYRIC_ROT = (-5, 4, -3, 5, -4, 3)
 
 
-def make_beat(src: str, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
+def word_png(text: str, path: Path, j: int, font_file: str) -> None:
+    """Ein Wort als Bild: fette, enge Großbuchstaben, die die Breite füllen, schräg gestellt und leicht gedreht,
+    dicker schwarzer Rand und ein farbiger, versetzter Schatten. Farbe und Drehung wechseln von Wort zu Wort."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    text = text.upper()
+    fill, shadow = LYRIC_COLORS[j % len(LYRIC_COLORS)]
+    size = 330
+    while size > 90:
+        font = ImageFont.truetype(font_file, size)
+        l, t, r, b = font.getbbox(text)
+        if r - l <= 860:
+            break
+        size -= 10
+    stroke, off = max(size // 13, 6), max(size // 16, 8)
+    w, h = r - l + 2 * stroke + off + 80, b - t + 2 * stroke + off + 60
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    dr = ImageDraw.Draw(img)
+    x, y = 40 + stroke - l, 30 + stroke - t
+    dr.text((x + off, y + off), text, font=font, fill=(*shadow, 255), stroke_width=stroke, stroke_fill=(*shadow, 255))
+    dr.text((x, y), text, font=font, fill=(*fill, 255), stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+    sh = 0.16  # schräg stellen (die Schrift hat keinen Kursiv-Schnitt)
+    img = img.transform((w + int(sh * h), h), Image.AFFINE, (1, sh, -sh * h, 0, 1, 0), Image.BICUBIC)
+    img.rotate(LYRIC_ROT[j % len(LYRIC_ROT)], expand=True, resample=Image.BICUBIC).save(path)
+
+
+def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None) -> dict:
-    """Beat-Edit: Musik-Ausschnitt gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort für Wort in der
-    Bildmitte. ``words``: Wörter in Reihenfolge (ein Wort je Schlag) oder "Sekunde:WORT" für feste Zeiten."""
+    """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
+    für Wort. ``words``: Wörter in Reihenfolge (ein Wort je Schlag) oder "Sekunde:WORT" für feste Zeiten."""
     from cstaktik import beats as beatmod
 
-    kills = detect(src)
+    srcs = [src] if isinstance(src, str) else list(src)
+    kills = detect_all(srcs)
     if not kills:
-        raise ValueError("Im Clip wurde kein eigener Kill gefunden (kein rot umrandeter Killfeed-Eintrag oben rechts).")
+        raise ValueError("In den Clips wurde kein eigener Kill gefunden (kein rot umrandeter Killfeed-Eintrag oben rechts).")
     bt = beatmod.beats(music, music_ss, music_d)
-    pl = plan_beat(kills, duration(src), bt["beats"])
+    pl = plan_beat(kills, duration(srcs[0]), bt["beats"])
     font = _font()
+    shown = 0
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         files = []
         for i, seg in enumerate(pl["segments"]):
             f = tmp / f"b{i:03d}.mp4"
-            _render_beat_seg(src, seg, f, tmp, font, bt["beats"])
+            _render_beat_seg(srcs[0], seg, f, tmp, font)
             files.append(f)
             if progress:
-                progress(i + 1, len(pl["segments"]))
+                progress(i + 1, len(pl["segments"]) + 1)
         n = len(files)
         ins = [x for f in files for x in ("-i", str(f))]
         total = pl["seconds"]
-        draw = []
+        fc = "".join(f"[{i}:v][{i}:a]" for i in range(n)) + f"concat=n={n}:v=1:a=1[v0][ga];"
+        last, k = "v0", n + 1  # Eingang n ist die Musik, danach je Wort ein Bild
         if font and words:
             # während eines Kills gehört die Bildmitte dem Kill: dort kein Songtext
             quiet = "".join(f"*(1-between(t,{x['o0']},{round(x['o0'] + x['out'], 3)}))"
                             for x in pl["segments"] if x["kind"] in ("hit", "hold"))
-            for j, (a, b, txt) in enumerate(word_times(words, bt["beats"])):
-                if a >= total:
-                    break
-                txt = txt.replace(":", r"\\:").replace("'", "").upper()
-                base = 210 if len(txt) <= 5 else 170 if len(txt) <= 8 else 125  # kurze Wörter größer
-                dy = (-150, 90, -40, 150, -100, 40)[j % 6]                       # Wörter springen in der Höhe
-                draw.append(f"drawtext=fontfile='{font}':text='{txt}':fontsize='{base}+90*exp(-18*max(t-{a},0))':"
-                            f"fontcolor={LYRIC_COLORS[j % len(LYRIC_COLORS)]}:borderw=14:bordercolor=black:"
-                            f"shadowcolor=black@0.6:shadowx=10:shadowy=10:"
-                            f"x=(w-text_w)/2:y={BOX_Y + BOX // 2 + dy}-text_h/2:enable='between(t,{a},{min(b, total)}){quiet}'")
-        fc = ("".join(f"[{i}:v][{i}:a]" for i in range(n)) + f"concat=n={n}:v=1:a=1[v0][ga];"
-              f"[v0]{','.join(draw) if draw else 'null'}[v];"
-              f"[{n}:a]aresample=48000,afade=t=out:st={max(total - 0.4, 0):.3f}:d=0.4[mu];"
-              f"[ga][mu]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]")
-        _run(["ffmpeg", "-v", "error", "-y", *ins, "-ss", str(music_ss), "-t", str(total), "-i", music,
+            for j, (a, b, txt) in enumerate(word_times(words, bt["beats"])[:MAX_WORDS]):
+                if a >= total or not txt.strip():
+                    continue
+                png = tmp / f"w{j:02d}.png"
+                word_png(txt, png, j, font)
+                ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(png)]
+                cy = BOX_Y + BOX // 2 + LYRIC_DY[j % len(LYRIC_DY)]
+                fc += (f"[{k}:v]format=rgba,scale=w='2*trunc(iw*(1+0.55*exp(-22*max(t-{a}\\,0)))/2)':h=-2:eval=frame[w{j}];"
+                       f"[{last}][w{j}]overlay=x='(W-w)/2':y='{cy}-h/2':eval=frame:"
+                       f"enable='between(t,{a},{min(b, total)}){quiet}'[t{j}];")
+                last, k, shown = f"t{j}", k + 1, shown + 1
+        fc += (f"[{last}]null[v];[{n}:a]aresample=48000,afade=t=out:st={max(total - 0.4, 0):.3f}:d=0.4[mu];"
+               f"[ga][mu]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]")
+        ins_music = ["-ss", str(music_ss), "-t", str(total), "-i", music]
+        _run(["ffmpeg", "-v", "error", "-y", *ins[:2 * n], *ins_music, *ins[2 * n:],
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total),
               "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
               "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out])
+        if progress:
+            progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
-            "segments": pl["segments"]}
+            "segments": pl["segments"], "words": shown, "clips": len(srcs)}
 
 
 if __name__ == "__main__":
