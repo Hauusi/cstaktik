@@ -113,3 +113,15 @@ def test_sync_anchors_put_shots_on_eighth_notes():
         assert memeclip.SYNC_MIN <= (x1 - x0) / (y1 - y0) <= memeclip.SYNC_MAX
     assert len(anc) >= 4  # mehrere Schüsse eingerastet
     assert memeclip.sync_anchors([], 1.0, 3.2, 1.5, half) == [(1.0, 0.0), (3.2, 1.5)]
+
+
+def test_align_lyrics_keeps_text_and_fills_gaps():
+    typed = "Talk to me baby im going blind".split()
+    sung = ["1.00-1.20:talk", "1.25-1.40:too", "1.45-1.60:me", "1.65-2.40:Baby", "3.00-3.20:I'm", "3.80-4.10:blind"]
+    out = memeclip.align_lyrics(typed, sung, 10.0)
+    assert [w.split(":", 1)[1] for w in out] == typed  # Text bleibt der eingefügte, vollständig
+    assert out[0] == "1.00-1.20:Talk" and out[3] == "1.65-2.40:baby" and out[6] == "3.80-4.10:blind"
+    t_to, t_going = float(out[1].split(":")[0]), float(out[5].split(":")[0])
+    assert 1.2 < t_to < 1.45 and 3.0 < t_going < 3.8  # verpasste Wörter zwischen die Nachbarn verteilt
+    assert memeclip.align_lyrics(typed, None, 10.0) == typed
+    assert memeclip.align_lyrics(typed, ["1.0-1.2:xyz"], 10.0) == typed  # nichts passt: unverändert

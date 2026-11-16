@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 425 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 426 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips: eingefügter Songtext wird mit der Spracherkennung auf den Gesang gelegt (`align_lyrics`, difflib), verpasste Wörter zwischen die Nachbarn verteilt, Text bleibt der eingefügte. Hinweis auf /clips: Text am besten einfügen.
 
 - 2026-11-16: Spracherkennung bei Musik robuster (beam 5, kein Abbruch bei unsicheren Stücken,
   condition_on_previous_text aus); /clips zeigt, wie viele Wörter von wann bis wann erkannt wurden (Nutzer: Lyrics nur

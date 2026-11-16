@@ -645,6 +645,53 @@ def sung_words(music: str, ss: float, d: float) -> list[str] | None:
         return None
 
 
+def _norm(w: str) -> str:
+    import re
+
+    return re.sub(r"[^0-9a-zäöüß]", "", w.lower())
+
+
+def align_lyrics(typed: list[str], sung: list[str] | None, d: float) -> list[str]:
+    """Eingefügten Songtext zeitlich auf den Gesang legen. ``sung``: erkannte Wörter "a-e:WORT".
+    Gleiche Wörter in derselben Reihenfolge bekommen die Zeit aus der Erkennung; Wörter dazwischen, die die
+    Erkennung verpasst oder falsch verstanden hat, werden gleichmäßig zwischen die Nachbarn verteilt. Der Text
+    bleibt immer der eingefügte. Ohne Erkennung: unverändert (dann ein Wort je Schlag)."""
+    import difflib
+
+    if not sung or not typed:
+        return typed
+    rec = []
+    for w in sung:
+        tm, txt = w.split(":", 1)
+        a, e = (float(x) for x in tm.split("-")) if "-" in tm else (float(tm), float(tm) + 0.3)
+        rec.append((a, e, txt))
+    sm = difflib.SequenceMatcher(a=[_norm(x) for x in typed], b=[_norm(x[2]) for x in rec], autojunk=False)
+    times: list[tuple[float, float] | None] = [None] * len(typed)
+    for blk in sm.get_matching_blocks():
+        for k in range(blk.size):
+            a, e, _ = rec[blk.b + k]
+            times[blk.a + k] = (a, e)
+    if not any(times):
+        return typed  # nichts passt zusammen (anderer Text oder anderer Ausschnitt): ein Wort je Schlag
+    out, i = [], 0
+    while i < len(typed):
+        if times[i] is not None:
+            a, e = times[i]
+            out.append(f"{a:.2f}-{e:.2f}:{typed[i]}")
+            i += 1
+            continue
+        j = i
+        while j < len(typed) and times[j] is None:
+            j += 1
+        start = times[i - 1][1] if i > 0 else max((times[j][0] if j < len(typed) else d) - 0.35 * (j - i), 0.0)
+        end = times[j][0] if j < len(typed) else min(d, start + 0.35 * (j - i))
+        step = max(end - start, 0.0) / (j - i + 1)
+        for k in range(i, j):
+            out.append(f"{start + step * (k - i + 1):.2f}:{typed[k]}")
+        i = j
+    return out
+
+
 LYRIC_COLORS = [((255, 255, 255), (255, 159, 28)), ((255, 210, 63), (20, 20, 20)), ((255, 255, 255), (240, 86, 106)),
                 ((77, 224, 138), (20, 20, 20)), ((255, 255, 255), (74, 138, 224)), ((255, 90, 110), (20, 20, 20))]
 LYRIC_DY = (0, -40, 20, -25, 35, -15)  # kleine Sprünge im unteren Drittel des Spielbilds
@@ -707,7 +754,12 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     pl = plan_beat(kills, duration(srcs[0]), bt["beats"], mots, bt.get("strength"), shot_times)
     font = _font()
     shown, source = 0, "eingetragen" if words else None
-    if not words:  # kein Text eingetragen: aus dem Gesang erkennen, falls die Spracherkennung installiert ist
+    if words and not any(":" in w for w in words):
+        # Text eingefügt: mit der Spracherkennung (falls installiert) auf den Gesang legen, Text bleibt der eigene
+        sung = sung_words(music, music_ss, pl["seconds"])
+        if sung:
+            words, source = align_lyrics(words, sung, pl["seconds"]), "ausgerichtet"
+    elif not words:  # kein Text eingetragen: aus dem Gesang erkennen, falls die Spracherkennung installiert ist
         words = sung_words(music, music_ss, pl["seconds"])
         source = "erkannt" if words else None
     with tempfile.TemporaryDirectory() as td:

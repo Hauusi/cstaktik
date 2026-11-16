@@ -37,9 +37,9 @@
       <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>
       <label for="cs">Start in der Musik (Sekunde)</label>
       <input id="cs" type="text" name="music_ss" inputmode="decimal" placeholder="0">
-      <label for="cl">Songtext für den Ausschnitt (leer lassen = automatisch erkennen, falls installiert)</label>
+      <label for="cl">Songtext für den Ausschnitt (am besten einfügen)</label>
       <textarea id="cl" name="lyrics" rows="2" maxlength="600" placeholder="Wörter mit Leerzeichen. Ein Wort je Schlag."></textarea>
-      <small>Das Tool legt ein Wort auf jeden Schlag. Für eine genaue Stelle: Sekunde und Wort mit Doppelpunkt, zum Beispiel 1.45:WORT</small>
+      <small>Das Tool legt ein Wort auf jeden Schlag. Am besten: Text des Ausschnitts aus dem Netz kopieren und einfügen. Das Tool legt die Wörter dann automatisch auf den Gesang, der Text bleibt richtig. Leer lassen: Das Tool versucht, den Gesang selbst zu verstehen, das klappt bei lauter Musik oft nur teilweise.</small>
     </div>
   </details>
   <button type="submit" id="cgo">Hochladen und schneiden</button>
@@ -63,7 +63,8 @@
   {% if j.status == "fertig" and j.has_video %}
   <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.synced %} · {{ j.synced }} {{ "Schuss" if j.synced == 1 else "Schüsse" }} auf dem Beat{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
   {% if j.music and j.words %}<div class="st">Auf Wänden: {% if j.wall %}{{ j.wall.wall }} {{ "Wort" if j.wall.wall == 1 else "Wörter" }}{% if j.wall.flat %}, bei {{ j.wall.flat }} keine Wand gefunden (flach gezeigt){% endif %}{% else %}keins (kein Wort hatte genug Zeit ohne Kill dazwischen){% endif %}.</div>{% endif %}
-  {% if j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt: {{ j.lyrics_note }} Fehlen Wörter oder stimmen sie nicht, trag den Text beim nächsten Mal selbst ein.</div>
+  {% if j.music and j.lyrics_source == "ausgerichtet" %}<div class="st">Dein Songtext wurde auf den Gesang gelegt ({{ j.lyrics_note }}).</div>
+  {% elif j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt: {{ j.lyrics_note }} Fehlen Wörter oder stimmen sie nicht, trag den Text beim nächsten Mal selbst ein.</div>
   {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext. {{ j.lyrics_note or "Die Spracherkennung hat nichts geliefert." }}</div>{% endif %}
   {% if j.music and (j.lyrics or j.lyrics_source) and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
   <video controls playsinline preload="metadata" src="/clips/{{ j.id }}/video"></video>
