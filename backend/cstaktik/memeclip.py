@@ -417,20 +417,24 @@ def sung_words(music: str, ss: float, d: float) -> list[str] | None:
         return None
 
     try:
-        with tempfile.TemporaryDirectory() as td:
-            wav = str(Path(td) / "a.wav")
-            _run(["ffmpeg", "-v", "error", "-y", "-ss", str(ss), "-t", str(d), "-i", music, "-vn", "-ac", "1", "-ar", "16000", wav])
-            model = WhisperModel("small", device="cpu", compute_type="int8")
-            segs, _info = model.transcribe(wav, word_timestamps=True)
-            out = []
-            for sg in segs:
-                for w in sg.words or []:
-                    txt = re.sub(r"[^0-9A-Za-zÄÖÜäöüß'-]", "", w.word)
-                    if txt:
-                        out.append(f"{max(w.start, 0):.2f}:{txt}")
-            if not out:
-                SUNG_NOTE = "Die Spracherkennung lief, hat in diesem Ausschnitt aber keine Wörter erkannt."
-            return out or None
+        import numpy as np
+
+        # Ton selbst einlesen (16 kHz, Mono) und als Zahlenreihe übergeben: So braucht die Erkennung ihre eigene
+        # Datei-Bibliothek (PyAV) nicht, die auf manchen Servern zu alt ist.
+        raw = _run(["ffmpeg", "-v", "error", "-ss", str(ss), "-t", str(d), "-i", music, "-vn", "-ac", "1", "-ar", "16000",
+                    "-f", "f32le", "-"])
+        audio = np.frombuffer(raw, np.float32)
+        model = WhisperModel("small", device="cpu", compute_type="int8")
+        segs, _info = model.transcribe(audio, word_timestamps=True)
+        out = []
+        for sg in segs:
+            for w in sg.words or []:
+                txt = re.sub(r"[^0-9A-Za-zÄÖÜäöüß'-]", "", w.word)
+                if txt:
+                    out.append(f"{max(w.start, 0):.2f}:{txt}")
+        if not out:
+            SUNG_NOTE = "Die Spracherkennung lief, hat in diesem Ausschnitt aber keine Wörter erkannt."
+        return out or None
     except Exception as e:  # noqa: BLE001 - ohne Erkennung läuft der Schnitt trotzdem
         SUNG_NOTE = f"Die Spracherkennung ist installiert, aber fehlgeschlagen: {type(e).__name__}: {str(e)[:300]}"
         return None

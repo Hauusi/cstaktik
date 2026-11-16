@@ -265,6 +265,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: `sung_words` liest den Ton selbst per ffmpeg ein und übergibt ihn als Array (auf dem Server scheiterte
+  die Erkennung an einer alten PyAV-Version: open() ... metadata_errors).
+
 - 2026-11-16: Clips: genauer Grund, wenn kein Songtext erkannt wurde (`memeclip.SUNG_NOTE`: nicht installiert mit
   Python-Pfad der App und Installationsbefehl, fehlgeschlagen mit Fehlertext, oder keine Wörter erkannt).
 
