@@ -158,6 +158,21 @@ def _font() -> str:
 
 
 BOX, BOX_Y = 1080, 440  # Spielbild als Quadrat in der Mitte: zeigt mehr Breite als ein voller Hochformat-Schnitt
+BOX_X = 0  # Querformat: Bereich für die Wand-Suche (mittleres Quadrat)
+LANDSCAPE = False
+SHOW_COUNTER = False  # "+1"-Zähler, Killfeed-Einblendung und "3 KILLS" am Ende (Vorbild: nichts davon)
+FORMATS = {"hoch": "Hochformat 9:16 (TikTok, Shorts, Reels)", "quer": "Querformat 16:9 (YouTube)"}
+
+
+def set_layout(fmt: str = "hoch") -> None:
+    """Ausgabeformat: "hoch" 1080x1920 (Spielbild als Quadrat auf unscharfem Hintergrund) oder "quer" 1920x1080
+    (ganzes Spielbild wie im Vorbild). Gilt für den nächsten Schnitt (es läuft immer nur einer)."""
+    global OUT_W, OUT_H, BOX, BOX_Y, BOX_X, LANDSCAPE
+    LANDSCAPE = fmt == "quer"
+    if LANDSCAPE:
+        OUT_W, OUT_H, BOX, BOX_Y, BOX_X = 1920, 1080, 1080, 0, 420
+    else:
+        OUT_W, OUT_H, BOX, BOX_Y, BOX_X = 1080, 1920, 1080, 440, 0
 
 
 # Farbabstimmung, gemessen am TikTok-Vorbild des Nutzers (Spielbild): Sättigung 0,48, Wärme (R−B) 0,23; unser
@@ -192,7 +207,10 @@ def brightness_offsets(lumas: dict) -> dict:
 def _vf(src: str, z: str, out: str, b: float = 0.0) -> str:
     """Hochformat-Aufbau: unscharfer, dunkler Hintergrund aus demselben Bild, darauf das Spielbild als Quadrat
     (Zoom auf die Bildmitte, dort ist das Fadenkreuz). Oben bleibt Platz für den Killfeed, unten für den Zähler,
-    so verdeckt nichts den Kill. Kein Wackeln."""
+    so verdeckt nichts den Kill. Kein Wackeln. Querformat: das ganze Spielbild, ohne Hintergrund."""
+    if LANDSCAPE:
+        return (f"{src}scale=w='2*trunc({OUT_W // 2}*({z}))':h=-2:eval=frame:flags=lanczos,crop={OUT_W}:{OUT_H},"
+                f"{SHARPEN}eq=contrast=1.06:saturation={SAT}:brightness={b},{LOOK}[{out}]")
     return (f"{src}split[m{out}][g{out}];"
             f"[g{out}]scale=-2:480,crop=270:480,boxblur=10:2,eq=brightness=-0.22,scale={OUT_W}:{OUT_H}[b{out}];"
             f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=lanczos,crop={BOX}:{BOX},{SHARPEN}eq=contrast=1.06:saturation={SAT}:brightness={b},{LOOK}[f{out}];"
@@ -268,6 +286,7 @@ def _render_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
 
 def make(src: str, out: str, progress=None) -> dict:
     """Clip analysieren und Hochformat-Video schreiben. Rückgabe: Kills, Segmente, Länge. Ohne Kill: ValueError."""
+    set_layout("hoch")
     srcs = [src] if isinstance(src, str) else list(src)
     src = srcs[0]
     kills = detect_all(srcs)
@@ -579,7 +598,8 @@ def _render_end(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float =
     Kein Effektton: das Ende gehört der Musik, die auf einem Taktanfang endet."""
     kf = _feed_png(src, seg, tmp, out.stem)
     tail = f"setsar=1,fps={OUT_FPS},tpad=stop_mode=clone:stop_duration={seg['out'] + 1},trim=0:{seg['out']}"
-    over = f"[bg][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];[v0]{_draw(seg['text'], font)},{tail}[v]"
+    over = (f"[bg][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];[v0]{_draw(seg['text'], font)},{tail}[v]" if SHOW_COUNTER
+            else f"[bg]{tail}[v]")
     silent = f"anullsrc=r=48000:cl=stereo,atrim=0:{seg['out']}[a]"
     if seg["d"] >= 0.2:
         speed = max(seg["d"] / seg["out"], 0.05)
@@ -632,8 +652,9 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
         fc = (f"[0:v]scale={W}:{H},{DEDUP}{hit_pts(seg, speed)},"
               + (MCI_VF if MCI else f"minterpolate=fps={OUT_FPS}:mi_mode=blend") + f"[s];{_vf('[s]', z, 'bg', b)};"
               f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
-              f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];"
-              f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
+              f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];"
+              + (f"[fl][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];[v0]{_draw(seg['text'], font)},{tail}[v];" if SHOW_COUNTER
+                 else f"[fl]{tail}[v];") + audio)
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -714,7 +735,7 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
     return [(x["a"], x["b"], x["txt"]) for x in word_list(words, beat_times, per_beat)]
 
 
-def wall_picks(ws: list[dict], max_share: float = 0.6) -> set[int]:
+def wall_picks(ws: list[dict], max_share: float = 0.25) -> set[int]:
     """Welche Wörter an die Wand: die, bei denen sich der Sänger Zeit lässt. Punkte = wie lange das Wort gesungen
     wird + die Pause danach (bis zum nächsten Wort). Gezogene Wörter vor einer Pause gewinnen. Nur Wörter mit
     mindestens 0,35 s gesungen oder 0,25 s Pause danach, höchstens ``max_share`` aller Wörter, mindestens eins.
@@ -902,11 +923,11 @@ def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) 
 
     text = printable(text, font_file)
     fill, shadow = LYRIC_COLORS[j % len(LYRIC_COLORS)]
-    size = 260 if wall else 150  # flach: klein genug, dass der Kill sichtbar bleibt; Wand: groß, wird verkleinert
+    size = 260 if wall else 240  # groß wie im Vorbild; Wand: wird später perspektivisch verkleinert
     while size > 60:
         font = ImageFont.truetype(font_file, size)
         l, t, r, b = font.getbbox(text)
-        if r - l <= (1000 if wall else 640):
+        if r - l <= (1000 if wall else min(int(OUT_W * 0.8), 1400)):
             break
         size -= 10
     stroke, off = max(size // 13, 6), max(size // 16, 8)
@@ -1023,11 +1044,12 @@ def level_chain(path: str, target: float = None) -> str:
 
 
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
-              words: list[str] | None = None, progress=None, song: str | None = None) -> dict:
+              words: list[str] | None = None, progress=None, song: str | None = None, fmt: str = "hoch") -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
     für Wort. ``words``: Wörter in Reihenfolge (ein Wort je Schlag) oder "Sekunde:WORT" für feste Zeiten."""
     from cstaktik import beats as beatmod
 
+    set_layout(fmt)
     srcs = [src] if isinstance(src, str) else list(src)
     kills = detect_all(srcs)
     # Peak-End-Regel: Erinnert werden vor allem Höhepunkt und Ende. Der Clip mit den meisten Kills kommt zuletzt.
@@ -1164,8 +1186,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(png)]
                 # während eines Kills gehört die Bildmitte dem Kill: das Wort steht dann kleiner am unteren Bildrand
                 low = any(x0 - 0.05 <= a < x1 - 0.05 for x0, x1 in busy)
-                cy = BOX_Y + BOX - 95 if low else BOX_Y + int(BOX * 0.80) + LYRIC_DY[j % len(LYRIC_DY)]
-                sc = 0.7 if low else 1.0
+                # groß in der Bildmitte (Vorbild); während eines Kills etwas tiefer und kleiner, der Treffer bleibt frei
+                mid = OUT_H // 2
+                cy = mid + int(BOX * 0.30) if low else mid + LYRIC_DY[j % len(LYRIC_DY)]
+                sc = 0.75 if low else 1.0
                 fc += (f"[{k}:v]format=rgba,scale=w='2*trunc(iw*{sc}*(1+0.2*exp(-22*max(t-{a}\\,0)))/2)':h=-2:eval=frame[w{j}];"
                        f"[{last}][w{j}]overlay=x='(W-w)/2':y='{cy}-h/2':eval=frame:"
                        f"enable='between(t,{a},{min(b, total)})'[t{j}];")
@@ -1197,7 +1221,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             from cstaktik import wall_text
 
             wall_stats = wall_text.apply(str(tmp / "flat.mp4"), out, wall_words, BOX_Y, BOX, OUT_FPS,
-                                         BOX_Y + int(BOX * 0.80),
+                                         OUT_H // 2, size=(OUT_W, OUT_H), box_x=BOX_X, enc=
                                          ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
                                           "-movflags", "+faststart"])
         if progress:

@@ -32,6 +32,8 @@
   <small>Der Killfeed oben rechts muss im Bild sein: Daran erkennt das Tool deine Kills. Mehrere Clips ergeben ein längeres Video, in der Reihenfolge von oben nach unten. Je Clip höchstens 400 MB.</small>
   <details><summary>Mit Musik (Kills auf den Beat)</summary>
     <div style="display:grid;gap:10px;margin-top:10px">
+      <label for="cf">Format</label>
+      <select id="cf" name="fmt"><option value="hoch">Hochformat 9:16 (TikTok, Shorts, Reels)</option><option value="quer">Querformat 16:9 (YouTube), ganzes Spielbild</option></select>
       <label for="cm">Musik</label>
       <input id="cm" type="file" name="music" accept="audio/*">
       <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>
@@ -167,7 +169,7 @@
     var total = vs.reduce(function (a, x) { return a + x.size; }, 0) + (m ? m.size : 0);
     if (vs.some(function (x) { return !x.size; }) || (m && !m.size)) total = 0;  // Größe unbekannt: nur MB anzeigen
     sent = 0;
-    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value, song: f.song.value}), true)
+    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value}), true)
       .then(function (j) {
         var chain = Promise.resolve();
         vs.forEach(function (v, i) { chain = chain.then(function () { return send(j.id, "video&n=" + i, v, total); }).then(function (n) {

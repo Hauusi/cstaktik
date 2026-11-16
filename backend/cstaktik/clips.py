@@ -106,7 +106,8 @@ def render(d: Path, user: str | None = None) -> None:
                     ss = beats.drop_start(music, drop) if drop is not None else 0.0
                     set_state(d, music_auto=drop is not None, music_used=ss)
                 r = memeclip.make_beat(src, music, str(d / "out.mp4"), music_ss=ss,
-                                       words=words or None, progress=prog, song=st.get("song") or None)
+                                       words=words or None, progress=prog, song=st.get("song") or None,
+                                       fmt="quer" if st.get("fmt") == "quer" else "hoch")
             else:
                 r = memeclip.make(src, str(d / "out.mp4"), progress=prog)
             set_state(d, status="fertig", step=None, kills=r.get("kills_used", len(r["kills"])), seconds=r["seconds"],

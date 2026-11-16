@@ -277,12 +277,12 @@ def _warp(word: "Image.Image", quad_full: np.ndarray, frame: "Image.Image", alph
 
 
 def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int, flat_y: int,
-          enc: list[str]) -> dict:
+          enc: list[str], size: tuple[int, int] = (1080, 1920), box_x: int = 0) -> dict:
     """Wörter auf Wände legen. ``words``: [{"a", "b", "png"}] (Zeiten im Video, Bild des Worts).
     Ton wird unverändert übernommen. Rückgabe: wie viele an der Wand klebten und wie viele flach standen."""
     from PIL import Image
 
-    w_out, h_out = 1080, 1920
+    w_out, h_out = size
     dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", src, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                            stdout=subprocess.PIPE)
     encp = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{w_out}x{h_out}",
@@ -291,15 +291,15 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
     n_frame, prev, stats = 0, None, {"wall": 0, "flat": 0}
     active: dict[int, dict] = {}
     imgs = {i: Image.open(w["png"]).convert("RGBA") for i, w in enumerate(words)}
-    size = w_out * 3
+    row = w_out * 3
     try:
         while True:
-            raw = dec.stdout.read(size * h_out)
-            if len(raw) < size * h_out:
+            raw = dec.stdout.read(row * h_out)
+            if len(raw) < row * h_out:
                 break
             t = n_frame / fps
             arr = np.frombuffer(raw, np.uint8).reshape(h_out, w_out, 3)
-            g = _gray(arr[box_y:box_y + box])
+            g = _gray(arr[box_y:box_y + box, box_x:box_x + box])
             frame = None
             for i, w in enumerate(words):
                 if not (w["a"] <= t < w["b"]):
@@ -325,7 +325,7 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 k = min(1.0, (t - w["a"]) / 0.08)  # kurzes Einblenden
                 if st["mode"] == "flat":
                     im = imgs[i]
-                    sc = min(1.0, 620 / im.width)
+                    sc = min(1.0, w_out * 0.6 / im.width)
                     small = im.resize((int(im.width * sc), int(im.height * sc)), Image.BICUBIC)
                     frame.alpha_composite(small, ((w_out - small.width) // 2, flat_y - small.height // 2))
                     continue
@@ -346,7 +346,7 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 k = min(k, st.get("fade", 1.0))
                 c = q.mean(axis=0)
                 pop = 0.85 + 0.15 * k
-                qf = ((q - c) * pop + c) * SCALE + [0, box_y]
+                qf = ((q - c) * pop + c) * SCALE + [box_x, box_y]
                 _warp(imgs[i], qf.astype(np.float32), frame, 0.92 * k)
             if frame is not None:
                 arr = np.asarray(frame.convert("RGB"))
