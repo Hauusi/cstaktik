@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 419 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 421 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -105,6 +105,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | notify.py (Ergänzung) | `_pause_line`: Push nach dem Match mit Pausen-Hinweis, wenn dieses Match das k-te des Tages ist und die eigene Spielabend-Kurve danach deutlich sinkt |
 | memeclip.py | Prototyp Meme-Clip (eigener Bereich, noch ohne Seite): eigene Kills im hochgeladenen Video über den roten Killfeed-Rahmen finden (`detect`, `kills_from_counts`), Schnittplan (`plan`: Anlauf normal ohne Zoom; `hit` = Zoom schlägt kurz vor dem Kill zu, Kill läuft in Zeitlupe 0,4x aus, Zähler/Killfeed/Sound genau im Kill-Moment; `hold` nur am Ende mit Summe; Totzeit fällt weg; kein Wackeln, kein langsamer Zoom), Aufbau: Spielbild als Quadrat in der Mitte auf unscharfem Hintergrund, Killfeed darüber, Zähler darunter (`_vf`), Rendern mit ffmpeg ins Hochformat 1080x1920 (`make`). Aufruf: `python -m cstaktik.memeclip clip.mp4 out.mp4`. Sound selbst erzeugt, keine KI |
 | clips.py | Clips in der App: Aufträge je Nutzer in data/clips/<nutzer>/<id>/ (in.*, music.*, out.mp4, state.json), Schnitt im Hintergrund-Thread (immer nur einer gleichzeitig), letzte 12 bleiben; ohne Musik `memeclip.make`, mit Musik `memeclip.make_beat` |
+| wall_text.py | Songtext auf Wänden (nur numpy + Pillow): Wand am linken/rechten Rand des Spielbilds suchen (Harris-Punkte, Kantenrichtung oben/unten ergibt die Perspektive), Wort als Viereck im Winkel der Wand, Verfolgung per Blockvergleich (grob nach fein) + Homographie mit RANSAC; Wand verloren = Wort aus; keine Wand = Wort flach. Zweiter Durchgang über das fertige Video (`apply`) |
 | beats.py | Beat eines Musikstücks finden (ffmpeg + numpy): Onset-Stärke je 10 ms, Tempo per Autokorrelation (70–180 BPM), gleichmäßiges Beat-Raster (`beats`, `beat_grid`) |
 | memeclip.py (Beat-Edit) | `make_beat(src oder [srcs], music, out, music_ss, words)`: mehrere Clips (`detect_all`), `plan_beat`: erster Kill früh (Schlag 2), Kills im festen Abstand von 4 Schlägen (bei wenig Musik 2), je Kill `ramp` (Tempo gleitet von 2,4x auf 0,45x, `ramp_fit` füllt die Lücke genau) + `hit` (ein Schlag in Zeitlupe) + am Ende `hold`; Schnitte nur auf Schlägen; leichte Farbkorrektur. Songtext: je Wort ein Bild (`word_png`, Pillow, mitgelieferte Schrift Anton unter static/fonts, OFL): fette schräge Großbuchstaben mit Rand und farbigem Schatten, Farbe/Drehung/Höhe wechseln, Aufploppen; während eines Kills kein Text. Grundlage: Schnitte auf dem Schlag wirken angenehmer (Wenberg & Carlgren 2021; UCLA-Studie zu Schnitt und Beat) |
 | weekly.py | Wochenrückblick: letzte 7 Tage gegen die 28 Tage davor (Ergebnisse, Rating, klar besser/schlechter aus spielerprofil.METRICS, Lektion, Geschafftes, Warm-ups/Sessions, Entscheidungs-Muster, nächste Woche); Seite `/woche`, Push sonntags ab 19 Uhr einmal je Kalenderwoche (`reminder.weekly_check`, Setting `weekly_sent:<user>`) |
@@ -264,6 +265,10 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Songtext auf Wänden (`wall_text.py`, `memeclip.WALL_TEXT`): jedes zweite passende Wort (kein Schnitt,
+  kein Kill im Zeitfenster, mind. 0,3 s, mind. 3 Buchstaben) klebt im Winkel einer Wand und folgt der Kamera.
+  OpenCV durfte in der Cloud-Sitzung nicht installiert werden, deshalb eigene Umsetzung ohne neue Abhängigkeit.
 
 - 2026-11-16: Clips: Songtext deutlich kleiner (höchstens 150 px Schrift, 640 px breit) im unteren Drittel des
   Spielbilds statt in der Mitte, schwächeres Aufploppen; verdeckte vorher den Kill.

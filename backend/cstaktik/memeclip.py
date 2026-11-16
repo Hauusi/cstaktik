@@ -264,6 +264,7 @@ def make(src: str, out: str, progress=None) -> dict:
 RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
 HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
 MAX_WORDS = 40
+WALL_TEXT = True  # Songtext teils auf Wände legen (wall_text.py)
 MIN_WORD_S = 0.28  # kürzer steht ein Wort nicht lesbar im Bild
 SHOT_SPEED, SHOT_BACK = 1.25, 1.0  # eigener Schnitt vor dem Kill: leicht schnell, etwa 1 s früher im Clip
 CUT_POP = "1+0.06*exp(-13*t)"       # Zoom-Schlag bei jedem Bildwechsel (klingt in etwa 0,2 s ab, danach ruhig)
@@ -482,27 +483,32 @@ LYRIC_DY = (0, -40, 20, -25, 35, -15)  # kleine Sprünge im unteren Drittel des 
 LYRIC_ROT = (-5, 4, -3, 5, -4, 3)
 
 
-def word_png(text: str, path: Path, j: int, font_file: str) -> None:
+def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) -> None:
     """Ein Wort als Bild: fette, enge Großbuchstaben, die die Breite füllen, schräg gestellt und leicht gedreht,
     dicker schwarzer Rand und ein farbiger, versetzter Schatten. Farbe und Drehung wechseln von Wort zu Wort."""
     from PIL import Image, ImageDraw, ImageFont
 
     text = text.upper()
     fill, shadow = LYRIC_COLORS[j % len(LYRIC_COLORS)]
-    size = 150  # klein genug, dass der Kill sichtbar bleibt
+    size = 260 if wall else 150  # flach: klein genug, dass der Kill sichtbar bleibt; Wand: groß, wird verkleinert
     while size > 60:
         font = ImageFont.truetype(font_file, size)
         l, t, r, b = font.getbbox(text)
-        if r - l <= 640:
+        if r - l <= (1000 if wall else 640):
             break
         size -= 10
     stroke, off = max(size // 13, 6), max(size // 16, 8)
+    if wall:  # wie aufgesprüht: dünner Rand, kein versetzter Schatten
+        stroke, off = max(size // 30, 3), 0
     w, h = r - l + 2 * stroke + off + 80, b - t + 2 * stroke + off + 60
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     dr = ImageDraw.Draw(img)
     x, y = 40 + stroke - l, 30 + stroke - t
     dr.text((x + off, y + off), text, font=font, fill=(*shadow, 255), stroke_width=stroke, stroke_fill=(*shadow, 255))
     dr.text((x, y), text, font=font, fill=(*fill, 255), stroke_width=stroke, stroke_fill=(0, 0, 0, 255))
+    if wall:  # auf der Wand: gerade, ohne Drehung (die Perspektive kommt von der Wand), etwas größer gerechnet
+        img.save(path)
+        return
     sh = 0.16  # schräg stellen (die Schrift hat keinen Kursiv-Schnitt)
     img = img.transform((w + int(sh * h), h), Image.AFFINE, (1, sh, -sh * h, 0, 1, 0), Image.BICUBIC)
     img.rotate(LYRIC_ROT[j % len(LYRIC_ROT)], expand=True, resample=Image.BICUBIC).save(path)
@@ -543,11 +549,23 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         total = pl["seconds"]
         fc = "".join(f"[{i}:v][{i}:a]" for i in range(n)) + f"concat=n={n}:v=1:a=1[v0][ga];"
         last, k = "v0", n + 1  # Eingang n ist die Musik, danach je Wort ein Bild
+        wall_words: list[dict] = []
+        wall_on = WALL_TEXT
         if font and words:
             # während eines Kills gehört die Bildmitte dem Kill: dort kein Songtext
             busy = [(x["o0"], x["o0"] + x["out"]) for x in pl["segments"] if x["kind"] in ("hit", "hold")]
+            cuts = [x["o0"] for x in pl["segments"]]
             for j, (a, b, txt) in enumerate(word_times(words, bt["beats"])[:MAX_WORDS]):
                 if a >= total or not txt.strip():
+                    continue
+                b = min(b, total)
+                # Wand-Wort: kein Schnitt und kein Kill im Zeitfenster, genug Zeit, jedes zweite passende Wort
+                free = not any(a + 0.02 < c < b - 0.02 for c in cuts) and not any(x0 - 0.05 <= a < x1 for x0, x1 in busy)
+                if wall_on and free and b - a >= 0.3 and len(txt) >= 3 and len(wall_words) * 2 <= shown:
+                    png = tmp / f"wall{j:02d}.png"
+                    word_png(txt, png, j, font, wall=True)
+                    wall_words.append({"a": a, "b": b, "png": str(png)})
+                    shown += 1
                     continue
                 png = tmp / f"w{j:02d}.png"
                 word_png(txt, png, j, font)
@@ -568,12 +586,20 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         _run(["ffmpeg", "-v", "error", "-y", *ins[:2 * n], *ins_music, *ins[2 * n:],
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total),
               "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
-              "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out])
+              "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(tmp / "flat.mp4") if wall_words else out])
+        wall_stats = None
+        if wall_words:  # zweiter Durchgang: Wörter auf Wände legen und mit der Kamera mitführen
+            from cstaktik import wall_text
+
+            wall_stats = wall_text.apply(str(tmp / "flat.mp4"), out, wall_words, BOX_Y, BOX, OUT_FPS,
+                                         BOX_Y + int(BOX * 0.80),
+                                         ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+                                          "-movflags", "+faststart"])
         if progress:
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
             "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source,
-            "lyrics_note": SUNG_NOTE if not source else ""}
+            "lyrics_note": SUNG_NOTE if not source else "", "wall": wall_stats}
 
 
 if __name__ == "__main__":
