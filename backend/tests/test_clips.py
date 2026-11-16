@@ -61,8 +61,9 @@ def test_chunked_upload(monkeypatch):
     monkeypatch.setattr(memeclip, "make", fake)
     monkeypatch.setattr(clips, "start", lambda d, user=None: clips.render(d, user))
     c = _client()
-    assert c.post("/clips/new", json={}, headers=O).status_code == 400
-    jid = c.post("/clips/new", json={"videos": ["mein clip.mp4", "1000012345"], "music_ss": "3"}, headers=O).json()["id"]
+    assert c.post("/clips/new", json={"v": 4}, headers=O).status_code == 400
+    assert c.post("/clips/new", json={"videos": ["a.mp4"]}, headers=O).status_code == 409  # alter Stand der Seite/App
+    jid = c.post("/clips/new", json={"v": 4, "videos": ["mein clip.mp4", "1000012345"], "music_ss": "3"}, headers=O).json()["id"]
     assert "Upload nicht abgeschlossen" in c.get("/clips").text
     assert c.post(f"/clips/{jid}/start", headers=O).status_code == 404  # noch keine Datei
     for part in (b"aaa", b"bbb"):

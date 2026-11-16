@@ -266,6 +266,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips-Upload: genaue Fehlermeldungen je Ursache; `CLIPS_API` (api.py) gegen `v` in clips.html meldet,
+  wenn nach einem Update der Neustart fehlt (Templates kommen frisch von der Platte, der Python-Code nicht).
+
 - 2026-11-16: Clips nehmen Dateien unabhängig von der Endung an (`clips.safe_ext`; Handy-Namen ohne Endung führten zu
   „Video bitte als .mp4 …“); unlesbare Dateien melden sich erst beim Schnitt als Fehler.
 

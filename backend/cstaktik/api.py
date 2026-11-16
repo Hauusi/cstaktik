@@ -1062,6 +1062,9 @@ async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | 
     return RedirectResponse("/clips", status_code=303)
 
 
+CLIPS_API = 4  # muss zur Zahl in web/clips.html passen: erkennt, wenn nach einem Update der Neustart fehlt
+
+
 def _clip_name(names: list[str]) -> str:
     return Path(names[0]).name[:80] if len(names) == 1 else f"{len(names)} Clips"
 
@@ -1072,6 +1075,9 @@ async def clips_new(request: Request) -> JSONResponse:
     from cstaktik import clips
 
     body = await _json_body(request)
+    if body.get("v") != CLIPS_API:
+        raise HTTPException(409, "Die App auf dem Server läuft noch mit einem alten Stand. Bitte den Dienst neu starten "
+                                 "(systemctl restart cstaktik) und die Seite neu laden.")
     names = [str(x) for x in (body.get("videos") or ([body["video"]] if body.get("video") else []))][:clips.MAX_CLIPS]
     exts = [clips.safe_ext(x, ".mp4") for x in names]
     mext = clips.safe_ext(str(body["music"]), ".mp3") if body.get("music") else ""
@@ -1095,8 +1101,12 @@ async def clips_chunk(job_id: str, request: Request, kind: str = "video", n: int
 
     d = clips.job_dir(_USER.get(), job_id)
     st = clips._state(d) if d else {}
-    if not d or st.get("status") != "upload" or kind not in ("video", "music") or not (0 <= n < len(st["video_exts"])):
-        raise HTTPException(404, "Upload nicht gefunden.")
+    if not d:
+        raise HTTPException(404, f"Upload nicht gefunden (Auftrag {job_id} fehlt auf dem Server).")
+    if st.get("status") != "upload":
+        raise HTTPException(404, f"Upload nicht gefunden (Auftrag hat schon den Status {st.get('status') or 'unbekannt'}).")
+    if kind not in ("video", "music") or not (0 <= n < len(st.get("video_exts") or [])):
+        raise HTTPException(404, f"Upload nicht gefunden (Datei {kind} Nummer {n} war nicht angemeldet).")
     target = d / (f"in{n}{st['video_exts'][n]}" if kind == "video" else f"music{st['music_ext']}")
     limit = clips.MAX_VIDEO_BYTES if kind == "video" else clips.MAX_MUSIC_BYTES
     data = await request.body()
@@ -1113,8 +1123,10 @@ def clips_start(job_id: str) -> JSONResponse:
     from cstaktik import clips
 
     d = clips.job_dir(_USER.get(), job_id)
-    if not d or clips._state(d).get("status") != "upload" or not any(d.glob("in*.*")):
-        raise HTTPException(404, "Upload nicht gefunden.")
+    if not d or clips._state(d).get("status") != "upload":
+        raise HTTPException(404, "Upload nicht gefunden (Auftrag fehlt oder läuft schon).")
+    if not any(d.glob("in*.*")):
+        raise HTTPException(404, "Upload nicht gefunden (auf dem Server ist kein Video angekommen).")
     clips.set_state(d, status="wartet")
     clips.start(d, _USER.get())
     return JSONResponse({"ok": True})
