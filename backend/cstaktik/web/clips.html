@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Clips · cstaktik{% endblock %}
+{% block bodyclass %}{% endblock %}
+{% block head %}
+{% if busy %}<meta http-equiv="refresh" content="5">{% endif %}
+<style>
+.back { display: inline-flex; align-items: center; min-height: 40px; margin-top: 14px; font-size: 14px; font-weight: 700; color: var(--orange); }
+.cf { margin-top: 12px; padding: 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 10px; }
+.cf label { font-size: 13px; font-weight: 700; color: var(--muted); } .cf small { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.cf input[type=file], .cf input[type=text], .cf textarea { width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; }
+.cf button { height: 50px; border: 0; border-radius: 14px; background: var(--orange); color: #111; font: inherit; font-weight: 800; font-size: 16px; cursor: pointer; }
+.cf details summary { cursor: pointer; color: var(--orange); font-weight: 700; font-size: 14px; list-style: none; }
+.cj { margin-top: 12px; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
+.cj b { font-size: 15px; } .cj .st { margin-top: 4px; font-size: 13.5px; color: var(--muted); line-height: 1.4; } .cj .st.err { color: #ff9aa8; }
+.cj video { display: block; width: 100%; max-width: 360px; margin: 10px auto 0; border-radius: 12px; background: #000; }
+.cj .row { display: flex; gap: 16px; align-items: center; margin-top: 10px; } .cj .row a { color: var(--orange); font-weight: 700; font-size: 14px; }
+.cj .row button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; padding: 0; }
+</style>
+{% endblock %}
+{% block hero %}
+<h1>Clips</h1>
+<p>Lade einen CS2-Clip hoch. Das Tool findet deine Kills und schneidet daraus ein Hochformat-Video. Mit Musik fallen die Kills auf den Beat.</p>
+{% endblock %}
+{% block content %}
+<a class="back" href="/">‹ Zurück zum Coach</a>
+{% if not ffmpeg %}<div class="cj"><div class="st err">Auf dem Server fehlt das Programm ffmpeg. Als root installieren: <code>apt install -y ffmpeg</code></div></div>{% endif %}
+<form class="cf" method="post" action="/clips" enctype="multipart/form-data" data-block="upload">
+  <label for="cv">Dein Clip</label>
+  <input id="cv" type="file" name="video" accept="video/*" required>
+  <small>Der Killfeed oben rechts muss im Bild sein: Daran erkennt das Tool deine Kills. Höchstens 400 MB.</small>
+  <details><summary>Mit Musik (Kills auf den Beat)</summary>
+    <div style="display:grid;gap:10px;margin-top:10px">
+      <label for="cm">Musik</label>
+      <input id="cm" type="file" name="music" accept="audio/*">
+      <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>
+      <label for="cs">Start in der Musik (Sekunde)</label>
+      <input id="cs" type="text" name="music_ss" inputmode="decimal" placeholder="0">
+      <label for="cl">Songtext für den Ausschnitt (optional)</label>
+      <textarea id="cl" name="lyrics" rows="2" maxlength="600" placeholder="Wörter mit Leerzeichen. Ein Wort je Schlag."></textarea>
+      <small>Das Tool legt ein Wort auf jeden Schlag. Für eine genaue Stelle: Sekunde und Wort mit Doppelpunkt, zum Beispiel 1.45:WORT</small>
+    </div>
+  </details>
+  <button type="submit">Hochladen und schneiden</button>
+</form>
+{% for j in items %}
+<div class="cj" data-job="{{ j.id }}">
+  <b>{{ j.name }}</b>
+  {% if j.status == "fertig" and j.has_video %}
+  <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} gefunden · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}</div>
+  <video controls playsinline preload="metadata" src="/clips/{{ j.id }}/video"></video>
+  <div class="row"><a href="/clips/{{ j.id }}/video?dl=1">Herunterladen</a>
+    <form method="post" action="/clips/{{ j.id }}/delete"><button type="submit">Löschen</button></form></div>
+  {% elif j.status == "fehler" %}
+  <div class="st err">{{ j.error }}</div>
+  <div class="row"><form method="post" action="/clips/{{ j.id }}/delete"><button type="submit">Löschen</button></form></div>
+  {% else %}
+  <div class="st">{{ "Wartet auf einen anderen Schnitt." if j.status == "wartet" else (j.step or "Läuft") ~ " …" }} Die Seite lädt von selbst neu.</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

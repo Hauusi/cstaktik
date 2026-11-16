@@ -24,6 +24,7 @@ GOALS_FILE = DATA_DIR / "goals.json"
 COACHING_FILE = DATA_DIR / "coaching.json"
 AI_DIR = DATA_DIR / "ai"  # KI-Coach: Gespräche je Match und Spieler, Kosten je Monat
 DRILLS_DIR = DATA_DIR / "drills"  # Coaching-Session: Wenn-dann-Plan, Entscheidungen, erledigte Sessions je Spieler
+CLIPS_DIR = DATA_DIR / "clips"  # Meme-Clips: hochgeladene Videos, Musik und fertige Edits je Nutzer
 PRO_DIR = DATA_DIR / "pro"
 PRO_DEMOS_DIR = DATA_DIR / "pro_demos"  # hochgeladene Pro-Demos, getrennt von den eigenen
 # Bei Änderungen am Datenmodell erhöhen, damit alte Caches neu geparst werden.

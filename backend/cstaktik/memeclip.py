@@ -26,7 +26,7 @@ OUT_W, OUT_H, OUT_FPS = 1080, 1920, 30
 GAP_S = 2.5  # so lange darf der Rahmen kurz verschwinden (Hintergrund), ohne als neuer Kill zu zählen
 
 LEAD_S, HIT_BEFORE, HIT_AFTER, LAST_HOLD_S = 1.6, 0.30, 0.32, 0.9
-SLOW, Z_HIT, PUNCH_S = 0.4, 1.3, 0.09  # Zeitlupe kurz vor dem Kill, Zoom schlägt in 0,09 s zu
+SLOW, Z_HIT, PUNCH_S = 0.4, 1.12, 0.12  # Zeitlupe kurz vor dem Kill, Zoom schlägt in 0,09 s zu
 
 
 def _run(cmd: list[str]) -> bytes:
@@ -303,12 +303,12 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str, beat_
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
         fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'bg')};"
-              f"[bg]fade=t=in:st=0:d=0.10:color=white[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];"
+              f"[bg]fade=t=in:st=0:d=0.05:color=white[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];"
               f"[v0]{_draw(seg['text'], font)},fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}[v];{audio}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
-    z = _pulse(seg, beat_times) if seg["kind"] == "lead" else "1.04"
+    z = "1"  # ruhiges Bild: kein Zoom im Anlauf, damit man den Kill kommen sieht
     fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'c')};"
           f"[c]fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}[v];{audio}")
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src,
@@ -371,9 +371,12 @@ def make_beat(src: str, music: str, out: str, music_ss: float = 0.0, music_d: fl
                 if a >= total:
                     break
                 txt = txt.replace(":", r"\\:").replace("'", "").upper()
-                draw.append(f"drawtext=fontfile='{font}':text='{txt}':fontsize='150+70*exp(-16*max(t-{a},0))':"
-                            f"fontcolor={LYRIC_COLORS[j % len(LYRIC_COLORS)]}:borderw=12:bordercolor=black:"
-                            f"x=(w-text_w)/2:y={BOX_Y + BOX // 2}-text_h/2:enable='between(t,{a},{min(b, total)}){quiet}'")
+                base = 210 if len(txt) <= 5 else 170 if len(txt) <= 8 else 125  # kurze Wörter größer
+                dy = (-150, 90, -40, 150, -100, 40)[j % 6]                       # Wörter springen in der Höhe
+                draw.append(f"drawtext=fontfile='{font}':text='{txt}':fontsize='{base}+90*exp(-18*max(t-{a},0))':"
+                            f"fontcolor={LYRIC_COLORS[j % len(LYRIC_COLORS)]}:borderw=14:bordercolor=black:"
+                            f"shadowcolor=black@0.6:shadowx=10:shadowy=10:"
+                            f"x=(w-text_w)/2:y={BOX_Y + BOX // 2 + dy}-text_h/2:enable='between(t,{a},{min(b, total)}){quiet}'")
         fc = ("".join(f"[{i}:v][{i}:a]" for i in range(n)) + f"concat=n={n}:v=1:a=1[v0][ga];"
               f"[v0]{','.join(draw) if draw else 'null'}[v];"
               f"[{n}:a]aresample=48000,afade=t=out:st={max(total - 0.4, 0):.3f}:d=0.4[mu];"

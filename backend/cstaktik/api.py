@@ -960,6 +960,8 @@ def _home_tiles(hist: list[dict], sid: str | None, coach: dict | None, kurs: dic
     tiles.append({"id": "training", "title": "Warm-up", "icon": "dumbbell", "tone": "g", "href": f"/warmup{q}",
                   "text": (b(f"{warm} {'Szene' if warm == 1 else 'Szenen'}") + Markup(" fällig, 2 Minuten vor dem Match"))
                   if warm else Markup("Gerade nichts fällig. Szenen kommen mit Abstand wieder.")})
+    tiles.append({"id": "clips", "title": "Clips", "icon": "clip", "tone": "r", "href": "/clips",
+                  "text": Markup("Aus deinem Clip automatisch ein Video für Shorts schneiden")})
     sc = __import__("cstaktik.history", fromlist=["score"]).score(last, sid) if sid else None
     tiles.append({"id": "matches", "title": "Matches", "icon": "list", "tone": "g", "href": "/matches",
                   "text": Markup("Letztes: ") + b(mlabel + (f" {sc[0]}:{sc[1]}" if sc else ""))})
@@ -1004,6 +1006,84 @@ def _course_overview(hist: list[dict], sid: str) -> dict:
     from cstaktik import course
 
     return course.overview(hist, sid, _players_state().get(sid))
+
+
+@app.get("/clips", response_class=HTMLResponse)
+def clips_page() -> str:
+    """Clips: Video hochladen und automatisch schneiden lassen (Kill-Schnitt oder Beat-Schnitt mit Musik)."""
+    import shutil
+
+    from cstaktik import clips
+
+    js = clips.jobs(_USER.get())
+    return _env.get_template("clips.html").render(
+        nav_active="coach", jobs=_running_jobs(), items=js, busy=any(j.get("status") in ("wartet", "läuft") for j in js),
+        ffmpeg=bool(shutil.which("ffmpeg")))
+
+
+async def _save_upload(up: UploadFile, target: Path, limit: int) -> None:
+    size = 0
+    with target.open("wb") as fh:
+        while chunk := await up.read(1 << 20):
+            size += len(chunk)
+            if size > limit:
+                fh.close()
+                target.unlink(missing_ok=True)
+                raise HTTPException(413, "Datei zu groß.")
+            fh.write(chunk)
+
+
+@app.post("/clips")
+async def clips_upload(video: UploadFile = File(...), music: UploadFile | None = File(None), music_ss: str = Form("0"),
+                       lyrics: str = Form("")) -> RedirectResponse:
+    from cstaktik import clips
+
+    ext = Path(video.filename or "").suffix.lower()
+    if ext not in clips.VIDEO_EXT:
+        raise HTTPException(400, "Video bitte als .mp4, .mov, .mkv oder .webm.")
+    d = clips.new_job(_USER.get())
+    try:
+        await _save_upload(video, d / f"in{ext}", clips.MAX_VIDEO_BYTES)
+        has_music = bool(music and music.filename)
+        if has_music:
+            mext = Path(music.filename).suffix.lower()
+            if mext not in clips.MUSIC_EXT:
+                raise HTTPException(400, "Musik bitte als .mp3, .m4a, .wav, .ogg oder .aac.")
+            await _save_upload(music, d / f"music{mext}", clips.MAX_MUSIC_BYTES)
+        try:
+            ss = max(0.0, float((music_ss or "0").replace(",", ".")))
+        except ValueError:
+            ss = 0.0
+    except HTTPException:
+        import shutil
+
+        shutil.rmtree(d, ignore_errors=True)
+        raise
+    clips.set_state(d, status="wartet", name=Path(video.filename or "Clip").name[:80], music=has_music, music_ss=ss,
+                    lyrics=" ".join(lyrics.split())[:600], created=pipeline.coaching_now())
+    clips.start(d, _USER.get())
+    return RedirectResponse("/clips", status_code=303)
+
+
+@app.get("/clips/{job_id}/video")
+def clips_video(job_id: str, dl: int = 0):
+    from fastapi.responses import FileResponse
+
+    from cstaktik import clips
+
+    d = clips.job_dir(_USER.get(), job_id)
+    if not d or not (d / "out.mp4").exists():
+        raise HTTPException(404, "Video nicht gefunden.")
+    return FileResponse(d / "out.mp4", media_type="video/mp4",
+                        filename=f"clip-{job_id}.mp4" if dl else None)
+
+
+@app.post("/clips/{job_id}/delete")
+def clips_delete(job_id: str) -> RedirectResponse:
+    from cstaktik import clips
+
+    clips.delete(_USER.get(), job_id)
+    return RedirectResponse("/clips", status_code=303)
 
 
 @app.get("/woche", response_class=HTMLResponse)

@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 415 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 417 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -104,6 +104,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 | duo.py | Gemeinsame Abmachung (`PLANS`, `get_plan`/`set_plan` in data/drills/duo_<a>_<b>.json, `recommend` aus den Duo-Zahlen, `plan_check` seit der Abmachung, `partner`); Duo über die letzten 10 Matches mit demselben Partner: Runden zusammen/getrennt mit Siegquote, Anteil zusammen, Ø Abstand, gegenseitige Trades, erste Tode; Aussage erst ab 20 Runden je Gruppe und 10 Punkten Abstand. Daten je Match: `h["duo"]` (coach.duo mit `sids`, `trades_by`, `first_by`), nur bei genau zwei Fokus-Spielern |
 | notify.py (Ergänzung) | `_pause_line`: Push nach dem Match mit Pausen-Hinweis, wenn dieses Match das k-te des Tages ist und die eigene Spielabend-Kurve danach deutlich sinkt |
 | memeclip.py | Prototyp Meme-Clip (eigener Bereich, noch ohne Seite): eigene Kills im hochgeladenen Video über den roten Killfeed-Rahmen finden (`detect`, `kills_from_counts`), Schnittplan (`plan`: Anlauf normal ohne Zoom; `hit` = Zoom schlägt kurz vor dem Kill zu, Kill läuft in Zeitlupe 0,4x aus, Zähler/Killfeed/Sound genau im Kill-Moment; `hold` nur am Ende mit Summe; Totzeit fällt weg; kein Wackeln, kein langsamer Zoom), Aufbau: Spielbild als Quadrat in der Mitte auf unscharfem Hintergrund, Killfeed darüber, Zähler darunter (`_vf`), Rendern mit ffmpeg ins Hochformat 1080x1920 (`make`). Aufruf: `python -m cstaktik.memeclip clip.mp4 out.mp4`. Sound selbst erzeugt, keine KI |
+| clips.py | Clips in der App: Aufträge je Nutzer in data/clips/<nutzer>/<id>/ (in.*, music.*, out.mp4, state.json), Schnitt im Hintergrund-Thread (immer nur einer gleichzeitig), letzte 12 bleiben; ohne Musik `memeclip.make`, mit Musik `memeclip.make_beat` |
 | beats.py | Beat eines Musikstücks finden (ffmpeg + numpy): Onset-Stärke je 10 ms, Tempo per Autokorrelation (70–180 BPM), gleichmäßiges Beat-Raster (`beats`, `beat_grid`) |
 | memeclip.py (Beat-Edit) | `make_beat(src, music, out, music_ss, music_d, words)`: Musik-Ausschnitt gibt den Takt vor, `plan_beat` legt jeden Kill exakt auf einen Schlag (Anlauf 1,6x, Annäherung 0,5x, Kill 0,4x über einen Schlag), Zoom-Stoß je Schlag, Songtext Wort für Wort in der Bildmitte (`word_times`: ein Wort je Schlag oder "Sekunde:WORT"; während eines Kills kein Text), Spielton leise unter der Musik |
 | weekly.py | Wochenrückblick: letzte 7 Tage gegen die 28 Tage davor (Ergebnisse, Rating, klar besser/schlechter aus spielerprofil.METRICS, Lektion, Geschafftes, Warm-ups/Sessions, Entscheidungs-Muster, nächste Woche); Seite `/woche`, Push sonntags ab 19 Uhr einmal je Kalenderwoche (`reminder.weekly_check`, Setting `weekly_sent:<user>`) |
@@ -148,6 +149,9 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 - `/wissen` CS-Wissen (Bereiche, Stand je Thema: neu/gelesen/noch üben/sitzt), `/wissen/{thema}` (Kern, Verstehen, Beispiel,
   Fehler, Üben, Prüfen, Weiter in der App), `POST /wissen/antwort` (nur eigener Spieler). Kachel "CS-Wissen" nach "Kurs".
   Session-Thema und Lektion verlinken passende Themen; der KI-Coach bekommt sie in den Fakten und darf sie nennen.
+- `/clips` (Kachel „Clips“): Video und optional Musik, Startsekunde und Songtext hochladen; Status lädt alle 5 s neu;
+  fertiges Video ansehen (`/clips/{id}/video`), herunterladen, löschen (`POST /clips/{id}/delete`). Nur eigene Clips.
+  Braucht ffmpeg auf dem Server (`apt install -y ffmpeg`), die Seite meldet, wenn es fehlt.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
 - `/stats` (Reiter "Stats", `stats_view.py`): Form (Rating, Vergleich mit dem Zeitraum davor, Siege/Niederlagen, letzte 5),
@@ -259,6 +263,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips in der App (`clips.py`, `/clips`); Schnitt ruhiger (kein Zoom-Stoß je Schlag, Kill-Zoom 1,12),
+  Songtext größer mit Schatten und wechselnder Höhe.
 
 - 2026-11-15: Beat-Edit (`beats.py`, `memeclip.make_beat`): Kills auf den Beat, Songtext Wort für Wort.
 

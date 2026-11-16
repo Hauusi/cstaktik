@@ -17,6 +17,7 @@ def _isolated_history(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "COACHING_FILE", tmp_path / "coaching.json")
     monkeypatch.setattr(pipeline, "AI_DIR", tmp_path / "ai")
     monkeypatch.setattr(pipeline, "DRILLS_DIR", tmp_path / "drills")
+    monkeypatch.setattr(pipeline, "CLIPS_DIR", tmp_path / "clips")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)  # nie die echte API
     monkeypatch.setattr(pipeline, "PRO_DIR", tmp_path / "pro")
     monkeypatch.setattr(pipeline, "PRO_DEMOS_DIR", tmp_path / "pro_demos")
