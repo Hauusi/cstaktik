@@ -265,6 +265,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips: genauer Grund, wenn kein Songtext erkannt wurde (`memeclip.SUNG_NOTE`: nicht installiert mit
+  Python-Pfad der App und Installationsbefehl, fehlgeschlagen mit Fehlertext, oder keine Wörter erkannt).
+
 - 2026-11-16: Clips: beim Kill kein Zoom und kein weißer Blitz mehr (`Z_HIT` 1.0), das Bild sprang; der Kill wird nur
   noch durch Zeitlupe, Schwarzweiß-Moment, Zähler und Killfeed betont.
 

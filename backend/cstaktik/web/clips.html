@@ -51,7 +51,7 @@
   {% if j.status == "fertig" and j.has_video %}
   <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
   {% if j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt. Stimmt ein Wort nicht, trag den Text beim nächsten Mal selbst ein.</div>
-  {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext: Auf dem Server ist die Spracherkennung nicht installiert. Trag den Text unter „Mit Musik“ ein oder installiere sie (siehe Anleitung).</div>{% endif %}
+  {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext. {{ j.lyrics_note or "Die Spracherkennung hat nichts geliefert." }}</div>{% endif %}
   {% if j.music and (j.lyrics or j.lyrics_source) and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
   <video controls playsinline preload="metadata" src="/clips/{{ j.id }}/video"></video>
   <div class="row"><a href="/clips/{{ j.id }}/video?dl=1">Herunterladen</a>

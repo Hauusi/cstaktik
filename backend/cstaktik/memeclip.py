@@ -397,15 +397,24 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
     return [(round(a, 3), round(b, 3), t) for a, b, t in out]
 
 
+SUNG_NOTE = ""  # warum die letzte Erkennung nichts geliefert hat (für die Anzeige in der App)
+
+
 def sung_words(music: str, ss: float, d: float) -> list[str] | None:
     """Gesungene Wörter mit Zeitpunkt aus dem Musik-Ausschnitt, als "Sekunde:WORT". Braucht die Bibliothek
     faster-whisper (läuft lokal, ohne Kosten; lädt beim ersten Mal ein Sprachmodell). Ist sie nicht installiert oder
     geht etwas schief: None, dann bleibt es beim eingetragenen Text. Gesang wird nicht immer richtig erkannt."""
+    global SUNG_NOTE
+    import re
+    import sys
+
+    SUNG_NOTE = ""
     try:
         from faster_whisper import WhisperModel
-    except ImportError:
+    except ImportError as e:
+        SUNG_NOTE = (f"Die Spracherkennung ist in der Umgebung der App nicht installiert ({e}). Die App läuft mit "
+                     f"{sys.executable}. Installieren mit: {sys.executable} -m pip install faster-whisper")
         return None
-    import re
 
     try:
         with tempfile.TemporaryDirectory() as td:
@@ -419,8 +428,11 @@ def sung_words(music: str, ss: float, d: float) -> list[str] | None:
                     txt = re.sub(r"[^0-9A-Za-zÄÖÜäöüß'-]", "", w.word)
                     if txt:
                         out.append(f"{max(w.start, 0):.2f}:{txt}")
+            if not out:
+                SUNG_NOTE = "Die Spracherkennung lief, hat in diesem Ausschnitt aber keine Wörter erkannt."
             return out or None
-    except Exception:  # noqa: BLE001 - ohne Erkennung läuft der Schnitt trotzdem
+    except Exception as e:  # noqa: BLE001 - ohne Erkennung läuft der Schnitt trotzdem
+        SUNG_NOTE = f"Die Spracherkennung ist installiert, aber fehlgeschlagen: {type(e).__name__}: {str(e)[:300]}"
         return None
 
 
@@ -514,7 +526,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         if progress:
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
-            "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source}
+            "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source,
+            "lyrics_note": SUNG_NOTE if not source else ""}
 
 
 if __name__ == "__main__":
