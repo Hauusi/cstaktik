@@ -266,6 +266,10 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Spracherkennung bei Musik robuster (beam 5, kein Abbruch bei unsicheren Stücken,
+  condition_on_previous_text aus); /clips zeigt, wie viele Wörter von wann bis wann erkannt wurden (Nutzer: Lyrics nur
+  in den ersten 3 s bei einem neuen Lied).
+
 - 2026-11-16: Schüsse auf dem Beat: `shots` erkennt Schüsse im Spielton (Onset-Spitzen), `sync_anchors` rastet
   Schüsse im Anlauf auf Achtelschläge ein (Tempo je Stück 0,35–2,3x), `_piecewise_pts` verbiegt die Zeit stückweise,
   Schuss-Sounds werden einzeln an ihren Beat-Punkt gesetzt. Peak-End: bei mehreren Clips kommt der mit den meisten

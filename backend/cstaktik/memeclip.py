@@ -621,7 +621,11 @@ def sung_words(music: str, ss: float, d: float) -> list[str] | None:
                     "-f", "f32le", "-"])
         audio = np.frombuffer(raw, np.float32)
         model = WhisperModel("small", device="cpu", compute_type="int8")
-        segs, _info = model.transcribe(audio, word_timestamps=True)
+        # Gesang über Musik: nicht beim ersten unsicheren Stück aufhören (kein Abbruch bei "keine Sprache", kein
+        # Fortschreiben des vorigen Texts, das sich sonst aufhängt), gründlichere Suche
+        segs, _info = model.transcribe(audio, word_timestamps=True, beam_size=5, vad_filter=False,
+                                       condition_on_previous_text=False, no_speech_threshold=0.95,
+                                       log_prob_threshold=-2.5, compression_ratio_threshold=3.0)
         out = []
         for sg in segs:
             for w in sg.words or []:
@@ -630,6 +634,11 @@ def sung_words(music: str, ss: float, d: float) -> list[str] | None:
                     out.append(f"{max(w.start, 0):.2f}-{max(w.end, w.start):.2f}:{txt}")
         if not out:
             SUNG_NOTE = "Die Spracherkennung lief, hat in diesem Ausschnitt aber keine Wörter erkannt."
+        else:
+            t0 = float(out[0].split("-")[0])
+            t1 = float(out[-1].split(":")[0].split("-")[-1])
+            SUNG_NOTE = (f"{len(out)} Wörter erkannt, von {t0:.1f} bis {t1:.1f} s".replace(".", ",")
+                         + (f" (das Video ist {d:.1f} s lang)".replace(".", ",") if t1 < d * 0.6 else "") + ".")
         return out or None
     except Exception as e:  # noqa: BLE001 - ohne Erkennung läuft der Schnitt trotzdem
         SUNG_NOTE = f"Die Spracherkennung ist installiert, aber fehlgeschlagen: {type(e).__name__}: {str(e)[:300]}"
@@ -781,7 +790,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
             "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source,
-            "lyrics_note": SUNG_NOTE if not source else "", "wall": wall_stats,
+            "lyrics_note": SUNG_NOTE, "wall": wall_stats,
             "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors"))}
 
 

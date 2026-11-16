@@ -63,7 +63,7 @@
   {% if j.status == "fertig" and j.has_video %}
   <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.synced %} · {{ j.synced }} {{ "Schuss" if j.synced == 1 else "Schüsse" }} auf dem Beat{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
   {% if j.music and j.words %}<div class="st">Auf Wänden: {% if j.wall %}{{ j.wall.wall }} {{ "Wort" if j.wall.wall == 1 else "Wörter" }}{% if j.wall.flat %}, bei {{ j.wall.flat }} keine Wand gefunden (flach gezeigt){% endif %}{% else %}keins (kein Wort hatte genug Zeit ohne Kill dazwischen){% endif %}.</div>{% endif %}
-  {% if j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt. Stimmt ein Wort nicht, trag den Text beim nächsten Mal selbst ein.</div>
+  {% if j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt: {{ j.lyrics_note }} Fehlen Wörter oder stimmen sie nicht, trag den Text beim nächsten Mal selbst ein.</div>
   {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext. {{ j.lyrics_note or "Die Spracherkennung hat nichts geliefert." }}</div>{% endif %}
   {% if j.music and (j.lyrics or j.lyrics_source) and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
   <video controls playsinline preload="metadata" src="/clips/{{ j.id }}/video"></video>
