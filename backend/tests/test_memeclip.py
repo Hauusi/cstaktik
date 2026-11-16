@@ -234,3 +234,22 @@ def test_frame_grid_whole_frames_no_drift():
 
 def test_render_workers_bounded():
     assert 1 <= memeclip.render_workers() <= 4
+
+
+def test_kills_from_boxes_new_entry_while_old_expires():
+    import numpy as np
+    A = {"w": 150, "p": np.array([0.1, 0.4, 0.0, 0.3, 0.2, 0.0, 0.5, 0.1], np.float32)}
+    B = {"w": 226, "p": np.array([0.5, 0.0, 0.0, 0.1, 0.6, 0.3, 0.0, 0.2], np.float32)}
+    box = (1100, 80, 1270, 105)
+    fb, sg = [], []
+    for i in range(160):  # 8 s bei 20 Bildern/s
+        t = i / 20
+        e = []
+        if 1.0 <= t < 3.0 and not (2.0 <= t < 2.4):  # Eintrag A mit kurzem Aussetzer (Mündungsfeuer)
+            e.append(A)
+        if 3.0 <= t < 5.5:  # A verschwindet genau, als B kommt: Anzahl bleibt 1
+            e.append(B)
+        fb.append([box] * len(e)); sg.append(e)
+    k = memeclip.kills_from_boxes(fb, sg)
+    assert [x[0] for x in k] == [1.0, 3.0]  # Aussetzer kein neuer Kill, B trotz gleicher Anzahl erkannt
+    assert memeclip._same(A, dict(A, w=A["w"] + 10)) > 0.9  # hereingleitender Eintrag: Breite schwankt

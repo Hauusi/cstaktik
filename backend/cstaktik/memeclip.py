@@ -93,6 +93,74 @@ def kills_from_counts(cnt: list[int], fps: int = FPS_SCAN) -> list[tuple[float, 
     return out
 
 
+SIG_SAME = 0.5  # Ähnlichkeit (0..1) ab der zwei Einträge als derselbe gelten
+SIG_CONFIRM = 4  # so viele Bilder (0,2 s) muss ein neuer Eintrag stehen
+
+
+def _sig(fr, box):
+    """Fingerabdruck eines Eintrags: Breite des roten Rahmens und das Spaltenprofil der hellen Schrift (Name, Waffe,
+    Gegner), rechtsbündig in 4-px-Streifen. Der halb durchsichtige Hintergrund zählt nicht (nur helle Pixel)."""
+    import numpy as np
+
+    x0, y0, x1, y1 = box
+    inner = fr[y0 + 3:y1 - 2, x0 + 4:x1 - 3].mean(axis=2)
+    if inner.shape[0] < 4 or inner.shape[1] < 12:
+        return None
+    bright = (inner > 150).mean(axis=0)[::-1]  # rechts beginnen
+    n = len(bright) // 4
+    prof = bright[:n * 4].reshape(n, 4).mean(axis=1).astype(np.float32)
+    return {"w": x1 - x0, "p": prof}
+
+
+def _same(a, b) -> float:
+    """Ähnlichkeit zweier Fingerabdrücke 0..1: ähnliche Breite (±12 px: ein neuer Eintrag gleitet herein, gemessen
+    209 -> 225 px) und ähnliches Schriftprofil (bis 2 Streifen verschoben)."""
+    import numpy as np
+
+    if abs(a["w"] - b["w"]) > 12:
+        return 0.0
+    best = 0.0
+    for sh in (-2, -1, 0, 1, 2):
+        pa, pb = (a["p"][sh:], b["p"]) if sh >= 0 else (a["p"], b["p"][-sh:])
+        n = min(len(pa), len(pb))
+        if n < 4:
+            continue
+        d = float(np.abs(pa[:n] - pb[:n]).mean())
+        best = max(best, 1.0 - d / 0.15)
+    return max(best, 0.0)
+
+
+def kills_from_boxes(frames_boxes: list[list[tuple]], sigs: list[list], fps: int = FPS_SCAN) -> list[tuple[float, int, tuple]]:
+    """Kills aus den Einträgen je Bild, über ihren Fingerabdruck: Ein Eintrag mit neuem Aussehen ist ein neuer Kill,
+    egal wie viele gerade sichtbar sind. Verschwindet ein Eintrag kurz (Mündungsfeuer, heller Hintergrund) und kommt
+    gleich aussehend wieder, bleibt es derselbe. Vorher wurde nur gezählt: verschwand ein alter Eintrag, während ein
+    neuer kam, ging der Kill verloren (nachgestellt mit einem echten Clip: 2 von 4 Kills erkannt)."""
+    import numpy as np
+
+    entries: list[dict] = []  # {"sig", "first", "last", "hits", "box"}
+    for i, (boxes, ss) in enumerate(zip(frames_boxes, sigs)):
+        used = set()
+        for box, sg in zip(boxes, ss):
+            if sg is None:
+                continue
+            best, bi = SIG_SAME, None
+            for k, e in enumerate(entries):
+                if k in used or i - e["last"] > GAP_S * fps:
+                    continue
+                c = _same(e["sig"], sg)
+                if c > best:
+                    best, bi = c, k
+            if bi is None:
+                entries.append({"sig": sg, "first": i, "last": i, "hits": 1, "box": box})
+                used.add(len(entries) - 1)
+            else:
+                e = entries[bi]
+                e["last"], e["hits"], e["sig"] = i, e["hits"] + 1, sg  # neuester Stand (Eintrag gleitet herein)
+                used.add(bi)
+    out = [(round(e["first"] / fps, 2), e["first"], e["box"]) for e in entries if e["hits"] >= SIG_CONFIRM]
+    return sorted(out)
+
+
 def detect(path: str) -> list[dict]:
     """Eigene Kills im Clip: [{"t": Sekunde, "box": (x0, y0, x1, y1) im 1280x720-Bild}]."""
     import numpy as np
@@ -101,12 +169,8 @@ def detect(path: str) -> list[dict]:
                 "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
     frames = np.frombuffer(raw, np.uint8).reshape(-1, CH, CW, 3).astype(np.int16)
     boxes = [_boxes(f) for f in frames]
-    out = []
-    for t, i in kills_from_counts([len(b) for b in boxes]):
-        bx = next((boxes[j][-1] for j in range(i, min(i + 6, len(boxes))) if boxes[j]), None)  # neuester = unterster
-        if bx:
-            out.append({"t": t, "box": (bx[0] + W - CW, bx[1], bx[2] + W - CW, bx[3])})
-    return out
+    sigs = [[_sig(f, bx) for bx in b] for f, b in zip(frames, boxes)]
+    return [{"t": t, "box": (bx[0] + W - CW, bx[1], bx[2] + W - CW, bx[3])} for t, _, bx in kills_from_boxes(boxes, sigs)]
 
 
 def detect_all(srcs: list[str]) -> list[dict]:

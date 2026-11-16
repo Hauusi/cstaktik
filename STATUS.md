@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 446 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 447 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Kill-Erkennung (Nutzer: 6 von 9 erkannt): bisher nur Anzahl roter Einträge gezählt (+2,5 s Lückenfüllung) → verschwand ein alter Eintrag, während ein neuer kam, ging der Kill verloren. Nachgestellt mit echtem Clip (echter Eintrag eingeblendet, als der alte verschwand): alt 2 von 4, neu 4 von 4. Jetzt `kills_from_boxes`: Fingerabdruck je Eintrag (`_sig`: Rahmenbreite + Spaltenprofil heller Schrift, rechtsbündig; `_same`: Breite ±12 px, Profil ±2 Streifen), neuer Fingerabdruck = neuer Kill, gleicher nach Aussetzer = derselbe. Echte Clips (Original, 1366er, SAR) weiter 3/3. Nutzer-Clips mit 9 Kills nicht vorhanden → dort ungeprüft.
 
 - 2026-11-16: Clips lange Wörter nicht auf Wände (Nutzer-Video: "PAPA-PAPARAZZI" winzig): gemessen Schrifthöhe auf Wand NO 193 px, KNOW 161, PROMISE 101, PAPA-PAPARAZZI 59 px. Jetzt `WALL_MAX_ASPECT` 3,6 (Seitenverhältnis des Wort-Bilds, `png_aspect`): breitere Wörter groß in der Mitte. Echter Clip: 14 Wörter, 6 auf Wänden, lange flach lesbar.
 
