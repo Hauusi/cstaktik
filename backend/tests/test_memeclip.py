@@ -221,3 +221,12 @@ def test_sync_report_and_sixteenths():
     # dichtes Feuer: Schuss 0,13 s vor dem Kill passt auf kein Achtel (0,25 s), aber auf ein Sechzehntel
     anc = memeclip.sync_anchors([2.87, 2.95], s0=1.0, ks=3.0, gap=1.5, half=0.25)
     assert any(abs((1.5 - y) / 0.125 - round((1.5 - y) / 0.125)) < 1e-6 for _, y in anc[1:-1])
+
+
+def test_frame_grid_whole_frames_no_drift():
+    pl = {"segments": [{"o0": 0.0, "out": 1.008}, {"o0": 1.008, "out": 0.504}, {"o0": 1.512, "out": 1.008}], "seconds": 2.52}
+    memeclip.frame_grid(pl)
+    for a, b in zip(pl["segments"], pl["segments"][1:]):
+        assert abs(a["o0"] + a["out"] - b["o0"]) < 1e-6  # lückenlos
+    assert all(abs(s["out"] * 60 - round(s["out"] * 60)) < 1e-3 for s in pl["segments"])  # ganze Bilder
+    assert abs(pl["segments"][2]["o0"] - 1.512) <= 1 / 120 + 1e-6  # höchstens halbe Bilddauer verschoben

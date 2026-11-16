@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 436 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 437 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips, gemessen am echten Clip: (1) Schärfe: Spielbild wurde bilinear 1,5× hochgerechnet (Laplace-Varianz Quelle 286 → 106); jetzt Lanczos + `SHARPEN` (unsharp 0,5) → 283; fertiges Video 2,4× schärfer. (2) Je Video 4–7 doppelte Einzelbilder kurz nach Schnitten: Segmentlängen nicht auf ganzen Bildern (`frame_grid`, max. 8 ms Verschiebung ohne Aufsummieren) und AAC-Ton länger als das Bild beim gemeinsamen concat (Ton je Segment auf Bildlänge, apad/atrim) → 0 doppelte Bilder, Bild/Ton gleich lang. Verworfen nach Messung: mehrere schlaglange Schnitte vor jedem Kill (kaum mehr sichtbare Schnitte, Sync 7/10, 16 Standbilder); Szenen-Erkennung (scdet) ungeeignet für Schnitte auf derselben Map.
 
 - 2026-11-16: Clips Schuss-Sync nachgemessen statt nur geplant (echter Clip): Spielton der Segmente wie im Video zusammengesetzt, Schüsse neu erkannt, Abstand zum Raster. Vorher 7/9 auf Achtel, 2 je 112 ms daneben (einer im kurzen Schnitt, einer zu dicht im Anlauf). `sync_anchors` rastet jetzt auch auf Sechzehntel ein (Achtel bevorzugt) → 8/8, max. 37 ms. Messung fest in `make_beat` (`sync_report`, ±45 ms, Achtel/Sechzehntel) und auf /clips angezeigt ("Nachgemessen: x von y Schüssen").
 

@@ -163,6 +163,9 @@ BOX, BOX_Y = 1080, 440  # Spielbild als Quadrat in der Mitte: zeigt mehr Breite 
 # Farbabstimmung, gemessen am TikTok-Vorbild des Nutzers (Spielbild): Sättigung 0,48, Wärme (R−B) 0,23; unser
 # Ergebnis vorher 0,28 / 0,06. Mit diesen Werten am echten Clip gemessen: 0,44 / 0,17, ohne mehr ausgefressene Stellen.
 SAT = 1.6
+# Schärfe: 720p-Aufnahmen werden fürs Quadrat 1,5-fach hochgerechnet. Gemessen an einem echten Clip (Varianz des
+# Laplace-Filters): Quelle 286, bisher (bilinear) 106, Lanczos 172, Lanczos + leichtes Nachschärfen 283.
+SHARPEN = "unsharp=5:5:0.5,"
 GRADE = "colorbalance=rm=0.08:bm=-0.08:rh=0.05:bh=-0.06,"
 LOOK = GRADE + "setsar=1,vignette=angle=PI/10"  # Ecken etwa 19 % dunkler (PI/6 waren 46 %); setsar: sonst bei nicht quadratischen Pixeln harte schwarze Ellipse: der Blick bleibt in der Mitte, wo der Kill passiert
 LUMA_TARGET = 0.0  # 0 = Mittelwert der Clips (in make_beat gesetzt); Helligkeit jedes Clips wird dorthin geschoben
@@ -192,7 +195,7 @@ def _vf(src: str, z: str, out: str, b: float = 0.0) -> str:
     so verdeckt nichts den Kill. Kein Wackeln."""
     return (f"{src}split[m{out}][g{out}];"
             f"[g{out}]scale=-2:480,crop=270:480,boxblur=10:2,eq=brightness=-0.22,scale={OUT_W}:{OUT_H}[b{out}];"
-            f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=bilinear,crop={BOX}:{BOX},eq=contrast=1.06:saturation={SAT}:brightness={b},{LOOK}[f{out}];"
+            f"[m{out}]scale=-2:'2*trunc({BOX // 2}*({z}))':eval=frame:flags=lanczos,crop={BOX}:{BOX},{SHARPEN}eq=contrast=1.06:saturation={SAT}:brightness={b},{LOOK}[f{out}];"
             f"[b{out}][f{out}]overlay=0:{BOX_Y}[{out}]")
 
 
@@ -973,6 +976,18 @@ def sync_report(shot_times: list[float], beat_times: list[float], beat: float) -
     return {"on": len(on), "total": len(offs), "worst_ms": round(max(on)) if on else None}
 
 
+def frame_grid(pl: dict, fps: int = OUT_FPS) -> None:
+    """Schnittpunkte auf ganze Bilder legen. Sonst sind Segmente z. B. 60,48 Bilder lang; beim Aneinanderhängen
+    summiert sich der Rest, und das Video doppelt ab und zu ein Bild (gemessen am echten Clip: 6 doppelte Bilder,
+    je kurz nach einem Schnitt). Verschiebung höchstens eine halbe Bilddauer (8 ms), ohne Aufsummieren."""
+    for sg in pl["segments"]:
+        a = round(sg["o0"] * fps) / fps
+        e = round((sg["o0"] + sg["out"]) * fps) / fps
+        sg["o0"], sg["out"] = round(a, 6), round(e - a, 6)
+    last = pl["segments"][-1]
+    pl["seconds"] = round(last["o0"] + last["out"], 6)
+
+
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None) -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
@@ -996,6 +1011,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         mots = None
     shot_times = {x: shots(x) for x in srcs}
     pl = plan_beat(kills, duration(srcs[0]), bt["beats"], mots, bt.get("strength"), shot_times)
+    frame_grid(pl)
     try:  # Clips von hellen und dunklen Maps angleichen: ein durchgehender Look statt Farbsprüngen an Schnitten
         offs = brightness_offsets({x: luma(x) for x in srcs})
     except Exception:  # noqa: BLE001
@@ -1035,7 +1051,11 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         except Exception:  # noqa: BLE001 - die Messung ist nur eine Anzeige
             measured = None
         # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar
-        fc = "".join(f"[{i}:a]afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];" for i in range(n))
+        # Ton jedes Segments exakt auf seine Bildlänge: AAC-Ton ist oft ein paar ms länger; beim gemeinsamen
+        # Aneinanderhängen entsteht sonst eine Lücke im Bild und ein doppeltes Bild (gemessen: 4 je Video)
+        fc = "".join(f"[{i}:a]apad=whole_dur={sg['out']},atrim=end={sg['out']},asetpts=PTS-STARTPTS,"
+                     f"afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];"
+                     for i, sg in enumerate(pl["segments"]))
         fc += "".join(f"[{i}:v][e{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc0][ga];"
         tcuts = transition_cuts(pl["segments"])
         fc += f"[vc0]{transition_vf(tcuts)}null[vc];"
