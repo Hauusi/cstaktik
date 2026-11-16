@@ -266,6 +266,10 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Wand-Text auch bei Wörtern, deren Zeitfenster einen Schnitt überspannt (endet dann beim Schnitt,
+  mind. `WALL_MIN_S` 0,22 s); vorher fielen mit erkanntem Gesang fast alle Wörter heraus. /clips zeigt je Video, wie
+  viele Wörter auf Wänden standen und bei wie vielen keine Wand gefunden wurde.
+
 - 2026-11-16: Test für `wall_text.edge_slopes` mit weichen Kanten (harte Treppenkanten waren unrealistisch);
   Kantenschwelle in `edge_slopes` auf 80. Perzentil (>=), vorher fielen echte Kanten heraus.
 

@@ -264,6 +264,7 @@ def make(src: str, out: str, progress=None) -> dict:
 RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
 HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
 MAX_WORDS = 40
+WALL_MIN_S = 0.22  # so lange muss ein Wort an der Wand stehen können
 WALL_TEXT = True  # Songtext teils auf Wände legen (wall_text.py)
 MIN_WORD_S = 0.28  # kürzer steht ein Wort nicht lesbar im Bild
 SHOT_SPEED, SHOT_BACK = 1.25, 1.0  # eigener Schnitt vor dem Kill: leicht schnell, etwa 1 s früher im Clip
@@ -559,12 +560,14 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 if a >= total or not txt.strip():
                     continue
                 b = min(b, total)
-                # Wand-Wort: kein Schnitt und kein Kill im Zeitfenster, genug Zeit, jedes zweite passende Wort
-                free = not any(a + 0.02 < c < b - 0.02 for c in cuts) and not any(x0 - 0.05 <= a < x1 for x0, x1 in busy)
-                if wall_on and free and b - a >= 0.3 and len(txt) >= 3 and len(wall_words) * 2 <= shown:
+                # Wand-Wort: kein Kill im Zeitfenster, mind. 3 Buchstaben. Liegt ein Schnitt im Fenster, endet das Wort
+                # an der Wand beim Schnitt (die Wand ist danach weg), sofern bis dahin genug Zeit bleibt.
+                cut = min((c for c in cuts if a + 0.02 < c < b - 0.02), default=b)
+                no_kill = not any(x0 - 0.05 <= a < x1 for x0, x1 in busy)
+                if wall_on and no_kill and cut - a >= WALL_MIN_S and len(txt) >= 3 and len(wall_words) * 2 <= shown + 1:
                     png = tmp / f"wall{j:02d}.png"
                     word_png(txt, png, j, font, wall=True)
-                    wall_words.append({"a": a, "b": b, "png": str(png)})
+                    wall_words.append({"a": a, "b": cut, "png": str(png)})
                     shown += 1
                     continue
                 png = tmp / f"w{j:02d}.png"
