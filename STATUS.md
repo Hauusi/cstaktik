@@ -266,6 +266,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Test für `wall_text.edge_slopes` mit weichen Kanten (harte Treppenkanten waren unrealistisch);
+  Kantenschwelle in `edge_slopes` auf 80. Perzentil (>=), vorher fielen echte Kanten heraus.
+
 - 2026-11-16: Songtext auf Wänden (`wall_text.py`, `memeclip.WALL_TEXT`): jedes zweite passende Wort (kein Schnitt,
   kein Kill im Zeitfenster, mind. 0,3 s, mind. 3 Buchstaben) klebt im Winkel einer Wand und folgt der Kamera.
   OpenCV durfte in der Cloud-Sitzung nicht installiert werden, deshalb eigene Umsetzung ohne neue Abhängigkeit.
