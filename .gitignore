@@ -54,3 +54,4 @@ backend/data/cstaktik.db
 # Arbeitskopien von Claude Code
 .claude/worktrees/
 .claude/worktrees/
+backend/data/clips/
