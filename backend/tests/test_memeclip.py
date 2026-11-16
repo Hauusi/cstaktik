@@ -79,9 +79,23 @@ def test_wall_picks_held_words_before_pause():
              "3.35-3.50:SO", "3.55-3.70:FAST"]
     wl = memeclip.word_list(words, bt)
     wb = next(x for x in wl if x["txt"] == "BABY")
-    assert wb["sung"] == 2.4 and wb["next"] == 2.9  # an der Wand bis zum nächsten Wort  # steht bis zum nächsten Wort
+    assert wb["sung"] == 2.4 and wb["next"] == 2.86  # an der Wand bis zum nächsten Wort (das 40 ms früher kommt)  # steht bis zum nächsten Wort
     picks = memeclip.wall_picks(wl)
     assert [x["txt"] for x in wl] == ["TALK TO", "ME", "BABY", "IM GOING", "SO FAST"]
     assert "BABY" in [wl[j]["txt"] for j in picks] and not {0, 1} & picks  # gezogen + Pause ja, schnelle Wörter nein
     assert memeclip.wall_picks(memeclip.word_list(["EINS", "ZWEI"], bt)) == set()  # eingetippt: einfache Regel
     assert memeclip.word_times(["1.45:A"], bt) == [(1.45, 1.95, "A")]
+
+
+def test_kill_beats_prefer_strong_and_vary():
+    bt = [round(0.5 * i, 3) for i in range(40)]
+    st = [0.1] * 40
+    for i in (2, 7, 10, 16, 20, 25):
+        st[i] = 1.0  # betonte Schläge
+    kb = memeclip.kill_beats(4, 40, st, bt)
+    assert kb == [2, 7, 10, 16]  # jeweils der starke Schlag im Fenster 3 bis 6
+    gaps = [b - a for a, b in zip(kb, kb[1:])]
+    assert len(set(gaps)) > 1  # kein starres Raster
+    assert memeclip.kill_beats(3, 40, None, bt) == [2, 6, 10]  # ohne Stärken: gleichmäßig
+    w = memeclip.word_list(["1.00-1.50:BABY", "2.00:EINS"], bt)
+    assert w[0]["a"] == 0.96 and w[1]["a"] == 2.0  # gesungen: 40 ms früher; feste Zeit: genau
