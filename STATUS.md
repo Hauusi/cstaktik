@@ -266,6 +266,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips Sound beim Kill (Nutzer: klingt komisch; Spektrum zeigte den steigenden Sinus im Riser als Pfeifen): Riser nur noch anschwellendes Rauschen, Impact `IMPACT` tiefer und kürzer ohne Knack-Rauschen, `SFX_VOL` 0,45.
+
 - 2026-11-16: Clips Text-Fehler aus Nutzer-Video: Kästchen statt Buchstabe ("MY") → `printable` (NFKC, Doppelgänger aus Kyrillisch u. ä. → Latein, typografische Anführungszeichen, unsichtbare Zeichen weg, Zeichen ohne Glyph weglassen, Prüfung per Pillow-Maske gegen Ersatzkästchen); Wand-Wort extrem perspektivisch verzerrt ("INFORMATION") → `wall_text.limit_perspective` (Höhe links/rechts max. 1,3:1, Neigung max. 0,45).
 
 - 2026-11-16: Clips Laggen behoben (Analyse eines Nutzer-Videos: 13 Stellen mit 3–10 stehenden Bildern, danach Sprung): jedes Segment friert am Ende ein, weil Zwischenbilder nur bis zum letzten Quellbild entstehen und tpad den Rest mit dem letzten Bild füllt (Test: Anlauf 9, Kill 3, Schluss 5 Bilder). Jetzt `_margin`: 0,15 s mehr Quelle einlesen, genau abschneiden (beim Anlauf begrenzt, damit die Tempo-Formel gültig bleibt) → 0 stehende Bilder. MCI ohne Szenenwechsel-Erkennung (`scd=none`), die bei schnellen Schwenks Bilder doppelte.

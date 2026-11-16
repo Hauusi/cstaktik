@@ -154,7 +154,7 @@ def test_transitions_and_sfx_only_at_scene_changes():
     assert cuts == [2.0]  # nur neue Szene nach einem Kill, nicht der Anfang, nicht innerhalb der Szene
     assert memeclip.transition_vf([]) == "" and "gblur" in memeclip.transition_vf(cuts)
     e = memeclip.sfx_expr(segs, 0.5, cuts)
-    assert e.count("*pow((t-") == 2 and e.count("exp(-pow(") == 1 and "(t-1.000)" in e and "(t-3.000)" in e  # je Kill ein Riser und ein Impact
+    assert e.count("*pow((t-") == 2 and "sin(2*PI*(220" not in e and e.count("exp(-pow(") == 1 and "(t-1.000)" in e and "(t-3.000)" in e  # je Kill ein Riser und ein Impact
 
 
 def test_drop_found_where_bass_starts():

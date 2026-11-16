@@ -875,7 +875,8 @@ def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) 
 
 TR_IN, TR_OUT, TR_Z = 0.08, 0.14, 0.28  # Übergang: 80 ms hineinzoomen, Schnitt, 140 ms aus dem Zoom heraus
 RISER_MAX = 1.2  # Riser vor dem Kill: höchstens so lang (s), sonst 1,5 Schläge
-SFX_VOL = 0.55
+SFX_VOL = 0.45
+IMPACT = "sin(2*PI*(45+30*exp(-t*30))*t)*exp(-t*7)"  # tiefer, kurzer Bass-Schlag ohne Knack-Rauschen
 
 
 def transition_cuts(segs: list[dict]) -> list[float]:
@@ -912,10 +913,10 @@ def sfx_expr(segs: list[dict], beat: float, cuts: list[float]) -> str:
         L = min(1.5 * beat, RISER_MAX, o)
         if L > 0.3:
             a = o - L
-            parts.append(f"between(t,{a:.3f},{o:.3f})*pow((t-{a:.3f})/{L:.3f},2)*(0.30*(random(0)*2-1)"
-                         f"+0.22*sin(2*PI*(220*(t-{a:.3f})+{700 / L:.1f}*pow(t-{a:.3f},2))))")
-        boom = re.sub(r"\bt\b", f"(t-{o:.3f})", BOOM)
-        parts.append(f"between(t,{o:.3f},{o + 0.6:.3f})*0.8*({boom})")
+            # nur Rauschen, das anschwillt (kein Ton: der steigende Sinus klang wie ein Pfeifen)
+            parts.append(f"between(t,{a:.3f},{o:.3f})*pow((t-{a:.3f})/{L:.3f},3)*0.30*(random(0)*2-1)")
+        boom = re.sub(r"\bt\b", f"(t-{o:.3f})", IMPACT)
+        parts.append(f"between(t,{o:.3f},{o + 0.5:.3f})*0.6*({boom})")
     for c in cuts:
         parts.append(f"0.35*(random(0)*2-1)*exp(-pow((t-{c:.3f})/0.05,2))")
     return "+".join(parts) or "0"
