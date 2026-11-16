@@ -38,7 +38,10 @@
       <label for="cs">Start in der Musik (Sekunde)</label>
       <input id="cs" type="text" name="music_ss" inputmode="decimal" placeholder="leer = automatisch am Drop">
       <small>Leer lassen: Das Tool sucht den Drop (die Stelle, an der der Bass einsetzt) und legt den ersten Kill darauf. Den Songtext dann für die Stelle ab dem Drop einfügen.</small>
-      <label for="cl">Songtext für den Ausschnitt (am besten einfügen)</label>
+      <label for="cg">Songname und Künstler (für den Songtext)</label>
+      <input id="cg" type="text" name="song" maxlength="120" placeholder="z. B. Paparazzi Lady Gaga">
+      <small>Bekannte Songs: Die App holt den Songtext mit Zeitstempeln von LRCLIB (lrclib.net, kostenlos) und findet die Stelle im Song selbst. Gesendet wird nur dieser Songname. Ist der Song dort nicht zu finden, füll das Feld darunter aus.</small>
+      <label for="cl">Oder Songtext für den Ausschnitt einfügen</label>
       <textarea id="cl" name="lyrics" rows="2" maxlength="600" placeholder="Wörter mit Leerzeichen. Ein Wort je Schlag."></textarea>
       <small>Das Tool legt ein Wort auf jeden Schlag. Am besten: Text des Ausschnitts aus dem Netz kopieren und einfügen. Das Tool legt die Wörter dann automatisch auf den Gesang, der Text bleibt richtig. Leer lassen: Das Tool versucht, den Gesang selbst zu verstehen, das klappt bei lauter Musik oft nur teilweise.</small>
     </div>
@@ -77,7 +80,9 @@
   {% elif j.music and j.music_used == 0 and j.music_auto is sameas false %}<div class="st">Kein deutlicher Drop gefunden, die Musik startet am Anfang.</div>{% endif %}
   {% if j.music and j.sync_measured and j.sync_measured.total %}<div class="st">Nachgemessen: {{ j.sync_measured.on }} von {{ j.sync_measured.total }} Schüssen liegen auf dem Beat (höchstens 45 ms daneben{% if j.sync_measured.worst_ms is not none %}, größter Abstand {{ j.sync_measured.worst_ms }} ms{% endif %}).</div>{% endif %}
   {% if j.music and j.words %}<div class="st">Auf Wänden: {% if j.wall %}{{ j.wall.wall }} {{ "Wort" if j.wall.wall == 1 else "Wörter" }}{% if j.wall.flat %}, bei {{ j.wall.flat }} keine Wand gefunden (flach gezeigt){% endif %}{% else %}keins (kein Wort hatte genug Zeit ohne Kill dazwischen){% endif %}.</div>{% endif %}
-  {% if j.music and j.lyrics_source == "ausgerichtet" %}<div class="st">Dein Songtext wurde auf den Gesang gelegt ({{ j.lyrics_note }}).</div>
+  {% if j.music and j.lyrics_source == "lrclib" %}<div class="st">Songtext von LRCLIB: {{ j.lyrics_note }}.</div>
+  {% elif j.music and j.song and not j.words %}<div class="st">Ohne Songtext. {{ j.lyrics_note }}</div>
+  {% elif j.music and j.lyrics_source == "ausgerichtet" %}<div class="st">Dein Songtext wurde auf den Gesang gelegt ({{ j.lyrics_note }}).</div>
   {% elif j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt: {{ j.lyrics_note }} Fehlen Wörter oder stimmen sie nicht, trag den Text beim nächsten Mal selbst ein.</div>
   {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext. {{ j.lyrics_note or "Die Spracherkennung hat nichts geliefert." }}</div>{% endif %}
   {% if j.music and (j.lyrics or j.lyrics_source) and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
@@ -162,7 +167,7 @@
     var total = vs.reduce(function (a, x) { return a + x.size; }, 0) + (m ? m.size : 0);
     if (vs.some(function (x) { return !x.size; }) || (m && !m.size)) total = 0;  // Größe unbekannt: nur MB anzeigen
     sent = 0;
-    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value}), true)
+    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value, song: f.song.value}), true)
       .then(function (j) {
         var chain = Promise.resolve();
         vs.forEach(function (v, i) { chain = chain.then(function () { return send(j.id, "video&n=" + i, v, total); }).then(function (n) {

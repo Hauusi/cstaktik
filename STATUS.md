@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 438 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 442 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips Songtext von LRCLIB (Nutzer-Wunsch, Spracherkennung bei Gesang unbrauchbar): neues Modul `lrclib.py` (Suche lrclib.net/api/search per urllib, nur Songname wird gesendet; LRC-Zeilen → Wörter je Zeile verteilt; Stelle im Song: Musikdatei ≈ Songlänge (±4 s) = ganzer Song, sonst Versatz aus ≥3 erkannten Wörtern per Median). Feld "Songname und Künstler" auf /clips, `song` in State/API/make_beat. Ohne Netz/Treffer: Hinweis und bisheriges Verhalten. lrclib.net in der Cloud-Session gesperrt → Abruf nur mit nachgebildeter Antwort getestet; echter Clip + Musik: 11 Wörter zeitlich korrekt eingeblendet (6 auf Wänden). Tests: test_lrclib.py.
 
 - 2026-11-16: Clips Absturz beim Nutzer (concat: SAR 0:1 vs 1280:1281): `setsar=1` am Ende jedes Segments und vor concat. Fehler lokal nicht exakt nachgestellt (Testclips behielten SAR nicht), Korrektur zielt direkt auf die Bedingung der Fehlermeldung. Kill-Verlust geprüft: Planung (guter Stand 1792319 vs. jetzt, 5–9 Kills, 13 s Musik) identisch, Erkennung seit 1792319 unverändert; Nutzer-Videos vor/nach den letzten Änderungen mit denselben Clips beide 5 Kills, 13,07 s. Ursache offen, Original-Clips nötig.
 

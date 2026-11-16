@@ -1001,7 +1001,7 @@ def render_workers() -> int:
 
 
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
-              words: list[str] | None = None, progress=None) -> dict:
+              words: list[str] | None = None, progress=None, song: str | None = None) -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
     für Wort. ``words``: Wörter in Reihenfolge (ein Wort je Schlag) oder "Sekunde:WORT" für feste Zeiten."""
     from cstaktik import beats as beatmod
@@ -1032,14 +1032,38 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         sg["bright"] = offs.get(sg.get("src") or srcs[0], 0.0)
     font = _font()
     shown, source = 0, "eingetragen" if words else None
+    global SUNG_NOTE
+    lrc_note = None
+    if song and not words:  # Songname angegeben: Text mit Zeitstempeln von LRCLIB, Stelle im Song bestimmen
+        from cstaktik import lrclib
+
+        hit = lrclib.fetch(song, duration(music))
+        if not hit:
+            lrc_note = f"Für „{song}“ wurde bei LRCLIB kein Songtext mit Zeitstempeln gefunden (oder keine Verbindung)."
+        else:
+            tw = lrclib.timed_words(hit["lines"])
+            off, why = lrclib.locate(tw, None, duration(music), hit["duration"])
+            if off is None:  # Ausschnitt: Stelle über ein paar erkannte Wörter finden
+                hint = " ".join(w for _, _, w in tw)[:600]
+                off, why = lrclib.locate(tw, sung_words(music, music_ss, pl["seconds"], hint), duration(music),
+                                         hit["duration"], sung_at=music_ss)
+            name = f"{hit['track']} – {hit['artist']}"
+            if off is None:
+                lrc_note = f"Songtext für {name} gefunden, aber die Stelle im Song nicht: {why}."
+            else:
+                words = lrclib.clip_words(tw, off, music_ss, pl["seconds"])
+                source, lrc_note = ("lrclib", f"{name}, {why}") if words else (None, f"{name}: an dieser Stelle "
+                                                                                     "kein Gesang im Songtext.")
     if words and not any(":" in w for w in words):
         # Text eingefügt: mit der Spracherkennung (falls installiert) auf den Gesang legen, Text bleibt der eigene
         sung = sung_words(music, music_ss, pl["seconds"], " ".join(words))
         if sung:
             words, source = align_lyrics(words, sung, pl["seconds"]), "ausgerichtet"
-    elif not words:  # kein Text eingetragen: aus dem Gesang erkennen, falls die Spracherkennung installiert ist
+    elif not words and not song:  # weder Text noch Song: aus dem Gesang erkennen (falls installiert)
         words = sung_words(music, music_ss, pl["seconds"])
         source = "erkannt" if words else None
+    if lrc_note:
+        SUNG_NOTE = lrc_note
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         files = [tmp / f"b{i:03d}.mp4" for i in range(len(pl["segments"]))]
