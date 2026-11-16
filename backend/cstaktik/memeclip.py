@@ -26,7 +26,7 @@ OUT_W, OUT_H, OUT_FPS = 1080, 1920, 30
 GAP_S = 2.5  # so lange darf der Rahmen kurz verschwinden (Hintergrund), ohne als neuer Kill zu zählen
 
 LEAD_S, HIT_BEFORE, HIT_AFTER, LAST_HOLD_S = 1.6, 0.30, 0.32, 0.9
-SLOW, Z_HIT, PUNCH_S = 0.4, 1.12, 0.12  # Zeitlupe kurz vor dem Kill, Zoom schlägt in 0,09 s zu
+SLOW, Z_HIT, PUNCH_S = 0.4, 1.0, 0.12  # Z_HIT 1.0: beim Kill springt das Bild nicht (kein Zoom, kein Blitz)  # Zeitlupe kurz vor dem Kill, Zoom schlägt in 0,09 s zu
 
 
 def _run(cmd: list[str]) -> bytes:
@@ -356,7 +356,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
         fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'bg')};"
-              f"[bg]fade=t=in:st=0:d=0.05:color=white,hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
+              f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
               f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];"
               f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src, "-i", str(kf),
