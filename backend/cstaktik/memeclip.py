@@ -22,7 +22,7 @@ from pathlib import Path
 
 FPS_SCAN, W, H = 20, 1280, 720
 CW, CH = int(W * 0.40), int(H * 0.24)  # Suchbereich oben rechts
-OUT_W, OUT_H, OUT_FPS = 1080, 1920, 30
+OUT_W, OUT_H, OUT_FPS = 1080, 1920, 60  # 60 fps: Shooter-Aufnahmen haben meist 60, Bewegung wirkt flüssiger
 GAP_S = 2.5  # so lange darf der Rahmen kurz verschwinden (Hintergrund), ohne als neuer Kill zu zählen
 
 LEAD_S, HIT_BEFORE, HIT_AFTER, LAST_HOLD_S = 1.6, 0.30, 0.32, 0.9
@@ -157,7 +157,7 @@ def _font() -> str:
     return ""
 
 
-BOX, BOX_Y = 1080, 400  # Spielbild als Quadrat in der Mitte: zeigt mehr Breite als ein voller Hochformat-Schnitt
+BOX, BOX_Y = 1080, 440  # Spielbild als Quadrat in der Mitte: zeigt mehr Breite als ein voller Hochformat-Schnitt
 
 
 def _vf(src: str, z: str, out: str) -> str:
@@ -170,6 +170,7 @@ def _vf(src: str, z: str, out: str) -> str:
             f"[b{out}][f{out}]overlay=0:{BOX_Y}[{out}]")
 
 
+LOUDNORM = "loudnorm=I=-14:TP=-1:LRA=11,aresample=48000"
 ENC = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
        "-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "192k"]
 BOOM = "0.95*sin(2*PI*(48+60*exp(-t*22))*t)*exp(-t*5.5)+0.25*(random(0)*2-1)*exp(-t*60)"
@@ -190,9 +191,9 @@ def _draw(text: str, font: str) -> str:
     if not font:
         return "null"
     text = text.replace(":", r"\:").replace("'", "")
-    size, color = (230, "white") if " " in text or text == "KILL" else (340, "0xFFD23F")  # Zähler groß und gelb
+    size, color = (200, "white") if " " in text or text == "KILL" else (260, "0xFFD23F")  # Zähler groß und gelb
     return (f"drawtext=fontfile='{font}':text='{text}':fontsize={size}:fontcolor={color}:borderw=16:bordercolor=black:"
-            f"x=(w-text_w)/2:y=1530")
+            f"x=(w-text_w)/2:y=110")  # oben: unten und rechts liegt die Oberfläche von TikTok/Shorts
 
 
 def _render_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
@@ -208,7 +209,7 @@ def _render_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
     if seg["kind"] == "hold":  # Standbild nur ganz am Ende: Zoom bleibt, Summe steht
         png = tmp / f"{out.stem}.png"
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(ss), "-i", src, "-frames:v", "1", "-vf", f"scale={W}:{H}", str(png)])
-        fc = (f"{_vf('[0:v]', str(Z_HIT), 'bg')};[bg][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];[v0]{_draw(seg['text'], font)},fps={OUT_FPS}[v];"
+        fc = (f"{_vf('[0:v]', str(Z_HIT), 'bg')};[bg][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];[v0]{_draw(seg['text'], font)},fps={OUT_FPS}[v];"
               f"aevalsrc='0.5*({BOOM})':d={d}:s=48000,aformat=channel_layouts=stereo[a]")
         _run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", str(OUT_FPS), "-t", str(d), "-i", str(png),
               "-i", str(kf), "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(d), *ENC, str(out)])
@@ -219,7 +220,7 @@ def _render_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
     draw = draw if draw == "null" else draw + f":enable='gte(t,{ka})'"
     z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
     fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{SLOW}[s];{_vf('[s]', z, 'bg')};"
-          f"[bg][1:v]overlay=(W-w)/2:{BOX_Y - 130}:enable='gte(t,{ka})'[v0];[v0]{draw},fps={OUT_FPS}[v];"
+          f"[bg][1:v]overlay=(W-w)/2:{BOX_Y - 115}:enable='gte(t,{ka})'[v0];[v0]{draw},fps={OUT_FPS}[v];"
           f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,asetrate=48000*{SLOW},aresample=48000,volume=0.8[ga];"
           f"aevalsrc='{BOOM}':d={od:.3f}:s=48000,aformat=channel_layouts=stereo,adelay={int(ka * 1000)}:all=1[bm];"
           f"[ga][bm]amix=inputs=2:duration=first:normalize=0[a]")
@@ -247,7 +248,7 @@ def make(src: str, out: str, progress=None) -> dict:
                 progress(i + 1, len(segs))
         ins = [x for f in files for x in ("-i", str(f))]
         n = len(files)
-        fc = "".join(f"[{i}:v][{i}:a]" for i in range(n)) + f"concat=n={n}:v=1:a=1[v][a0];[a0]alimiter=limit=0.95[a]"
+        fc = "".join(f"[{i}:v][{i}:a]" for i in range(n)) + f"concat=n={n}:v=1:a=1[v][a0];[a0]alimiter=limit=0.95,{LOUDNORM}[a]"
         _run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
               "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
               "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", out])
@@ -263,6 +264,7 @@ def make(src: str, out: str, progress=None) -> dict:
 RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
 HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
 MAX_WORDS = 40
+MIN_WORD_S = 0.28  # kürzer steht ein Wort nicht lesbar im Bild
 SHOT_SPEED, SHOT_BACK = 1.25, 1.0  # eigener Schnitt vor dem Kill: leicht schnell, etwa 1 s früher im Clip
 CUT_POP = "1+0.06*exp(-13*t)"       # Zoom-Schlag bei jedem Bildwechsel (klingt in etwa 0,2 s ab, danach ruhig)
 
@@ -285,7 +287,30 @@ def ramp_fit(gap: float, avail: float, v0max: float = RAMP_V0, v1: float = RAMP_
     return round(avail, 3), round(v, 4), round(v, 4)
 
 
-def plan_beat(kills: list[dict], dur: float, beat_times: list[float]) -> dict:
+def motion(src: str, fps: int = 10):
+    """Bewegung je Zeitpunkt im Clip (mittlerer Bildunterschied, klein gerechnet). Für die Wahl der Schnittpunkte."""
+    import numpy as np
+
+    raw = _run(["ffmpeg", "-v", "error", "-i", src, "-vf", f"fps={fps},scale=96:54,format=gray", "-f", "rawvideo", "-"])
+    fr = np.frombuffer(raw, np.uint8).reshape(-1, 54, 96).astype(np.int16)
+    m = np.abs(np.diff(fr, axis=0)).mean(axis=(1, 2))
+    return fps, np.concatenate([[0.0], m])
+
+
+def onset_cut(mot, lo: float, hi: float) -> float:
+    """Schnittpunkt im Bereich [lo, hi] dort, wo Bewegung einsetzt (größter Anstieg). Ohne Daten: hi."""
+    if mot is None or hi - lo < 0.15:
+        return hi
+    fps, m = mot
+    best, bt = -1e9, hi
+    for i in range(int(lo * fps) + 1, min(int(hi * fps), len(m) - 2) + 1):
+        rise = m[i + 1] + m[i] - m[i - 1] - m[max(i - 2, 0)]
+        if rise > best:
+            best, bt = rise, i / fps
+    return round(max(lo, min(bt, hi)), 3)
+
+
+def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: dict | None = None) -> dict:
     """Schnittplan auf dem Beat-Raster, ein Takt (4 Schläge) je Kill:
     Schlag 1 ``shot`` (kurzer Blick auf die Szene davor, eigener Schnitt), Schlag 2 ``ramp`` (Tempo gleitet in die
     Zeitlupe), Schlag 3 und 4 ``hit`` (der Kill, genau auf dem Schlag). Jeder Bildwechsel liegt auf einem Schlag.
@@ -316,6 +341,7 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float]) -> dict:
         if shot_out:
             sd = round(shot_out * SHOT_SPEED, 3)
             s0 = max(ks - d - SHOT_BACK - sd, src_prev if ks - d - sd >= src_prev else 0.0, 0.0)
+            s0 = onset_cut((motions or {}).get(kill.get("src")), s0, max(s0, ks - d - sd))
             if s0 + sd <= ks - d + 0.001 and sd > 0.1:
                 segs.append({"kind": "shot", "ss": round(s0, 3), "d": sd, "out": round(shot_out, 3), "o0": round(o, 3),
                              "src": kill.get("src")})
@@ -357,7 +383,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
         fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'bg')};"
               f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
-              f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];"
+              f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];"
               f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
         fc = fc.replace(f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];",
                         f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f},"
@@ -394,6 +420,13 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
         out.append([beat_times[i], None, w])
         i += per_beat
     out.sort(key=lambda x: x[0])
+    merged = []
+    for x in out:  # unter MIN_WORD_S Abstand: ins vorige Wort, höchstens zwei Wörter je Einblendung
+        if merged and x[0] - merged[-1][0] < MIN_WORD_S and " " not in merged[-1][2]:
+            merged[-1][2] += " " + x[2]
+        else:
+            merged.append(x)
+    out = merged
     beat = (beat_times[-1] - beat_times[0]) / max(len(beat_times) - 1, 1)
     for j, x in enumerate(out):
         x[1] = min(out[j + 1][0] if j + 1 < len(out) else x[0] + beat, x[0] + 2 * beat)
@@ -486,7 +519,11 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     if not kills:
         raise ValueError("In den Clips wurde kein eigener Kill gefunden (kein rot umrandeter Killfeed-Eintrag oben rechts).")
     bt = beatmod.beats(music, music_ss, music_d)
-    pl = plan_beat(kills, duration(srcs[0]), bt["beats"])
+    try:
+        mots = {x: motion(x) for x in srcs}
+    except Exception:  # noqa: BLE001 - ohne Bewegungsdaten werden die Schnittpunkte wie bisher gesetzt
+        mots = None
+    pl = plan_beat(kills, duration(srcs[0]), bt["beats"], mots)
     font = _font()
     shown, source = 0, "eingetragen" if words else None
     if not words:  # kein Text eingetragen: aus dem Gesang erkennen, falls die Spracherkennung installiert ist
@@ -523,8 +560,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                        f"[{last}][w{j}]overlay=x='(W-w)/2':y='{cy}-h/2':eval=frame:"
                        f"enable='between(t,{a},{min(b, total)})'[t{j}];")
                 last, k, shown = f"t{j}", k + 1, shown + 1
-        fc += (f"[{last}]null[v];[{n}:a]aresample=48000,afade=t=out:st={max(total - 0.4, 0):.3f}:d=0.4[mu];"
-               f"[ga][mu]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]")
+        hits = "+".join(f"between(t,{x['o0']},{round(x['o0'] + min(x['out'], 0.6), 3)})"
+                        for x in pl["segments"] if x["kind"] == "hit") or "0"
+        fc += (f"[{last}]null[v];[{n}:a]aresample=48000,volume='if(gt({hits},0),0.6,1)':eval=frame,afade=t=out:st={max(total - 0.4, 0):.3f}:d=0.4[mu];"
+               f"[ga][mu]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95,{LOUDNORM}[a]")
         ins_music = ["-ss", str(music_ss), "-t", str(total), "-i", music]
         _run(["ffmpeg", "-v", "error", "-y", *ins[:2 * n], *ins_music, *ins[2 * n:],
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total),

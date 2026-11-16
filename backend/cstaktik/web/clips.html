@@ -45,6 +45,14 @@
   <button type="submit" id="cgo">Hochladen und schneiden</button>
   <div class="up" id="cup" hidden><div class="upb"><i id="cbar"></i></div><small id="cmsg">Lädt hoch …</small></div>
 </form>
+<details class="cf" style="display:block"><summary>Warum der Schnitt so aussieht</summary>
+  <small style="display:block;margin-top:8px">
+  · <b>Schnitte auf dem Schlag:</b> wirken angenehmer als Schnitte daneben, auch wenn man es nicht bewusst merkt (<a href="https://escholarship.org/content/qt1rq255xj/qt1rq255xj.pdf">Studie zu Schnitt und Beat</a>; <a href="https://arxiv.org/pdf/2108.00970">Analyse von 329 Musikvideos</a>).<br>
+  · <b>Schnitt, wenn Bewegung einsetzt:</b> solche Schnitte fallen Zuschauern am wenigsten auf, das Video wirkt aus einem Guss (<a href="https://doi.org/10.16910/jemr.2.2.6">Smith &amp; Henderson 2008</a>). Das Tool sucht dafür in jedem Clip den Moment, in dem sich das Bild zu bewegen beginnt.<br>
+  · <b>Wichtiges in der Mitte:</b> Zuschauer schauen gemeinsam auf dieselben Stellen; das Fadenkreuz bleibt deshalb in der Bildmitte, Zähler und Text liegen außerhalb der Bereiche, die TikTok und Shorts mit ihrer Oberfläche überdecken (Angaben dazu schwanken je nach Quelle).<br>
+  · <b>Lautstärke:</b> auf etwa −14 LUFS angeglichen, die gängige Zielmarke der Plattformen; beim Kill wird die Musik kurz leiser, damit der Schuss durchkommt.<br>
+  · <b>60 Bilder pro Sekunde:</b> Zeitlupe und Schwenks bleiben flüssig.
+  </small></details>
 {% for j in items %}
 <div class="cj" data-job="{{ j.id }}">
   <b>{{ j.name }}</b>

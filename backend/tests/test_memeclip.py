@@ -59,3 +59,15 @@ def test_beat_grid_finds_tempo_and_plan_puts_kills_on_beats():
     assert all(abs(h["out"] - 1.0) < 0.01 for h in hits)  # der Kill steht zwei Schläge lang in Zeitlupe
     assert memeclip.ramp_fit(2.0, 0.5)[1:] == (0.25, 0.25)  # zu wenig Material: gleichmäßig langsam
     assert memeclip.word_times(["A", "B", "1.45:C"], bt)[:3] == [(0.1, 0.6, "A"), (0.6, 1.45, "B"), (1.45, 1.95, "C")]
+
+
+def test_onset_cut_and_word_merge():
+    import numpy as np
+
+    m = np.zeros(100)
+    m[42:] = 5.0  # Bewegung setzt bei 4,2 s ein (10 Werte je Sekunde)
+    assert abs(memeclip.onset_cut((10, m), 3.0, 6.0) - 4.1) < 0.15
+    assert memeclip.onset_cut(None, 3.0, 6.0) == 6.0
+    bt = [round(0.5 * i, 3) for i in range(20)]
+    ws = memeclip.word_times(["1.00:I", "1.10:AM", "1.20:HERE", "2.0:NOW"], bt)
+    assert [w[2] for w in ws] == ["I AM", "HERE", "NOW"]  # zu kurz hintereinander: zusammen, höchstens zwei
