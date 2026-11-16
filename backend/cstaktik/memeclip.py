@@ -285,6 +285,7 @@ def make(src: str, out: str, progress=None) -> dict:
 
 RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
 HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
+OUT_FRAC, OUT_V = 0.3, 2.0  # letzte 30 % der Kill-Zeitlupe: Tempo steigt bis aufs Doppelte, Schnitt in der Bewegung
 HIT_SLOW_LAST = 0.35  # der letzte Kill (Höhepunkt) noch langsamer: das Ende bleibt am stärksten im Kopf
 # Echte Zwischenbilder beim Kill (Bewegung wird geschätzt, wie bei Profi-Zeitlupe) statt Überblenden mit Doppelbildern.
 # Kostet Rechenzeit (etwa 7 s je Sekunde Zeitlupe), deshalb nur beim Kill selbst. False = wie vorher überblenden.
@@ -507,7 +508,13 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: d
         hit_out = beat * (2 if nxt_gap >= 4 else 1)   # der Kill bleibt zwei Schläge in Zeitlupe, bei kurzem Abstand einen
         slow = HIT_SLOW_LAST if j == len(used) - 1 and len(used) > 1 else HIT_SLOW
         after_src = min(hit_out * slow, max(cdur - ks - 0.02, 0.05))
-        segs.append({"kind": "hit", "ss": round(ks, 3), "d": round(after_src, 3), "out": round(hit_out, 3), "o0": round(kb, 3),
+        extra = {}
+        if j < len(used) - 1:  # nicht der letzte Kill: aus der Zeitlupe heraus beschleunigen (Velocity-Bogen)
+            o2 = hit_out * OUT_FRAC
+            need = (hit_out - o2) * slow + o2 * (slow + OUT_V) / 2
+            if need <= cdur - ks - 0.02:
+                after_src, extra = need, {"ramp_out": round(o2, 3), "slow": slow}
+        segs.append({**extra, "kind": "hit", "ss": round(ks, 3), "d": round(after_src, 3), "out": round(hit_out, 3), "o0": round(kb, 3),
                      "box": kill["box"], "feed_at": round(min(kill["t"] + 0.2, cdur - 0.05), 3), "text": f"+{j + 1}",
                      "kill_at": 0.0, "src": kill.get("src")})
         o, src_prev = kb + hit_out, ks + after_src
@@ -544,7 +551,7 @@ def _render_end(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float =
     silent = f"anullsrc=r=48000:cl=stereo,atrim=0:{seg['out']}[a]"
     if seg["d"] >= 0.2:
         speed = max(seg["d"] / seg["out"], 0.05)
-        fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f},{SMOOTH[:-1]}[s];{_vf('[s]', str(Z_HIT), 'bg', b)};"
+        fc = (f"[0:v]scale={W}:{H},settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f},{SMOOTH[:-1]}[s];{_vf('[s]', str(Z_HIT), 'bg', b)};"
               f"{over};{silent}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
@@ -555,6 +562,21 @@ def _render_end(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float =
     fc = f"{_vf('[0:v]', str(Z_HIT), 'bg', b)};{over};{silent}"
     _run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-framerate", str(OUT_FPS), "-t", str(seg["out"]), "-i", str(png),
           "-i", str(kf), "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
+
+
+def hit_pts(seg: dict, speed: float) -> str:
+    """Zeitverlauf der Kill-Zeitlupe als setpts. Mit ``ramp_out``: erst gleichmäßig langsam, in den letzten
+    ``ramp_out`` Sekunden steigt das Tempo linear auf OUT_V. So endet der Kill in schneller Bewegung, und der Schnitt
+    zur nächsten Szene liegt mitten in der Bewegung: Schnitte während Bewegung fallen am wenigsten auf
+    (Smith & Henderson 2008)."""
+    if not seg.get("ramp_out"):
+        return f"settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f}"
+    s, o2 = seg["slow"], seg["ramp_out"]
+    o1 = seg["out"] - o2
+    d1, k = o1 * s, (OUT_V - s) / o2
+    x = "((PTS-STARTPTS)*TB)"
+    y = f"if(lt({x}\\,{d1:.4f})\\,{x}/{s}\\,{o1:.4f}+(sqrt({s * s:.5f}+{2 * k:.5f}*({x}-{d1:.4f}))-{s})/{k:.5f})"
+    return f"settb=1/60000,setpts='({y})/TB'"
 
 
 def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
@@ -575,18 +597,16 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
                  f"volume=0.9,apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
-        fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'bg', b)};"
+        fc = (f"[0:v]scale={W}:{H},{hit_pts(seg, speed)},"
+              + (MCI_VF if MCI else f"minterpolate=fps={OUT_FPS}:mi_mode=blend") + f"[s];{_vf('[s]', z, 'bg', b)};"
               f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
               f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];"
               f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
-        fc = fc.replace(f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];",
-                        f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f},"
-                        + (MCI_VF if MCI else f"minterpolate=fps={OUT_FPS}:mi_mode=blend") + "[s];")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
     if seg["kind"] == "shot":  # eigener kurzer Schnitt: gleichmäßiges Tempo, Zoom-Schlag beim Bildwechsel
-        fc = (f"[0:v]scale={W}:{H},{BLUR}setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', CUT_POP, 'c', b)};[c]{tail}[v];{audio}")
+        fc = (f"[0:v]scale={W}:{H},{BLUR}settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', CUT_POP, 'c', b)};[c]{tail}[v];{audio}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -605,7 +625,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
                  f"amix=inputs={len(labels)}:duration=longest:normalize=0,volume=0.85,"
                  f"apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         blur = BLUR if v0 > 1.2 else ""
-        fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
+        fc = f"[0:v]scale={W}:{H},{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d + _margin(seg)), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -614,7 +634,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
     else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
         pts = f"({d}/({v1}-{v0}))*log(({v0}+({v1}-{v0})*((PTS-STARTPTS)*TB)/{d})/{v0})/TB"
     blur = BLUR if seg.get("v0", 1) > 1.2 else ""
-    fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
+    fc = f"[0:v]scale={W}:{H},{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d + _margin(seg)), "-i", src,
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 

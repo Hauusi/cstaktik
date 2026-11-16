@@ -186,3 +186,15 @@ def test_printable_lyrics_and_wall_perspective():
     t, b = wall_text.limit_perspective(0.6, -0.4, 100, 20)
     hl, hr = 20 + (t - b) * 50, 20 - (t - b) * 50
     assert hl / hr <= wall_text.MAX_PERSP + 1e-6 and abs((t + b) / 2 - 0.1) < 1e-6
+
+
+def test_hit_speeds_up_into_next_scene():
+    box = (1100, 80, 1270, 105)
+    bt = [round(0.1 + 0.5 * i, 3) for i in range(27)]
+    pl = memeclip.plan_beat([{"t": 1.5, "box": box, "src": "a", "dur": 9.0}, {"t": 5.0, "box": box, "src": "a", "dur": 9.0}],
+                            9.0, bt)
+    h = [x for x in pl["segments"] if x["kind"] == "hit"]
+    assert h[0].get("ramp_out") and not h[-1].get("ramp_out")  # der letzte Kill bleibt bis zum Ende langsam
+    o1, o2, s = h[0]["out"] - h[0]["ramp_out"], h[0]["ramp_out"], h[0]["slow"]
+    assert abs(h[0]["d"] - (o1 * s + o2 * (s + memeclip.OUT_V) / 2)) < 0.002  # Material passt genau zur Tempokurve
+    assert "settb=1/60000" in memeclip.hit_pts(h[0], 0.5)  # feines Zeitraster: keine doppelten Zeitstempel

@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 432 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 433 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips Velocity-Bogen: Kill-Zeitlupe (außer letztem Kill) beschleunigt in den letzten 30 % linear auf 2× (`OUT_FRAC`, `OUT_V`, `hit_pts`), Schnitt zur nächsten Szene in der Bewegung (Smith & Henderson 2008). Alle Segmente mit `settb=1/60000` vor setpts: bei grobem Zeitraster der Quelle bekamen Bilder sonst denselben Zeitstempel und wurden verworfen.
 
 - 2026-11-16: Clips Sound beim Kill (Nutzer: klingt komisch; Spektrum zeigte den steigenden Sinus im Riser als Pfeifen): Riser nur noch anschwellendes Rauschen, Impact `IMPACT` tiefer und kürzer ohne Knack-Rauschen, `SFX_VOL` 0,45.
 
