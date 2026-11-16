@@ -49,3 +49,24 @@ def test_no_kill_and_bad_file(monkeypatch):
     assert c.post("/clips", files={"video": ("a.txt", b"x", "text/plain")}, headers=O).status_code == 400
     c.post("/clips", files={"video": ("a.mp4", b"x", "video/mp4")}, headers=O)
     assert "kein eigener Kill gefunden" in c.get("/clips").text
+
+
+def test_chunked_upload(monkeypatch):
+    def fake(src, out, progress=None):
+        assert open(src, "rb").read() == b"aaabbb"  # Stücke in Reihenfolge zusammengesetzt
+        open(out, "wb").write(b"v")
+        return {"kills": [1], "seconds": 3.0}
+
+    monkeypatch.setattr(memeclip, "make", fake)
+    monkeypatch.setattr(clips, "start", lambda d, user=None: clips.render(d, user))
+    c = _client()
+    assert c.post("/clips/new", json={"video": "a.exe"}, headers=O).status_code == 400
+    jid = c.post("/clips/new", json={"video": "mein clip.mp4", "music_ss": "3"}, headers=O).json()["id"]
+    assert "Upload nicht abgeschlossen" in c.get("/clips").text
+    assert c.post(f"/clips/{jid}/start", headers=O).status_code == 404  # noch keine Datei
+    for part in (b"aaa", b"bbb"):
+        assert c.post(f"/clips/{jid}/chunk?kind=video", content=part, headers=O).json()["ok"]
+    assert c.post(f"/clips/{jid}/chunk?kind=video", content=b"x" * (2 * 1024 * 1024 + 1), headers=O).status_code == 413
+    assert c.post(f"/clips/{jid}/start", headers=O).json()["ok"]
+    assert clips.jobs("Hausi")[0]["status"] == "fertig"
+    assert c.post(f"/clips/{jid}/chunk?kind=video", content=b"c", headers=O).status_code == 404  # nach dem Start zu

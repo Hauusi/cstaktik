@@ -10,6 +10,7 @@
 .cf input[type=file], .cf input[type=text], .cf textarea { width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; }
 .cf button { height: 50px; border: 0; border-radius: 14px; background: var(--orange); color: #111; font: inherit; font-weight: 800; font-size: 16px; cursor: pointer; }
 .cf details summary { cursor: pointer; color: var(--orange); font-weight: 700; font-size: 14px; list-style: none; }
+.up .upb { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; } .up .upb i { display: block; height: 100%; width: 0; background: var(--orange); }
 .cj { margin-top: 12px; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
 .cj b { font-size: 15px; } .cj .st { margin-top: 4px; font-size: 13.5px; color: var(--muted); line-height: 1.4; } .cj .st.err { color: #ff9aa8; }
 .cj video { display: block; width: 100%; max-width: 360px; margin: 10px auto 0; border-radius: 12px; background: #000; }
@@ -40,7 +41,8 @@
       <small>Das Tool legt ein Wort auf jeden Schlag. Für eine genaue Stelle: Sekunde und Wort mit Doppelpunkt, zum Beispiel 1.45:WORT</small>
     </div>
   </details>
-  <button type="submit">Hochladen und schneiden</button>
+  <button type="submit" id="cgo">Hochladen und schneiden</button>
+  <div class="up" id="cup" hidden><div class="upb"><i id="cbar"></i></div><small id="cmsg">Lädt hoch …</small></div>
 </form>
 {% for j in items %}
 <div class="cj" data-job="{{ j.id }}">
@@ -53,9 +55,55 @@
   {% elif j.status == "fehler" %}
   <div class="st err">{{ j.error }}</div>
   <div class="row"><form method="post" action="/clips/{{ j.id }}/delete"><button type="submit">Löschen</button></form></div>
+  {% elif j.status == "upload" %}
+  <div class="st">Upload nicht abgeschlossen.</div>
+  <div class="row"><form method="post" action="/clips/{{ j.id }}/delete"><button type="submit">Löschen</button></form></div>
   {% else %}
   <div class="st">{{ "Wartet auf einen anderen Schnitt." if j.status == "wartet" else (j.step or "Läuft") ~ " …" }} Die Seite lädt von selbst neu.</div>
   {% endif %}
 </div>
 {% endfor %}
+{% endblock %}
+{% block script %}
+<script>
+/* Upload in kleinen Stücken: funktioniert auch, wenn der Webserver große Uploads ablehnt, und zeigt den Fortschritt. */
+(function () {
+  var f = document.querySelector('form[data-block="upload"]'); if (!f || !window.fetch || !File.prototype.slice) return;
+  var CH = 768 * 1024, bar = document.getElementById("cbar"), msg = document.getElementById("cmsg");
+  function post(url, body, json) {
+    return fetch(url, {method: "POST", credentials: "same-origin", body: body,
+      headers: {"Content-Type": json ? "application/json" : "application/octet-stream"}}).then(function (r) {
+      if (!r.ok) return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.detail || ("Fehler " + r.status)); });
+      return r.json();
+    });
+  }
+  function send(id, kind, file, done, total) {
+    var pos = 0;
+    function next(tries) {
+      if (pos >= file.size) return Promise.resolve();
+      return post("/clips/" + id + "/chunk?kind=" + kind, file.slice(pos, pos + CH)).then(function () {
+        pos += CH; var p = Math.min(100, 100 * (done + Math.min(pos, file.size)) / total);
+        bar.style.width = p + "%"; msg.textContent = "Lädt hoch … " + Math.round(p) + " %";
+        return next(0);
+      }, function (e) {  // Funkloch: dasselbe Stück bis zu 4 Mal neu versuchen
+        if (tries >= 4 || /zu groß|nicht gefunden/.test(e.message)) throw e;
+        return new Promise(function (ok) { setTimeout(ok, 1500 * (tries + 1)); }).then(function () { return next(tries + 1); });
+      });
+    }
+    return next(0);
+  }
+  f.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var v = f.video.files[0], m = f.music.files[0]; if (!v) return;
+    document.getElementById("cgo").disabled = true; document.getElementById("cup").hidden = false;
+    var total = v.size + (m ? m.size : 0);
+    post("/clips/new", JSON.stringify({video: v.name, music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value}), true)
+      .then(function (j) {
+        return send(j.id, "video", v, 0, total).then(function () { return m ? send(j.id, "music", m, v.size, total) : null; })
+          .then(function () { return post("/clips/" + j.id + "/start", "{}", true); });
+      }).then(function () { location.href = "/clips"; })
+      .catch(function (e) { msg.textContent = "Upload fehlgeschlagen: " + e.message; document.getElementById("cgo").disabled = false; });
+  });
+})();
+</script>
 {% endblock %}

@@ -1065,6 +1065,61 @@ async def clips_upload(video: UploadFile = File(...), music: UploadFile | None =
     return RedirectResponse("/clips", status_code=303)
 
 
+@app.post("/clips/new")
+async def clips_new(request: Request) -> JSONResponse:
+    """Upload in Stücken, Schritt 1: Auftrag anlegen (Dateinamen prüfen, Angaben merken)."""
+    from cstaktik import clips
+
+    body = await _json_body(request)
+    ext = Path(str(body.get("video") or "")).suffix.lower()
+    mext = Path(str(body.get("music") or "")).suffix.lower() if body.get("music") else ""
+    if ext not in clips.VIDEO_EXT:
+        raise HTTPException(400, "Video bitte als .mp4, .mov, .mkv oder .webm.")
+    if mext and mext not in clips.MUSIC_EXT:
+        raise HTTPException(400, "Musik bitte als .mp3, .m4a, .wav, .ogg oder .aac.")
+    try:
+        ss = max(0.0, float(str(body.get("music_ss") or "0").replace(",", ".")))
+    except ValueError:
+        ss = 0.0
+    d = clips.new_job(_USER.get())
+    clips.set_state(d, status="upload", name=Path(str(body["video"])).name[:80], music=bool(mext), music_ss=ss,
+                    lyrics=" ".join(str(body.get("lyrics") or "").split())[:600], created=pipeline.coaching_now(),
+                    video_ext=ext, music_ext=mext)
+    return JSONResponse({"id": d.name})
+
+
+@app.post("/clips/{job_id}/chunk")
+async def clips_chunk(job_id: str, request: Request, kind: str = "video") -> JSONResponse:
+    """Schritt 2: ein Stück der Datei anhängen (klein genug für jede Upload-Grenze des Webservers)."""
+    from cstaktik import clips
+
+    d = clips.job_dir(_USER.get(), job_id)
+    st = clips._state(d) if d else {}
+    if not d or st.get("status") != "upload" or kind not in ("video", "music"):
+        raise HTTPException(404, "Upload nicht gefunden.")
+    target = d / (f"in{st['video_ext']}" if kind == "video" else f"music{st['music_ext']}")
+    limit = clips.MAX_VIDEO_BYTES if kind == "video" else clips.MAX_MUSIC_BYTES
+    data = await request.body()
+    if len(data) > 2 * 1024 * 1024 or (target.stat().st_size if target.exists() else 0) + len(data) > limit:
+        raise HTTPException(413, "Datei zu groß.")
+    with target.open("ab") as fh:
+        fh.write(data)
+    return JSONResponse({"ok": True, "size": target.stat().st_size})
+
+
+@app.post("/clips/{job_id}/start")
+def clips_start(job_id: str) -> JSONResponse:
+    """Schritt 3: Upload fertig, Schnitt starten."""
+    from cstaktik import clips
+
+    d = clips.job_dir(_USER.get(), job_id)
+    if not d or clips._state(d).get("status") != "upload" or not any(d.glob("in.*")):
+        raise HTTPException(404, "Upload nicht gefunden.")
+    clips.set_state(d, status="wartet")
+    clips.start(d, _USER.get())
+    return JSONResponse({"ok": True})
+
+
 @app.get("/clips/{job_id}/video")
 def clips_video(job_id: str, dl: int = 0):
     from fastapi.responses import FileResponse

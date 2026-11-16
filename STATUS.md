@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 417 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 418 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -150,7 +150,9 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
   Fehler, Üben, Prüfen, Weiter in der App), `POST /wissen/antwort` (nur eigener Spieler). Kachel "CS-Wissen" nach "Kurs".
   Session-Thema und Lektion verlinken passende Themen; der KI-Coach bekommt sie in den Fakten und darf sie nennen.
 - `/clips` (Kachel „Clips“): Video und optional Musik, Startsekunde und Songtext hochladen; Status lädt alle 5 s neu;
-  fertiges Video ansehen (`/clips/{id}/video`), herunterladen, löschen (`POST /clips/{id}/delete`). Nur eigene Clips.
+  Upload in Stücken von 768 KB per JS (`POST /clips/new`, `/clips/{id}/chunk?kind=video|music`, `/clips/{id}/start`), weil
+  nginx große Uploads abbrach (ERR_FAILED am Handy); mit Fortschritt und Wiederholung bei Funkloch.
+  Fertiges Video ansehen (`/clips/{id}/video`), herunterladen, löschen (`POST /clips/{id}/delete`). Nur eigene Clips.
   Braucht ffmpeg auf dem Server (`apt install -y ffmpeg`), die Seite meldet, wenn es fehlt.
 - `/kurs` Kurs-Übersicht (aktuelle Lektion, Lernpfad). `/kurs/{lektion}` Lektion (Verstehen, Bei dir, Bei den
   Pros, Üben, Prüfen).
@@ -263,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clip-Upload in Stücken mit Fortschrittsanzeige (behebt ERR_FAILED beim Hochladen).
 
 - 2026-11-16: Clips in der App (`clips.py`, `/clips`); Schnitt ruhiger (kein Zoom-Stoß je Schlag, Kill-Zoom 1,12),
   Songtext größer mit Schatten und wechselnder Höhe.
