@@ -211,11 +211,13 @@ def place(g: np.ndarray, aspect: float) -> dict | None:
     """Wand im Spielbild suchen und das Wort-Viereck dort festlegen (kleine Auflösung, Koordinaten im Quadrat)."""
     size = g.shape[0]
     best = None
-    regions = {"left": (0.02, 0.46), "right": (0.54, 0.98), "wide": (0.08, 0.92)}
+    # Bereich ums Fadenkreuz (Bildmitte) bleibt frei: dort passiert der Kill (Nutzer: Wörter verdeckten Kills).
+    # Seiten reichen nur bis 40 % / ab 60 % der Breite, die breite Fläche nur im oberen Teil (bis 38 % der Höhe).
+    regions = {"left": (0.02, 0.40, 0.12, 0.62), "right": (0.60, 0.98, 0.12, 0.62), "wide": (0.08, 0.92, 0.05, 0.38)}
     found = {}
-    for side, (fa, fb) in regions.items():
+    for side, (fa, fb, ya, yb) in regions.items():
         x0, x1 = int(size * fa), int(size * fb)
-        y0, y1 = int(size * 0.12), int(size * 0.62)
+        y0, y1 = int(size * ya), int(size * yb)
         pts = corners(g, (x0, y0, x1, y1))
         if len(pts) < MIN_POINTS * 2:
             continue
@@ -232,7 +234,7 @@ def place(g: np.ndarray, aspect: float) -> dict | None:
     best = wide if wide and (side_best is None or wide[0] >= 1.2 * side_best[0]) else (side_best or wide)
     _, side, (x0, y0, x1, y1), (top, bot), pts = best
     qw = (x1 - x0) * (0.80 if side == "wide" else 0.85)
-    qh = min(qw / aspect, (y1 - y0) * 0.35)
+    qh = min(qw / aspect, (y1 - y0) * (0.6 if side == "wide" else 0.35))
     qw = qh * aspect
     top, bot = limit_perspective(top, bot, qw, qh)
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2

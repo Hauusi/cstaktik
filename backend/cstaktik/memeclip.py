@@ -981,6 +981,13 @@ def _has_glyph(c: str, font_file: str) -> bool:
 _GLYPH_FONT: dict = {}
 
 
+def lyric_pos(j: int, during_kill: bool) -> tuple[int, float]:
+    """Mitte (y) und Größe eines flachen Songtext-Worts. Hält die Bildmitte frei."""
+    if LANDSCAPE:
+        return int(OUT_H * 0.82) + LYRIC_DY[j % len(LYRIC_DY)] // 2, 0.62
+    return (BOX_Y // 2 + 70) + LYRIC_DY[j % len(LYRIC_DY)] // 2, 0.72
+
+
 def png_aspect(path) -> float:
     from PIL import Image
 
@@ -1259,10 +1266,9 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(png)]
                 # während eines Kills gehört die Bildmitte dem Kill: das Wort steht dann kleiner am unteren Bildrand
                 low = any(x0 - 0.05 <= a < x1 - 0.05 for x0, x1 in busy)
-                # groß in der Bildmitte (Vorbild); während eines Kills etwas tiefer und kleiner, der Treffer bleibt frei
-                mid = OUT_H // 2
-                cy = mid + int(BOX * 0.30) if low else mid + LYRIC_DY[j % len(LYRIC_DY)]
-                sc = 0.75 if low else 1.0
+                # nie in der Bildmitte: dort ist das Fadenkreuz, also der Kill (Nutzer: Wörter verdeckten Kills).
+                # Hochformat: über dem Spielbild (frei, seit der Zähler weg ist); Querformat: unteres Fünftel.
+                cy, sc = lyric_pos(j, low)
                 fc += (f"[{k}:v]format=rgba,scale=w='2*trunc(iw*{sc}*(1+0.2*exp(-22*max(t-{a}\\,0)))/2)':h=-2:eval=frame[w{j}];"
                        f"[{last}][w{j}]overlay=x='(W-w)/2':y='{cy}-h/2':eval=frame:"
                        f"enable='between(t,{a},{min(b, total)})'[t{j}];")
@@ -1294,7 +1300,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             from cstaktik import wall_text
 
             wall_stats = wall_text.apply(str(tmp / "flat.mp4"), out, wall_words, BOX_Y, BOX, OUT_FPS,
-                                         OUT_H // 2, size=(OUT_W, OUT_H), box_x=BOX_X, enc=
+                                         lyric_pos(0, False)[0], size=(OUT_W, OUT_H), box_x=BOX_X, enc=
                                          ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
                                           "-movflags", "+faststart"])
         if progress:

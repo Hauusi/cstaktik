@@ -266,6 +266,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Songtext verdeckte Kills (Nutzer): flache Wörter nie mehr in der Bildmitte (`lyric_pos`: Hochformat über dem Spielbild, frei seit Zähler weg; Querformat unteres Fünftel, kleiner). Wand-Suche hält Bereich ums Fadenkreuz frei (Seiten bis 40 % / ab 60 %, breite Fläche nur obere 5–38 %, dort Wort bis 60 % der Höhe). An 2 Nutzer-Videos gemessen: Wand in jedem Bild, Höhe 121–178 px, 1 von 90 Bildern berührt den Mittelbereich knapp. Echter Clip beide Formate geprüft.
+
 - 2026-11-16: Kill-Erkennung (Nutzer: 6 von 9 erkannt): bisher nur Anzahl roter Einträge gezählt (+2,5 s Lückenfüllung) → verschwand ein alter Eintrag, während ein neuer kam, ging der Kill verloren. Nachgestellt mit echtem Clip (echter Eintrag eingeblendet, als der alte verschwand): alt 2 von 4, neu 4 von 4. Jetzt `kills_from_boxes`: Fingerabdruck je Eintrag (`_sig`: Rahmenbreite + Spaltenprofil heller Schrift, rechtsbündig; `_same`: Breite ±12 px, Profil ±2 Streifen), neuer Fingerabdruck = neuer Kill, gleicher nach Aussetzer = derselbe. Echte Clips (Original, 1366er, SAR) weiter 3/3. Nutzer-Clips mit 9 Kills nicht vorhanden → dort ungeprüft.
 
 - 2026-11-16: Clips lange Wörter nicht auf Wände (Nutzer-Video: "PAPA-PAPARAZZI" winzig): gemessen Schrifthöhe auf Wand NO 193 px, KNOW 161, PROMISE 101, PAPA-PAPARAZZI 59 px. Jetzt `WALL_MAX_ASPECT` 3,6 (Seitenverhältnis des Wort-Bilds, `png_aspect`): breitere Wörter groß in der Mitte. Echter Clip: 14 Wörter, 6 auf Wänden, lange flach lesbar.
