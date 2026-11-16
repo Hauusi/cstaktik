@@ -266,6 +266,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips Verschwimmen + Vorspulen (Nutzer-Video: Doppelbilder bei 8,5 s und 11 s im Anlauf vor dem Kill): tmix-Bewegungsunschärfe entfernt (`BLUR` leer), Anlauf/Schnitt/Schluss mit berechneten Zwischenbildern statt Überblenden (`SMOOTH` = `MCI_VF`, Schnitt mit `DEDUP`), Übergang ohne gblur (nur Zoom, Lanczos). Tempo begrenzt: `RAMP_V0` 1,6→1,3, `SHOT_SPEED` 1,25→1,15, `SYNC_MAX` 1,7→1,4, Reststück ≤ 1,1×SYNC_MAX. Echter Clip: höchstes Tempo 1,60→1,30×, Schärfe Median 352→446, unschärfste 5 % 132→174, 0 Standbilder, Sync 8/9; Rechenzeit 84→122 s.
+
 - 2026-11-16: Clips: Segmente parallel rendern (`render_workers`, Kerne bis 4, ThreadPool). Echter Clip, 4 Kerne: 122 s → 81 s, Ergebnis bildgleich (Abweichung 0,0). Geprüft und verworfen: Übersteuerung (Messfehler durch Mono-Mischung; Stereo-Spitze −1,8 dBFS, ok), Kill-Schuss lauter/Riser-Lücke/stärkeres Ducking (gemessen kein Gewinn, da vor dem Kill gleich laute Schüsse liegen). Musik-Stille am Anfang liegt in der Musikdatei selbst.
 
 - 2026-11-16: Clips Kill "weggeschmissen" (Nutzer-Video analysiert): am Ende jedes Kills (außer dem letzten) sprang die Bewegung auf das 4–6-Fache, verursacht durch Velocity-Bogen (30 %, 2×) plus Hineinzoomen 80 ms vor dem Schnitt. Jetzt `OUT_FRAC` 0,2 / `OUT_V` 1,4, kein Bogen bei kurzen Kills (< 1,5 Schläge), Zoom-Übergang nur nach dem Schnitt (`TR_Z` 0,14, Unschärfe sigma 5). Am echten Clip gemessen: letzte Bilder vor dem Schnitt 14–28 → 4–8 (normale Bewegung der Aufnahme), Sync 9/10, 0 Standbilder.

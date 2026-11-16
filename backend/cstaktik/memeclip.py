@@ -290,7 +290,7 @@ def make(src: str, out: str, progress=None) -> dict:
 # der erste Kill früh (die ersten Sekunden entscheiden, ob jemand dranbleibt), und das Tempo gleitet in die Zeitlupe,
 # statt zu springen.
 
-RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
+RAMP_V0, RAMP_V1 = 1.3, 0.4  # Anlauf beginnt leicht schnell (vorher 1,6: wirkte wie Vorspulen) und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
 HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
 # letzte 20 % der Kill-Zeitlupe: Tempo steigt sanft (bis 1,4×), Schnitt in der Bewegung. Vorher 30 % / 2,0×: gemessen
 # sprang die Bewegung am Kill-Ende auf das 4- bis 6-Fache, der Kill wirkte "weggerissen" (Nutzer-Rückmeldung).
@@ -305,9 +305,11 @@ WALL_MIN_S = 0.22  # so lange muss ein Wort an der Wand stehen können
 WALL_TEXT = True  # Songtext teils auf Wände legen (wall_text.py)
 WORD_LEAD_S = 0.04  # Text minimal vor dem Gesang: späterer Text fällt eher auf als früherer
 MIN_WORD_S = 0.28  # kürzer steht ein Wort nicht lesbar im Bild
-SHOT_SPEED, SHOT_BACK = 1.25, 1.0  # eigener Schnitt vor dem Kill: leicht schnell, etwa 1 s früher im Clip
+SHOT_SPEED, SHOT_BACK = 1.15, 1.0  # eigener Schnitt vor dem Kill: leicht schnell, etwa 1 s früher im Clip
 LOOP_S = 0.3  # Übergang am Ende zurück zum ersten Bild
-BLUR = "tmix=frames=3:weights='1 2 1',"  # leichte Bewegungsunschärfe aus drei Nachbarbildern (wie eine Kamera)
+# Keine künstliche Bewegungsunschärfe mehr: bei schnellen Mausbewegungen lagen drei Bilder sichtbar übereinander
+# (Nutzer: "verschwimmt"). Am echten Clip gemessen: Anlauf ohne sie fast doppelt so scharf (279 -> 466).
+BLUR = ""
 CUT_POP = "1+0.06*exp(-13*t)"       # Zoom-Schlag bei jedem Bildwechsel (klingt in etwa 0,2 s ab, danach ruhig)
 
 
@@ -373,9 +375,11 @@ def shots(src: str) -> list[float]:
     return out
 
 
-SYNC_MIN, SYNC_MAX = 0.5, 1.7  # erlaubtes Tempo zwischen zwei Schüssen beim Einrasten auf den Beat
+SYNC_MIN, SYNC_MAX = 0.5, 1.4  # erlaubtes Tempo zwischen zwei Schüssen beim Einrasten auf den Beat
 SYNC_JUMP = 2.5  # höchstens so viel schneller/langsamer als das Stück daneben: sonst wirkt der Wechsel wie ein Ruckler
-SMOOTH = f"minterpolate=fps={OUT_FPS}:mi_mode=blend,"  # Zeitlupe: Zwischenbilder überblenden statt Bilder doppeln
+# Anlauf und Schluss: berechnete Zwischenbilder statt Überblenden (Überblenden legte bei schnellen Bewegungen zwei
+# Bilder übereinander). Gemessen am echten Clip: schärfstes Ergebnis ohne Standbilder.
+SMOOTH = MCI_VF + ","
 
 
 def sync_anchors(shot_times: list[float], s0: float, ks: float, gap: float, half: float) -> list[tuple[float, float]]:
@@ -403,7 +407,7 @@ def sync_anchors(shot_times: list[float], s0: float, ks: float, gap: float, half
             continue
         # der Rest bis zum Anfang muss auch ein erlaubtes Tempo haben
         rest = (t - s0) / best[0]
-        if not (SYNC_MIN <= rest <= SYNC_MAX * 1.3 and jump(rest, best[1])):
+        if not (SYNC_MIN <= rest <= SYNC_MAX * 1.1 and jump(rest, best[1])):
             continue
         anchors.append((t, round(best[0], 4)))
         prev_v = best[1]
@@ -625,7 +629,8 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
     if seg["kind"] == "shot":  # eigener kurzer Schnitt: gleichmäßiges Tempo, Zoom-Schlag beim Bildwechsel
-        fc = (f"[0:v]scale={W}:{H},{BLUR}settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', CUT_POP, 'c', b)};[c]{tail}[v];{audio}")
+        fc = (f"[0:v]scale={W}:{H},{DEDUP}settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f},{SMOOTH[:-1]}[s];"
+              f"{_vf('[s]', CUT_POP, 'c', b)};[c]{tail}[v];{audio}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -926,17 +931,14 @@ def transition_cuts(segs: list[dict]) -> list[float]:
 
 
 def transition_vf(cuts: list[float]) -> str:
-    """Zoom-Durchflug über das ganze Bild: kurz vor dem Schnitt hinein, danach wieder heraus, dazu kurze Unschärfe.
-    So wirkt der Szenenwechsel wie eine Bewegung statt wie ein Sprung. Ohne Schnitte: nichts."""
+    """Kurzer Zoom an Szenenwechseln nach einem Kill: die neue Szene beginnt 14 % vergrößert und gleitet in 140 ms
+    zurück. Erst nach dem Schnitt (der Kill bleibt unangetastet) und ohne Unschärfe (Nutzer: Verschwimmen störte).
+    Ohne Schnitte: nichts."""
     if not cuts:
         return ""
-    # nur nach dem Schnitt: der Kill bleibt bis zum letzten Bild unangetastet (vorher auch 80 ms Hineinzoomen davor,
-    # gemessen ein Bewegungssprung am Kill-Ende)
     bumps = "+".join(f"gte(t\\,{c})*pow(max(0\\,1-(t-{c})/{TR_OUT})\\,2)" for c in cuts)
     z = f"(1+{TR_Z}*min(1\\,{bumps}))"
-    blur = "+".join(f"between(t,{c:.3f},{c + TR_OUT * 0.7:.3f})" for c in cuts)
-    return (f"scale=w='2*trunc({OUT_W}*{z}/2)':h=-2:eval=frame:flags=bilinear,crop={OUT_W}:{OUT_H},"
-            f"gblur=sigma=5:enable='{blur}',")
+    return f"scale=w='2*trunc({OUT_W}*{z}/2)':h=-2:eval=frame:flags=lanczos,crop={OUT_W}:{OUT_H},"
 
 
 def sfx_expr(segs: list[dict], beat: float, cuts: list[float]) -> str:

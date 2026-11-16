@@ -103,8 +103,8 @@ def test_kill_beats_prefer_strong_and_vary():
 
 def test_sync_anchors_put_shots_on_eighth_notes():
     half = 0.25  # Achtelschlag bei 120 Schlägen pro Minute
-    anc = memeclip.sync_anchors([2.0, 2.3, 2.62, 2.9], s0=1.0, ks=3.2, gap=1.5, half=half)
-    assert anc[0] == (1.0, 0.0) and anc[-1] == (3.2, 1.5)  # Anfang und Kill (auf dem Schlag) fest
+    anc = memeclip.sync_anchors([1.4, 1.7, 1.95], s0=1.0, ks=2.2, gap=1.5, half=half)
+    assert anc[0] == (1.0, 0.0) and anc[-1] == (2.2, 1.5)  # Anfang und Kill (auf dem Schlag) fest
     for (x0, y0), (x1, y1) in zip(anc, anc[1:]):
         assert x1 > x0 and y1 > y0  # zeitlich vorwärts
     for x, y in anc[1:]:
@@ -114,7 +114,7 @@ def test_sync_anchors_put_shots_on_eighth_notes():
     v = [(x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(anc, anc[1:])] + [memeclip.HIT_SLOW]
     assert all(max(a / b, b / a) <= memeclip.SYNC_JUMP + 1e-6 for a, b in zip(v, v[1:]))  # keine Tempo-Sprünge
     assert len(anc) >= 4  # mehrere Schüsse eingerastet
-    assert memeclip.sync_anchors([], 1.0, 3.2, 1.5, half) == [(1.0, 0.0), (3.2, 1.5)]
+    assert memeclip.sync_anchors([], 1.0, 2.2, 1.5, half) == [(1.0, 0.0), (2.2, 1.5)]
 
 
 def test_align_lyrics_keeps_text_and_fills_gaps():
@@ -152,7 +152,7 @@ def test_transitions_and_sfx_only_at_scene_changes():
             {"kind": "hold", "o0": 4.0}]
     cuts = memeclip.transition_cuts(segs)
     assert cuts == [2.0]  # nur neue Szene nach einem Kill, nicht der Anfang, nicht innerhalb der Szene
-    assert memeclip.transition_vf([]) == "" and "gblur" in memeclip.transition_vf(cuts)
+    assert memeclip.transition_vf([]) == "" and "gblur" not in memeclip.transition_vf(cuts)  # Zoom ohne Unschärfe
     e = memeclip.sfx_expr(segs, 0.5, cuts)
     assert e.count("*pow((t-") == 2 and "sin(2*PI*(220" not in e and e.count("exp(-pow(") == 1 and "(t-1.000)" in e and "(t-3.000)" in e  # je Kill ein Riser und ein Impact
 
