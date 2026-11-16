@@ -198,3 +198,12 @@ def test_hit_speeds_up_into_next_scene():
     o1, o2, s = h[0]["out"] - h[0]["ramp_out"], h[0]["ramp_out"], h[0]["slow"]
     assert abs(h[0]["d"] - (o1 * s + o2 * (s + memeclip.OUT_V) / 2)) < 0.002  # Material passt genau zur Tempokurve
     assert "settb=1/60000" in memeclip.hit_pts(h[0], 0.5)  # feines Zeitraster: keine doppelten Zeitstempel
+
+
+def test_drop_start_puts_drop_on_first_kill_beat(monkeypatch):
+    from cstaktik import beats
+    monkeypatch.setattr(beats, "beats", lambda *a, **k: {"beats": [0.0, 0.5, 1.0, 1.5, 2.0]})
+    assert beats.drop_start("x.mp3", 12.0) == 10.75  # Drop auf Schlag-Index 2 (Schläge bei 0,25 / 0,75 / 1,25)
+    monkeypatch.setattr(beats, "beats", lambda *a, **k: {"beats": [0.0, 0.3, 0.6, 0.9]})
+    assert beats.drop_start("x.mp3", 12.0) == 10.95  # schnelles Tempo: Index 3
+    assert "setsar=1" in memeclip.LOOK  # Vignette nie als schwarze Ellipse

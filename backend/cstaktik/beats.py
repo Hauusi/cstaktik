@@ -95,3 +95,19 @@ def drop_time(e, step: float) -> float | None:
     if score[k] < 0.25 or after[k] < 0.6 * ref:
         return None
     return round(float(idx[k] * step), 2)
+
+
+def drop_start(path: str, drop: float) -> float:
+    """Musikstart so, dass der Drop genau auf dem Schlag liegt, auf dem der erste Kill landet (Schlag-Index 2, bei
+    schnellem Tempo 3; siehe memeclip.kill_beats). Ohne erkennbares Tempo: 1 s vor dem Drop."""
+    import numpy as np
+
+    try:
+        b = beats(path, max(drop - 4.0, 0.0), 8.0)["beats"]
+        period = float(np.median(np.diff(b)))
+    except Exception:  # noqa: BLE001
+        return round(max(drop - 1.0, 0.0), 2)
+    # Start einen halben Schlag vor einem Schlag: ein Schlag genau auf Sekunde 0 wird oft nicht erkannt, dann
+    # verschiebt sich die Zählung. So liegen die Schläge bei 0,5 / 1,5 / 2,5 ... Perioden, der Drop auf Schlag k.
+    k = 2 if 2.5 * period >= 0.9 else 3
+    return round(max(drop - (k + 0.5) * period, 0.0), 3)

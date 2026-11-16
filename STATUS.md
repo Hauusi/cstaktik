@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 433 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 434 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips End-to-End-Test (künstliche Clips mit Killfeed + Musik mit Drop bei 12 s, ganze Pipeline): Kills 3/3 erkannt, Drop 12,0 s gefunden, keine stehenden Bilder, −13,8 LUFS. Gefundene Fehler behoben: (1) erster Kill lag einen Schlag nach dem Drop (Beat auf Sekunde 0 wird nicht erkannt) → `beats.drop_start`: Start (k+0,5) Schläge vor dem Drop, jetzt 11,97 s; `clips.DROP_LEAD_S` entfernt. (2) Vignette zu stark (Ecken −46 %) → PI/10 (−19 %). (3) Vignette zeichnete bei nicht quadratischen Pixeln eine harte schwarze Ellipse → `setsar=1` davor.
 
 - 2026-11-16: Clips Velocity-Bogen: Kill-Zeitlupe (außer letztem Kill) beschleunigt in den letzten 30 % linear auf 2× (`OUT_FRAC`, `OUT_V`, `hit_pts`), Schnitt zur nächsten Szene in der Bewegung (Smith & Henderson 2008). Alle Segmente mit `settb=1/60000` vor setpts: bei grobem Zeitraster der Quelle bekamen Bilder sonst denselben Zeitstempel und wurden verworfen.
 

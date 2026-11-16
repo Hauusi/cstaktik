@@ -83,7 +83,6 @@ def _cleanup(user: str | None) -> None:
             shutil.rmtree(d, ignore_errors=True)
 
 
-DROP_LEAD_S = 1.0  # so viel vor dem Drop beginnen: der erste Kill fällt dann etwa auf den Drop
 
 def render(d: Path, user: str | None = None) -> None:
     """Einen Auftrag schneiden (blockiert; für den Hintergrund-Thread). Fehler landen als Text im Status."""
@@ -104,7 +103,7 @@ def render(d: Path, user: str | None = None) -> None:
 
                     set_state(d, step="Drop in der Musik suchen")
                     drop = beats.find_drop(music)
-                    ss = round(max(drop - DROP_LEAD_S, 0.0), 2) if drop is not None else 0.0
+                    ss = beats.drop_start(music, drop) if drop is not None else 0.0
                     set_state(d, music_auto=drop is not None, music_used=ss)
                 r = memeclip.make_beat(src, music, str(d / "out.mp4"), music_ss=ss,
                                        words=words or None, progress=prog)
