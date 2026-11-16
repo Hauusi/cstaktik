@@ -26,9 +26,10 @@
 <a class="back" href="/">‹ Zurück zum Coach</a>
 {% if not ffmpeg %}<div class="cj"><div class="st err">Auf dem Server fehlt das Programm ffmpeg. Als root installieren: <code>apt install -y ffmpeg</code></div></div>{% endif %}
 <form class="cf" method="post" action="/clips" enctype="multipart/form-data" data-block="upload">
-  <label for="cv">Deine Clips (einer oder mehrere, bis 8)</label>
-  <input id="cv" type="file" name="video" accept="video/*" multiple required>
-  <small>Der Killfeed oben rechts muss im Bild sein: Daran erkennt das Tool deine Kills. Mehrere Clips ergeben ein längeres Video, in der Reihenfolge der Auswahl. Je Clip höchstens 400 MB.</small>
+  <label for="cv">Deine Clips (bis 8, einzeln auswählen)</label>
+  <div id="cvs" style="display:grid;gap:8px"><input id="cv" type="file" name="video" accept="video/*" required></div>
+  <button type="button" id="cadd" style="height:40px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);font-size:14px">+ Weiteren Clip hinzufügen</button>
+  <small>Der Killfeed oben rechts muss im Bild sein: Daran erkennt das Tool deine Kills. Mehrere Clips ergeben ein längeres Video, in der Reihenfolge von oben nach unten. Je Clip höchstens 400 MB.</small>
   <details><summary>Mit Musik (Kills auf den Beat)</summary>
     <div style="display:grid;gap:10px;margin-top:10px">
       <label for="cm">Musik</label>
@@ -115,9 +116,17 @@
     }
     return pump().then(function () { return sent - before; });
   }
+  /* Je Clip ein eigenes Auswahlfeld: Die Mehrfach-Auswahl öffnet auf manchen Android-Handys einen anderen
+     Datei-Dialog, dessen Dateien der Browser nicht lesen kann ("network error"). */
+  document.getElementById("cadd").addEventListener("click", function () {
+    var box = document.getElementById("cvs"); if (box.children.length >= 8) return;
+    var inp = document.createElement("input"); inp.type = "file"; inp.name = "video"; inp.accept = "video/*"; box.appendChild(inp);
+  });
   f.addEventListener("submit", function (ev) {
     ev.preventDefault();
-    var vs = Array.prototype.slice.call(f.video.files, 0, 8), m = f.music.files[0]; if (!vs.length) return;
+    var vs = [], m = f.music.files[0];
+    f.querySelectorAll('input[name="video"]').forEach(function (inp) { if (inp.files[0] && vs.length < 8) vs.push(inp.files[0]); });
+    if (!vs.length) return;
     document.getElementById("cgo").disabled = true; document.getElementById("cup").hidden = false;
     var total = vs.reduce(function (a, x) { return a + x.size; }, 0) + (m ? m.size : 0);
     if (vs.some(function (x) { return !x.size; }) || (m && !m.size)) total = 0;  // Größe unbekannt: nur MB anzeigen
@@ -132,7 +141,11 @@
           .then(function (n) { if (!n) throw new Error("Die Musikdatei ließ sich nicht lesen (0 Bytes)."); })
           .then(function () { return post("/clips/" + j.id + "/start", "{}", true); });
       }).then(function () { location.href = "/clips"; })
-      .catch(function (e) { msg.textContent = "Upload fehlgeschlagen: " + e.message; document.getElementById("cgo").disabled = false; });
+      .catch(function (e) {
+        var t = e.message || String(e);
+        if (/network error|failed to fetch|load failed/i.test(t)) t += ". Das Handy konnte die Datei nicht lesen oder die Verbindung brach ab. Tipp: Die Datei im Auswahl-Dialog über „Dateien“ bzw. „Durchsuchen“ wählen, nicht über „Fotos“.";
+        msg.textContent = "Upload fehlgeschlagen: " + t; document.getElementById("cgo").disabled = false;
+      });
   });
 })();
 </script>

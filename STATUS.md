@@ -149,7 +149,7 @@ duo (zusammen/getrennt, Trades je SteamID, ab diesem Update; ältere Matches nac
 - `/wissen` CS-Wissen (Bereiche, Stand je Thema: neu/gelesen/noch üben/sitzt), `/wissen/{thema}` (Kern, Verstehen, Beispiel,
   Fehler, Üben, Prüfen, Weiter in der App), `POST /wissen/antwort` (nur eigener Spieler). Kachel "CS-Wissen" nach "Kurs".
   Session-Thema und Lektion verlinken passende Themen; der KI-Coach bekommt sie in den Fakten und darf sie nennen.
-- `/clips` (Kachel „Clips“): ein bis 8 Videos (in0.*, in1.* ...) und optional Musik, Startsekunde und Songtext hochladen; Status lädt alle 5 s neu;
+- `/clips` (Kachel „Clips“): ein bis 8 Videos (je ein Auswahlfeld, in0.*, in1.* ...) und optional Musik, Startsekunde und Songtext hochladen; Status lädt alle 5 s neu;
   Upload in Stücken von 768 KB per JS (`POST /clips/new`, `/clips/{id}/chunk?kind=video|music`, `/clips/{id}/start`), weil
   nginx große Uploads abbrach (ERR_FAILED am Handy); mit Fortschritt und Wiederholung bei Funkloch.
   Fertiges Video ansehen (`/clips/{id}/video`), herunterladen, löschen (`POST /clips/{id}/delete`). Nur eigene Clips.
@@ -265,6 +265,10 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips: je Clip ein eigenes Auswahlfeld statt Mehrfach-Auswahl (Android meldete „network error“ beim
+  Lesen), Knopf „+ Weiteren Clip“; Hinweis im Fehlertext. `backend/data/clips/` steht jetzt in .gitignore, versehentlich
+  committete Testdateien wurden wieder entfernt (liegen noch im Verlauf, Bereinigung braucht die Erlaubnis des Nutzers).
 
 - 2026-11-16: Clips-Upload liest Dateien per stream, wenn das Handy Größe 0 meldet (vorher kam kein Stück an);
   klare Meldung, wenn eine Datei wirklich 0 Bytes liefert (z. B. nur in der Cloud).
