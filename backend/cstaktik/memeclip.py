@@ -292,7 +292,9 @@ def make(src: str, out: str, progress=None) -> dict:
 
 RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
 HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
-OUT_FRAC, OUT_V = 0.3, 2.0  # letzte 30 % der Kill-Zeitlupe: Tempo steigt bis aufs Doppelte, Schnitt in der Bewegung
+# letzte 20 % der Kill-Zeitlupe: Tempo steigt sanft (bis 1,4×), Schnitt in der Bewegung. Vorher 30 % / 2,0×: gemessen
+# sprang die Bewegung am Kill-Ende auf das 4- bis 6-Fache, der Kill wirkte "weggerissen" (Nutzer-Rückmeldung).
+OUT_FRAC, OUT_V = 0.2, 1.4
 HIT_SLOW_LAST = 0.35  # der letzte Kill (Höhepunkt) noch langsamer: das Ende bleibt am stärksten im Kopf
 # Echte Zwischenbilder beim Kill (Bewegung wird geschätzt, wie bei Profi-Zeitlupe) statt Überblenden mit Doppelbildern.
 # Kostet Rechenzeit (etwa 7 s je Sekunde Zeitlupe), deshalb nur beim Kill selbst. False = wie vorher überblenden.
@@ -520,7 +522,7 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: d
         slow = HIT_SLOW_LAST if j == len(used) - 1 and len(used) > 1 else HIT_SLOW
         after_src = min(hit_out * slow, max(cdur - ks - 0.02, 0.05))
         extra = {}
-        if j < len(used) - 1:  # nicht der letzte Kill: aus der Zeitlupe heraus beschleunigen (Velocity-Bogen)
+        if j < len(used) - 1 and hit_out >= 1.5 * beat:  # nicht der letzte und kein kurzer Kill: sanft beschleunigen
             o2 = hit_out * OUT_FRAC
             need = (hit_out - o2) * slow + o2 * (slow + OUT_V) / 2
             if need <= cdur - ks - 0.02:
@@ -910,7 +912,7 @@ def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) 
     img.rotate(LYRIC_ROT[j % len(LYRIC_ROT)], expand=True, resample=Image.BICUBIC).save(path)
 
 
-TR_IN, TR_OUT, TR_Z = 0.08, 0.14, 0.28  # Übergang: 80 ms hineinzoomen, Schnitt, 140 ms aus dem Zoom heraus
+TR_OUT, TR_Z = 0.14, 0.14  # Übergang: nach dem Schnitt 140 ms aus 14 % Zoom heraus
 RISER_MAX = 1.2  # Riser vor dem Kill: höchstens so lang (s), sonst 1,5 Schläge
 SFX_VOL = 0.45
 IMPACT = "sin(2*PI*(45+30*exp(-t*30))*t)*exp(-t*7)"  # tiefer, kurzer Bass-Schlag ohne Knack-Rauschen
@@ -928,12 +930,13 @@ def transition_vf(cuts: list[float]) -> str:
     So wirkt der Szenenwechsel wie eine Bewegung statt wie ein Sprung. Ohne Schnitte: nichts."""
     if not cuts:
         return ""
-    bumps = "+".join(f"if(lt(t\\,{c})\\,pow(max(0\\,1-({c}-t)/{TR_IN})\\,2)\\,pow(max(0\\,1-(t-{c})/{TR_OUT})\\,2))"
-                     for c in cuts)
+    # nur nach dem Schnitt: der Kill bleibt bis zum letzten Bild unangetastet (vorher auch 80 ms Hineinzoomen davor,
+    # gemessen ein Bewegungssprung am Kill-Ende)
+    bumps = "+".join(f"gte(t\\,{c})*pow(max(0\\,1-(t-{c})/{TR_OUT})\\,2)" for c in cuts)
     z = f"(1+{TR_Z}*min(1\\,{bumps}))"
-    blur = "+".join(f"between(t,{c - TR_IN * 0.75:.3f},{c + TR_OUT * 0.7:.3f})" for c in cuts)
+    blur = "+".join(f"between(t,{c:.3f},{c + TR_OUT * 0.7:.3f})" for c in cuts)
     return (f"scale=w='2*trunc({OUT_W}*{z}/2)':h=-2:eval=frame:flags=bilinear,crop={OUT_W}:{OUT_H},"
-            f"gblur=sigma=9:enable='{blur}',")
+            f"gblur=sigma=5:enable='{blur}',")
 
 
 def sfx_expr(segs: list[dict], beat: float, cuts: list[float]) -> str:
