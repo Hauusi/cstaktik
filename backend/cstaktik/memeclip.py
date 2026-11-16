@@ -200,6 +200,15 @@ def _vf(src: str, z: str, out: str, b: float = 0.0) -> str:
 
 
 LOUDNORM = "loudnorm=I=-14:TP=-1:LRA=11,aresample=48000"
+# Ton wie im Vorbild (gemessen an einem viralen CS2-Edit: −10,8 LUFS, Dynamik LRA 3,9, ~0,9 hörbar herausstechende
+# Schüsse je Sekunde; unser Video vorher −13,7 LUFS, LRA 1,0, 0,2 Schüsse je Sekunde): Spielton lauter, Musik bei jedem
+# Schuss kurz abgesenkt, Kill-Schuss extra laut, Lautheit per Messung + gleichmäßiger Verstärkung statt Kompression.
+TARGET_LUFS = -11.0
+GAME_VOL = 0.6  # Spielton im Anlauf/Schnitt (vorher 0,3)
+SHOT_VOL = 1.15  # eingerastete Schüsse (vorher 0,85)
+KILL_VOL = 2.0  # Kill-Schuss (vorher 0,9): der Treffer soll kurz deutlich lauter sein
+KILL_DUCK = 0.6  # Musik beim Kill-Schuss um 60 % leiser (vorher 35 %)
+SHOT_DIP, SHOT_DIP_S = 0.45, 0.10  # Musik bei jedem Schuss um 45 % leiser, für etwa 0,1 s
 ENC = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
        "-c:a", "aac", "-ar", "48000", "-ac", "2", "-b:a", "192k"]
 BOOM = "0.95*sin(2*PI*(48+60*exp(-t*22))*t)*exp(-t*5.5)+0.25*(random(0)*2-1)*exp(-t*60)"
@@ -612,12 +621,12 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
     speed = max(seg["d"] / seg["out"], 0.05)
     tempo = ",".join(["atempo=0.5"] * (1 if speed < 0.5 else 0) + [f"atempo={max(speed, 0.5) if speed >= 0.5 else speed / 0.5:.5f}"])
     audio = (f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,{tempo},apad=whole_dur={seg['out']},atrim=0:{seg['out']},"
-             f"volume={0.8 if seg['kind'] == 'hit' else 0.3}[a]")
+             f"volume={0.8 if seg['kind'] == 'hit' else GAME_VOL}[a]")
     tail = f"setsar=1,fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{seg['out']}"
     if seg["kind"] == "hit":
         # Ton: der Kill-Schuss in echtem Tempo (gestreckter Ton klingt blechern), danach trägt die Musik die Zeitlupe
         audio = (f"[0:a]aresample=48000,asetpts=PTS-STARTPTS,atrim=0:{KILL_SND_S},afade=t=out:st={KILL_SND_S - 0.12}:d=0.12,"
-                 f"volume=0.9,apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
+                 f"volume={KILL_VOL},apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
         fc = (f"[0:v]scale={W}:{H},{DEDUP}{hit_pts(seg, speed)},"
@@ -646,7 +655,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
                          f"afade=t=out:st=0.14:d=0.08,adelay={int(max(y - 0.01, 0) * 1000)}:all=1[sh{i}]")
             labels.append(f"[sh{i}]")
         audio = (";".join(parts) + ";" + "".join(labels) +
-                 f"amix=inputs={len(labels)}:duration=longest:normalize=0,volume=0.85,"
+                 f"amix=inputs={len(labels)}:duration=longest:normalize=0,volume={SHOT_VOL},"
                  f"apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         blur = BLUR if v0 > 1.2 else ""
         fc = f"[0:v]scale={W}:{H},{DEDUP}{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
@@ -1000,6 +1009,19 @@ def render_workers() -> int:
     return max(1, min(4, os.cpu_count() or 1))
 
 
+def level_chain(path: str, target: float = None) -> str:
+    """Lautheit messen und gleichmäßig auf das Ziel anheben, Spitzen hart begrenzen (−1 dBFS). Anders als loudnorm im
+    Normalbetrieb bleibt die Dynamik erhalten (Schüsse stechen heraus)."""
+    import re
+
+    target = TARGET_LUFS if target is None else target
+    err = subprocess.run(["ffmpeg", "-nostats", "-i", path, "-af", "ebur128", "-f", "null", "-"],
+                         capture_output=True, text=True).stderr
+    m = re.findall(r"I:\s+(-?[\d.]+) LUFS", err)
+    gain = max(min(target - float(m[-1]), 24.0), -24.0) if m else 0.0
+    return f"volume={gain:.2f}dB,alimiter=limit=0.89:attack=1:release=60:level=0,aresample=48000"
+
+
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None, song: str | None = None) -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
@@ -1086,23 +1108,26 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             lst.write_text("".join(f"file '{f}'\n" for f in files))
             _run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-vn", "-c:a", "pcm_s16le",
                   str(tmp / "game.wav")])
-            measured = sync_report(shots(str(tmp / "game.wav")), bt["beats"], pl["beat"])
+            game_shots = shots(str(tmp / "game.wav"))
+            measured = sync_report(game_shots, bt["beats"], pl["beat"])
         except Exception:  # noqa: BLE001 - die Messung ist nur eine Anzeige
-            measured = None
-        # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar
+            measured, game_shots = None, []
+        # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar (eigener Ton-Graph)
         # Ton jedes Segments exakt auf seine Bildlänge: AAC-Ton ist oft ein paar ms länger; beim gemeinsamen
         # Aneinanderhängen entsteht sonst eine Lücke im Bild und ein doppeltes Bild (gemessen: 4 je Video)
-        fc = "".join(f"[{i}:a]apad=whole_dur={sg['out']},atrim=end={sg['out']},asetpts=PTS-STARTPTS,"
-                     f"afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];"
-                     for i, sg in enumerate(pl["segments"]))
+        afc_e = "".join(f"[{i}:a]apad=whole_dur={sg['out']},atrim=end={sg['out']},asetpts=PTS-STARTPTS,"
+                        f"afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];"
+                        for i, sg in enumerate(pl["segments"]))
+        fc = ""
         # Pixel-Seitenverhältnis vereinheitlichen: Segmente kamen mit "nicht gesetzt" und 1280:1281 an, dann bricht
         # concat ab (Fehler beim Nutzer)
         fc += "".join(f"[{i}:v]setsar=1[sv{i}];" for i in range(n))
-        fc += "".join(f"[sv{i}][e{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc0][ga];"
+        fc += "".join(f"[sv{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[vc0];"
         tcuts = transition_cuts(pl["segments"])
         fc += f"[vc0]{transition_vf(tcuts)}null[vc];"
-        fc += (f"aevalsrc='{sfx_expr(pl['segments'], pl['beat'], tcuts)}':d={total:.3f}:s=48000,"
-               f"aformat=channel_layouts=stereo,highpass=f=30,lowpass=f=9000,volume={SFX_VOL}[sfx];")
+        afc = afc_e + "".join(f"[e{i}]" for i in range(n)) + f"concat=n={n}:v=0:a=1[ga];"
+        afc += (f"aevalsrc='{sfx_expr(pl['segments'], pl['beat'], tcuts)}':d={total:.3f}:s=48000,"
+                f"aformat=channel_layouts=stereo,highpass=f=30,lowpass=f=9000,volume={SFX_VOL}[sfx];")
         lp = max(total - LOOP_S, 0)
         fc += (f"[LOOPIN]format=rgba,fade=t=in:st={lp:.3f}:d={LOOP_S}:alpha=1[lp];"
                f"[vc][lp]overlay=0:0:enable='gte(t,{lp:.3f})'[v0];")
@@ -1148,14 +1173,23 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         # Musik beim Kill-Schuss weich absenken (40 ms runter, 300 ms zurück) statt schlagartig: kein Pumpen
         duck = "+".join(f"min(1\\,max(0\\,(t-{x['o0'] - 0.04:.3f})/0.04))*min(1\\,max(0\\,({x['o0'] + KILL_SND_S + 0.3:.3f}-t)/0.3))"
                         for x in pl["segments"] if x["kind"] == "hit") or "0"
-        fc += (f"[{last}]null[v];[{n}:a]aresample=48000,volume='1-0.35*min(1\\,{duck})':eval=frame,"
-               f"afade=t=out:st={max(total - 0.12, 0):.3f}:d=0.12[mu];"
-               f"[ga][mu][sfx]amix=inputs=3:duration=first:normalize=0,alimiter=limit=0.95,{LOUDNORM}[a]")
+        # bei jedem gemessenen Schuss die Musik kurz absenken: der Knall sticht heraus (Vorbild)
+        dips = "+".join(f"exp(-pow((t-{x + 0.03:.3f})/{SHOT_DIP_S / 2:.3f}\\,2))" for x in game_shots) or "0"
+        fc += f"[{last}]null[v]"
+        afc += (f"[{n}:a]aresample=48000,volume='max(0.25\\,1-{KILL_DUCK}*min(1\\,{duck})-{SHOT_DIP}*min(1\\,{dips}))':eval=frame,"
+                f"afade=t=out:st={max(total - 0.12, 0):.3f}:d=0.12[mu];"
+                f"[ga][mu][sfx]amix=inputs=3:duration=first:normalize=0[a]")
+        mix = tmp / "mix.wav"
+        _run(["ffmpeg", "-v", "error", "-y", *[x for f in files for x in ("-i", str(f))],
+              "-ss", str(music_ss), "-t", str(total), "-i", music, "-filter_complex", afc, "-map", "[a]",
+              "-t", str(total), "-c:a", "pcm_f32le", str(mix)])
+        mix2 = tmp / "mix2.wav"
+        _run(["ffmpeg", "-v", "error", "-y", "-i", str(mix), "-af", level_chain(str(mix)), "-c:a", "pcm_f32le", str(mix2)])
         fc = fc.replace("[LOOPIN]", f"[{k}:v]")  # Schleifenbild ist der letzte Eingang
         ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(first_png)]
-        ins_music = ["-ss", str(music_ss), "-t", str(total), "-i", music]
+        ins_music = ["-i", str(mix2)]  # fertig gemischter Ton (Eingang n)
         _run(["ffmpeg", "-v", "error", "-y", *ins[:2 * n], *ins_music, *ins[2 * n:],
-              "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(total),
+              "-filter_complex", fc, "-map", "[v]", "-map", f"{n}:a", "-t", str(total),
               "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
               "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(tmp / "flat.mp4") if wall_words else out])
         wall_stats = None
