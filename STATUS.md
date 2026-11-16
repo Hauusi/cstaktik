@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 424 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 425 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,12 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Schüsse auf dem Beat: `shots` erkennt Schüsse im Spielton (Onset-Spitzen), `sync_anchors` rastet
+  Schüsse im Anlauf auf Achtelschläge ein (Tempo je Stück 0,35–2,3x), `_piecewise_pts` verbiegt die Zeit stückweise,
+  Schuss-Sounds werden einzeln an ihren Beat-Punkt gesetzt. Peak-End: bei mehreren Clips kommt der mit den meisten
+  Kills zuletzt. /clips zeigt „n Schüsse auf dem Beat“ und weitere Quellen (Vroomen & Keetels 2010, Kahneman u. a.
+  1993, Berger & Milkman 2012).
 
 - 2026-11-16: Clips, fünf Verbesserungen: Kills auf betonte Schläge (`kill_beats`, Beat-Stärke aus beats.py),
   abwechselnde Abstände 3–6 Schläge statt starr 4 (Cutting, DeLong & Nothelfer 2010, 1/f-Rhythmus der

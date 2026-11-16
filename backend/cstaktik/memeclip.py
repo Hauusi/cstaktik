@@ -315,6 +315,68 @@ def onset_cut(mot, lo: float, hi: float) -> float:
     return round(max(lo, min(bt, hi)), 3)
 
 
+def shots(src: str) -> list[float]:
+    """Schuss-Zeitpunkte im Spielton: kurze, laute Knalle (Onset-Spitzen deutlich über dem Rest), mind. 70 ms Abstand."""
+    from cstaktik import beats as beatmod
+    import numpy as np
+
+    try:
+        env = beatmod.onset_envelope(src)
+    except Exception:  # noqa: BLE001 - Clip ohne Ton: keine Schüsse
+        return []
+    fps = beatmod.SR / beatmod.HOP
+    e = np.maximum(env, 0)
+    thr = e.mean() + 3 * e.std()
+    out: list[float] = []
+    for i in range(1, len(e) - 1):
+        if e[i] > thr and e[i] >= e[i - 1] and e[i] >= e[i + 1]:
+            t = i / fps
+            if not out or t - out[-1] >= 0.07:
+                out.append(round(t, 3))
+    return out
+
+
+SYNC_MIN, SYNC_MAX = 0.35, 2.3  # erlaubtes Tempo zwischen zwei Schüssen beim Einrasten auf den Beat
+
+
+def sync_anchors(shot_times: list[float], s0: float, ks: float, gap: float, half: float) -> list[tuple[float, float]]:
+    """Ankerpunkte (Zeit im Clip, Zeit im Segment) für einen Anlauf von s0 bis zum Kill ks, der ``gap`` Sekunden
+    füllt. Der Kill landet am Ende (auf dem Schlag); jeder Schuss davor auf einem Achtelschlag (``half`` = halber
+    Schlag), rückwärts vom Kill aus, so dass das Tempo zwischen zwei Ankern in [SYNC_MIN, SYNC_MAX] bleibt. Schüsse,
+    die sich so nicht einrasten lassen, werden übersprungen. Anfang (s0 -> 0) ist immer Anker."""
+    anchors = [(ks, gap)]
+    for t in sorted((x for x in shot_times if s0 + 0.05 < x < ks - 0.05), reverse=True):
+        src_gap = anchors[-1][0] - t
+        best = None
+        for k in range(1, 9):
+            out_t = anchors[-1][1] - k * half
+            if out_t < 0.08:
+                break
+            v = src_gap / (k * half)
+            if SYNC_MIN <= v <= SYNC_MAX and (best is None or abs(v - 1) < abs(best[1] - 1)):
+                best = (out_t, v)
+        if best is None:
+            continue
+        # der Rest bis zum Anfang muss auch ein erlaubtes Tempo haben
+        if not (SYNC_MIN * 0.5 <= (t - s0) / best[0] <= SYNC_MAX * 1.6):
+            continue
+        anchors.append((t, round(best[0], 4)))
+        if len(anchors) >= 7:
+            break
+    anchors.append((s0, 0.0))
+    return [(round(a, 4), round(b, 4)) for a, b in reversed(anchors)]
+
+
+def _piecewise_pts(anchors: list[tuple[float, float]], ss: float) -> str:
+    """setpts-Ausdruck: Zeit im Segment als stückweise lineare Funktion der Zeit im Clip (relativ zu ss)."""
+    expr = None
+    for (x0, y0), (x1, y1) in reversed(list(zip(anchors, anchors[1:]))):
+        k = (y1 - y0) / max(x1 - x0, 1e-6)
+        piece = f"({y0}+(T-{x0 - ss:.4f})*{k:.5f})"
+        expr = piece if expr is None else f"if(lt(T\\,{x1 - ss:.4f})\\,{piece}\\,{expr})"
+    return f"({expr.replace('T', '((PTS-STARTPTS)*TB)')})/TB"
+
+
 def kill_beats(n: int, nb: int, strength: list[float] | None, beat_times: list[float]) -> list[int]:
     """Schläge, auf denen die Kills landen. Je Kill der stärkste Schlag in einem Fenster (betonte Schläge wirken
     wuchtiger); die Abstände wechseln (3 bis 6 Schläge, bei wenig Musik 2 bis 4), statt starr alle 4 Schläge
@@ -350,7 +412,7 @@ def kill_beats(n: int, nb: int, strength: list[float] | None, beat_times: list[f
 
 
 def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: dict | None = None,
-              strength: list[float] | None = None) -> dict:
+              strength: list[float] | None = None, shot_times: dict | None = None) -> dict:
     """Schnittplan auf dem Beat-Raster, ein Takt (4 Schläge) je Kill:
     Schlag 1 ``shot`` (kurzer Blick auf die Szene davor, eigener Schnitt), Schlag 2 ``ramp`` (Tempo gleitet in die
     Zeitlupe), Schlag 3 und 4 ``hit`` (der Kill, genau auf dem Schlag). Jeder Bildwechsel liegt auf einem Schlag.
@@ -388,8 +450,13 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: d
                 ramp_gap, shot_out = gap, 0.0
                 d, v0, v1 = ramp_fit(ramp_gap, max(avail, min(ks, ramp_gap)))
         if d > 0.05:
-            segs.append({"kind": "ramp", "ss": round(ks - d, 3), "d": d, "out": round(ramp_gap, 3),
-                         "o0": round(o + shot_out, 3), "v0": v0, "v1": v1, "src": kill.get("src")})
+            seg = {"kind": "ramp", "ss": round(ks - d, 3), "d": d, "out": round(ramp_gap, 3),
+                   "o0": round(o + shot_out, 3), "v0": v0, "v1": v1, "src": kill.get("src")}
+            st = (shot_times or {}).get(kill.get("src")) or []
+            anc = sync_anchors(st, ks - d, ks, ramp_gap, beat / 2) if st else []
+            if len(anc) > 2:  # mindestens ein Schuss eingerastet: Schüsse auf dem Achtelschlag
+                seg["anchors"] = anc
+            segs.append(seg)
         else:
             kb = o + shot_out                         # kein Anlauf möglich: Kill direkt
         nxt_gap = kb_idx[j + 1] - kb_idx[j] if j + 1 < len(kb_idx) else 4
@@ -437,6 +504,24 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
     v0, v1, d = seg["v0"], seg["v1"], seg["d"]
+    if seg.get("anchors"):
+        anc = seg["anchors"]
+        pts = _piecewise_pts(anc, seg["ss"])
+        shots_out = [(x, y) for x, y in anc[1:]]  # Schüsse und Kill: Sound genau an ihrem Beat-Punkt
+        parts, labels = [], []
+        for i, (x, y) in enumerate(shots_out):
+            a0 = max(x - seg["ss"] - 0.01, 0)
+            parts.append(f"[0:a]aresample=48000,atrim={a0:.4f}:{a0 + 0.22:.4f},asetpts=PTS-STARTPTS,"
+                         f"afade=t=out:st=0.14:d=0.08,adelay={int(max(y - 0.01, 0) * 1000)}:all=1[sh{i}]")
+            labels.append(f"[sh{i}]")
+        audio = (";".join(parts) + ";" + "".join(labels) +
+                 f"amix=inputs={len(labels)}:duration=longest:normalize=0,volume=0.85,"
+                 f"apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
+        blur = BLUR if v0 > 1.2 else ""
+        fc = f"[0:v]scale={W}:{H},{blur}setpts='{pts}'[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
+        _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d), "-i", src,
+              "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
+        return
     if abs(v0 - v1) < 1e-3:
         pts = f"(PTS-STARTPTS)/{v0:.5f}"
     else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
@@ -596,6 +681,12 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
 
     srcs = [src] if isinstance(src, str) else list(src)
     kills = detect_all(srcs)
+    # Peak-End-Regel: Erinnert werden vor allem Höhepunkt und Ende. Der Clip mit den meisten Kills kommt zuletzt.
+    if len(srcs) > 1:
+        cnt = {x: sum(1 for k in kills if k["src"] == x) for x in srcs}
+        best = max(srcs, key=lambda x: (cnt[x], -srcs.index(x)))
+        order = [x for x in srcs if x != best] + [best]
+        kills = [k for x in order for k in kills if k["src"] == x]
     if not kills:
         raise ValueError("In den Clips wurde kein eigener Kill gefunden (kein rot umrandeter Killfeed-Eintrag oben rechts).")
     bt = beatmod.beats(music, music_ss, music_d)
@@ -603,7 +694,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         mots = {x: motion(x) for x in srcs}
     except Exception:  # noqa: BLE001 - ohne Bewegungsdaten werden die Schnittpunkte wie bisher gesetzt
         mots = None
-    pl = plan_beat(kills, duration(srcs[0]), bt["beats"], mots, bt.get("strength"))
+    shot_times = {x: shots(x) for x in srcs}
+    pl = plan_beat(kills, duration(srcs[0]), bt["beats"], mots, bt.get("strength"), shot_times)
     font = _font()
     shown, source = 0, "eingetragen" if words else None
     if not words:  # kein Text eingetragen: aus dem Gesang erkennen, falls die Spracherkennung installiert ist
@@ -689,7 +781,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
             "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source,
-            "lyrics_note": SUNG_NOTE if not source else "", "wall": wall_stats}
+            "lyrics_note": SUNG_NOTE if not source else "", "wall": wall_stats,
+            "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors"))}
 
 
 if __name__ == "__main__":

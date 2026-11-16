@@ -99,3 +99,17 @@ def test_kill_beats_prefer_strong_and_vary():
     assert memeclip.kill_beats(3, 40, None, bt) == [2, 6, 10]  # ohne Stärken: gleichmäßig
     w = memeclip.word_list(["1.00-1.50:BABY", "2.00:EINS"], bt)
     assert w[0]["a"] == 0.96 and w[1]["a"] == 2.0  # gesungen: 40 ms früher; feste Zeit: genau
+
+
+def test_sync_anchors_put_shots_on_eighth_notes():
+    half = 0.25  # Achtelschlag bei 120 Schlägen pro Minute
+    anc = memeclip.sync_anchors([2.0, 2.3, 2.62, 2.9], s0=1.0, ks=3.2, gap=1.5, half=half)
+    assert anc[0] == (1.0, 0.0) and anc[-1] == (3.2, 1.5)  # Anfang und Kill (auf dem Schlag) fest
+    for (x0, y0), (x1, y1) in zip(anc, anc[1:]):
+        assert x1 > x0 and y1 > y0  # zeitlich vorwärts
+    for x, y in anc[1:]:
+        assert abs((1.5 - y) / half - round((1.5 - y) / half)) < 1e-6  # jeder Schuss auf einem Achtelschlag
+    for (x0, y0), (x1, y1) in zip(anc[1:], anc[2:]):
+        assert memeclip.SYNC_MIN <= (x1 - x0) / (y1 - y0) <= memeclip.SYNC_MAX
+    assert len(anc) >= 4  # mehrere Schüsse eingerastet
+    assert memeclip.sync_anchors([], 1.0, 3.2, 1.5, half) == [(1.0, 0.0), (3.2, 1.5)]

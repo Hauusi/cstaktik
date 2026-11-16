@@ -51,13 +51,17 @@
   · <b>Schnitt, wenn Bewegung einsetzt:</b> solche Schnitte fallen Zuschauern am wenigsten auf, das Video wirkt aus einem Guss (<a href="https://doi.org/10.16910/jemr.2.2.6">Smith &amp; Henderson 2008</a>). Das Tool sucht dafür in jedem Clip den Moment, in dem sich das Bild zu bewegen beginnt.<br>
   · <b>Wichtiges in der Mitte:</b> Zuschauer schauen gemeinsam auf dieselben Stellen; das Fadenkreuz bleibt deshalb in der Bildmitte, Zähler und Text liegen außerhalb der Bereiche, die TikTok und Shorts mit ihrer Oberfläche überdecken (Angaben dazu schwanken je nach Quelle).<br>
   · <b>Lautstärke:</b> auf etwa −14 LUFS angeglichen, die gängige Zielmarke der Plattformen; beim Kill wird die Musik kurz leiser, damit der Schuss durchkommt.<br>
-  · <b>60 Bilder pro Sekunde:</b> Zeitlupe und Schwenks bleiben flüssig.
+  · <b>60 Bilder pro Sekunde:</b> Zeitlupe und Schwenks bleiben flüssig.<br>
+  · <b>Schüsse auf dem Beat:</b> Das Tool erkennt die Schüsse im Spielton und verbiegt die Zeit so, dass jeder Schuss auf einem Achtelschlag landet, der Kill auf dem Schlag. Gleichzeitige Reize aus Bild und Ton verschmelzen im Kopf zu einem Ereignis, wenn sie nur wenige Dutzend Millisekunden auseinanderliegen (<a href="https://doi.org/10.3758/APP.72.4.871">Vroomen &amp; Keetels 2010</a>).<br>
+  · <b>Kills auf betonte Schläge, wechselnde Abstände:</b> Einstellungslängen mit Abwechslung statt starrem Raster (<a href="https://doi.org/10.1177/0956797610361679">Cutting, DeLong &amp; Nothelfer 2010</a>).<br>
+  · <b>Höhepunkt am Ende:</b> Erinnert werden vor allem der stärkste Moment und das Ende (Peak-End-Regel, <a href="https://doi.org/10.1111/j.1467-9280.1993.tb00589.x">Kahneman u. a. 1993</a>). Bei mehreren Clips kommt der mit den meisten Kills zuletzt.<br>
+  · <b>Energie:</b> Inhalte, die stark aufregen oder begeistern, werden öfter geteilt (<a href="https://doi.org/10.1509/jmr.10.0353">Berger &amp; Milkman 2012</a>). Deshalb Tempo, Musik-Sync und ein klarer Höhepunkt statt ruhiger Erzählung.
   </small></details>
 {% for j in items %}
 <div class="cj" data-job="{{ j.id }}">
   <b>{{ j.name }}</b>
   {% if j.status == "fertig" and j.has_video %}
-  <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
+  <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.synced %} · {{ j.synced }} {{ "Schuss" if j.synced == 1 else "Schüsse" }} auf dem Beat{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
   {% if j.music and j.words %}<div class="st">Auf Wänden: {% if j.wall %}{{ j.wall.wall }} {{ "Wort" if j.wall.wall == 1 else "Wörter" }}{% if j.wall.flat %}, bei {{ j.wall.flat }} keine Wand gefunden (flach gezeigt){% endif %}{% else %}keins (kein Wort hatte genug Zeit ohne Kill dazwischen){% endif %}.</div>{% endif %}
   {% if j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt. Stimmt ein Wort nicht, trag den Text beim nächsten Mal selbst ein.</div>
   {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext. {{ j.lyrics_note or "Die Spracherkennung hat nichts geliefert." }}</div>{% endif %}
