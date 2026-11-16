@@ -24,11 +24,7 @@ def test_track_shift_and_slopes():
     pts = wt.corners(a, (40, 40, 230, 230), n=30)
     new, ok = wt.track(a, b, pts)
     assert ok.mean() > 0.8 and np.allclose(np.median(new[ok] - pts[ok], axis=0), (5, 3), atol=0.6)
-    g = np.zeros((200, 200), np.float32)
-    for y0 in range(20, 200, 25):  # schräge Fugen wie an einer Wand: Steigung 0,2
-        for x in range(200):
-            y = int(y0 + 0.2 * x)
-            if 0 <= y < 200:
-                g[y:y + 3, x] = 200
+    yy, xx = np.mgrid[0:200, 0:200].astype(np.float32)
+    g = 100 * (1 + np.sin(2 * np.pi * (yy - 0.2 * xx) / 25))  # weiche schräge Fugen wie an einer Wand: Steigung 0,2
     top, bot = wt.edge_slopes(g, (0, 0, 200, 200))
     assert abs(top - 0.2) < 0.05 and abs(bot - 0.2) < 0.05
