@@ -819,6 +819,54 @@ def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) 
     img.rotate(LYRIC_ROT[j % len(LYRIC_ROT)], expand=True, resample=Image.BICUBIC).save(path)
 
 
+TR_IN, TR_OUT, TR_Z = 0.08, 0.14, 0.28  # Übergang: 80 ms hineinzoomen, Schnitt, 140 ms aus dem Zoom heraus
+RISER_MAX = 1.2  # Riser vor dem Kill: höchstens so lang (s), sonst 1,5 Schläge
+SFX_VOL = 0.55
+
+
+def transition_cuts(segs: list[dict]) -> list[float]:
+    """Schnitte, an denen eine neue Szene beginnt (nach einem Kill), ohne den Anfang: dort kommt der Übergang hin.
+    Schnitte innerhalb einer Szene bleiben hart, sonst wirkt jeder Wechsel gleich und nichts sticht heraus."""
+    return [round(b["o0"], 3) for a, b in zip(segs, segs[1:]) if a["kind"] == "hit" and b["kind"] in ("shot", "ramp")
+            and b["o0"] > 0.2]
+
+
+def transition_vf(cuts: list[float]) -> str:
+    """Zoom-Durchflug über das ganze Bild: kurz vor dem Schnitt hinein, danach wieder heraus, dazu kurze Unschärfe.
+    So wirkt der Szenenwechsel wie eine Bewegung statt wie ein Sprung. Ohne Schnitte: nichts."""
+    if not cuts:
+        return ""
+    bumps = "+".join(f"if(lt(t\\,{c})\\,pow(max(0\\,1-({c}-t)/{TR_IN})\\,2)\\,pow(max(0\\,1-(t-{c})/{TR_OUT})\\,2))"
+                     for c in cuts)
+    z = f"(1+{TR_Z}*min(1\\,{bumps}))"
+    blur = "+".join(f"between(t,{c - TR_IN * 0.75:.3f},{c + TR_OUT * 0.7:.3f})" for c in cuts)
+    return (f"scale=w='2*trunc({OUT_W}*{z}/2)':h=-2:eval=frame:flags=bilinear,crop={OUT_W}:{OUT_H},"
+            f"gblur=sigma=9:enable='{blur}',")
+
+
+def sfx_expr(segs: list[dict], beat: float, cuts: list[float]) -> str:
+    """Sound-Design als eine Tonspur: Riser (Rauschen + steigender Ton) in die letzten Schläge vor jedem Kill, Impact
+    (tiefer Schlag) genau auf dem Kill, Whoosh an jedem Szenenwechsel. Spannung, die sich auf dem Schlag entlädt,
+    ist das Grundmuster von Build-up und Drop in elektronischer Musik (Solberg 2014)."""
+    import re
+
+    parts = []
+    for x in segs:
+        if x["kind"] != "hit":
+            continue
+        o = x["o0"]
+        L = min(1.5 * beat, RISER_MAX, o)
+        if L > 0.3:
+            a = o - L
+            parts.append(f"between(t,{a:.3f},{o:.3f})*pow((t-{a:.3f})/{L:.3f},2)*(0.30*(random(0)*2-1)"
+                         f"+0.22*sin(2*PI*(220*(t-{a:.3f})+{700 / L:.1f}*pow(t-{a:.3f},2))))")
+        boom = re.sub(r"\bt\b", f"(t-{o:.3f})", BOOM)
+        parts.append(f"between(t,{o:.3f},{o + 0.6:.3f})*0.8*({boom})")
+    for c in cuts:
+        parts.append(f"0.35*(random(0)*2-1)*exp(-pow((t-{c:.3f})/0.05,2))")
+    return "+".join(parts) or "0"
+
+
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None) -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
@@ -874,7 +922,11 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         _run(["ffmpeg", "-v", "error", "-y", "-i", str(files[0]), "-frames:v", "1", str(first_png)])
         # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar
         fc = "".join(f"[{i}:a]afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];" for i in range(n))
-        fc += "".join(f"[{i}:v][e{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc][ga];"
+        fc += "".join(f"[{i}:v][e{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vc0][ga];"
+        tcuts = transition_cuts(pl["segments"])
+        fc += f"[vc0]{transition_vf(tcuts)}null[vc];"
+        fc += (f"aevalsrc='{sfx_expr(pl['segments'], pl['beat'], tcuts)}':d={total:.3f}:s=48000,"
+               f"aformat=channel_layouts=stereo,highpass=f=30,lowpass=f=9000,volume={SFX_VOL}[sfx];")
         lp = max(total - LOOP_S, 0)
         fc += (f"[LOOPIN]format=rgba,fade=t=in:st={lp:.3f}:d={LOOP_S}:alpha=1[lp];"
                f"[vc][lp]overlay=0:0:enable='gte(t,{lp:.3f})'[v0];")
@@ -922,7 +974,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                         for x in pl["segments"] if x["kind"] == "hit") or "0"
         fc += (f"[{last}]null[v];[{n}:a]aresample=48000,volume='1-0.35*min(1\\,{duck})':eval=frame,"
                f"afade=t=out:st={max(total - 0.12, 0):.3f}:d=0.12[mu];"
-               f"[ga][mu]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95,{LOUDNORM}[a]")
+               f"[ga][mu][sfx]amix=inputs=3:duration=first:normalize=0,alimiter=limit=0.95,{LOUDNORM}[a]")
         fc = fc.replace("[LOOPIN]", f"[{k}:v]")  # Schleifenbild ist der letzte Eingang
         ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(first_png)]
         ins_music = ["-ss", str(music_ss), "-t", str(total), "-i", music]

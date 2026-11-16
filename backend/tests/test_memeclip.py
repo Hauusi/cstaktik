@@ -144,3 +144,14 @@ def test_end_on_bar_and_brightness_match():
     off = memeclip.brightness_offsets({"hell.mp4": 150.0, "dunkel.mp4": 70.0})
     assert off["hell.mp4"] < 0 < off["dunkel.mp4"] and max(abs(v) for v in off.values()) <= 0.08
     assert memeclip.brightness_offsets({"a.mp4": 90.0}) == {"a.mp4": 0.0}
+
+
+def test_transitions_and_sfx_only_at_scene_changes():
+    segs = [{"kind": "shot", "o0": 0.0}, {"kind": "ramp", "o0": 0.5}, {"kind": "hit", "o0": 1.0, "out": 1.0},
+            {"kind": "shot", "o0": 2.0}, {"kind": "ramp", "o0": 2.5}, {"kind": "hit", "o0": 3.0, "out": 1.0},
+            {"kind": "hold", "o0": 4.0}]
+    cuts = memeclip.transition_cuts(segs)
+    assert cuts == [2.0]  # nur neue Szene nach einem Kill, nicht der Anfang, nicht innerhalb der Szene
+    assert memeclip.transition_vf([]) == "" and "gblur" in memeclip.transition_vf(cuts)
+    e = memeclip.sfx_expr(segs, 0.5, cuts)
+    assert e.count("pow((t-") == 2 and "(t-1.000)" in e and "(t-3.000)" in e  # je Kill ein Riser und ein Impact

@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 428 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 429 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Clips "gewisses Etwas" (Nutzer wählte Sound-Design + Übergänge): Effekt-Tonspur `sfx_expr` (Riser 1,5 Schläge vor jedem Kill, Impact auf dem Kill, Whoosh am Szenenwechsel, `SFX_VOL`); Zoom-Durchflug mit Unschärfe an Szenenwechseln nach einem Kill (`transition_cuts`, `transition_vf`, auf dem fertigen Bild vor dem Songtext). Quelle Solberg 2014 auf /clips.
 
 - 2026-11-16: Gesicherter Stand als Branch `stand-2026-11-16-clips-gut` (1792319). Clips Look/Ende/Ton (Nutzer: Look, Anfang/Ende, Ton stören): Helligkeit je Clip angeglichen (`luma`, `brightness_offsets`, ±0,08) + leichte Vignette (`LOOK`); Schluss ohne Standbild und ohne BOOM, Szene läuft in Zeitlupe weiter (`_render_end`), Ende auf Taktanfang (`end_hold`, Huron 2006); Kill-Schuss in echtem Tempo statt atempo-gestreckt (`KILL_SND_S`); Musik-Ducking weich (40 ms/300 ms) statt Sprung; 6 ms Fades an jedem Schnitt gegen Knacken; Musik-Ausblendung 0,12 s. Quellen auf /clips ergänzt (Smith 2012, Tatler 2007, Huron 2006).
 
