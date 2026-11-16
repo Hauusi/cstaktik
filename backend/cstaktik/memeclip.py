@@ -329,6 +329,7 @@ HIT_SLOW_LAST = 0.35  # der letzte Kill (Höhepunkt) noch langsamer: das Ende bl
 MCI = True
 MCI_VF = f"minterpolate=fps={OUT_FPS}:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:search_param=16:scd=none"
 MAX_WORDS = 40
+WALL_MAX_ASPECT = 3.6  # breitere Wörter nicht auf Wände: gemessen wurden sie dort nur 59-101 px hoch (zu klein)
 WALL_MIN_S = 0.22  # so lange muss ein Wort an der Wand stehen können
 WALL_TEXT = True  # Songtext teils auf Wände legen (wall_text.py)
 WORD_LEAD_S = 0.04  # Text minimal vor dem Gesang: späterer Text fällt eher auf als früherer
@@ -916,6 +917,13 @@ def _has_glyph(c: str, font_file: str) -> bool:
 _GLYPH_FONT: dict = {}
 
 
+def png_aspect(path) -> float:
+    from PIL import Image
+
+    with Image.open(path) as im:
+        return im.width / max(im.height, 1)
+
+
 def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) -> None:
     """Ein Wort als Bild: fette, enge Großbuchstaben, die die Breite füllen, schräg gestellt und leicht gedreht,
     dicker schwarzer Rand und ein farbiger, versetzter Schatten. Farbe und Drehung wechseln von Wort zu Wort."""
@@ -1174,9 +1182,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: alle passenden.
                 # Bei einem Schnitt im Zeitfenster sucht das Wort im neuen Bild eine neue Wand (wall_text.apply).
                 wanted = (j in picks) if picks else len(txt) >= 3
+                png = tmp / f"wall{j:02d}.png"
                 if wall_on and b - a >= WALL_MIN_S and wanted:
-                    png = tmp / f"wall{j:02d}.png"
                     word_png(txt, png, j, font, wall=True)
+                if wall_on and b - a >= WALL_MIN_S and wanted and png_aspect(png) <= WALL_MAX_ASPECT:
                     wall_words.append({"a": a, "b": b, "png": str(png),
                                        "cuts": [c for c in cuts if a + 0.02 < c < b - 0.02]})
                     shown += 1

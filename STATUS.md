@@ -266,6 +266,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 12. Änderungsprotokoll (neueste oben)
 
+- 2026-11-16: Clips lange Wörter nicht auf Wände (Nutzer-Video: "PAPA-PAPARAZZI" winzig): gemessen Schrifthöhe auf Wand NO 193 px, KNOW 161, PROMISE 101, PAPA-PAPARAZZI 59 px. Jetzt `WALL_MAX_ASPECT` 3,6 (Seitenverhältnis des Wort-Bilds, `png_aspect`): breitere Wörter groß in der Mitte. Echter Clip: 14 Wörter, 6 auf Wänden, lange flach lesbar.
+
 - 2026-11-16: Song-Vorschläge laufen beim Nutzer (echte LRCLIB-/Deezer-Daten). Aufgeräumt: `clean_title` entfernt Künstlernamen aus Nutzer-Uploads ("Lady Gaga - Bad Romance", "Poker Face Lady GaGa"), Doppelte nach dem Aufräumen weg, Einträge mit echtem Albumnamen zuerst, Künstler als Album nicht angezeigt.
 
 - 2026-11-16: Song-Vorschläge erschienen beim Nutzer nicht (Ursache von hier nicht prüfbar, Hosts gesperrt): Fehler jetzt sichtbar statt stumm ("Suche …", Grund bei Fehler: LRCLIB/Deezer nicht erreichbar, kein JSON + Status), `suggest_full` mit Fehlertext, LRCLIB und Deezer parallel, Fehler nicht gecacht, Endpunkt fängt Ausnahmen ab. Diagnose: /clips/song-suggest?q=Paparazzi im Browser öffnen.
