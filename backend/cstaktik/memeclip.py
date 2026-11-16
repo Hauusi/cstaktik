@@ -408,31 +408,62 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 
 
-def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> list[tuple[float, float, str]]:
-    """Wörter auf das Beat-Raster legen (ein Wort je Schlag). Das ist eine Näherung: echte Gesangs-Zeiten kennt das
-    Tool nicht. Für exakte Zeiten kann man je Wort eine Sekunde angeben ("1.45:WORT")."""
+def word_list(words: list[str], beat_times: list[float], per_beat: int = 1) -> list[dict]:
+    """Wörter mit Zeiten: {"a": Start, "b": Ende der Einblendung, "txt", "sung": Ende des gesungenen Worts oder None}.
+    Formen: "WORT" (ein Wort je Schlag), "1.45:WORT" (feste Zeit), "1.45-2.10:WORT" (Start und Ende, aus der
+    Spracherkennung). Wörter unter MIN_WORD_S Abstand werden zu höchstens zwei Wörtern zusammengefasst."""
+    import re
+
     out, i = [], 0
     for w in words:
-        if ":" in w and w.split(":", 1)[0].replace(".", "").isdigit():
-            t, txt = w.split(":", 1)
-            out.append([float(t), None, txt])
+        m = re.fullmatch(r"(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?:(.+)", w)
+        if m:
+            out.append({"a": float(m.group(1)), "sung": float(m.group(2)) if m.group(2) else None, "txt": m.group(3)})
             continue
         if i >= len(beat_times):
             break
-        out.append([beat_times[i], None, w])
+        out.append({"a": beat_times[i], "sung": None, "txt": w})
         i += per_beat
-    out.sort(key=lambda x: x[0])
-    merged = []
-    for x in out:  # unter MIN_WORD_S Abstand: ins vorige Wort, höchstens zwei Wörter je Einblendung
-        if merged and x[0] - merged[-1][0] < MIN_WORD_S and " " not in merged[-1][2]:
-            merged[-1][2] += " " + x[2]
+    out.sort(key=lambda x: x["a"])
+    merged: list[dict] = []
+    for x in out:
+        held = x["sung"] is not None and x["sung"] - x["a"] >= 0.35  # gezogenes Wort bekommt seine eigene Einblendung
+        if merged and not held and x["a"] - merged[-1]["a"] < MIN_WORD_S and " " not in merged[-1]["txt"]:
+            merged[-1]["txt"] += " " + x["txt"]
+            merged[-1]["sung"] = x["sung"] if x["sung"] is not None else merged[-1]["sung"]
         else:
-            merged.append(x)
-    out = merged
+            merged.append(dict(x))
     beat = (beat_times[-1] - beat_times[0]) / max(len(beat_times) - 1, 1)
-    for j, x in enumerate(out):
-        x[1] = min(out[j + 1][0] if j + 1 < len(out) else x[0] + beat, x[0] + 2 * beat)
-    return [(round(a, 3), round(b, 3), t) for a, b, t in out]
+    for j, x in enumerate(merged):
+        nxt = merged[j + 1]["a"] if j + 1 < len(merged) else x["a"] + beat
+        x["b"] = round(min(nxt, x["a"] + 2 * beat), 3)
+        x["a"] = round(x["a"], 3)
+        x["next"] = nxt
+    return merged
+
+
+def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> list[tuple[float, float, str]]:
+    """Wie word_list, nur (Start, Ende, Text)."""
+    return [(x["a"], x["b"], x["txt"]) for x in word_list(words, beat_times, per_beat)]
+
+
+def wall_picks(ws: list[dict], max_share: float = 0.4) -> set[int]:
+    """Welche Wörter an die Wand: die, bei denen sich der Sänger Zeit lässt. Punkte = wie lange das Wort gesungen
+    wird + die Pause danach (bis zum nächsten Wort). Gezogene Wörter vor einer Pause gewinnen. Nur Wörter mit
+    mindestens 0,35 s gesungen oder 0,25 s Pause danach, höchstens ``max_share`` aller Wörter, mindestens eins.
+    Ohne gesungene Zeiten (Text eingetippt): leer, dann gilt die einfache Regel."""
+    timed = [(j, x) for j, x in enumerate(ws) if x.get("sung") is not None]
+    if not timed:
+        return set()
+    scored = []
+    for j, x in timed:
+        held = max(x["sung"] - x["a"], 0.0)
+        pause = max(x["next"] - x["sung"], 0.0)
+        if (held >= 0.35 or pause >= 0.25) and len(x["txt"].replace(" ", "")) >= 3:
+            scored.append((held + pause, j))
+    scored.sort(reverse=True)
+    n = max(1, int(len(ws) * max_share))
+    return {j for _, j in scored[:n]}
 
 
 SUNG_NOTE = ""  # warum die letzte Erkennung nichts geliefert hat (für die Anzeige in der App)
@@ -469,7 +500,7 @@ def sung_words(music: str, ss: float, d: float) -> list[str] | None:
             for w in sg.words or []:
                 txt = re.sub(r"[^0-9A-Za-zÄÖÜäöüß'-]", "", w.word)
                 if txt:
-                    out.append(f"{max(w.start, 0):.2f}:{txt}")
+                    out.append(f"{max(w.start, 0):.2f}-{max(w.end, w.start):.2f}:{txt}")
         if not out:
             SUNG_NOTE = "Die Spracherkennung lief, hat in diesem Ausschnitt aber keine Wörter erkannt."
         return out or None
@@ -556,15 +587,22 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             # während eines Kills gehört die Bildmitte dem Kill: dort kein Songtext
             busy = [(x["o0"], x["o0"] + x["out"]) for x in pl["segments"] if x["kind"] in ("hit", "hold")]
             cuts = [x["o0"] for x in pl["segments"]]
-            for j, (a, b, txt) in enumerate(word_times(words, bt["beats"])[:MAX_WORDS]):
+            wl = word_list(words, bt["beats"])[:MAX_WORDS]
+            picks = wall_picks(wl)
+            for j, wd in enumerate(wl):
+                a, b, txt = wd["a"], wd["b"], wd["txt"]
                 if a >= total or not txt.strip():
                     continue
                 b = min(b, total)
                 # Wand-Wort: kein Kill im Zeitfenster, mind. 3 Buchstaben. Liegt ein Schnitt im Fenster, endet das Wort
                 # an der Wand beim Schnitt (die Wand ist danach weg), sofern bis dahin genug Zeit bleibt.
+                if j in picks:  # gezogenes Wort: bleibt durch die Pause an der Wand, bis das nächste Wort kommt
+                    b = min(max(b, wd["next"]), a + 2.5, total)
                 cut = min((c for c in cuts if a + 0.02 < c < b - 0.02), default=b)
                 no_kill = not any(x0 - 0.05 <= a < x1 for x0, x1 in busy)
-                if wall_on and no_kill and cut - a >= WALL_MIN_S and len(txt) >= 3 and len(wall_words) * 2 <= shown + 1:
+                # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: jedes zweite
+                wanted = (j in picks) if picks else (len(txt) >= 3 and len(wall_words) * 2 <= shown + 1)
+                if wall_on and no_kill and cut - a >= WALL_MIN_S and wanted:
                     png = tmp / f"wall{j:02d}.png"
                     word_png(txt, png, j, font, wall=True)
                     wall_words.append({"a": a, "b": cut, "png": str(png)})

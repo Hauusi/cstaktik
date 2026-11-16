@@ -71,3 +71,17 @@ def test_onset_cut_and_word_merge():
     bt = [round(0.5 * i, 3) for i in range(20)]
     ws = memeclip.word_times(["1.00:I", "1.10:AM", "1.20:HERE", "2.0:NOW"], bt)
     assert [w[2] for w in ws] == ["I AM", "HERE", "NOW"]  # zu kurz hintereinander: zusammen, höchstens zwei
+
+
+def test_wall_picks_held_words_before_pause():
+    bt = [round(0.5 * i, 3) for i in range(30)]
+    words = ["1.00-1.15:TALK", "1.20-1.35:TO", "1.40-1.55:ME", "1.60-2.40:BABY", "2.90-3.05:IM", "3.10-3.30:GOING",
+             "3.35-3.50:SO", "3.55-3.70:FAST"]
+    wl = memeclip.word_list(words, bt)
+    wb = next(x for x in wl if x["txt"] == "BABY")
+    assert wb["sung"] == 2.4 and wb["next"] == 2.9  # an der Wand bis zum nächsten Wort  # steht bis zum nächsten Wort
+    picks = memeclip.wall_picks(wl)
+    assert [x["txt"] for x in wl] == ["TALK TO", "ME", "BABY", "IM GOING", "SO FAST"]
+    assert "BABY" in [wl[j]["txt"] for j in picks] and not {0, 1, 3} & picks  # gezogen + Pause ja, schnelle Wörter nein
+    assert memeclip.wall_picks(memeclip.word_list(["EINS", "ZWEI"], bt)) == set()  # eingetippt: einfache Regel
+    assert memeclip.word_times(["1.45:A"], bt) == [(1.45, 1.95, "A")]
