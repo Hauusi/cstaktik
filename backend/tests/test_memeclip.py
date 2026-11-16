@@ -39,6 +39,12 @@ def test_beat_grid_finds_tempo_and_plan_puts_kills_on_beats():
     pl = memeclip.plan_beat(k2, 18.2, bt)
     hits = [s for s in pl["segments"] if s["kind"] == "hit"]
     assert len(hits) == 3 and all(any(abs(h["o0"] - b) < 0.001 for b in bt) for h in hits)  # Kill genau auf dem Schlag
+    kinds = [s["kind"] for s in pl["segments"]]
+    assert kinds[:6] == ["shot", "ramp", "hit", "shot", "ramp", "hit"]  # je Takt: Schnitt, Anlauf, Kill
+    cuts = [s["o0"] for s in pl["segments"]]
+    assert all(any(abs(c - b) < 0.002 for b in bt + [0.0]) or c < 0.11 for c in cuts)  # jeder Bildwechsel auf einem Schlag
+    sh = pl["segments"][3]
+    assert sh["ss"] + sh["d"] <= pl["segments"][4]["ss"] + 0.001  # der Schnitt zeigt die Szene vor dem Anlauf
     assert [round(hits[i + 1]["o0"] - hits[i]["o0"], 2) for i in range(2)] == [2.0, 2.0]  # fester Abstand: ein Takt
     assert hits[0]["o0"] <= 1.2 and hits[2]["src"] == "b.mp4"  # erster Kill früh; dritter aus dem zweiten Clip
     o = 0.0

@@ -101,7 +101,8 @@ def render(d: Path, user: str | None = None) -> None:
             else:
                 r = memeclip.make(src, str(d / "out.mp4"), progress=prog)
             set_state(d, status="fertig", step=None, kills=r.get("kills_used", len(r["kills"])), seconds=r["seconds"],
-                      bpm=r.get("bpm"), words=r.get("words"), found=len(r["kills"]))
+                      bpm=r.get("bpm"), words=r.get("words"), found=len(r["kills"]),
+                      lyrics_source=r.get("lyrics_source"))
         except ValueError as e:
             set_state(d, status="fehler", step=None, error=str(e))
         except RuntimeError as e:  # ffmpeg konnte eine Datei nicht lesen oder schneiden

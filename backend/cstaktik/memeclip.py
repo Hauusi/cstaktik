@@ -263,6 +263,8 @@ def make(src: str, out: str, progress=None) -> dict:
 RAMP_V0, RAMP_V1 = 1.6, 0.4  # Anlauf beginnt schnell und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
 HIT_SLOW = 0.3  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
 MAX_WORDS = 40
+SHOT_SPEED, SHOT_BACK = 1.25, 1.0  # eigener Schnitt vor dem Kill: leicht schnell, etwa 1 s früher im Clip
+CUT_POP = "1+0.13*exp(-13*t)"       # Zoom-Schlag bei jedem Bildwechsel (klingt in etwa 0,2 s ab, danach ruhig)
 
 
 def ramp_fit(gap: float, avail: float, v0max: float = RAMP_V0, v1: float = RAMP_V1) -> tuple[float, float, float]:
@@ -284,14 +286,16 @@ def ramp_fit(gap: float, avail: float, v0max: float = RAMP_V0, v1: float = RAMP_
 
 
 def plan_beat(kills: list[dict], dur: float, beat_times: list[float]) -> dict:
-    """Schnittplan auf dem Beat-Raster: je Kill ein gleitender Anlauf (``ramp``), der Kill auf dem Schlag (``hit``,
-    ein Schlag lang in Zeitlupe), danach Schnitt auf dem nächsten Schlag. Am Ende ``hold`` mit der Summe."""
+    """Schnittplan auf dem Beat-Raster, ein Takt (4 Schläge) je Kill:
+    Schlag 1 ``shot`` (kurzer Blick auf die Szene davor, eigener Schnitt), Schlag 2 ``ramp`` (Tempo gleitet in die
+    Zeitlupe), Schlag 3 und 4 ``hit`` (der Kill, genau auf dem Schlag). Jeder Bildwechsel liegt auf einem Schlag.
+    Bei wenig Musik: nur ``ramp`` + ``hit`` je einen Schlag. Am Ende ``hold`` mit der Summe."""
     n, nb = len(kills), len(beat_times)
     if nb < 6:
         raise ValueError("Zu wenige Schläge im Musik-Ausschnitt.")
     beat = (beat_times[-1] - beat_times[0]) / (nb - 1)
     first = 2 if beat_times[2] >= 0.9 else 3                      # erster Kill früh
-    step = 4 if first + (n - 1) * 4 < nb - 1 else 2                # ein Takt Abstand, bei wenig Musik ein halber
+    step = 4 if first + (n - 1) * 4 < nb - 1 else 2                # ein Takt je Kill, bei wenig Musik ein halber
     used = [k for k in range(n) if first + k * step < nb - 1]      # passen nicht alle Kills in die Musik: die ersten
     segs, o, src_prev, cur = [], 0.0, 0.0, None
     for j, k in enumerate(used):
@@ -302,15 +306,27 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float]) -> dict:
         ks = max(kill["t"] - 0.10, 0.0)               # Kill-Moment im Clip
         kb = beat_times[first + j * step]             # Schlag, auf dem er landet
         gap = kb - o
+        # Schlag davor: eigener kurzer Schnitt aus der Szene vor dem Kill (nur wenn Zeit und Material reichen)
+        shot_out = gap - beat if gap >= 1.7 * beat else 0.0
+        ramp_gap = gap - shot_out
         avail = max(ks - src_prev, 0.0)
-        if avail < gap * 0.25:                        # kaum neues Material: früheres noch einmal zeigen
-            avail = min(ks, gap)
-        if avail > 0.05 and gap > 0.05:
-            d, v0, v1 = ramp_fit(gap, avail)
-            segs.append({"kind": "ramp", "ss": round(ks - d, 3), "d": d, "out": round(gap, 3), "o0": round(o, 3),
-                         "v0": v0, "v1": v1, "src": kill.get("src")})
+        if avail < ramp_gap * 0.25:                   # kaum neues Material: früheres noch einmal zeigen
+            avail = min(ks, ramp_gap)
+        d, v0, v1 = ramp_fit(ramp_gap, avail) if avail > 0.05 and ramp_gap > 0.05 else (0.0, 1.0, 1.0)
+        if shot_out:
+            sd = round(shot_out * SHOT_SPEED, 3)
+            s0 = max(ks - d - SHOT_BACK - sd, src_prev if ks - d - sd >= src_prev else 0.0, 0.0)
+            if s0 + sd <= ks - d + 0.001 and sd > 0.1:
+                segs.append({"kind": "shot", "ss": round(s0, 3), "d": sd, "out": round(shot_out, 3), "o0": round(o, 3),
+                             "src": kill.get("src")})
+            else:                                     # kein Platz für einen eigenen Schnitt: Anlauf über beide Schläge
+                ramp_gap, shot_out = gap, 0.0
+                d, v0, v1 = ramp_fit(ramp_gap, max(avail, min(ks, ramp_gap)))
+        if d > 0.05:
+            segs.append({"kind": "ramp", "ss": round(ks - d, 3), "d": d, "out": round(ramp_gap, 3),
+                         "o0": round(o + shot_out, 3), "v0": v0, "v1": v1, "src": kill.get("src")})
         else:
-            kb = o                                    # kein Anlauf möglich: Kill direkt
+            kb = o + shot_out                         # kein Anlauf möglich: Kill direkt
         hit_out = beat * (2 if step == 4 else 1)      # der Kill bleibt zwei Schläge lang in Zeitlupe stehen
         after_src = min(hit_out * HIT_SLOW, max(cdur - ks - 0.02, 0.05))
         segs.append({"kind": "hit", "ss": round(ks, 3), "d": round(after_src, 3), "out": round(hit_out, 3), "o0": round(kb, 3),
@@ -340,9 +356,15 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
         fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', z, 'bg')};"
-              f"[bg]fade=t=in:st=0:d=0.05:color=white[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];"
+              f"[bg]fade=t=in:st=0:d=0.05:color=white,hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
+              f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];[fl][1:v]overlay=(W-w)/2:{BOX_Y - 130}[v0];"
               f"[v0]{_draw(seg['text'], font)},{tail}[v];{audio}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src, "-i", str(kf),
+              "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
+        return
+    if seg["kind"] == "shot":  # eigener kurzer Schnitt: gleichmäßiges Tempo, Zoom-Schlag beim Bildwechsel
+        fc = (f"[0:v]scale={W}:{H},setpts=(PTS-STARTPTS)/{speed:.5f}[s];{_vf('[s]', CUT_POP, 'c')};[c]{tail}[v];{audio}")
+        _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"]), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
     v0, v1, d = seg["v0"], seg["v1"], seg["d"]
@@ -350,7 +372,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
         pts = f"(PTS-STARTPTS)/{v0:.5f}"
     else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
         pts = f"({d}/({v1}-{v0}))*log(({v0}+({v1}-{v0})*((PTS-STARTPTS)*TB)/{d})/{v0})/TB"
-    fc = f"[0:v]scale={W}:{H},setpts='{pts}'[s];{_vf('[s]', '1', 'c')};[c]{tail}[v];{audio}"
+    fc = f"[0:v]scale={W}:{H},setpts='{pts}'[s];{_vf('[s]', CUT_POP, 'c')};[c]{tail}[v];{audio}"
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d), "-i", src,
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 
@@ -373,6 +395,33 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
     for j, x in enumerate(out):
         x[1] = min(out[j + 1][0] if j + 1 < len(out) else x[0] + beat, x[0] + 2 * beat)
     return [(round(a, 3), round(b, 3), t) for a, b, t in out]
+
+
+def sung_words(music: str, ss: float, d: float) -> list[str] | None:
+    """Gesungene Wörter mit Zeitpunkt aus dem Musik-Ausschnitt, als "Sekunde:WORT". Braucht die Bibliothek
+    faster-whisper (läuft lokal, ohne Kosten; lädt beim ersten Mal ein Sprachmodell). Ist sie nicht installiert oder
+    geht etwas schief: None, dann bleibt es beim eingetragenen Text. Gesang wird nicht immer richtig erkannt."""
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        return None
+    import re
+
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            wav = str(Path(td) / "a.wav")
+            _run(["ffmpeg", "-v", "error", "-y", "-ss", str(ss), "-t", str(d), "-i", music, "-vn", "-ac", "1", "-ar", "16000", wav])
+            model = WhisperModel("small", device="cpu", compute_type="int8")
+            segs, _info = model.transcribe(wav, word_timestamps=True)
+            out = []
+            for sg in segs:
+                for w in sg.words or []:
+                    txt = re.sub(r"[^0-9A-Za-zÄÖÜäöüß'-]", "", w.word)
+                    if txt:
+                        out.append(f"{max(w.start, 0):.2f}:{txt}")
+            return out or None
+    except Exception:  # noqa: BLE001 - ohne Erkennung läuft der Schnitt trotzdem
+        return None
 
 
 LYRIC_COLORS = [((255, 255, 255), (255, 159, 28)), ((255, 210, 63), (20, 20, 20)), ((255, 255, 255), (240, 86, 106)),
@@ -420,7 +469,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     bt = beatmod.beats(music, music_ss, music_d)
     pl = plan_beat(kills, duration(srcs[0]), bt["beats"])
     font = _font()
-    shown = 0
+    shown, source = 0, "eingetragen" if words else None
+    if not words:  # kein Text eingetragen: aus dem Gesang erkennen, falls die Spracherkennung installiert ist
+        words = sung_words(music, music_ss, pl["seconds"])
+        source = "erkannt" if words else None
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         files = []
@@ -462,7 +514,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         if progress:
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
-            "segments": pl["segments"], "words": shown, "clips": len(srcs)}
+            "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source}
 
 
 if __name__ == "__main__":

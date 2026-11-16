@@ -37,7 +37,7 @@
       <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>
       <label for="cs">Start in der Musik (Sekunde)</label>
       <input id="cs" type="text" name="music_ss" inputmode="decimal" placeholder="0">
-      <label for="cl">Songtext für den Ausschnitt (wird nicht automatisch erkannt)</label>
+      <label for="cl">Songtext für den Ausschnitt (leer lassen = automatisch erkennen, falls installiert)</label>
       <textarea id="cl" name="lyrics" rows="2" maxlength="600" placeholder="Wörter mit Leerzeichen. Ein Wort je Schlag."></textarea>
       <small>Das Tool legt ein Wort auf jeden Schlag. Für eine genaue Stelle: Sekunde und Wort mit Doppelpunkt, zum Beispiel 1.45:WORT</small>
     </div>
@@ -50,8 +50,9 @@
   <b>{{ j.name }}</b>
   {% if j.status == "fertig" and j.has_video %}
   <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
-  {% if j.music and not j.lyrics %}<div class="st">Ohne Songtext: Das Tool erkennt gesungene Wörter nicht selbst. Trag den Text des Ausschnitts beim Hochladen unter „Mit Musik“ ein, dann wird er eingeblendet.</div>{% endif %}
-  {% if j.music and j.lyrics and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
+  {% if j.music and j.lyrics_source == "erkannt" %}<div class="st">Songtext automatisch aus dem Gesang erkannt. Stimmt ein Wort nicht, trag den Text beim nächsten Mal selbst ein.</div>
+  {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext: Auf dem Server ist die Spracherkennung nicht installiert. Trag den Text unter „Mit Musik“ ein oder installiere sie (siehe Anleitung).</div>{% endif %}
+  {% if j.music and (j.lyrics or j.lyrics_source) and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
   <video controls playsinline preload="metadata" src="/clips/{{ j.id }}/video"></video>
   <div class="row"><a href="/clips/{{ j.id }}/video?dl=1">Herunterladen</a>
     <form method="post" action="/clips/{{ j.id }}/delete"><button type="submit">Löschen</button></form></div>

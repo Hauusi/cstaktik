@@ -239,8 +239,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 10. Offen
 
-- Meme-Clip Beat-Edit: Wort-Zeiten des Songtexts sind nur aufs Beat-Raster gelegt (keine Spracherkennung: Installation
-  in der Cloud-Sitzung wurde abgelehnt); Text perspektivisch auf Wänden, Farbeffekte, mehrere Clips, Upload-Seite fehlen.
+- Meme-Clip Beat-Edit: `sung_words` (faster-whisper) ist ungetestet, bis der Nutzer es auf dem Server installiert; Text perspektivisch auf Wänden, Farbeffekte, mehrere Clips, Upload-Seite fehlen.
   Musik-Rechte liegen beim Nutzer. Test-Musik war der Ton aus der TikTok-Aufnahme des Nutzers (nicht im Repo).
 - Meme-Clip: Urteil des Nutzers zum ersten Edit abwarten; danach ggf. Upload-Seite, weitere Vorlagen, eigene Sounds,
   Tode/Fails erkennen. ffmpeg muss auf dem Server installiert sein (noch nicht geprüft).
@@ -265,6 +264,11 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-16: Beat-Schnitt als Takt-Montage: je Kill `shot` (eigener Schnitt, 1 Schlag) + `ramp` (1 Schlag) + `hit`
+  (2 Schläge), jeder Bildwechsel auf einem Schlag mit Zoom-Schlag (`CUT_POP`), Kill beginnt schwarzweiß und wird farbig;
+  Songtext automatisch aus dem Gesang (`sung_words`, nur wenn faster-whisper auf dem Server installiert ist, hier
+  ungetestet: Installation in der Cloud-Sitzung abgelehnt), sonst eingetragener Text.
 
 - 2026-11-16: Beat-Schnitt nach Rückmeldung: Anlauf höchstens 1,6x (vorher 2,4x), Kill bleibt zwei Schläge in
   Zeitlupe 0,3x (`HIT_SLOW`), Spielton im Anlauf leiser; Songtext wird während des Kills nicht mehr ausgeblendet,
