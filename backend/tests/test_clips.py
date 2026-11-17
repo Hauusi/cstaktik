@@ -17,7 +17,7 @@ def _client(name="Hausi"):
 def test_upload_render_view_delete(monkeypatch):
     calls = {}
 
-    def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch"):
+    def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0):
         calls.update(music_ss=music_ss, words=words)
         if song:
             calls["song"] = song

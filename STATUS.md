@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 458 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 459 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-18: Songtext-Design nach Vorbild (Bildfolgen): Farbe je Wort nach Hintergrund-Helligkeit (`mark_dark_text`: Bild aus dem Segment zur Wortmitte, Textbereich; > 150 → schwarze Schrift mit hellem Schein, sonst weiß mit Schatten), weiches Einblenden (`FADE_IN_S` 0,08), Ausblenden am Zeilenende mit Unschärfe (`BLUR_OUT_PX` 10). Timing: Versuch, Wortzeiten im Vorbild mit Einsatz-Erkennung zu prüfen, nicht aussagekräftig (Abstände wie Zufall); Installation der Spracherkennung in der Cloud-Session abgelehnt → nicht messbar. Stattdessen Feld "Songtext früher/später" (`lyrics_shift`, −2..2 s, `shift_words`).
 
 - 2026-11-17: Songtext-Timing (Nutzer: noch nicht on point): `lrclib.refine` ordnet erkannte Wörter jetzt unscharf zu (`fuzzy_align`: Ausrichtung in Reihenfolge, Schreibähnlichkeit ≥0,6, ≤1,5 s Abstand) statt nur exakt gleiche; wiedergefundene Wörter bekommen Start UND Ende aus dem Gesang (Tipp-Tempo). Nur mit nachgebildeten Erkennungen getestet (keine Spracherkennung in der Cloud-Session); Wirkung zeigt der Hinweis "Wortzeiten über N erkannte Wörter angepasst".
 

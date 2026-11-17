@@ -53,6 +53,9 @@
       <div class="sg"><input id="cg" type="text" name="song" maxlength="120" placeholder="z. B. Paparazzi Lady Gaga" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="cgl">
         <ul id="cgl" role="listbox" hidden></ul></div>
       <small>Bekannte Songs: Beim Tippen erscheinen Vorschläge mit Bild. Die App holt den Songtext mit Zeitstempeln von LRCLIB (lrclib.net, kostenlos) und findet die Stelle im Song selbst. Gesendet wird nur der getippte Songname (an LRCLIB und, für die Bilder, an Deezer). Ist der Song dort nicht zu finden, füll das Feld darunter aus.</small>
+      <label for="csh">Songtext früher/später (Sekunden, z. B. -0,2 oder 0,3)</label>
+      <input id="csh" type="text" name="lyrics_shift" inputmode="decimal" placeholder="0">
+      <small>Kommen die Wörter gleichmäßig zu spät, eine negative Zahl eintragen (früher), kommen sie zu früh, eine positive.</small>
       <label for="cl">Oder Songtext für den Ausschnitt einfügen</label>
       <textarea id="cl" name="lyrics" rows="2" maxlength="600" placeholder="Wörter mit Leerzeichen. Ein Wort je Schlag."></textarea>
       <small>Das Tool legt ein Wort auf jeden Schlag. Am besten: Text des Ausschnitts aus dem Netz kopieren und einfügen. Das Tool legt die Wörter dann automatisch auf den Gesang, der Text bleibt richtig. Leer lassen: Das Tool versucht, den Gesang selbst zu verstehen, das klappt bei lauter Musik oft nur teilweise.</small>
@@ -241,7 +244,7 @@
     var total = vs.reduce(function (a, x) { return a + x.size; }, 0) + (m ? m.size : 0);
     if (vs.some(function (x) { return !x.size; }) || (m && !m.size)) total = 0;  // Größe unbekannt: nur MB anzeigen
     sent = 0;
-    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value}), true)
+    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value, lyrics_shift: f.lyrics_shift.value}), true)
       .then(function (j) {
         var chain = Promise.resolve();
         vs.forEach(function (v, i) { chain = chain.then(function () { return send(j.id, "video&n=" + i, v, total); }).then(function (n) {

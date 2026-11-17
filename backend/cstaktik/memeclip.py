@@ -1217,6 +1217,8 @@ TYPE_S = 0.22  # so lange dauert es, bis alle Buchstaben eines Worts erschienen 
 LINE_HOLD_S = 1.2  # letztes Wort einer Zeile bleibt mindestens so lange stehen
 FADE_OUT_S = 0.3  # dann blendet es aus
 LYRIC_MAX_PX = 170  # Schriftgröße (fester Platz, gleiche Größe; nur zu lange Wörter kleiner)
+FADE_IN_S = 0.08  # Wort blendet so schnell ein (statt hart zu erscheinen)
+BLUR_OUT_PX = 10  # so verschwommen wird ein Wort beim Ausblenden am Zeilenende
 LYRIC_FPS = 30  # Textspur mit 30 Bildern/s (reicht für Text, halbiert die Rechenzeit)
 
 
@@ -1260,11 +1262,15 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
         y0 = (height - (asc + desc)) // 2
         img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         x0 = (width - font.getlength(t)) / 2
+        # Farbe wie im Vorbild: auf hellem Hintergrund schwarz (mit leichtem hellem Schein), auf dunklem weiß
+        # (mit weichem Schatten)
+        dark = x.get("dark", False)
         sh = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        ImageDraw.Draw(sh).text((x0, y0 + size * 0.05), t, font=font, fill=(0, 0, 0, 170))
+        glow = (255, 255, 255, 70) if dark else (0, 0, 0, 170)
+        ImageDraw.Draw(sh).text((x0, y0 + (0 if dark else size * 0.05)), t, font=font, fill=glow)
         sh = sh.filter(ImageFilter.GaussianBlur(max(size // 18, 3)))
         img.alpha_composite(sh)
-        ImageDraw.Draw(img).text((x0, y0), t, font=font, fill=(255, 255, 255, 255))
+        ImageDraw.Draw(img).text((x0, y0), t, font=font, fill=(17, 17, 17, 255) if dark else (255, 255, 255, 255))
         edges = [x0 + font.getlength(t[:k]) for k in range(len(t) + 1)]  # rechte Kante nach k Buchstaben
         words.append((x, img, edges, size))
     proc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{width}x{height}",
@@ -1285,14 +1291,19 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
             reveal = min(max(0.8 * sung, 0.12), 0.6, 0.6 * (x["end"] - x["a"]))
             p = 1.0 if reveal <= 0 else min(max((t - x["a"]) / reveal, 0.0), 1.0)
             k = min(letters, int(math.floor(p * letters)) + 1)  # sichtbare Buchstaben (der nächste blendet ein)
-            alpha = 1.0
+            alpha = min(1.0, max(0.0, (t - x["a"]) / FADE_IN_S))  # weich einblenden
+            blur = 0.0
             if x["fade"]:
-                alpha = min(1.0, max(0.0, (x["end"] - t) / FADE_OUT_S))
-            key = (id(img), k, round(alpha, 2))
+                out = min(1.0, max(0.0, (x["end"] - t) / FADE_OUT_S))
+                alpha = min(alpha, out)
+                blur = round((1.0 - out) * BLUR_OUT_PX, 1)  # verschwommen auflösen (Vorbild)
+            key = (id(img), k, round(alpha, 2), blur)
             if key not in cache:
                 cut = int(round(edges[k])) + 1 if k < letters else width  # genau an der Buchstabenkante
                 fr = Image.new("RGBA", (width, height), (0, 0, 0, 0))
                 fr.paste(img.crop((0, 0, cut, height)), (0, 0))
+                if blur > 0:
+                    fr = fr.filter(ImageFilter.GaussianBlur(blur))
                 if alpha < 1.0:
                     a = fr.getchannel("A").point(lambda v, f=alpha: int(v * f))
                     fr.putalpha(a)
@@ -1305,6 +1316,26 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
         proc.wait()
     if proc.returncode:
         raise RuntimeError("Songtext-Spur: Kodieren fehlgeschlagen")
+
+
+DARK_TEXT_LUMA = 150  # Hintergrund heller als das (0..255): schwarze Schrift
+
+
+def mark_dark_text(items: list[dict], files, segs: list[dict], y0: int, band: int) -> None:
+    """Für jedes Wort die Helligkeit des Hintergrunds an seiner Stelle messen (Bild aus dem fertigen Segment zur
+    Wortmitte, Textbereich) und "dark" setzen: helle Maps bekommen schwarze Schrift wie im Vorbild."""
+    import numpy as np
+
+    for x in items:
+        t = (x["a"] + min(x.get("stop", x["b"]), x["b"] + 0.5)) / 2
+        k = next((i for i, sg in enumerate(segs) if sg["o0"] <= t < sg["o0"] + sg["out"]), None)
+        if k is None:
+            continue
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{max(t - segs[k]['o0'], 0):.3f}", "-i", str(files[k]),
+                              "-frames:v", "1", "-vf", f"crop={OUT_W}:{band}:0:{y0},scale=96:24,format=gray",
+                              "-f", "rawvideo", "-"], capture_output=True).stdout
+        if len(raw) == 96 * 24:
+            x["dark"] = float(np.frombuffer(raw, np.uint8).mean()) > DARK_TEXT_LUMA
 
 
 def lyric_pos(j: int, during_kill: bool) -> tuple[int, float]:
@@ -1560,8 +1591,25 @@ def loudness(path: str, ss: float | None = None, d: float | None = None) -> floa
     return float(m[-1]) if m else None
 
 
+def shift_words(words: list[str], sh: float) -> list[str]:
+    """Alle Wörter mit Zeit ("a-e:WORT" oder "a:WORT") um ``sh`` Sekunden verschieben, nie vor 0."""
+    import re
+
+    out = []
+    for w in words:
+        m = re.fullmatch(r"(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?:(.+)", w, re.S)
+        if not m:
+            out.append(w)
+            continue
+        a = max(float(m.group(1)) + sh, 0.0)
+        tm = f"{a:.2f}" + (f"-{max(float(m.group(2)) + sh, a + 0.1):.2f}" if m.group(2) else "")
+        out.append(f"{tm}:{m.group(3)}")
+    return out
+
+
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
-              words: list[str] | None = None, progress=None, song: str | None = None, fmt: str = "hoch") -> dict:
+              words: list[str] | None = None, progress=None, song: str | None = None, fmt: str = "hoch",
+              lyrics_shift: float = 0.0) -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
     für Wort. ``words``: Wörter in Reihenfolge (ein Wort je Schlag) oder "Sekunde:WORT" für feste Zeiten."""
     from cstaktik import beats as beatmod
@@ -1643,6 +1691,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         source = "erkannt" if words else None
     if lrc_note:
         SUNG_NOTE = lrc_note
+    if lyrics_shift and words:  # vom Nutzer eingestellt: alle Wörter früher (−) oder später (+)
+        words = shift_words(words, lyrics_shift)
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         files = [tmp / f"b{i:03d}.mp4" for i in range(len(pl["segments"]))]
@@ -1726,6 +1776,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 cy = lyric_pos(0, False)[0]
                 band = 360 if not LANDSCAPE else 300
                 track = tmp / "lyrics.mov"
+                mark_dark_text(flat_items, files, pl["segments"], cy - band // 2, band)
                 render_lyric_track(flat_items, total, track, OUT_W, band, LYRIC_FPS)
                 ins += ["-i", str(track)]
                 fc += f"[{k}:v]format=rgba[lt];[{last}][lt]overlay=0:{cy - band // 2}:format=auto[ltx];"

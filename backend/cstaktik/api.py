@@ -1054,7 +1054,7 @@ async def _save_upload(up: UploadFile, target: Path, limit: int) -> None:
 @app.post("/clips")
 async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | None = File(None),
                        music_ss: str = Form(""), lyrics: str = Form(""),
-                       song: str = Form(""), fmt: str = Form("hoch")) -> RedirectResponse:
+                       song: str = Form(""), fmt: str = Form("hoch"), lyrics_shift: str = Form("")) -> RedirectResponse:
     from cstaktik import clips
 
     video = video[:clips.MAX_CLIPS]
@@ -1074,7 +1074,7 @@ async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | 
         raise
     clips.set_state(d, status="wartet", name=_clip_name([v.filename or "Clip" for v in video]), music=has_music, music_ss=ss,
                     lyrics=" ".join(lyrics.split())[:600], song=" ".join(song.split())[:120],
-                    fmt="quer" if fmt == "quer" else "hoch",
+                    fmt="quer" if fmt == "quer" else "hoch", lyrics_shift=_shift(lyrics_shift),
                     created=pipeline.coaching_now())
     clips.start(d, _USER.get())
     return RedirectResponse("/clips", status_code=303)
@@ -1085,6 +1085,14 @@ CLIPS_API = 4  # muss zur Zahl in web/clips.html passen: erkennt, wenn nach eine
 
 def _clip_name(names: list[str]) -> str:
     return Path(names[0]).name[:80] if len(names) == 1 else f"{len(names)} Clips"
+
+
+def _shift(v) -> float:
+    """Songtext-Versatz aus dem Formular (Sekunden, −2..2), leer = 0."""
+    try:
+        return max(-2.0, min(2.0, float(str(v or "0").strip().replace(",", ".") or 0)))
+    except ValueError:
+        return 0.0
 
 
 def _music_start(v) -> float:
@@ -1117,7 +1125,8 @@ async def clips_new(request: Request) -> JSONResponse:
     clips.set_state(d, status="upload", name=_clip_name(names), music=bool(mext), music_ss=ss,
                     lyrics=" ".join(str(body.get("lyrics") or "").split())[:600],
                     song=" ".join(str(body.get("song") or "").split())[:120],
-                    fmt="quer" if body.get("fmt") == "quer" else "hoch", created=pipeline.coaching_now(),
+                    fmt="quer" if body.get("fmt") == "quer" else "hoch", lyrics_shift=_shift(body.get("lyrics_shift")),
+                    created=pipeline.coaching_now(),
                     video_exts=exts, music_ext=mext)
     return JSONResponse({"id": d.name})
 

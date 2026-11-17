@@ -336,3 +336,9 @@ def test_mix_audio_python_not_silent(tmp_path):
     a = memeclip._read_audio(str(out))
     assert abs(len(a) - 96000) < 100 and float(np.sqrt((a ** 2).mean())) > 0.05  # Ton da, richtige Länge
     assert abs(float(a.mean())) < 0.01  # kein Gleichspannungsversatz
+
+
+def test_shift_words_and_form_value():
+    assert memeclip.shift_words(["1.00-1.40:A", "0.10:B", "C"], -0.2) == ["0.80-1.20:A", "0.00:B", "C"]
+    from cstaktik.api import _shift
+    assert _shift("-0,3") == -0.3 and _shift("") == 0.0 and _shift("9") == 2.0 and _shift("x") == 0.0
