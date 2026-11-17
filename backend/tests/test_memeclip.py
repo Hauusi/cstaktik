@@ -366,3 +366,21 @@ def test_sign_png_marks_front_face(tmp_path):
     assert 0 < x0 < x1 < im.width and 0 < y0 < y1 < im.height
     px = im.convert("RGBA").getpixel((int((x0 + x1) / 2), int(y1) + 2))  # unter der Vorderseite: Tiefe oder Leuchten
     assert px[3] > 0
+
+
+def test_align_lyrics_new_line_after_pause_sticks_to_next_word():
+    typed = "when I say¶ let me take you dancing¶".split()
+    sung = ["1.50-1.80:when", "1.80-1.95:i", "2.00-2.30:say", "5.30-5.90:dancing"]
+    out = memeclip.align_lyrics(typed, sung, 10.0)
+    t = {w.split(":", 1)[1]: float(w.split(":", 1)[0].split("-")[0]) for w in out}
+    # "let me take you" nach der Pause direkt vor "dancing", nicht gleichmäßig in die Pause verteilt
+    assert t["let"] > 4.0 and t["let"] < t["me"] < t["take"] < t["you"] < 5.3
+    assert t["dancing¶"] == 5.3
+
+
+def test_typed_words_keep_line_ends():
+    from cstaktik import clips
+
+    txt = clips.lyrics_text("hope you know  what I mean\r\n\nLet me take you dancing \n")
+    assert txt == "hope you know what I mean\nLet me take you dancing"
+    assert clips.typed_words(txt)[5] == "mean¶" and clips.typed_words(txt)[-1] == "dancing¶"

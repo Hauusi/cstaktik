@@ -85,6 +85,25 @@ def _cleanup(user: str | None) -> None:
 
 
 
+MAX_LYRICS = 1500
+
+
+def lyrics_text(v: str) -> str:
+    """Eingefügter Songtext: Zeilen bleiben erhalten (Zeilenende = Pause im Gesang), Leerzeichen je Zeile vereinheitlicht."""
+    lines = [" ".join(x.split()) for x in str(v or "").splitlines()]
+    return "\n".join(x for x in lines if x)[:MAX_LYRICS]
+
+
+def typed_words(text: str) -> list[str]:
+    """Wörter aus dem eingefügten Text; das letzte Wort jeder Zeile trägt die Zeilenende-Marke (wie bei LRCLIB)."""
+    out: list[str] = []
+    for line in text.splitlines():
+        ws = line.split()
+        if ws:
+            out += ws[:-1] + [ws[-1] + "\u00b6"]
+    return out
+
+
 def render(d: Path, user: str | None = None) -> None:
     """Einen Auftrag schneiden (blockiert; für den Hintergrund-Thread). Fehler landen als Text im Status."""
     from cstaktik import memeclip
@@ -97,7 +116,7 @@ def render(d: Path, user: str | None = None) -> None:
         try:
             prog = lambda i, n: set_state(d, step=f"Schneiden {i} von {n}")  # noqa: E731
             if music:
-                words = [w for w in re.split(r"\s+", st.get("lyrics") or "") if w]
+                words = typed_words(st.get("lyrics") or "")
                 ss = float(st.get("music_ss") or 0)
                 if ss < 0 and (words or st.get("song")):
                     # Songtext eingefügt oder Song gewählt: die Musik startet am Anfang der Datei. Nutzer: der Drop

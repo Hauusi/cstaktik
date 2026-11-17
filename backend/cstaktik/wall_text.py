@@ -369,12 +369,25 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 if st["mode"] == "lost":
                     continue
                 sim = similarity(st["pts0"][st["ok"]], st["pts"][st["ok"]])
-                if sim is None or sim[2] > 3.0:  # Wand verloren: kurz ausblenden statt springen
+                q_h = None
+                if sim is None or sim[2] > 3.0:
+                    # Kamera dreht sich: die Wand ändert ihre Perspektive, Verschiebung + Größe reicht nicht mehr.
+                    # Dann volle Perspektiv-Abbildung aus den verfolgten Punkten (Wort bleibt im Winkel der Wand).
+                    hm, frac = ransac_h(st["pts0"][st["ok"]], st["pts"][st["ok"]], tol=2.0)
+                    if hm is not None and frac >= 0.6:
+                        cand = apply_h(hm, st["quad0"]).astype(np.float32)
+                        if 0.5 < _area(cand) / max(_area(st["quad0"]), 1e-6) < 2.0:
+                            q_h = cand
+                if q_h is not None:
+                    st["q"] = q = q_h if "q" not in st else st["q"] * 0.35 + q_h * 0.65
+                    st["fade"] = 1.0
+                elif sim is None or sim[2] > 3.0:  # Wand verloren: kurz ausblenden statt springen
                     st["fade"] = st.get("fade", 1.0) - 1 / (0.15 * fps)
                     if st["fade"] <= 0 or "q" not in st:
-                        # Wand verloren: das Wort für den Rest seiner Zeit flach zeigen statt verschwinden lassen
-                        # (Nutzer: am Anfang fehlten Wörter, obwohl schon gesungen wurde)
-                        st["mode"] = "flat"
+                        # Wand gleich zu Beginn verloren: Wort flach zeigen (Nutzer: Wörter fehlten). Stand es schon
+                        # eine Weile an der Wand: ausgeblendet lassen; der Wechsel Wand -> flach wirkte falsch
+                        # (Nutzer-Video: "LET" erst blass an der Wand, dann flach)
+                        st["mode"] = "flat" if t - w["a"] < 0.3 else "lost"
                         continue
                     q = st["q"]
                 else:
@@ -415,8 +428,9 @@ __all__ = ["apply", "place", "track", "ransac_h", "homography", "edge_slopes", "
 
 # --- Wand als Fläche (Nutzer: Wörter sollen wie im Vorbild "TALK" groß im richtigen Winkel auf einer Wand stehen) ---
 CELL = 9            # Zellgröße in Pixeln der kleinen Auflösung (270 px Spielbild -> 30 x 30 Zellen)
-COLOR_TOL = 22.0    # Farbabstand, bis zu dem benachbarte Zellen zur selben Fläche gehören
-MIN_WALL_CELLS = 24
+COLOR_TOL = 28.0    # Farbabstand, bis zu dem benachbarte Zellen zur selben Fläche gehören
+MIN_WALL_CELLS = 18
+CALM_PCT = 75        # Zellen mit weniger Kanten als dieser Anteil aller Zellen gelten als ruhig (Wandfläche)
 HORIZON = 0.5       # Höhe des Horizonts im Spielbild (Blick meist waagrecht): dort laufen Wandkanten zusammen
 PERSP_MAX = 2.2     # eine Seite des Worts höchstens so viel höher als die andere
 
@@ -430,7 +444,7 @@ def wall_regions(rgb: np.ndarray, g: np.ndarray) -> list[dict]:
     gy, gx = np.gradient(g)
     mag = np.hypot(gx, gy)[: n * CELL, : n * CELL].reshape(n, CELL, n, CELL).mean(axis=(1, 3))
     col = rgb[: n * CELL, : n * CELL].astype(np.float32).reshape(n, CELL, n, CELL, 3).mean(axis=(1, 3))
-    calm = mag <= max(np.percentile(mag, 55), 3.0)
+    calm = mag <= max(np.percentile(mag, CALM_PCT), 3.0)
     yy, xx = np.mgrid[0:n, 0:n]
     fx, fy = (xx + 0.5) / n, (yy + 0.5) / n
     blocked = ((np.abs(fx - 0.5) < 0.12) & (np.abs(fy - 0.5) < 0.16)) | (fy < 0.08) | ((fx > 0.55) & (fy > 0.62))

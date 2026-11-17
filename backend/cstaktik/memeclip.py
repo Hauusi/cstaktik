@@ -1070,7 +1070,7 @@ def story_keep(ws: list[dict], first_kill: float | None) -> set[int]:
     return set(keep)
 
 
-def wall_picks(ws: list[dict], max_share: float = 0.3) -> set[int]:
+def wall_picks(ws: list[dict], max_share: float = 0.5) -> set[int]:
     """Welche Wörter an die Wand: die, bei denen sich der Sänger Zeit lässt. Punkte = wie lange das Wort gesungen
     wird + die Pause danach (bis zum nächsten Wort). Gezogene Wörter vor einer Pause gewinnen. Nur Wörter mit
     mindestens 0,35 s gesungen oder 0,25 s Pause danach, höchstens ``max_share`` aller Wörter, mindestens eins.
@@ -1169,6 +1169,9 @@ def _norm(w: str) -> str:
     return re.sub(r"[^0-9a-zäöüß]", "", w.lower())
 
 
+WORD_PACE_S = 0.28  # Abstand nicht erkannter Wörter, wenn sie an ein erkanntes Wort rücken (Sprechtempo)
+
+
 def align_lyrics(typed: list[str], sung: list[str] | None, d: float) -> list[str]:
     """Eingefügten Songtext zeitlich auf den Gesang legen. ``sung``: erkannte Wörter "a-e:WORT".
     Gleiche Wörter in derselben Reihenfolge bekommen die Zeit aus der Erkennung; Wörter dazwischen, die die
@@ -1203,6 +1206,19 @@ def align_lyrics(typed: list[str], sung: list[str] | None, d: float) -> list[str
             j += 1
         start = times[i - 1][1] if i > 0 else max((times[j][0] if j < len(typed) else d) - 0.35 * (j - i), 0.0)
         end = times[j][0] if j < len(typed) else min(d, start + 0.35 * (j - i))
+        # Zeilenende in der Lücke (Zeile endet mit dem Vorgänger oder einem Wort der Lücke): dort singt der Sänger
+        # nicht. Wörter der alten Zeile folgen dem Vorgänger, die der neuen Zeile kommen direkt vor dem nächsten
+        # erkannten Wort, im Sprechtempo (Nutzer: "let" nach der Pause erschien mitten in der Pause).
+        brk = next((k for k in range(i - 1, j) if k >= 0 and typed[k].endswith("\u00b6")), None)
+        if brk is not None and end - start > WORD_PACE_S * (j - i + 1) + 0.3:
+            for k in range(i, j):
+                if k <= brk:  # noch alte Zeile: hinter den Vorgänger
+                    t = start + WORD_PACE_S * (k - i + 1) if i > 0 else end - WORD_PACE_S * (j - k)
+                else:  # neue Zeile: vor das nächste erkannte Wort
+                    t = end - WORD_PACE_S * (j - k)
+                out.append(f"{max(t, 0.0):.2f}:{typed[k]}")
+            i = j
+            continue
         step = max(end - start, 0.0) / (j - i + 1)
         for k in range(i, j):
             out.append(f"{start + step * (k - i + 1):.2f}:{typed[k]}")

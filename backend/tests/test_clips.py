@@ -30,7 +30,7 @@ def test_upload_render_view_delete(monkeypatch):
     assert 'data-block="upload"' in c.get("/clips").text
     r = c.post("/clips", files={"video": ("a.mp4", b"x" * 10, "video/mp4"), "music": ("m.mp3", b"y", "audio/mpeg")},
                data={"music_ss": "12,5", "lyrics": "EINS  ZWEI"}, headers=O, follow_redirects=False)
-    assert r.status_code == 303 and calls == {"music_ss": 12.5, "words": ["EINS", "ZWEI"]}
+    assert r.status_code == 303 and calls == {"music_ss": 12.5, "words": ["EINS", "ZWEI\u00b6"]}
     page = c.get("/clips").text
     job = clips.jobs("Hausi")[0]
     assert "2 Kills im Video" in page and f'/clips/{job["id"]}/video' in page and "http-equiv" not in page

@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 465 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 467 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-17: Nutzer-Video (Jason Derulo): (1) "let" kam mitten in der Pause nach "when I say": eingefügter Text verlor die Zeilen (alles zu einer Zeile). Jetzt bleiben Zeilen erhalten (`clips.lyrics_text`, bis 1500 Zeichen), letztes Wort je Zeile trägt die Zeilenende-Marke (`clips.typed_words`); `align_lyrics` legt nicht erkannte Wörter einer neuen Zeile direkt vor das nächste erkannte Wort (`WORD_PACE_S` 0,28 s) statt gleichmäßig in die Pause. (2) Fast nur flache Wörter, "LET" blass an der Wand und dann flach: Wandsuche lockerer (`CALM_PCT` 75, `COLOR_TOL` 28, `MIN_WALL_CELLS` 18; 54 Testbilder: 13 → 19 mit Wand), Verfolgung bei Kameradrehung mit Perspektiv-Abbildung (`ransac_h`) statt nur Verschiebung, Wand nach >0,3 s verloren → ausblenden statt flach; Wand-Wörter bis 50 % (`wall_picks`).
 - 2026-11-17: Musik-Start (Nutzer: Jason Derulo, Datei beginnt mit dem gewünschten Teil, Programm nahm den Drop mitten im Lied): Feld "Musik ab" leer + Songtext eingefügt oder Song gewählt → Musik ab Anfang der Datei (Hinweis im Auftrag); nur ohne Songtext/Song wird der Drop gesucht. Wand-Wort-Grenze `WALL_MAX_ASPECT` misst jetzt die Vorderseite des 3D-Schilds (vorher mit Leuchtrand zu schmal gerechnet).
 - 2026-11-17: Wand-Wörter wie Vorbild "TALK" und Story-Modus (Nutzer: Wörter im richtigen Winkel auf der Wand; Vorbild zeigt am Anfang jedes Wort, später nur wichtige). Neue Wandsuche `wall_text.place_on_wall` (Fläche + Kanten + Fluchtpunkt statt fester Stelle im Seitenbereich; an 54 Standbildern der 3 Nutzer-Clips vorher Wort immer an derselben Stelle, jetzt nur auf echten Wänden, ~25 % der Bilder). Wand-Wort als gelbes 3D-Schild (`memeclip.sign_png`: Tiefe, Leuchten). `split_walls`: ohne Wand zu Wortbeginn wird das Wort normal in der Textspur gezeigt. `story_keep`: bis zum ersten Kill jedes Wort, danach nur Zeilenende, gezogene Wörter und Inhaltswörter (Füllwörter `STOPWORDS` weg), Wort bleibt dann bis zu 1,2 s länger (`STORY_HOLD_S`).
 
