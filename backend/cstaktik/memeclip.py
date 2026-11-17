@@ -1031,7 +1031,7 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
     return [(x["a"], x["b"], x["txt"]) for x in word_list(words, beat_times, per_beat)]
 
 
-def wall_picks(ws: list[dict], max_share: float = 0.6) -> set[int]:
+def wall_picks(ws: list[dict], max_share: float = 0.3) -> set[int]:
     """Welche Wörter an die Wand: die, bei denen sich der Sänger Zeit lässt. Punkte = wie lange das Wort gesungen
     wird + die Pause danach (bis zum nächsten Wort). Gezogene Wörter vor einer Pause gewinnen. Nur Wörter mit
     mindestens 0,35 s gesungen oder 0,25 s Pause danach, höchstens ``max_share`` aller Wörter, mindestens eins.
@@ -1306,10 +1306,11 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
 
 
 def lyric_pos(j: int, during_kill: bool) -> tuple[int, float]:
-    """Mitte (y) und Größe eines flachen Songtext-Worts. Hält die Bildmitte frei."""
+    """Mitte (y) eines flachen Songtext-Worts: im Spielbild, oberes Viertel (wie im Vorbild im Bild statt als
+    Untertitel daneben), deutlich über dem Fadenkreuz in der Mitte, damit der Kill frei bleibt."""
     if LANDSCAPE:
-        return int(OUT_H * 0.82) + LYRIC_DY[j % len(LYRIC_DY)] // 2, 0.62
-    return (BOX_Y // 2 + 70) + LYRIC_DY[j % len(LYRIC_DY)] // 2, 0.72
+        return int(OUT_H * 0.28), 1.0
+    return BOX_Y + int(BOX * 0.24), 1.0
 
 
 def one_scene(a: float, b: float, cuts: list[float]) -> tuple[float, float]:

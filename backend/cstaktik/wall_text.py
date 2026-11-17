@@ -342,7 +342,9 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 if sim is None or sim[2] > 3.0:  # Wand verloren: kurz ausblenden statt springen
                     st["fade"] = st.get("fade", 1.0) - 1 / (0.15 * fps)
                     if st["fade"] <= 0 or "q" not in st:
-                        st["mode"] = "lost"
+                        # Wand verloren: das Wort für den Rest seiner Zeit flach zeigen statt verschwinden lassen
+                        # (Nutzer: am Anfang fehlten Wörter, obwohl schon gesungen wurde)
+                        st["mode"] = "flat"
                         continue
                     q = st["q"]
                 else:

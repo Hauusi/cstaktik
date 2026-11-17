@@ -23,6 +23,7 @@ UA = "cstaktik-clips/1.0"
 FULL_SONG_TOL = 4.0  # Musikdatei höchstens so viel kürzer/länger als der Song: gilt als ganzer Song
 MIN_MATCH = 3
 EOL = "\u00b6"  # Marke am letzten Wort einer Songzeile
+EARLY_S = 0.6  # Wörter, die so kurz vor dem Videostart beginnen, werden ab Sekunde 0 gezeigt (Nutzer: erste Wörter fehlten)
 
 
 def _norm(w: str) -> str:
@@ -118,8 +119,10 @@ def clip_words(words: list[tuple[float, float, str]], offset: float, music_ss: f
     out = []
     for a, e, w in words:
         va, ve = a - offset - music_ss, e - offset - music_ss
+        if -EARLY_S <= va < 0 and ve > 0.05:  # kurz vor Videostart begonnen, aber noch zu hören: ab 0 zeigen
+            va = 0.0
         if 0 <= va < total:
-            out.append(f"{va:.2f}-{min(ve, total):.2f}:{w}")
+            out.append(f"{va:.2f}-{min(max(ve, va + 0.1), total):.2f}:{w}")
     return out
 
 

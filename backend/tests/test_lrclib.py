@@ -114,3 +114,9 @@ def test_wall_word_stays_in_one_scene():
     assert memeclip.one_scene(1.0, 3.0, [1.4]) == (1.4, 3.0)  # längeres Stück nach dem Schnitt
     assert memeclip.one_scene(1.0, 3.0, [2.5]) == (1.0, 2.5)
     assert memeclip.one_scene(1.0, 3.0, []) == (1.0, 3.0)
+
+
+def test_clip_words_keeps_word_started_just_before_video():
+    tw = [(9.95, 10.3, "I'm"), (10.3, 10.6, "your"), (8.0, 8.3, "old")]
+    w = lrclib.clip_words(tw, 0.0, 10.0, 5.0)
+    assert w[0].startswith("0.00-") and w[0].endswith(":I'm") and len(w) == 2  # ab 0 statt weg; 2 s davor: weg

@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 455 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 456 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Ton geht wieder (Nutzer-Video −11,3 LUFS). Songtext näher am Vorbild: flache Wörter im Spielbild, oberes Viertel (`lyric_pos`: Hochformat BOX_Y+24 % der Box, Querformat 28 % der Höhe), über dem Fadenkreuz; Wand-Wörter höchstens 30 % (`wall_picks`); abgerissene Wand-Verfolgung zeigt das Wort flach weiter statt es auszublenden (`wall_text`). Erste Wörter fehlten (Nutzer): Video beginnt am ersten Schlag, Wort davor wurde verworfen → `clip_words` zeigt Wörter, die bis 0,6 s vor dem Start beginnen, ab 0 (`EARLY_S`). Echter Lauf 3 Clips: Text ab Beginn, 34 Wörter (3 Wand).
 
 - 2026-11-17: Kein Ton (Nutzer-Diagnose: Spielton −16, Musik −10, Mischung −70 LUFS): ffmpeg-Filter-Mischung (aevalsrc-/volume-Formeln, amix) ergab auf dem Server Stille, lokal nicht (vermutlich andere ffmpeg-Version). Mischen jetzt in Python/numpy (`mix_audio`, `_read_audio`, `music_gain`, `sfx_wave`): Spielton je Segment exakt platziert mit 6-ms-Fades, Musik mit Kill-/Schuss-Absenkung, Riser/Impact/Whoosh als Samples; ffmpeg nur noch Lesen/Schreiben. Alte Filter-Mischung entfernt. Echter Clip: gleiche Lautheit (−11,4 LUFS), Korrelation zur alten Mischung 0,98, kein Versatz.
 
