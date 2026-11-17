@@ -35,6 +35,16 @@ def test_upload_render_view_delete(monkeypatch):
     job = clips.jobs("Hausi")[0]
     assert "2 Kills im Video" in page and f'/clips/{job["id"]}/video' in page and "http-equiv" not in page
     assert c.get(f"/clips/{job['id']}/video").content == b"video"
+    # Startfeld leer, Songtext eingefügt: Musik ab Anfang statt am Drop (Nutzer: Drop lag mitten im Lied)
+    from cstaktik import beats
+
+    monkeypatch.setattr(beats, "find_drop", lambda m: (_ for _ in ()).throw(AssertionError("kein Drop suchen")))
+    c.post("/clips", files={"video": ("a.mp4", b"x" * 10, "video/mp4"), "music": ("m.mp3", b"y", "audio/mpeg")},
+           data={"music_ss": "", "lyrics": "SO YOU KNOW"}, headers=O, follow_redirects=False)
+    assert calls["music_ss"] == 0.0 and "Musik ab Anfang der Datei" in c.get("/clips").text
+    for x in clips.jobs("Hausi"):
+        if x["id"] != job["id"]:
+            c.post(f"/clips/{x['id']}/delete", headers=O)
     other = _client("Bruder")
     assert other.get(f"/clips/{job['id']}/video").status_code == 404  # nur eigene Clips
     c.post(f"/clips/{job['id']}/delete", headers=O)

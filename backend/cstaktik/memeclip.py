@@ -1395,8 +1395,10 @@ def one_scene(a: float, b: float, cuts: list[float]) -> tuple[float, float]:
 def png_aspect(path) -> float:
     from PIL import Image
 
-    with Image.open(path) as im:
-        return im.width / max(im.height, 1)
+    from cstaktik import wall_text
+
+    with Image.open(path) as im:  # beim 3D-Schild zählt die Vorderseite (ohne Leuchten)
+        return wall_text.word_aspect(im)
 
 
 SIGN_FACE = (255, 214, 10)     # Vorderseite des Schilds (Vorbild "TALK": gelb, leuchtend)

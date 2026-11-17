@@ -99,7 +99,12 @@ def render(d: Path, user: str | None = None) -> None:
             if music:
                 words = [w for w in re.split(r"\s+", st.get("lyrics") or "") if w]
                 ss = float(st.get("music_ss") or 0)
-                if ss < 0:  # leer gelassen: am Drop starten
+                if ss < 0 and (words or st.get("song")):
+                    # Songtext eingefügt oder Song gewählt: die Musik startet am Anfang der Datei. Nutzer: der Drop
+                    # lag mitten im Lied ("ne ne ne"-Teil), die Datei beginnt aber mit dem gewünschten Teil.
+                    ss = 0.0
+                    set_state(d, music_auto=False, music_used=0.0, music_start_note=True)
+                elif ss < 0:  # leer gelassen, ohne Songtext: am Drop starten
                     from cstaktik import beats
 
                     set_state(d, step="Drop in der Musik suchen")
