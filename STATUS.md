@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 449 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 450 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Kills weggeschnitten (Nutzer-Video: bei 9,3 s Killfeed, davor nur Nachladen, der Kill selbst fehlt). Ursache: Kill-Zeitlupe begann pauschal 0,1 s vor dem Killfeed-Eintrag, der Eintrag kommt aber erst nach dem Treffer (echter Clip: Kill-Schuss 0,14–0,34 s davor, beim Nutzer offenbar deutlich mehr). Jetzt `kill_start`: Zeitlupe beginnt 0,08 s vor dem letzten Schuss bis 1,5 s vor dem Eintrag (ohne Schuss wie bisher). Echter Clip: Treffer und fallender Gegner in der Zeitlupe; Sync gemessen 6/9 (vorher 7/7), Kill-Erkennung unverändert.
 
 - 2026-11-17: Songtext doppelt/verzögert (Nutzer): (1) Nutzer-Video Bild für Bild: Wand-Wort lief über einen Schnitt und wurde in der neuen Szene an anderer Wand neu gesetzt → wirkte doppelt. Jetzt `one_scene`: Wand-Wort nur im längsten Stück ohne Schnitt (sonst flach in voller Länge). Echter Clip: 0 Wand-Wörter über Schnitte. (2) Verzögerung: LRCLIB hat nur Zeilen-Zeiten, Wörter waren gleichmäßig verteilt (bis ~1 s daneben). Jetzt `lrclib.refine`: Spracherkennung (Server) setzt Wortzeiten für wiedergefundene Wörter (≤1 s Abweichung), übrige linear nachgezogen, Reihenfolge bleibt; Hinweis zeigt Anzahl. Ohne Spracherkennung hier nur mit nachgebildeten Erkennungen getestet.
 

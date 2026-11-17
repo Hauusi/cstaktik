@@ -254,3 +254,10 @@ def test_kills_from_boxes_new_entry_while_old_expires():
     k = memeclip.kills_from_boxes(fb, sg)
     assert [x[0] for x in k] == [1.0, 3.0]  # Aussetzer kein neuer Kill, B trotz gleicher Anzahl erkannt
     assert memeclip._same(A, dict(A, w=A["w"] + 10)) > 0.9  # hereingleitender Eintrag: Breite schwankt
+
+
+def test_kill_starts_at_kill_shot():
+    assert memeclip.kill_start(4.15, [3.25, 3.52, 3.81]) == 3.73  # letzter Schuss vor dem Eintrag
+    assert memeclip.kill_start(9.3, [8.1, 8.2, 12.0]) == 8.12  # Eintrag kam spät: trotzdem der Schuss
+    assert memeclip.kill_start(4.15, []) == 4.05 and memeclip.kill_start(4.15, None) == 4.05  # ohne Schuss wie bisher
+    assert memeclip.kill_start(9.3, [5.0]) == 9.2  # Schuss zu weit weg: nicht dieser

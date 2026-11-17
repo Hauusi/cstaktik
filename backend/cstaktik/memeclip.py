@@ -529,6 +529,19 @@ def _piecewise_pts(anchors: list[tuple[float, float]], ss: float) -> str:
     return f"({expr.replace('T', '((PTS-STARTPTS)*TB)')})/TB"
 
 
+KILL_SHOT_BACK = 1.5  # so weit vor dem Killfeed-Eintrag wird der Kill-Schuss gesucht
+KILL_PRE = 0.08  # Zeitlupe beginnt so kurz vor dem Schuss (Mündungsfeuer und Treffer sind ganz drin)
+
+
+def kill_start(t: float, shot_times: list[float] | None) -> float:
+    """Wo die Kill-Zeitlupe beginnt: am Kill-Schuss = letzter Schuss im Spielton vor dem Killfeed-Eintrag (bis 1,5 s
+    davor). Der Eintrag erscheint erst nach dem Treffer (gemessen 0,14-0,34 s, beim Nutzer teils viel mehr); vorher
+    begann die Zeitlupe pauschal 0,1 s vor dem Eintrag, und der eigentliche Kill fiel heraus. Ohne Schuss (Granate,
+    Messer): wie bisher."""
+    prev = [x for x in (shot_times or []) if t - KILL_SHOT_BACK <= x <= t + 0.05]
+    return round(max((prev[-1] - KILL_PRE) if prev else (t - 0.10), 0.0), 3)
+
+
 def kill_beats(n: int, nb: int, strength: list[float] | None, beat_times: list[float]) -> list[int]:
     """Schläge, auf denen die Kills landen. Je Kill der stärkste Schlag in einem Fenster (betonte Schläge wirken
     wuchtiger); die Abstände wechseln (3 bis 6 Schläge, bei wenig Musik 2 bis 4), statt starr alle 4 Schläge
@@ -593,7 +606,7 @@ def plan_beat(kills: list[dict], dur: float, beat_times: list[float], motions: d
         cdur = kill.get("dur", dur)
         if kill.get("src") != cur:
             cur, src_prev = kill.get("src"), 0.0
-        ks = max(kill["t"] - 0.10, 0.0)               # Kill-Moment im Clip
+        ks = kill_start(kill["t"], (shot_times or {}).get(kill.get("src")))  # Kill-Moment im Clip: der Kill-Schuss
         kb = beat_times[kb_idx[j]]                    # Schlag, auf dem er landet
         gap = kb - o
         # Schlag davor: eigener kurzer Schnitt aus der Szene vor dem Kill (nur wenn Zeit und Material reichen)
