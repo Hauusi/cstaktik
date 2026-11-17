@@ -506,7 +506,7 @@ INTERP = "none"
 def interp_vf() -> str:
     return {"mci": MCI_VF, "blend": f"minterpolate=fps={OUT_FPS}:mi_mode=blend"}.get(INTERP, "null")
 MAX_WORDS = 40
-WALL_MAX_ASPECT = 3.6  # breitere Wörter nicht auf Wände: gemessen wurden sie dort nur 59-101 px hoch (zu klein)
+WALL_MAX_ASPECT = 7.0  # Vorderseite des 3D-Schilds (Breite/Höhe); ob die Wand groß genug ist, prüft wall_text (sonst flach)
 WALL_MIN_S = 0.22  # so lange muss ein Wort an der Wand stehen können
 WALL_TEXT = True  # Songtext teils auf Wände legen (wall_text.py)
 WORD_LEAD_S = 0.04  # Text minimal vor dem Gesang: späterer Text fällt eher auf als früherer
