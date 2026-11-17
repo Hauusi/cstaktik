@@ -1458,6 +1458,91 @@ def level_chain(path: str, target: float = None) -> str:
 
 
 SILENT_LUFS = -45.0  # leiser als das: Tonspur gilt als stumm
+SR_MIX = 48000
+
+
+def _read_audio(path: str, ss: float | None = None, d: float | None = None):
+    """Ton als float32-Array (Stereo, 48 kHz). Ohne Ton: leeres Array."""
+    import numpy as np
+
+    cmd = ["ffmpeg", "-v", "error"] + (["-ss", str(ss)] if ss else []) + (["-t", str(d)] if d else []) + \
+          ["-i", str(path), "-vn", "-ac", "2", "-ar", str(SR_MIX), "-f", "f32le", "-"]
+    p = subprocess.run(cmd, capture_output=True)
+    a = np.frombuffer(p.stdout, np.float32)
+    return a[: len(a) // 2 * 2].reshape(-1, 2).copy()
+
+
+def sfx_wave(marks: list[dict], beat: float, cuts: list[float], n: int, seed: int = 7):
+    """Wie sfx_expr, aber direkt als Samples: Riser (anschwellendes Rauschen) vor jedem Kill, Impact (tiefer
+    Schlag) auf dem Kill, Whoosh an Szenenwechseln. Mono, Länge n."""
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    t = np.arange(n, dtype=np.float64) / SR_MIX
+    out = np.zeros(n, np.float64)
+    noise = rng.uniform(-1, 1, n)
+    for x in marks:
+        o = x["o0"]
+        L = min(1.5 * beat, RISER_MAX, o)
+        if L > 0.3:
+            a = o - L
+            m = (t >= a) & (t < o)
+            out[m] += ((t[m] - a) / L) ** 3 * 0.30 * noise[m]
+        m = (t >= o) & (t < o + 0.5)
+        tau = t[m] - o
+        out[m] += 0.6 * np.sin(2 * np.pi * (45 + 30 * np.exp(-tau * 30)) * tau) * np.exp(-tau * 7)
+    for c in cuts:
+        out += 0.35 * noise * np.exp(-(((t - c) / 0.05) ** 2))
+    return out.astype(np.float32)
+
+
+def music_gain(marks: list[dict], game_shots: list[float], total: float, n: int):
+    """Lautstärke der Musik über die Zeit: beim Kill-Schuss weich abgesenkt, bei jedem Schuss kurz, am Ende aus."""
+    import numpy as np
+
+    t = np.arange(n, dtype=np.float64) / SR_MIX
+    duck = np.zeros(n)
+    for x in marks:
+        o = x["o0"]
+        duck += np.clip((t - (o - 0.04)) / 0.04, 0, 1) * np.clip((o + KILL_SND_S + 0.3 - t) / 0.3, 0, 1)
+    dips = np.zeros(n)
+    for x in game_shots:
+        dips += np.exp(-(((t - (x + 0.03)) / (SHOT_DIP_S / 2)) ** 2))
+    g = np.maximum(0.25, 1 - KILL_DUCK * np.minimum(1, duck) - SHOT_DIP * np.minimum(1, dips))
+    g *= np.clip((total - t) / 0.12, 0, 1)  # am Ende kurz ausblenden
+    return g.astype(np.float32)
+
+
+def mix_audio(files, segs: list[dict], music: str, music_ss: float, total: float, marks: list[dict],
+              game_shots: list[float], beat: float, cuts: list[float], out: Path) -> None:
+    """Spielton (je Segment exakt an seine Stelle, 6 ms Ein-/Ausblenden gegen Knacken) + Musik (mit Absenkung) +
+    Effekte zusammenrechnen und als WAV schreiben."""
+    import numpy as np
+
+    n = int(round(total * SR_MIX))
+    game = np.zeros((n, 2), np.float32)
+    fade = int(0.006 * SR_MIX)
+    for f, sg in zip(files, segs):
+        a = _read_audio(str(f))
+        start, length = int(round(sg["o0"] * SR_MIX)), int(round(sg["out"] * SR_MIX))
+        a = a[:length]
+        if len(a) < 2 * fade:
+            continue
+        ramp = np.linspace(0, 1, fade, dtype=np.float32)[:, None]
+        a[:fade] *= ramp
+        a[-fade:] *= ramp[::-1]
+        end = min(start + len(a), n)
+        game[start:end] += a[: end - start]
+    mu = _read_audio(music, music_ss, total)[:n]
+    mus = np.zeros((n, 2), np.float32)
+    mus[: len(mu)] = mu
+    mus *= music_gain(marks, game_shots, total, n)[:, None]
+    fx = sfx_wave(marks, beat, cuts, n)[:, None] * SFX_VOL
+    mix = game + mus + fx
+    p = subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(SR_MIX), "-ac", "2", "-i", "-",
+                        "-c:a", "pcm_f32le", str(out)], input=mix.astype(np.float32).tobytes(), capture_output=True)
+    if p.returncode:
+        raise RuntimeError("Ton mischen fehlgeschlagen: " + p.stderr.decode(errors="replace")[-300:])
 AUDIO_NOTE = ""
 
 
@@ -1588,9 +1673,6 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar (eigener Ton-Graph)
         # Ton jedes Segments exakt auf seine Bildlänge: AAC-Ton ist oft ein paar ms länger; beim gemeinsamen
         # Aneinanderhängen entsteht sonst eine Lücke im Bild und ein doppeltes Bild (gemessen: 4 je Video)
-        afc_e = "".join(f"[{i}:a]apad=whole_dur={sg['out']},atrim=end={sg['out']},asetpts=PTS-STARTPTS,"
-                        f"afade=t=in:d=0.006,areverse,afade=t=in:d=0.006,areverse[e{i}];"
-                        for i, sg in enumerate(pl["segments"]))
         fc = ""
         # Pixel-Seitenverhältnis vereinheitlichen: Segmente kamen mit "nicht gesetzt" und 1280:1281 an, dann bricht
         # concat ab (Fehler beim Nutzer)
@@ -1598,9 +1680,6 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         fc += "".join(f"[sv{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[vc0];"
         tcuts = [] if CLEAN_EDIT else transition_cuts(pl["segments"])  # einfacher Schnitt: harte Schnitte
         fc += f"[vc0]{transition_vf(tcuts)}null[vc];"
-        afc = afc_e + "".join(f"[e{i}]" for i in range(n)) + f"concat=n={n}:v=0:a=1[ga];"
-        afc += (f"aevalsrc='{sfx_expr(marks, pl['beat'], tcuts)}':d={total:.3f}:s=48000,"
-                f"aformat=channel_layouts=stereo,highpass=f=30,lowpass=f=9000,volume={SFX_VOL}[sfx];")
         lp = max(total - LOOP_S, 0)
         fc += (f"[LOOPIN]format=rgba,fade=t=in:st={lp:.3f}:d={LOOP_S}:alpha=1[lp];"
                f"[vc][lp]overlay=0:0:enable='gte(t,{lp:.3f})'[v0];")
@@ -1647,19 +1726,12 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 ins += ["-i", str(track)]
                 fc += f"[{k}:v]format=rgba[lt];[{last}][lt]overlay=0:{cy - band // 2}:format=auto[ltx];"
                 last, k = "ltx", k + 1
-        # Musik beim Kill-Schuss weich absenken (40 ms runter, 300 ms zurück) statt schlagartig: kein Pumpen
-        duck = "+".join(f"min(1\\,max(0\\,(t-{x['o0'] - 0.04:.3f})/0.04))*min(1\\,max(0\\,({x['o0'] + KILL_SND_S + 0.3:.3f}-t)/0.3))"
-                        for x in marks) or "0"
-        # bei jedem gemessenen Schuss die Musik kurz absenken: der Knall sticht heraus (Vorbild)
-        dips = "+".join(f"exp(-pow((t-{x + 0.03:.3f})/{SHOT_DIP_S / 2:.3f}\\,2))" for x in game_shots) or "0"
         fc += f"[{last}]null[v]"
-        afc += (f"[{n}:a]aresample=48000,volume='max(0.25\\,1-{KILL_DUCK}*min(1\\,{duck})-{SHOT_DIP}*min(1\\,{dips}))':eval=frame,"
-                f"afade=t=out:st={max(total - 0.12, 0):.3f}:d=0.12[mu];"
-                f"[ga][mu][sfx]amix=inputs=3:duration=first:normalize=0[a]")
         mix = tmp / "mix.wav"
-        _run(["ffmpeg", "-v", "error", "-y", *[x for f in files for x in ("-i", str(f))],
-              "-ss", str(music_ss), "-t", str(total), "-i", music, "-filter_complex", afc, "-map", "[a]",
-              "-t", str(total), "-c:a", "pcm_f32le", str(mix)])
+        # Mischen in Python statt mit ffmpeg-Formeln: auf dem Server des Nutzers ergab die ffmpeg-Mischung Stille
+        # (Spielton −16, Musik −10, Mischung −70 LUFS), vermutlich eine andere ffmpeg-Version. ffmpeg liest und
+        # schreibt jetzt nur noch Dateien.
+        mix_audio(files, pl["segments"], music, music_ss, total, marks, game_shots, pl["beat"], tcuts, mix)
         # Diagnose: Pegel der Teile (steht unter dem Video, bei Stille auch in der Fehlermeldung)
         global AUDIO_NOTE
         lv = {"Spielton": loudness(str(tmp / "game.wav")) if (tmp / "game.wav").exists() else None,

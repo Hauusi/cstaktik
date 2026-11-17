@@ -320,3 +320,19 @@ def test_silent_mix_is_an_error_not_a_flat_line(tmp_path):
     g = tmp_path / "ton.wav"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=440:d=2:sample_rate=48000", str(g)], check=True)
     assert memeclip.level_chain(str(g)).startswith("highpass=f=20,")
+
+
+def test_mix_audio_python_not_silent(tmp_path):
+    import subprocess
+    import numpy as np
+    seg = tmp_path / "s0.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=300:d=2:sample_rate=48000",
+                    "-c:a", "aac", str(seg)], check=True)
+    mus = tmp_path / "m.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=500:d=3:sample_rate=44100", str(mus)], check=True)
+    out = tmp_path / "mix.wav"
+    marks = [{"o0": 1.0, "kind": "hit", "out": 1.0}]
+    memeclip.mix_audio([seg], [{"o0": 0.0, "out": 2.0}], str(mus), 0.0, 2.0, marks, [1.0], 0.5, [], out)
+    a = memeclip._read_audio(str(out))
+    assert abs(len(a) - 96000) < 100 and float(np.sqrt((a ** 2).mean())) > 0.05  # Ton da, richtige Länge
+    assert abs(float(a.mean())) < 0.01  # kein Gleichspannungsversatz
