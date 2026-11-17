@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 456 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 457 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Songtext Wort für Wort wie gesungen (Nutzer: "Papa-paparazzi" kam auf einmal, bevor "paparazzi" gesungen wurde): `lrclib.split_sung` trennt Bindestrich-Wörter, `timed_words` verteilt die Zeile nach Silben (`syllables`, 0,21 s/Silbe) statt gleichmäßig je Wort; Buchstaben bauen sich über die Singdauer des Worts auf (0,8×, 0,12–0,6 s) statt fest 0,22 s. Geprüft: PAPA 0,3–0,8 s, PAPARAZZI tippt 0,8–1,4 s, Zeilenende blendet aus.
 
 - 2026-11-17: Ton geht wieder (Nutzer-Video −11,3 LUFS). Songtext näher am Vorbild: flache Wörter im Spielbild, oberes Viertel (`lyric_pos`: Hochformat BOX_Y+24 % der Box, Querformat 28 % der Höhe), über dem Fadenkreuz; Wand-Wörter höchstens 30 % (`wall_picks`); abgerissene Wand-Verfolgung zeigt das Wort flach weiter statt es auszublenden (`wall_text`). Erste Wörter fehlten (Nutzer): Video beginnt am ersten Schlag, Wort davor wurde verworfen → `clip_words` zeigt Wörter, die bis 0,6 s vor dem Start beginnen, ab 0 (`EARLY_S`). Echter Lauf 3 Clips: Text ab Beginn, 34 Wörter (3 Wand).
 

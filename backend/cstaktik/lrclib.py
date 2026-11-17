@@ -43,18 +43,37 @@ def parse_lrc(text: str) -> list[tuple[float, str]]:
     return sorted(out)
 
 
-def timed_words(lines: list[tuple[float, str]], per_word: float = 0.42) -> list[tuple[float, float, str]]:
-    """Wörter mit (Start, Ende): je Zeile gleichmäßig von der Startzeit bis zur nächsten Zeile verteilt, höchstens
-    ``per_word`` Sekunden je Wort (danach Pause bis zur nächsten Zeile)."""
+def syllables(w: str) -> int:
+    """Grobe Silbenzahl (Vokalgruppen), mindestens 1. Reicht, um Singzeit zu verteilen."""
+    return max(1, len(re.findall(r"[aeiouyäöü]+", w.lower())))
+
+
+def split_sung(txt: str) -> list[str]:
+    """Wörter einer Zeile, Bindestrich-Wörter getrennt ("Papa-paparazzi" -> "Papa", "paparazzi"): jeder Teil kommt,
+    wenn er gesungen wird (Nutzer: sonst stand "PAPARAZZI" schon da, bevor es gesungen wurde)."""
+    out = []
+    for w in txt.split():
+        parts = [p for p in re.split(r"(?<=\w)-(?=\w)", w) if p]
+        out += parts or [w]
+    return out
+
+
+def timed_words(lines: list[tuple[float, str]], per_syl: float = 0.21) -> list[tuple[float, float, str]]:
+    """Wörter mit (Start, Ende): je Zeile ab ihrer Startzeit nach Silben verteilt (lange Wörter brauchen länger),
+    höchstens ``per_syl`` Sekunden je Silbe (danach Pause bis zur nächsten Zeile)."""
     out = []
     for i, (t, txt) in enumerate(lines):
-        ws = txt.split()
-        nxt = lines[i + 1][0] if i + 1 < len(lines) else t + per_word * len(ws) + 0.5
-        span = max(min(nxt - t, per_word * len(ws) + 0.3), 0.2 * len(ws))
-        step = span / len(ws)
-        for k, w in enumerate(ws):
+        ws = split_sung(txt)
+        syl = [syllables(w) for w in ws]
+        n = sum(syl)
+        nxt = lines[i + 1][0] if i + 1 < len(lines) else t + per_syl * n + 0.5
+        span = max(min(nxt - t, per_syl * n + 0.3), 0.12 * n)
+        pos = t
+        for k, (w, sy) in enumerate(zip(ws, syl)):
+            d = span * sy / n
             # letztes Wort der Zeile markieren: dort bleibt der Text länger stehen und blendet aus
-            out.append((round(t + k * step, 3), round(t + (k + 1) * step, 3), w + (EOL if k == len(ws) - 1 else "")))
+            out.append((round(pos, 3), round(pos + d, 3), w + (EOL if k == len(ws) - 1 else "")))
+            pos += d
     return out
 
 

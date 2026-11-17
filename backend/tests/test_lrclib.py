@@ -120,3 +120,12 @@ def test_clip_words_keeps_word_started_just_before_video():
     tw = [(9.95, 10.3, "I'm"), (10.3, 10.6, "your"), (8.0, 8.3, "old")]
     w = lrclib.clip_words(tw, 0.0, 10.0, 5.0)
     assert w[0].startswith("0.00-") and w[0].endswith(":I'm") and len(w) == 2  # ab 0 statt weg; 2 s davor: weg
+
+
+def test_hyphen_words_split_and_timed_by_syllables():
+    tw = lrclib.timed_words(lrclib.parse_lrc("[00:10.00] Papa-paparazzi\n[00:13.00] next"))
+    words = [w.rstrip(lrclib.EOL) for _, _, w in tw]
+    assert words[:2] == ["Papa", "paparazzi"]  # getrennt: "paparazzi" kommt erst, wenn es gesungen wird
+    (a1, e1, _), (a2, e2, _) = tw[0], tw[1]
+    assert a1 == 10.0 and abs(e1 - a2) < 1e-6 and (e2 - a2) > 1.5 * (e1 - a1)  # 4 Silben brauchen länger als 2
+    assert lrclib.split_sung("don't stop-and-go") == ["don't", "stop", "and", "go"]

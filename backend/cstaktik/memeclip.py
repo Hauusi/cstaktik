@@ -1280,7 +1280,9 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
                 continue
             x, img, edges, size = cur
             letters = len(edges) - 1
-            reveal = min(TYPE_S, 0.45 * (x["end"] - x["a"]))
+            # Buchstaben im Tempo des Gesangs: über die Zeit, in der das Wort gesungen wird (0,12-0,6 s)
+            sung = (x["sung"] - x["a"]) if x.get("sung") else TYPE_S
+            reveal = min(max(0.8 * sung, 0.12), 0.6, 0.6 * (x["end"] - x["a"]))
             p = 1.0 if reveal <= 0 else min(max((t - x["a"]) / reveal, 0.0), 1.0)
             k = min(letters, int(math.floor(p * letters)) + 1)  # sichtbare Buchstaben (der nächste blendet ein)
             alpha = 1.0
@@ -1716,7 +1718,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                     shown += 1
                     continue
                 # flache Wörter: eine ruhige Textspur (fester Platz, Buchstabe für Buchstabe, bleibt stehen)
-                flat_items.append({"a": a, "b": b, "txt": txt, "eol": wd.get("eol", False), "stop": wd["next"]})
+                flat_items.append({"a": a, "b": b, "txt": txt, "eol": wd.get("eol", False), "stop": wd["next"],
+                                   "sung": wd.get("sung")})
                 shown += 1
             if flat_items:
                 # nie in der Bildmitte (Fadenkreuz = Kill). Hochformat: über dem Spielbild; Querformat: unten.
