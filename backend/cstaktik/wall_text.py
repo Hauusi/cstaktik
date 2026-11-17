@@ -213,7 +213,7 @@ def place(g: np.ndarray, aspect: float) -> dict | None:
     best = None
     # Bereich ums Fadenkreuz (Bildmitte) bleibt frei: dort passiert der Kill (Nutzer: Wörter verdeckten Kills).
     # Seiten reichen nur bis 40 % / ab 60 % der Breite, die breite Fläche nur im oberen Teil (bis 38 % der Höhe).
-    regions = {"left": (0.02, 0.40, 0.12, 0.62), "right": (0.60, 0.98, 0.12, 0.62), "wide": (0.08, 0.92, 0.05, 0.38)}
+    regions = {"left": (0.02, 0.40, 0.12, 0.62), "right": (0.60, 0.98, 0.12, 0.62), "wide": (0.08, 0.92, 0.10, 0.38)}  # oben bleibt Platz für den Killfeed-Eintrag
     found = {}
     for side, (fa, fb, ya, yb) in regions.items():
         x0, x1 = int(size * fa), int(size * fb)

@@ -211,7 +211,8 @@ def test_drop_start_puts_drop_on_first_kill_beat(monkeypatch):
 
 def test_look_and_dedup_settings():
     assert memeclip.SAT > 1.2 and memeclip.GRADE in memeclip.LOOK  # Farbabstimmung nach Vorbild
-    assert memeclip.DEDUP.startswith("mpdecimate") and "max=0" in memeclip.DEDUP  # Doppelbilder vor der Zeitlupe weg
+    assert memeclip.INTERP == "none" and memeclip.DEDUP == ""  # nur echte Bilder: clean, keine Bildfehler
+    assert not memeclip.KILL_FX and memeclip.SHOW_FEED and memeclip.HIT_SLOW >= 0.7  # wenig Edit beim Kill
 
 
 def test_sync_report_and_sixteenths():

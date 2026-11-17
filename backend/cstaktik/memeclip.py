@@ -224,7 +224,9 @@ def _font() -> str:
 BOX, BOX_Y = 1080, 440  # Spielbild als Quadrat in der Mitte: zeigt mehr Breite als ein voller Hochformat-Schnitt
 BOX_X = 0  # Querformat: Bereich für die Wand-Suche (mittleres Quadrat)
 LANDSCAPE = False
-SHOW_COUNTER = False  # "+1"-Zähler, Killfeed-Einblendung und "3 KILLS" am Ende (Vorbild: nichts davon)
+SHOW_COUNTER = False  # "+1"-Zähler und "3 KILLS" am Ende (Vorbild: nichts davon)
+SHOW_FEED = True  # eigener Killfeed-Eintrag (Name, Waffe, Gegner) während des Kills; im Hochformat sonst abgeschnitten
+KILL_FX = False  # Schwarz-Weiß und Kontrastschlag beim Kill (Nutzer: zu viel Edit, nicht clean)
 FORMATS = {"hoch": "Hochformat 9:16 (TikTok, Shorts, Reels)", "quer": "Querformat 16:9 (YouTube)"}
 
 
@@ -382,16 +384,23 @@ def make(src: str, out: str, progress=None) -> dict:
 # der erste Kill früh (die ersten Sekunden entscheiden, ob jemand dranbleibt), und das Tempo gleitet in die Zeitlupe,
 # statt zu springen.
 
-RAMP_V0, RAMP_V1 = 1.3, 0.4  # Anlauf beginnt leicht schnell (vorher 1,6: wirkte wie Vorspulen) und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
-HIT_SLOW = 0.5  # Tempo während des Kills im Beat-Schnitt: langsam genug, um den Treffer zu sehen
+RAMP_V0, RAMP_V1 = 1.3, 0.75  # Anlauf beginnt leicht schnell (vorher 1,6: wirkte wie Vorspulen) und gleitet in die Zeitlupe; der Kill selbst läuft mit SLOW
+HIT_SLOW = 0.75  # Tempo während des Kills: leichte Zeitlupe (vorher 0,5; Nutzer: "viel zu viel Edit")
 # letzte 20 % der Kill-Zeitlupe: Tempo steigt sanft (bis 1,4×), Schnitt in der Bewegung. Vorher 30 % / 2,0×: gemessen
 # sprang die Bewegung am Kill-Ende auf das 4- bis 6-Fache, der Kill wirkte "weggerissen" (Nutzer-Rückmeldung).
 OUT_FRAC, OUT_V = 0.2, 1.4
-HIT_SLOW_LAST = 0.35  # der letzte Kill (Höhepunkt) noch langsamer: das Ende bleibt am stärksten im Kopf
+HIT_SLOW_LAST = 0.75  # auch der letzte Kill nur leicht langsamer: gleichmäßigster Takt ohne Zwischenbilder
 # Echte Zwischenbilder beim Kill (Bewegung wird geschätzt, wie bei Profi-Zeitlupe) statt Überblenden mit Doppelbildern.
 # Kostet Rechenzeit (etwa 7 s je Sekunde Zeitlupe), deshalb nur beim Kill selbst. False = wie vorher überblenden.
 MCI = True
 MCI_VF = f"minterpolate=fps={OUT_FPS}:mi_mode=mci:mc_mode=obmc:me_mode=bilat:me=ds:search_param=16:scd=none"
+# Zwischenbilder: "none" = nur echte Bilder der Aufnahme. Die berechneten (mci) zerfielen bei schnellen Bewegungen in
+# verschmierte Blöcke (Nutzer: "verwischt alles komisch"), Überblenden (blend) legt Bilder übereinander.
+INTERP = "none"
+
+
+def interp_vf() -> str:
+    return {"mci": MCI_VF, "blend": f"minterpolate=fps={OUT_FPS}:mi_mode=blend"}.get(INTERP, "null")
 MAX_WORDS = 40
 WALL_MAX_ASPECT = 3.6  # breitere Wörter nicht auf Wände: gemessen wurden sie dort nur 59-101 px hoch (zu klein)
 WALL_MIN_S = 0.22  # so lange muss ein Wort an der Wand stehen können
@@ -472,7 +481,7 @@ SYNC_MIN, SYNC_MAX = 0.5, 1.4  # erlaubtes Tempo zwischen zwei Schüssen beim Ei
 SYNC_JUMP = 2.5  # höchstens so viel schneller/langsamer als das Stück daneben: sonst wirkt der Wechsel wie ein Ruckler
 # Anlauf und Schluss: berechnete Zwischenbilder statt Überblenden (Überblenden legte bei schnellen Bewegungen zwei
 # Bilder übereinander). Gemessen am echten Clip: schärfstes Ergebnis ohne Standbilder.
-SMOOTH = MCI_VF + ","
+SMOOTH = "null,"  # wird je Aufruf über interp_vf() gesetzt (siehe _smooth)
 
 
 def sync_anchors(shot_times: list[float], s0: float, ks: float, gap: float, half: float) -> list[tuple[float, float]]:
@@ -644,7 +653,9 @@ KILL_SND_S = 0.45  # so viel Originalton vom Kill-Schuss, in echtem Tempo
 # Doppelte Bilder aus der Aufnahme entfernen, bevor das Tempo geändert wird. Gemessen an einem echten Clip: 35 %
 # der Bilder waren Kopien des vorigen (40 Bilder/s Inhalt in 60 Bilder/s Datei). In der Zeitlupe wurden daraus
 # Standbilder von bis zu 7 Bildern (117 ms), sichtbar als Laggen. Die übrigen Bilder behalten ihren Zeitpunkt.
-DEDUP = "mpdecimate=max=0,"  # Standard-Schwellen: Kopien mit leichtem Kompressionsrauschen fallen auch heraus
+# Doppelte Bilder nur entfernen, wenn Zwischenbilder berechnet werden. Ohne (INTERP "none") gemessen: mit Entfernen
+# 84 von 177 Bildern doppelt, ohne nur 31 (wirkt wie normales 30-fps-Video).
+DEDUP = ""
 
 
 def _margin(seg: dict) -> float:
@@ -668,7 +679,7 @@ def _render_end(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float =
     silent = f"anullsrc=r=48000:cl=stereo,atrim=0:{seg['out']}[a]"
     if seg["d"] >= 0.2:
         speed = max(seg["d"] / seg["out"], 0.05)
-        fc = (f"[0:v]scale={W}:{H},{DEDUP}settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f},{SMOOTH[:-1]}[s];{_vf('[s]', str(Z_HIT), 'bg', b)};"
+        fc = (f"[0:v]scale={W}:{H},{DEDUP}settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f},{interp_vf()}[s];{_vf('[s]', str(Z_HIT), 'bg', b)};"
               f"{over};{silent}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
@@ -715,16 +726,17 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
         kf = _feed_png(src, seg, tmp, out.stem)
         z = f"1+({Z_HIT}-1)*min(t/{PUNCH_S}\\,1)"
         fc = (f"[0:v]scale={W}:{H},{DEDUP}{hit_pts(seg, speed)},"
-              + (MCI_VF if MCI else f"minterpolate=fps={OUT_FPS}:mi_mode=blend") + f"[s];{_vf('[s]', z, 'bg', b)};"
-              f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',"
-              f"eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];"
+              + interp_vf() + f"[s];{_vf('[s]', z, 'bg', b)};"
+              + (f"[bg]hue=s='min(1\\,max(0\\,(t-0.18)/0.25))',eq=contrast='1.25-0.25*min(1\\,t/0.45)':eval=frame[fl];"
+                 if KILL_FX else "[bg]null[fl];")
               + (f"[fl][1:v]overlay=(W-w)/2:{BOX_Y - 115}[v0];[v0]{_draw(seg['text'], font)},{tail}[v];" if SHOW_COUNTER
+                 else f"[fl][1:v]overlay=(W-w)/2:{BOX_Y + 24}[v0];[v0]{tail}[v];" if SHOW_FEED and not LANDSCAPE
                  else f"[fl]{tail}[v];") + audio)
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src, "-i", str(kf),
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
     if seg["kind"] == "shot":  # eigener kurzer Schnitt: gleichmäßiges Tempo, Zoom-Schlag beim Bildwechsel
-        fc = (f"[0:v]scale={W}:{H},{DEDUP}settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f},{SMOOTH[:-1]}[s];"
+        fc = (f"[0:v]scale={W}:{H},{DEDUP}settb=1/60000,setpts=(PTS-STARTPTS)/{speed:.5f},{interp_vf()}[s];"
               f"{_vf('[s]', CUT_POP, 'c', b)};[c]{tail}[v];{audio}")
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(seg["d"] + _margin(seg)), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
@@ -744,7 +756,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
                  f"amix=inputs={len(labels)}:duration=longest:normalize=0,volume={SHOT_VOL},"
                  f"apad=whole_dur={seg['out']},atrim=0:{seg['out']}[a]")
         blur = BLUR if v0 > 1.2 else ""
-        fc = f"[0:v]scale={W}:{H},{DEDUP}{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
+        fc = f"[0:v]scale={W}:{H},{DEDUP}{blur}settb=1/60000,setpts='{pts}',{interp_vf()}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
         _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d + _margin(seg)), "-i", src,
               "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
         return
@@ -753,7 +765,7 @@ def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> No
     else:  # Zeit im fertigen Video als Funktion der Zeit im Clip, bei linear fallendem Tempo
         pts = f"({d}/({v1}-{v0}))*log(({v0}+({v1}-{v0})*((PTS-STARTPTS)*TB)/{d})/{v0})/TB"
     blur = BLUR if seg.get("v0", 1) > 1.2 else ""
-    fc = f"[0:v]scale={W}:{H},{DEDUP}{blur}settb=1/60000,setpts='{pts}',{SMOOTH[:-1]}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
+    fc = f"[0:v]scale={W}:{H},{DEDUP}{blur}settb=1/60000,setpts='{pts}',{interp_vf()}[s];{_vf('[s]', '1', 'c', b)};[c]{tail}[v];{audio}"
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(d + _margin(seg)), "-i", src,
           "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(seg["out"]), *ENC, str(out)])
 
