@@ -248,7 +248,44 @@ def suggest_full(query: str) -> dict:
 
 
 
-def refine(words: list[str], sung: list[str] | None, max_shift: float = 1.0) -> tuple[list[str], int]:
+FUZZY_MIN = 0.6  # so ähnlich geschrieben muss ein erkanntes Wort sein ("paparazi" ~ "paparazzi")
+
+
+def fuzzy_align(lrc: list[tuple[float, str]], rec: list[tuple[float, str]], max_shift: float) -> dict[int, int]:
+    """Erkannte Wörter den Songtext-Wörtern zuordnen, in Reihenfolge, unscharf: ähnliche Schreibung (≥ FUZZY_MIN)
+    und höchstens ``max_shift`` s neben der geschätzten Zeit. Vorher nur exakt gleiche Wörter: Gesang wird oft leicht
+    falsch erkannt, diese Wörter blieben dann bei der Schätzung (Nutzer: Timing nicht on point). Rückgabe i -> j."""
+    n, m = len(lrc), len(rec)
+    if not n or not m:
+        return {}
+
+    def sim(i, j):
+        (ta, a), (tb, b) = lrc[i], rec[j]
+        if not a or not b or abs(ta - tb) > max_shift:
+            return 0.0
+        r = difflib.SequenceMatcher(None, a, b).ratio()
+        return r if r >= FUZZY_MIN else 0.0
+
+    # Ausrichtung mit Lücken (Needleman-Wunsch ohne Strafe für Lücken): Summe der Ähnlichkeiten maximieren
+    score = [[0.0] * (m + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            s = sim(i - 1, j - 1)
+            score[i][j] = max(score[i - 1][j], score[i][j - 1], score[i - 1][j - 1] + s if s else -1.0)
+    out, i, j = {}, n, m
+    while i > 0 and j > 0:
+        s = sim(i - 1, j - 1)
+        if s and abs(score[i][j] - (score[i - 1][j - 1] + s)) < 1e-9:
+            out[i - 1] = j - 1
+            i, j = i - 1, j - 1
+        elif score[i][j] == score[i - 1][j]:
+            i -= 1
+        else:
+            j -= 1
+    return out
+
+
+def refine(words: list[str], sung: list[str] | None, max_shift: float = 1.5) -> tuple[list[str], int]:
     """LRC-Wörter im Video ("a-e:WORT", gleichmäßig je Zeile verteilt) mit der Spracherkennung nachschärfen: Wörter,
     die die Erkennung in derselben Reihenfolge wiederfindet (höchstens ``max_shift`` s daneben), bekommen deren Zeit;
     die übrigen werden um die Korrektur ihrer Nachbarn verschoben (linear dazwischen). Rückgabe (Wörter, Treffer)."""
@@ -264,13 +301,9 @@ def refine(words: list[str], sung: list[str] | None, max_shift: float = 1.0) -> 
         tm, txt = w.split(":", 1)
         parts = [float(x) for x in tm.split("-")]
         rec.append((parts[0], parts[-1], _norm(txt)))
-    sm = difflib.SequenceMatcher(a=[_norm(x[2]) for x in lw], b=[r[2] for r in rec], autojunk=False)
-    corr: dict[int, float] = {}
-    for blk in sm.get_matching_blocks():
-        for k in range(blk.size):
-            i, r = blk.a + k, rec[blk.b + k]
-            if len(lw[i][2]) > 1 and abs(r[0] - lw[i][0]) <= max_shift:
-                corr[i] = r[0] - lw[i][0]
+    pairs = fuzzy_align([(x[0], _norm(x[2])) for x in lw], [(r[0], r[2]) for r in rec], max_shift)
+    corr: dict[int, float] = {i: rec[j][0] - lw[i][0] for i, j in pairs.items()}
+    ends: dict[int, float] = {i: rec[j][1] for i, j in pairs.items() if rec[j][1] > rec[j][0]}
     if not corr:
         return words, 0
     keys = sorted(corr)
@@ -288,7 +321,8 @@ def refine(words: list[str], sung: list[str] | None, max_shift: float = 1.0) -> 
             else:
                 f = (lw[i][0] - lw[lo][0]) / max(lw[hi][0] - lw[lo][0], 1e-6)
                 c = corr[lo] + (corr[hi] - corr[lo]) * f
-        out.append(f"{max(a + c, 0):.2f}-{max(e + c, a + c + 0.1):.2f}:{txt}")
+        e2 = ends.get(i, e + c)  # wiedergefunden: Ende aus dem Gesang (Tipp-Tempo)
+        out.append(f"{max(a + c, 0):.2f}-{max(e2, a + c + 0.1):.2f}:{txt}")
     # Reihenfolge erhalten (nie ein Wort vor seinem Vorgänger)
     fixed, last = [], 0.0
     for w in out:

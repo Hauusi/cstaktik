@@ -129,3 +129,14 @@ def test_hyphen_words_split_and_timed_by_syllables():
     (a1, e1, _), (a2, e2, _) = tw[0], tw[1]
     assert a1 == 10.0 and abs(e1 - a2) < 1e-6 and (e2 - a2) > 1.5 * (e1 - a1)  # 4 Silben brauchen länger als 2
     assert lrclib.split_sung("don't stop-and-go") == ["don't", "stop", "and", "go"]
+
+
+def test_refine_fuzzy_matches_misheard_words():
+    words = ["1.00-1.40:Papa", "1.40-2.20:paparazzi", "2.40-2.80:baby", "2.80-3.20:there's", "3.20-3.60:no"]
+    sung = ["1.20-1.50:papa", "1.70-2.60:paparazi", "2.90-3.20:babe", "3.25-3.50:theres", "3.70-3.90:know"]
+    out, n = lrclib.refine(words, sung)
+    t = [float(w.split("-")[0]) for w in out]
+    assert n >= 4  # falsch erkannte "paparazi", "babe" (ähnlich genug) zählen jetzt mit
+    assert abs(t[1] - 1.70) < 0.01 and abs(t[2] - 2.90) < 0.01
+    assert out[1].split(":")[0].endswith("2.60")  # Ende aus dem Gesang: Tipp-Tempo passt
+    assert lrclib.fuzzy_align([(1.0, "papa")], [(5.0, "papa")], 1.5) == {}  # zu weit weg

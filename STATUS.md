@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 457 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 458 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Songtext-Timing (Nutzer: noch nicht on point): `lrclib.refine` ordnet erkannte Wörter jetzt unscharf zu (`fuzzy_align`: Ausrichtung in Reihenfolge, Schreibähnlichkeit ≥0,6, ≤1,5 s Abstand) statt nur exakt gleiche; wiedergefundene Wörter bekommen Start UND Ende aus dem Gesang (Tipp-Tempo). Nur mit nachgebildeten Erkennungen getestet (keine Spracherkennung in der Cloud-Session); Wirkung zeigt der Hinweis "Wortzeiten über N erkannte Wörter angepasst".
 
 - 2026-11-17: Songtext Wort für Wort wie gesungen (Nutzer: "Papa-paparazzi" kam auf einmal, bevor "paparazzi" gesungen wurde): `lrclib.split_sung` trennt Bindestrich-Wörter, `timed_words` verteilt die Zeile nach Silben (`syllables`, 0,21 s/Silbe) statt gleichmäßig je Wort; Buchstaben bauen sich über die Singdauer des Worts auf (0,8×, 0,12–0,6 s) statt fest 0,22 s. Geprüft: PAPA 0,3–0,8 s, PAPARAZZI tippt 0,8–1,4 s, Zeilenende blendet aus.
 
