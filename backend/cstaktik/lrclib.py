@@ -332,3 +332,55 @@ def refine(words: list[str], sung: list[str] | None, max_shift: float = 1.5) -> 
         fixed.append(f"{a:.2f}-{max(e, a + 0.1):.2f}:{txt}")
         last = a
     return fixed, len(corr)
+
+
+PASSAGE_MIN = 0.7  # so gut muss der eingefügte Textanfang zu einer Stelle im Songtext passen
+LEAD_S = 0.25      # Musik so viel vor dem ersten Wort starten (Einsatz nicht abschneiden)
+
+
+def find_passage(lines: list[tuple[float, str]], text: str, n: int = 8) -> float | None:
+    """Wo im Song beginnt der eingefügte Text? Die ersten ``n`` Wörter werden mit jeder Stelle des Songtexts
+    verglichen (Schreibweise unscharf); bei gleich guten Stellen zählt die erste. Rückgabe: Songzeit des ersten
+    Worts oder None, wenn keine Stelle gut genug passt."""
+    want = [_norm(w) for w in split_sung(" ".join(text.replace(EOL, " ").split()))]
+    want = [w for w in want if w][:n]
+    if len(want) < 2:
+        return None
+    tw = timed_words(lines)
+    have = [_norm(w[2].rstrip(EOL)) for w in tw]
+    best, best_i = 0.0, None
+    for i in range(len(have)):
+        win = have[i:i + len(want)]
+        if not win or win[0] != want[0] and difflib.SequenceMatcher(a=win[0], b=want[0]).ratio() < 0.8:
+            continue
+        r = difflib.SequenceMatcher(a=want, b=win, autojunk=False).ratio()
+        if r > best + 1e-6:
+            best, best_i = r, i
+    if best_i is None or best < PASSAGE_MIN:
+        return None
+    return tw[best_i][0]
+
+
+def hook_start(lines: list[tuple[float, str]]) -> float | None:
+    """Beginn der Hook: die Zeile (ab 3 Wörtern), die im Song am häufigsten vorkommt (mind. 2x); ihr erstes
+    Vorkommen. Bei gleicher Häufigkeit die frühere. None ohne Wiederholung."""
+    seen: dict[str, list[float]] = {}
+    for t, txt in lines:
+        key = " ".join(_norm(w) for w in txt.split())
+        if len(key.split()) >= 3:
+            seen.setdefault(key, []).append(t)
+    rep = [(len(ts), -ts[0], ts[0]) for ts in seen.values() if len(ts) >= 2]
+    return max(rep)[2] if rep else None
+
+
+def music_start(lines: list[tuple[float, str]], text: str | None) -> tuple[float | None, str]:
+    """Start in der Musikdatei (ganzer Song): eingefügter Text -> seine Stelle; sonst die Hook."""
+    if text and text.strip():
+        t = find_passage(lines, text)
+        if t is not None:
+            return max(t - LEAD_S, 0.0), "Stelle des eingefügten Texts im Song"
+        return None, "eingefügter Text passt zu keiner Stelle im Songtext von LRCLIB"
+    t = hook_start(lines)
+    if t is not None:
+        return max(t - LEAD_S, 0.0), "Hook (am häufigsten wiederholte Zeile)"
+    return None, "keine wiederholte Zeile im Songtext"

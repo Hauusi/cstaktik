@@ -140,3 +140,23 @@ def test_refine_fuzzy_matches_misheard_words():
     assert abs(t[1] - 1.70) < 0.01 and abs(t[2] - 2.90) < 0.01
     assert out[1].split(":")[0].endswith("2.60")  # Ende aus dem Gesang: Tipp-Tempo passt
     assert lrclib.fuzzy_align([(1.0, "papa")], [(5.0, "papa")], 1.5) == {}  # zu weit weg
+
+
+DERULO = [(10.0, "So you know what I mean when I say"), (14.0, "Let me take you dancing"),
+          (16.5, "Two-step to the bedroom"), (40.0, "Let me take you dancing"), (42.0, "Two-step to the bedroom"),
+          (60.0, "Hope you know what I mean when I say"), (64.0, "Let me take you dancing")]
+
+
+def test_find_passage_pasted_text_start():
+    t = lrclib.find_passage(DERULO, "hope you know what I mean when I say\nLet me take you dancing")
+    assert t == 60.0  # die Stelle mit "hope", nicht die frühere mit "so you know"
+    assert lrclib.find_passage(DERULO, "Let me take you dancing") == 14.0  # erste von mehreren gleichen Stellen
+    assert lrclib.find_passage(DERULO, "völlig anderer text hier drin") is None
+
+
+def test_hook_and_music_start():
+    assert lrclib.hook_start(DERULO) == 14.0  # 3x "let me take you dancing"
+    assert lrclib.music_start(DERULO, "") == (14.0 - lrclib.LEAD_S, "Hook (am häufigsten wiederholte Zeile)")
+    t, why = lrclib.music_start(DERULO, "two-step to the bedroom")
+    assert t == 16.5 - lrclib.LEAD_S and "Stelle" in why
+    assert lrclib.music_start([(1.0, "nur eine zeile hier")], "")[0] is None

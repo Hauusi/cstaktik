@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 469 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 472 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-17: Musik-Start an der gewünschten Stelle (Nutzer: "er soll die Passage erkennen, ich will die Hook nehmen"): Feld "Musik ab" leer + Text eingefügt oder Song gewählt → `clips.find_start`: LRCLIB-Suche (Songname, sonst erste Textzeile), nur bei ganzer Songdatei (Länge ±4 s). Mit Text: `lrclib.find_passage` (erste 8 Wörter unscharf gegen den Songtext, erste beste Stelle ≥ 0,7), ohne Text: `lrclib.hook_start` (häufigste Zeile ab 3 Wörtern, erstes Vorkommen); Start 0,25 s vor dem ersten Wort (`LEAD_S`). Gefunden → Wortzeiten von LRCLIB statt ein Wort je Schlag; nicht gefunden → ab Dateianfang mit Grund im Auftrag (`music_found`). Hier nur mit nachgebildeten LRCLIB-Daten getestet (lrclib.net in der Cloud-Sitzung gesperrt).
 - 2026-11-17: Wand-Kandidaten: `WALL_MAX_ASPECT` 3,6 → 7,0 (misst seit dem 3D-Schild nur die Vorderseite, dadurch fielen fast alle Wörter raus: Testlauf 2 von 14 Kandidaten). Ob die Wand groß genug ist, entscheidet `wall_text.wall_quad` (Mindesthöhe 7 % des Spielbilds), sonst flach.
 - 2026-11-17: Wände über Tiefenkarte (Nutzer: Wörter fast nie an Wänden): Depth Anything V2 Small (Apache-2.0, ONNX aus GitHub-Release fabio-sim/Depth-Anything-ONNX, ~100 MB, SHA-256 geprüft, wird beim ersten Gebrauch nach `data/models/` geladen, nicht im Repo) über onnxruntime (CPU ~0,55 s je Bild). `wall_text.depth_regions`: je Zelle Ebene in der Disparität, Wand = keine Steigung nach oben/unten (Boden: Steigung nach unten), Fluchtpunkt aus dem Abfall der Disparität. 54 Testbilder der 3 Nutzer-Clips: Wand in 34 statt 19, auch schräge Steinmauern im richtigen Winkel. Wort höchstens 55 % der Bildbreite. Ohne onnxruntime: alte Farb-Suche (`DEPTH_NOTE`). Tests laden das Modell nie (conftest).
 - 2026-11-17: Nutzer-Video (Jason Derulo): (1) "let" kam mitten in der Pause nach "when I say": eingefügter Text verlor die Zeilen (alles zu einer Zeile). Jetzt bleiben Zeilen erhalten (`clips.lyrics_text`, bis 1500 Zeichen), letztes Wort je Zeile trägt die Zeilenende-Marke (`clips.typed_words`); `align_lyrics` legt nicht erkannte Wörter einer neuen Zeile direkt vor das nächste erkannte Wort (`WORD_PACE_S` 0,28 s) statt gleichmäßig in die Pause. (2) Fast nur flache Wörter, "LET" blass an der Wand und dann flach: Wandsuche lockerer (`CALM_PCT` 75, `COLOR_TOL` 28, `MIN_WALL_CELLS` 18; 54 Testbilder: 13 → 19 mit Wand), Verfolgung bei Kameradrehung mit Perspektiv-Abbildung (`ransac_h`) statt nur Verschiebung, Wand nach >0,3 s verloren → ausblenden statt flach; Wand-Wörter bis 50 % (`wall_picks`).

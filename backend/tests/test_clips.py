@@ -39,9 +39,10 @@ def test_upload_render_view_delete(monkeypatch):
     from cstaktik import beats
 
     monkeypatch.setattr(beats, "find_drop", lambda m: (_ for _ in ()).throw(AssertionError("kein Drop suchen")))
+    monkeypatch.setattr(clips, "find_start", lambda m, ly, so: (None, so, "Song bei LRCLIB nicht gefunden"))
     c.post("/clips", files={"video": ("a.mp4", b"x" * 10, "video/mp4"), "music": ("m.mp3", b"y", "audio/mpeg")},
            data={"music_ss": "", "lyrics": "SO YOU KNOW"}, headers=O, follow_redirects=False)
-    assert calls["music_ss"] == 0.0 and "Musik ab Anfang der Datei" in c.get("/clips").text
+    assert calls["music_ss"] == 0.0 and "Song bei LRCLIB nicht gefunden" in c.get("/clips").text
     for x in clips.jobs("Hausi"):
         if x["id"] != job["id"]:
             c.post(f"/clips/{x['id']}/delete", headers=O)
@@ -107,3 +108,17 @@ def test_lyrics_timing_adjust_routes(monkeypatch):
     monkeypatch.setattr(clips, "start_relyric", lambda dd, sh: got.update(d=dd, sh=sh))
     r = c.post(f"/clips/{d.name}/lyrics-shift", data={"shift": "-0,25"}, headers=O, follow_redirects=False)
     assert r.status_code == 303 and got["sh"] == -0.25 and got["d"] == d
+
+
+def test_find_start_uses_lrclib_passage(monkeypatch):
+    from cstaktik import lrclib
+
+    lines = [(10.0, "So you know what I mean"), (14.0, "Let me take you dancing"), (40.0, "Let me take you dancing")]
+    monkeypatch.setattr(memeclip, "duration", lambda p: 180.0)
+    monkeypatch.setattr(lrclib, "fetch", lambda q, dur=None: {"track": "Take You Dancing", "artist": "Jason Derulo",
+                                                              "duration": 181.0, "lines": lines})
+    t, song, why = clips.find_start("m.mp3", "Let me take you dancing", None)
+    assert t == 14.0 - lrclib.LEAD_S and song == "Take You Dancing Jason Derulo" and "Stelle" in why
+    monkeypatch.setattr(memeclip, "duration", lambda p: 30.0)  # nur ein Ausschnitt: Stelle nicht bestimmbar
+    t, song, why = clips.find_start("m.mp3", "Let me take you dancing", "Derulo")
+    assert t is None and song == "Derulo" and "nicht der ganze Song" in why

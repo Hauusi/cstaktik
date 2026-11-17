@@ -104,6 +104,27 @@ def typed_words(text: str) -> list[str]:
     return out
 
 
+def find_start(music: str, lyrics: str, song: str | None) -> tuple[float | None, str | None, str]:
+    """Start in einer ganzen Songdatei über LRCLIB: Stelle des eingefügten Texts, ohne Text die Hook.
+    Suche mit dem Songnamen, ohne Namen mit der ersten Textzeile. Rückgabe (Start oder None, Song für LRCLIB,
+    Begründung)."""
+    from cstaktik import lrclib, memeclip
+
+    query = song or (lyrics.splitlines()[0] if lyrics.strip() else "")
+    dur = memeclip.duration(music)
+    hit = lrclib.fetch(query, dur) if query else None
+    if not hit:
+        return None, song, "Song bei LRCLIB nicht gefunden (Songname angeben hilft): Musik ab Anfang der Datei"
+    name = f"{hit['track']} – {hit['artist']}"
+    if not hit.get("duration") or abs(dur - hit["duration"]) > lrclib.FULL_SONG_TOL:
+        return None, song, (f"{name}: die Datei ist nicht der ganze Song ({dur:.0f} s statt {hit['duration'] or 0:.0f} s), "
+                            "Stelle nicht bestimmbar: Musik ab Anfang der Datei")
+    t, why = lrclib.music_start(hit["lines"], lyrics)
+    if t is None:
+        return None, song, f"{name}: {why}: Musik ab Anfang der Datei"
+    return t, f"{hit['track']} {hit['artist']}", f"{name}: {why}, ab Sekunde {t:.1f}"
+
+
 def render(d: Path, user: str | None = None) -> None:
     """Einen Auftrag schneiden (blockiert; für den Hintergrund-Thread). Fehler landen als Text im Status."""
     from cstaktik import memeclip
@@ -117,12 +138,18 @@ def render(d: Path, user: str | None = None) -> None:
             prog = lambda i, n: set_state(d, step=f"Schneiden {i} von {n}")  # noqa: E731
             if music:
                 words = typed_words(st.get("lyrics") or "")
+                song = st.get("song") or None
                 ss = float(st.get("music_ss") or 0)
-                if ss < 0 and (words or st.get("song")):
-                    # Songtext eingefügt oder Song gewählt: die Musik startet am Anfang der Datei. Nutzer: der Drop
-                    # lag mitten im Lied ("ne ne ne"-Teil), die Datei beginnt aber mit dem gewünschten Teil.
-                    ss = 0.0
-                    set_state(d, music_auto=False, music_used=0.0, music_start_note=True)
+                if ss < 0 and (words or song):
+                    # Songtext eingefügt oder Song gewählt: Stelle im Song suchen (Nutzer: "ich will die Hook nehmen")
+                    set_state(d, step="Stelle im Song suchen")
+                    ss, song, why = find_start(music, st.get("lyrics") or "", song)
+                    if ss is not None:
+                        words = []  # Zeiten je Zeile kommen von LRCLIB (echte Einsätze statt ein Wort je Schlag)
+                        set_state(d, music_auto=False, music_used=round(ss, 2), music_found=why)
+                    else:  # nicht gefunden: ab Anfang der Datei, eigener Text bleibt
+                        ss = 0.0
+                        set_state(d, music_auto=False, music_used=0.0, music_start_note=True, music_found=why)
                 elif ss < 0:  # leer gelassen, ohne Songtext: am Drop starten
                     from cstaktik import beats
 
@@ -131,7 +158,7 @@ def render(d: Path, user: str | None = None) -> None:
                     ss = beats.drop_start(music, drop) if drop is not None else 0.0
                     set_state(d, music_auto=drop is not None, music_used=ss)
                 r = memeclip.make_beat(src, music, str(d / "out.mp4"), music_ss=ss,
-                                       words=words or None, progress=prog, song=st.get("song") or None,
+                                       words=words or None, progress=prog, song=song,
                                        fmt="quer" if st.get("fmt") == "quer" else "hoch",
                                        lyrics_shift=float(st.get("lyrics_shift") or 0.0))
             else:
