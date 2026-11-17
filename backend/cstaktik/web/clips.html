@@ -20,6 +20,13 @@
 .sg li .tx span { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sg li .du { margin-left: auto; font-size: 12px; color: var(--muted); }
 .sg .hint { padding: 8px; font-size: 12.5px; color: var(--muted); }
+@font-face { font-family: "LyricFont"; src: url("/clips/font.ttf") format("truetype"); font-display: swap; }
+.ly { margin-top: 10px; } .ly summary { cursor: pointer; color: var(--orange); font-weight: 700; font-size: 14px; }
+.lyv { position: relative; max-width: 360px; margin: 10px auto 0; } .lyv video { display: block; width: 100%; margin: 0; }
+.lyt { position: absolute; left: 0; right: 0; text-align: center; pointer-events: none; font-family: "LyricFont", sans-serif;
+  font-weight: 800; letter-spacing: .01em; white-space: nowrap; transform: translateY(-50%); }
+.lyr { display: flex; align-items: center; gap: 12px; margin-top: 10px; } .lyr input { flex: 1; } .lyr b { min-width: 64px; text-align: right; }
+.ly form button { margin-top: 8px; height: 44px; width: 100%; border: 0; border-radius: 12px; background: var(--orange); color: #111; font: inherit; font-weight: 800; cursor: pointer; }
 .cj { margin-top: 12px; padding: 14px 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); }
 .cj b { font-size: 15px; } .cj .st { margin-top: 4px; font-size: 13.5px; color: var(--muted); line-height: 1.4; } .cj .st.err { color: #ff9aa8; }
 .cj video { display: block; width: 100%; max-width: 360px; margin: 10px auto 0; border-radius: 12px; background: #000; }
@@ -102,6 +109,14 @@
   {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext. {{ j.lyrics_note or "Die Spracherkennung hat nichts geliefert." }}</div>{% endif %}
   {% if j.music and (j.lyrics or j.lyrics_source) and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
   <video controls playsinline preload="metadata" src="/clips/{{ j.id }}/video"></video>
+  {% if j.has_lyrics %}
+  <details class="ly" data-job="{{ j.id }}"><summary>Songtext-Timing nachjustieren</summary>
+    <div class="lyv"><video controls playsinline preload="none"></video><div class="lyt"></div></div>
+    <div class="lyr"><span>früher</span><input type="range" min="-1.5" max="1.5" step="0.05" value="{{ j.lyrics_shift_applied or 0 }}"><span>später</span><b class="lyval"></b></div>
+    <small>Hier läuft das Video ohne eingebrannten Text, der Songtext kommt live darüber. Regler schieben, bis die Wörter mit dem Gesang kommen, dann übernehmen. Neu eingeblendet wird nur der Text (etwa 1–2 Minuten), Kills, Schnitt und Ton bleiben.</small>
+    <form method="post" action="/clips/{{ j.id }}/lyrics-shift"><input type="hidden" name="shift" value="{{ j.lyrics_shift_applied or 0 }}"><button type="submit">Übernehmen</button></form>
+  </details>
+  {% endif %}
   <div class="row"><a href="/clips/{{ j.id }}/video?dl=1">Herunterladen</a>
     <form method="post" action="/clips/{{ j.id }}/delete"><button type="submit">Löschen</button></form></div>
   {% elif j.status == "fehler" %}
@@ -119,6 +134,39 @@
 {% endblock %}
 {% block script %}
 <script>
+(function () {  // Songtext-Timing live nachjustieren: Text über dem Video ohne eingebrannten Text
+  document.querySelectorAll("details.ly").forEach(function (box) {
+    var id = box.getAttribute("data-job"), v = box.querySelector("video"), lt = box.querySelector(".lyt"),
+        rg = box.querySelector("input[type=range]"), val = box.querySelector(".lyval"),
+        hid = box.querySelector("input[name=shift]"), data = null, raf = null;
+    function fmt(x) { var s = (x > 0 ? "+" : "") + x.toFixed(2).replace(".", ","); return s + " s"; }
+    function show() { val.textContent = fmt(+rg.value); hid.value = rg.value; }
+    rg.addEventListener("input", show); show();
+    function draw() {
+      raf = requestAnimationFrame(draw);
+      if (!data) return;
+      var t = v.currentTime - (+rg.value), w = null;
+      for (var i = 0; i < data.words.length; i++) { var x = data.words[i]; if (x.a <= t && t < x.end) { w = x; break; } }
+      if (!w) { lt.textContent = ""; return; }
+      var n = w.txt.length, k = Math.min(n, Math.floor(Math.min((t - w.a) / 0.2, 1) * n) + 1);
+      lt.textContent = w.txt.slice(0, k);
+      var px = data.size * v.clientWidth;
+      lt.style.fontSize = (w.wall ? px * 0.7 : px) + "px";
+      lt.style.top = (data.y * 100) + "%";
+      lt.style.color = w.dark ? "#111" : "#fff";
+      lt.style.textShadow = w.dark ? "0 0 10px rgba(255,255,255,.4)" : "0 3px 8px rgba(0,0,0,.7)";
+      lt.style.opacity = w.fade ? Math.max(0, Math.min(1, (w.end - t) / 0.3)) : 1;
+      lt.style.fontStyle = w.wall ? "italic" : "normal";
+    }
+    box.addEventListener("toggle", function () {
+      if (!box.open) { cancelAnimationFrame(raf); v.pause(); return; }
+      if (!v.src) v.src = "/clips/" + id + "/base";
+      if (!data) fetch("/clips/" + id + "/lyrics", {credentials: "same-origin"}).then(function (r) { return r.json(); })
+        .then(function (d) { data = d; });
+      draw();
+    });
+  });
+})();
 (function () {  // Vorschläge zum Songnamen: Bild, Titel, Künstler (nur Songs mit Songtext samt Zeitstempeln)
   var inp = document.getElementById("cg"), ul = document.getElementById("cgl"), timer = null, last = "", items = [], sel = -1;
   if (!inp) return;

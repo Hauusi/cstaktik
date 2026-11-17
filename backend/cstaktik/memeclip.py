@@ -1607,6 +1607,85 @@ def shift_words(words: list[str], sh: float) -> list[str]:
     return out
 
 
+def base_path(out) -> Path:
+    """Video ohne Songtext (für das Nachjustieren des Timings)."""
+    return Path(out).with_suffix(".base.mp4")
+
+
+def lyrics_path(out) -> Path:
+    return Path(out).with_suffix(".lyrics.json")
+
+
+def save_lyrics(out, lyr: dict) -> None:
+    import json
+
+    lyrics_path(out).write_text(json.dumps(lyr, ensure_ascii=False))
+
+
+def load_lyrics(out) -> dict | None:
+    import json
+
+    p = lyrics_path(out)
+    return json.loads(p.read_text()) if p.exists() else None
+
+
+def _shifted(items: list[dict], sh: float, total: float) -> list[dict]:
+    out = []
+    for x in items:
+        y = dict(x)
+        for key in ("a", "b", "stop", "sung"):
+            if y.get(key) is not None:
+                y[key] = round(min(max(y[key] + sh, 0.0), total), 3)
+        if y["b"] - y["a"] >= 0.1:
+            out.append(y)
+    return out
+
+
+def preview_words(lyr: dict) -> list[dict]:
+    """Alle Wörter mit Anzeige-Zeiten (ohne Versatz) für die Live-Vorschau im Browser: flache und Wand-Wörter."""
+    flat = [{"a": x["a"], "end": x["end"], "txt": printable(x["txt"], str(LYRIC_FONT)), "dark": x.get("dark", False),
+             "fade": x["fade"]} for x in lyric_schedule(lyr["flat"], lyr["total"])]
+    walls = [{"a": w["a"], "end": w["b"], "txt": printable(w["txt"], str(LYRIC_FONT)), "dark": False, "fade": False,
+              "wall": True} for w in lyr["walls"]]
+    return sorted(flat + walls, key=lambda x: x["a"])
+
+
+def apply_lyrics(base: str, lyr: dict, out: str, sh: float = 0.0, progress=None) -> dict | None:
+    """Songtext über das Video ohne Text legen, um ``sh`` Sekunden verschoben: flache Wörter als Textspur, Wand-Wörter
+    auf Wände. Rückgabe: Statistik der Wand-Wörter (oder None)."""
+    total = lyr["total"]
+    flat = _shifted(lyr["flat"], sh, total)
+    walls = _shifted(lyr["walls"], sh, total)
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        step = out if not walls else str(tmp / "flat.mp4")
+        if flat:
+            y0 = lyr["y_mid"] - lyr["band"] // 2
+            track = tmp / "lyrics.mov"
+            render_lyric_track(flat, total, track, lyr["out_w"], lyr["band"], LYRIC_FPS)
+            _run(["ffmpeg", "-v", "error", "-y", "-i", base, "-i", str(track), "-filter_complex",
+                  f"[1:v]format=rgba[lt];[0:v][lt]overlay=0:{y0}:format=auto[v]", "-map", "[v]", "-map", "0:a",
+                  "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(lyr["fps"]),
+                  "-c:a", "copy", "-movflags", "+faststart", step])
+        else:
+            import shutil
+
+            shutil.copyfile(base, step)
+        if not walls:
+            return None
+        from cstaktik import wall_text
+
+        font = str(LYRIC_FONT) if LYRIC_FONT.exists() else lyr.get("font") or ""
+        for w in walls:
+            png = tmp / f"wall{w['j']:02d}.png"
+            word_png(w["txt"], png, w["j"], font, wall=True)
+            w["png"] = str(png)
+        return wall_text.apply(step, out, walls, lyr["box_y"], lyr["box"], lyr["fps"], lyr["y_mid"],
+                               size=(lyr["out_w"], lyr["out_h"]), box_x=lyr["box_x"],
+                               enc=["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+                                    "-movflags", "+faststart"])
+
+
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None, song: str | None = None, fmt: str = "hoch",
               lyrics_shift: float = 0.0) -> dict:
@@ -1764,7 +1843,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 # Vorher suchte es nach dem Schnitt eine neue Wand: wirkte wie dasselbe Wort doppelt (Nutzer).
                 wa, wb = one_scene(a, b, cuts) if wanted else (a, b)
                 if wall_on and wb - wa >= WALL_MIN_S and wanted and png_aspect(png) <= WALL_MAX_ASPECT:
-                    wall_words.append({"a": wa, "b": wb, "png": str(png), "cuts": []})
+                    wall_words.append({"a": wa, "b": wb, "png": str(png), "cuts": [], "txt": txt, "j": j})
                     shown += 1
                     continue
                 # flache Wörter: eine ruhige Textspur (fester Platz, Buchstabe für Buchstabe, bleibt stehen)
@@ -1772,15 +1851,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                                    "sung": wd.get("sung")})
                 shown += 1
             if flat_items:
-                # nie in der Bildmitte (Fadenkreuz = Kill). Hochformat: über dem Spielbild; Querformat: unten.
+                # nie in der Bildmitte (Fadenkreuz = Kill); Farbe je Wort nach Hintergrund
                 cy = lyric_pos(0, False)[0]
                 band = 360 if not LANDSCAPE else 300
-                track = tmp / "lyrics.mov"
                 mark_dark_text(flat_items, files, pl["segments"], cy - band // 2, band)
-                render_lyric_track(flat_items, total, track, OUT_W, band, LYRIC_FPS)
-                ins += ["-i", str(track)]
-                fc += f"[{k}:v]format=rgba[lt];[{last}][lt]overlay=0:{cy - band // 2}:format=auto[ltx];"
-                last, k = "ltx", k + 1
         fc += f"[{last}]null[v]"
         mix = tmp / "mix.wav"
         # Mischen in Python statt mit ffmpeg-Formeln: auf dem Server des Nutzers ergab die ffmpeg-Mischung Stille
@@ -1800,15 +1874,16 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         _run(["ffmpeg", "-v", "error", "-y", *ins[:2 * n], *ins_music, *ins[2 * n:],
               "-filter_complex", fc, "-map", "[v]", "-map", f"{n}:a", "-t", str(total),
               "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(OUT_FPS),
-              "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(tmp / "flat.mp4") if wall_words else out])
-        wall_stats = None
-        if wall_words:  # zweiter Durchgang: Wörter auf Wände legen und mit der Kamera mitführen
-            from cstaktik import wall_text
-
-            wall_stats = wall_text.apply(str(tmp / "flat.mp4"), out, wall_words, BOX_Y, BOX, OUT_FPS,
-                                         lyric_pos(0, False)[0], size=(OUT_W, OUT_H), box_x=BOX_X, enc=
-                                         ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-                                          "-movflags", "+faststart"])
+              "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(base_path(out))])
+        # Songtext getrennt darüberlegen: Video ohne Text + Wörter werden gespeichert, damit der Nutzer das Timing am
+        # fertigen Video nachjustieren kann, ohne alles neu zu schneiden (apply_lyrics mit Versatz)
+        lyr = {"flat": flat_items if (font and words) else [], "walls": [
+                   {k2: v for k2, v in w.items() if k2 != "png"} for w in wall_words],
+               "total": total, "out_w": OUT_W, "out_h": OUT_H, "box": BOX, "box_y": BOX_Y, "box_x": BOX_X,
+               "fps": OUT_FPS, "y_mid": lyric_pos(0, False)[0], "band": 360 if not LANDSCAPE else 300,
+               "font": font, "shift": 0.0}
+        save_lyrics(out, lyr)
+        wall_stats = apply_lyrics(str(base_path(out)), lyr, out, 0.0)
         if progress:
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],

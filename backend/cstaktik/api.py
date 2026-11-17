@@ -1193,6 +1193,53 @@ def clips_video(job_id: str, dl: int = 0):
                         filename=f"clip-{job_id}.mp4" if dl else None)
 
 
+@app.get("/clips/font.ttf")
+def clips_font():
+    """Schrift des Songtexts für die Live-Vorschau im Browser."""
+    from fastapi.responses import FileResponse
+
+    from cstaktik import memeclip
+
+    return FileResponse(memeclip.LYRIC_FONT, media_type="font/ttf")
+
+
+@app.get("/clips/{job_id}/base")
+def clips_base(job_id: str):
+    """Video ohne Songtext (Vorschau beim Nachjustieren des Timings)."""
+    from fastapi.responses import FileResponse
+
+    from cstaktik import clips
+
+    d = clips.job_dir(_USER.get(), job_id)
+    if not d or not (d / "out.base.mp4").exists():
+        raise HTTPException(404, "Video nicht gefunden.")
+    return FileResponse(d / "out.base.mp4", media_type="video/mp4")
+
+
+@app.get("/clips/{job_id}/lyrics")
+def clips_lyrics(job_id: str) -> JSONResponse:
+    """Wörter mit Zeiten für die Live-Vorschau (ohne Versatz) und der aktuell eingebrannte Versatz."""
+    from cstaktik import clips, memeclip
+
+    d = clips.job_dir(_USER.get(), job_id)
+    lyr = memeclip.load_lyrics(d / "out.mp4") if d else None
+    if not lyr:
+        raise HTTPException(404, "Kein Songtext.")
+    return JSONResponse({"words": memeclip.preview_words(lyr), "shift": lyr.get("shift", 0.0),
+                         "y": lyr["y_mid"] / lyr["out_h"], "size": 170 / lyr["out_w"]})
+
+
+@app.post("/clips/{job_id}/lyrics-shift")
+def clips_lyrics_shift(job_id: str, shift: str = Form("0")) -> RedirectResponse:
+    from cstaktik import clips
+
+    d = clips.job_dir(_USER.get(), job_id)
+    if not d:
+        raise HTTPException(404, "Video nicht gefunden.")
+    clips.start_relyric(d, _shift(shift))
+    return RedirectResponse("/clips", status_code=303)
+
+
 @app.post("/clips/{job_id}/delete")
 def clips_delete(job_id: str) -> RedirectResponse:
     from cstaktik import clips

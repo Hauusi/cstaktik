@@ -58,7 +58,8 @@ def jobs(user: str | None) -> list[dict]:
     for d in sorted(base.iterdir(), reverse=True) if base.exists() else []:
         st = _state(d)
         if st:
-            out.append({"id": d.name, **st, "has_video": (d / "out.mp4").exists()})
+            out.append({"id": d.name, **st, "has_video": (d / "out.mp4").exists(),
+                        "has_lyrics": (d / "out.lyrics.json").exists() and (d / "out.base.mp4").exists()})
     return out
 
 
@@ -127,6 +128,33 @@ def render(d: Path, user: str | None = None) -> None:
         except Exception as e:  # noqa: BLE001 - ffmpeg-Fehler u. Ä. sollen im Auftrag stehen, nicht den Server stoppen
             set_state(d, status="fehler", step=None, error="Der Schnitt ist fehlgeschlagen: " + str(e)[:300])
     _cleanup(user)
+
+
+def relyric(d: Path, shift: float) -> None:
+    """Nur den Songtext neu einblenden, um ``shift`` Sekunden verschoben (Kills, Schnitt, Ton bleiben)."""
+    from cstaktik import memeclip
+
+    with _render_lock:
+        lyr = memeclip.load_lyrics(d / "out.mp4")
+        base = d / "out.base.mp4"
+        if not lyr or not base.exists():
+            set_state(d, error="Für dieses Video fehlt die Vorlage ohne Text (älterer Schnitt). Bitte neu schneiden.")
+            return
+        set_state(d, status="läuft", step="Songtext neu einblenden")
+        tmp = d / "out.new.mp4"
+        try:
+            memeclip.apply_lyrics(str(base), lyr, str(tmp), shift)
+            tmp.replace(d / "out.mp4")
+            lyr["shift"] = shift
+            memeclip.save_lyrics(d / "out.mp4", lyr)
+            set_state(d, status="fertig", step=None, lyrics_shift_applied=shift)
+        except Exception as e:  # noqa: BLE001 - altes Video bleibt
+            tmp.unlink(missing_ok=True)
+            set_state(d, status="fertig", step=None, lyrics_note=f"Songtext neu einblenden fehlgeschlagen: {str(e)[:200]}")
+
+
+def start_relyric(d: Path, shift: float) -> None:
+    threading.Thread(target=relyric, args=(d, shift), daemon=True, name="clip-relyric").start()
 
 
 def start(d: Path, user: str | None = None) -> None:

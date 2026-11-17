@@ -76,3 +76,24 @@ def test_chunked_upload(monkeypatch):
     assert c.post(f"/clips/{jid}/start", headers=O).json()["ok"]
     assert clips.jobs("Hausi")[0]["status"] == "fertig"
     assert c.post(f"/clips/{jid}/chunk?kind=video", content=b"c", headers=O).status_code == 404  # nach dem Start zu
+
+
+def test_lyrics_timing_adjust_routes(monkeypatch):
+    import json
+    c = _client()
+    d = clips.new_job("Hausi")
+    clips.set_state(d, status="fertig", name="x", music=True)
+    (d / "out.mp4").write_bytes(b"v"); (d / "out.base.mp4").write_bytes(b"b")
+    lyr = {"flat": [{"a": 1.0, "b": 1.4, "txt": "PAPA", "eol": True, "stop": 3.0}], "walls": [], "total": 5.0,
+           "out_w": 1080, "out_h": 1920, "box": 1080, "box_y": 440, "box_x": 0, "fps": 60, "y_mid": 699, "band": 360,
+           "font": "", "shift": 0.0}
+    (d / "out.lyrics.json").write_text(json.dumps(lyr))
+    page = c.get("/clips").text
+    assert "Songtext-Timing nachjustieren" in page and f'data-job="{d.name}"' in page
+    r = c.get(f"/clips/{d.name}/lyrics").json()
+    assert r["words"][0]["txt"] == "PAPA" and r["words"][0]["fade"] and abs(r["y"] - 699 / 1920) < 1e-6
+    assert c.get(f"/clips/{d.name}/base").status_code == 200 and c.get("/clips/font.ttf").status_code == 200
+    got = {}
+    monkeypatch.setattr(clips, "start_relyric", lambda dd, sh: got.update(d=dd, sh=sh))
+    r = c.post(f"/clips/{d.name}/lyrics-shift", data={"shift": "-0,25"}, headers=O, follow_redirects=False)
+    assert r.status_code == 303 and got["sh"] == -0.25 and got["d"] == d
