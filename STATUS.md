@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 451 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 452 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Killfeed zu spät / Kill abgeschnitten (Nutzer-Video: Schuss 4,4 s, Killfeed-Einblendung 5,3 s). Ursache in `_boxes`: stehen zwei Einträge direkt untereinander, teilen sie eine rote Linie; die wurde nur einmal verwendet, der untere Eintrag fehlte, bis der obere verschwand. Nachgestellt mit echtem Clip (zweiter Eintrag direkt darunter): erkannt bei 5,8 statt 5,0 s. Jetzt darf jede Linie Unter- und Oberkante sein, Kasten braucht dunklen Grund UND helle Schrift (>3 %). Neu 5,0 s; echte Clips (Original/1366/SAR) weiter 3/3, nachgestellter Ablösefall 4/4.
 
 - 2026-11-17: Clips einfacher Schnitt mit festen Regeln (Nutzer: Zeitlupe zu viel, springt vor/zurück, Szenen doppelt, Killfeed 1–2 s vor dem Kill). `CLEAN_EDIT` (Standard) → `plan_clean`/`_render_clip`: echtes Tempo, jede Clip-Stelle höchstens einmal vorwärts, je Kill ein Stück 1,2 s vor Kill-Schuss bis 1 s nach Killfeed (Kills < 3 s auseinander = ein Stück), Stücke ganze Schläge lang, erster Kill-Schuss auf einem Schlag, Musik ab erstem Schlag (`music_shift`), harte Schnitte (keine Zoom-Übergänge), Killfeed-Einblendung ab Erscheinen im Spiel für 1,8 s, Sync-Anzeige misst nur Kill-Schüsse. Alter Schnitt: `CLEAN_EDIT=False`. Echter Clip: Regeln eingehalten, Kill-Schüsse 0–1 ms (Plan) bzw. ≤7 ms (Schläge in der fertigen Tonspur) auf dem Beat, kein Bild länger als 2x, Render 69 s.
 

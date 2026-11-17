@@ -283,3 +283,16 @@ def test_plan_clean_fixed_rules():
         assert abs(s["kills"][0]["shot"] / 0.5 - round(s["kills"][0]["shot"] / 0.5)) < 1e-3
         assert all(k["feed"] >= k["shot"] for k in s["kills"])  # Killfeed nie vor dem Schuss
     assert pl["music_shift"] == 0.2
+
+
+def test_boxes_two_stacked_entries_share_a_line():
+    import numpy as np
+    fr = np.full((120, 400, 3), 30, np.int16)  # dunkler Killfeed-Hintergrund
+    for y in (20, 42, 64):  # drei rote Linien: Eintrag 1 = 20..42, Eintrag 2 = 42..64 (gemeinsame Linie)
+        fr[y:y + 2, 100:380] = (220, 30, 30)
+    fr[28:36, 150:300:6] = (240, 240, 240)  # helle Schrift in beiden Einträgen
+    fr[50:58, 150:300:6] = (240, 240, 240)
+    b = memeclip._boxes(fr)
+    assert [(x[1], x[3]) for x in b] == [(20, 43), (42, 65)]  # beide Einträge, nicht nur der obere
+    fr2 = fr.copy(); fr2[50:58, 150:300:6] = (30, 30, 30)  # zwischen den Linien keine Schrift: kein Eintrag
+    assert len(memeclip._boxes(fr2)) == 1

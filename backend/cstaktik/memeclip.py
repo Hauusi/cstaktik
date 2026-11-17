@@ -55,17 +55,22 @@ def _boxes(fr) -> list[tuple[int, int, int, int]]:
                 lines[-1][1] = y
             else:
                 lines.append([y, y])
-    out, i = [], 0
-    while i + 1 < len(lines):
+    # Jede rote Linie darf Unterkante des einen und Oberkante des nächsten Eintrags sein: Stehen zwei Einträge direkt
+    # untereinander, verschmelzen ihre Rahmen zu einer Linie. Vorher wurde die Linie nur einmal verwendet, der untere
+    # Eintrag fehlte, bis der obere verschwand (nachgestellt mit echtem Clip: 0,8 s zu spät erkannt).
+    out = []
+    for i in range(len(lines) - 1):
         gap = lines[i + 1][0] - lines[i][1]
-        if 10 <= gap <= 30:
-            xs = np.where(red[lines[i][0]:lines[i][1] + 1].any(axis=0))[0]
-            inner = fr[lines[i][1] + 2:lines[i + 1][0] - 1, xs.min() + 4:xs.max() - 3]
-            if inner.size and np.median(inner.sum(axis=2)) < 200:  # Killfeed-Hintergrund ist dunkel
-                out.append((int(xs.min()), lines[i][0], int(xs.max()), lines[i + 1][1]))
-                i += 2
-                continue
-        i += 1
+        if not 10 <= gap <= 30:
+            continue
+        xs = np.where(red[lines[i][0]:lines[i][1] + 1].any(axis=0))[0]
+        inner = fr[lines[i][1] + 2:lines[i + 1][0] - 1, xs.min() + 4:xs.max() - 3]
+        if not inner.size:
+            continue
+        lum = inner.sum(axis=2)
+        # Killfeed-Hintergrund ist dunkel und enthält helle Schrift (Spielhintergrund zwischen zwei Einträgen nicht)
+        if np.median(lum) < 200 and (lum > 450).mean() > 0.03:
+            out.append((int(xs.min()), lines[i][0], int(xs.max()), lines[i + 1][1]))
     return out
 
 
