@@ -93,3 +93,23 @@ def test_suggestions_clean_messy_uploads():
     assert [x["track"] for x in s] == ["Bad Romance", "Poker Face", "Judas"]  # aufgeräumt, doppelte weg, Album zuerst
     assert s[0]["album"] == "The Fame Monster" and s[1]["album"] == ""  # Künstler als Album nicht anzeigen
     assert lrclib.clean_title("Paparazzi", "Lady Gaga") == "Paparazzi"
+
+
+def test_refine_word_times_with_recognition():
+    # LRC verteilt gleichmäßig; gesungen werden die ersten Wörter schneller, "superstar" kommt früher
+    words = ["1.00-1.40:baby", "1.40-1.80:there's", "1.80-2.20:no", "2.20-2.60:other", "2.60-3.00:superstar"]
+    sung = ["1.05-1.20:baby", "1.25-1.40:theres", "1.70-1.90:other", "2.00-2.90:superstar"]  # "no" nicht erkannt
+    out, n = lrclib.refine(words, sung)
+    t = [float(w.split("-")[0]) for w in out]
+    assert n == 4 and [w.split(":", 1)[1] for w in out] == ["baby", "there's", "no", "other", "superstar"]
+    assert abs(t[0] - 1.05) < 0.01 and abs(t[4] - 2.0) < 0.01 and t[1] < t[2] < t[3]  # Reihenfolge bleibt
+    assert lrclib.refine(words, None) == (words, 0)
+    far = ["5.00-5.20:baby"]  # mehr als 1 s daneben: nicht übernehmen
+    assert lrclib.refine(words, far)[1] == 0
+
+
+def test_wall_word_stays_in_one_scene():
+    from cstaktik import memeclip
+    assert memeclip.one_scene(1.0, 3.0, [1.4]) == (1.4, 3.0)  # längeres Stück nach dem Schnitt
+    assert memeclip.one_scene(1.0, 3.0, [2.5]) == (1.0, 2.5)
+    assert memeclip.one_scene(1.0, 3.0, []) == (1.0, 3.0)

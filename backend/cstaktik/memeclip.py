@@ -1000,6 +1000,13 @@ def lyric_pos(j: int, during_kill: bool) -> tuple[int, float]:
     return (BOX_Y // 2 + 70) + LYRIC_DY[j % len(LYRIC_DY)] // 2, 0.72
 
 
+def one_scene(a: float, b: float, cuts: list[float]) -> tuple[float, float]:
+    """Zeitfenster [a, b] auf das längste Stück ohne Schnitt kürzen."""
+    pts = [a] + sorted(c for c in cuts if a + 0.02 < c < b - 0.02) + [b]
+    best = max(zip(pts, pts[1:]), key=lambda p: p[1] - p[0])
+    return round(best[0], 3), round(best[1], 3)
+
+
 def png_aspect(path) -> float:
     from PIL import Image
 
@@ -1178,15 +1185,24 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         else:
             tw = lrclib.timed_words(hit["lines"])
             off, why = lrclib.locate(tw, None, duration(music), hit["duration"])
+            hint = " ".join(w for _, _, w in tw)[:600]
+            sung = None
             if off is None:  # Ausschnitt: Stelle über ein paar erkannte Wörter finden
-                hint = " ".join(w for _, _, w in tw)[:600]
-                off, why = lrclib.locate(tw, sung_words(music, music_ss, pl["seconds"], hint), duration(music),
-                                         hit["duration"], sung_at=music_ss)
+                sung = sung_words(music, music_ss, pl["seconds"], hint)
+                off, why = lrclib.locate(tw, sung, duration(music), hit["duration"], sung_at=music_ss)
             name = f"{hit['track']} – {hit['artist']}"
             if off is None:
                 lrc_note = f"Songtext für {name} gefunden, aber die Stelle im Song nicht: {why}."
             else:
                 words = lrclib.clip_words(tw, off, music_ss, pl["seconds"])
+                # LRCLIB hat nur Zeiten je Zeile: Wortzeiten mit der Spracherkennung nachschärfen (falls installiert)
+                if words:
+                    if sung is None:
+                        near = [w for a, _, w in tw if music_ss + off - 2 <= a <= music_ss + off + pl["seconds"] + 2]
+                        sung = sung_words(music, music_ss, pl["seconds"], " ".join(near)[:600])
+                    words, n_fit = lrclib.refine(words, sung)
+                    if n_fit:
+                        why += f", Wortzeiten über {n_fit} erkannte Wörter angepasst"
                 source, lrc_note = ("lrclib", f"{name}, {why}") if words else (None, f"{name}: an dieser Stelle "
                                                                                      "kein Gesang im Songtext.")
     if words and not any(":" in w for w in words):
@@ -1263,14 +1279,15 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 if j in picks:  # gezogenes Wort: bleibt durch die Pause an der Wand, bis das nächste Wort kommt
                     b = min(max(b, wd["next"]), a + 2.5, total)
                 # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: alle passenden.
-                # Bei einem Schnitt im Zeitfenster sucht das Wort im neuen Bild eine neue Wand (wall_text.apply).
                 wanted = (j in picks) if picks else len(txt) >= 3
                 png = tmp / f"wall{j:02d}.png"
                 if wall_on and b - a >= WALL_MIN_S and wanted:
                     word_png(txt, png, j, font, wall=True)
-                if wall_on and b - a >= WALL_MIN_S and wanted and png_aspect(png) <= WALL_MAX_ASPECT:
-                    wall_words.append({"a": a, "b": b, "png": str(png),
-                                       "cuts": [c for c in cuts if a + 0.02 < c < b - 0.02]})
+                # Wand-Wort bleibt in einer Szene: Liegt ein Schnitt im Zeitfenster, nur das längere Stück zeigen.
+                # Vorher suchte es nach dem Schnitt eine neue Wand: wirkte wie dasselbe Wort doppelt (Nutzer).
+                wa, wb = one_scene(a, b, cuts) if wanted else (a, b)
+                if wall_on and wb - wa >= WALL_MIN_S and wanted and png_aspect(png) <= WALL_MAX_ASPECT:
+                    wall_words.append({"a": wa, "b": wb, "png": str(png), "cuts": []})
                     shown += 1
                     continue
                 png = tmp / f"w{j:02d}.png"

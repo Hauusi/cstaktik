@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 447 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 449 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Songtext doppelt/verzögert (Nutzer): (1) Nutzer-Video Bild für Bild: Wand-Wort lief über einen Schnitt und wurde in der neuen Szene an anderer Wand neu gesetzt → wirkte doppelt. Jetzt `one_scene`: Wand-Wort nur im längsten Stück ohne Schnitt (sonst flach in voller Länge). Echter Clip: 0 Wand-Wörter über Schnitte. (2) Verzögerung: LRCLIB hat nur Zeilen-Zeiten, Wörter waren gleichmäßig verteilt (bis ~1 s daneben). Jetzt `lrclib.refine`: Spracherkennung (Server) setzt Wortzeiten für wiedergefundene Wörter (≤1 s Abweichung), übrige linear nachgezogen, Reihenfolge bleibt; Hinweis zeigt Anzahl. Ohne Spracherkennung hier nur mit nachgebildeten Erkennungen getestet.
 
 - 2026-11-17: Kill clean statt verwischt (Nutzer: zu viel Edit, alles verwischt, Killfeed fehlt): Nutzer-Video Bild für Bild: berechnete Zwischenbilder (mci) zerfallen bei schnellen Bewegungen in verschmierte Blöcke. Jetzt `INTERP` "none" (nur echte Bilder; `interp_vf`), `DEDUP` leer (gemessen gleichmäßigster Takt: Bild steht 1x/2x/3x = 107/35/1), `HIT_SLOW` und `HIT_SLOW_LAST` 0,75, `RAMP_V1` 0,75, `KILL_FX` aus (kein Schwarz-Weiß/Kontrast), `SHOW_FEED`: eigener Killfeed-Eintrag im Hochformat oben im Spielbild (Querformat ist er ohnehin sichtbar); breite Wandfläche erst ab 10 % Höhe. Echter Clip geprüft.
 

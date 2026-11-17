@@ -221,3 +221,56 @@ def suggest_full(query: str) -> dict:
             _CACHE.clear()
         _CACHE[q.lower()] = (time.time(), res)
     return {"items": res, "error": "; ".join(errors) or None, "lrclib_ok": lrc is not None}
+
+
+
+def refine(words: list[str], sung: list[str] | None, max_shift: float = 1.0) -> tuple[list[str], int]:
+    """LRC-Wörter im Video ("a-e:WORT", gleichmäßig je Zeile verteilt) mit der Spracherkennung nachschärfen: Wörter,
+    die die Erkennung in derselben Reihenfolge wiederfindet (höchstens ``max_shift`` s daneben), bekommen deren Zeit;
+    die übrigen werden um die Korrektur ihrer Nachbarn verschoben (linear dazwischen). Rückgabe (Wörter, Treffer)."""
+    if not words or not sung:
+        return words, 0
+    lw = []
+    for w in words:
+        tm, txt = w.split(":", 1)
+        a, e = (float(x) for x in tm.split("-"))
+        lw.append([a, e, txt])
+    rec = []
+    for w in sung:
+        tm, txt = w.split(":", 1)
+        parts = [float(x) for x in tm.split("-")]
+        rec.append((parts[0], parts[-1], _norm(txt)))
+    sm = difflib.SequenceMatcher(a=[_norm(x[2]) for x in lw], b=[r[2] for r in rec], autojunk=False)
+    corr: dict[int, float] = {}
+    for blk in sm.get_matching_blocks():
+        for k in range(blk.size):
+            i, r = blk.a + k, rec[blk.b + k]
+            if len(lw[i][2]) > 1 and abs(r[0] - lw[i][0]) <= max_shift:
+                corr[i] = r[0] - lw[i][0]
+    if not corr:
+        return words, 0
+    keys = sorted(corr)
+    out = []
+    for i, (a, e, txt) in enumerate(lw):
+        if i in corr:
+            c = corr[i]
+        else:
+            lo = max((k for k in keys if k < i), default=None)
+            hi = min((k for k in keys if k > i), default=None)
+            if lo is None:
+                c = corr[hi]
+            elif hi is None:
+                c = corr[lo]
+            else:
+                f = (lw[i][0] - lw[lo][0]) / max(lw[hi][0] - lw[lo][0], 1e-6)
+                c = corr[lo] + (corr[hi] - corr[lo]) * f
+        out.append(f"{max(a + c, 0):.2f}-{max(e + c, a + c + 0.1):.2f}:{txt}")
+    # Reihenfolge erhalten (nie ein Wort vor seinem Vorgänger)
+    fixed, last = [], 0.0
+    for w in out:
+        tm, txt = w.split(":", 1)
+        a, e = (float(x) for x in tm.split("-"))
+        a = max(a, last + 0.05) if fixed else a
+        fixed.append(f"{a:.2f}-{max(e, a + 0.1):.2f}:{txt}")
+        last = a
+    return fixed, len(corr)
