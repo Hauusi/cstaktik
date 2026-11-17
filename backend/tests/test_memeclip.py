@@ -297,3 +297,14 @@ def test_boxes_two_stacked_entries_share_a_line():
     assert [(x[1], x[3]) for x in b] == [(20, 43), (42, 65)]  # beide Einträge, nicht nur der obere
     fr2 = fr.copy(); fr2[50:58, 150:300:6] = (30, 30, 30)  # zwischen den Linien keine Schrift: kein Eintrag
     assert len(memeclip._boxes(fr2)) == 1
+
+
+def test_lyric_schedule_one_word_at_a_time():
+    items = [{"a": 1.0, "b": 1.3, "txt": "START", "eol": False, "stop": 1.4},
+             {"a": 1.4, "b": 1.7, "txt": "LIVING", "eol": False, "stop": 2.0},
+             {"a": 2.0, "b": 2.4, "txt": "DANGEROUSLY", "eol": True, "stop": 6.0},
+             {"a": 6.0, "b": 6.3, "txt": "TALK", "eol": False, "stop": 6.5}]  # danach ein Wand-Wort ab 6,5
+    s = memeclip.lyric_schedule(items, 8.0)
+    assert [(x["a"], x["end"]) for x in s[:2]] == [(1.0, 1.4), (1.4, 2.0)]  # bleibt bis zum nächsten, keine Lücke
+    assert s[2]["fade"] and abs(s[2]["end"] - 3.5) < 1e-6  # Zeilenende: länger stehen, dann ausblenden
+    assert s[3]["end"] == 6.5  # endet, wenn das Wand-Wort beginnt: nie zwei Wörter gleichzeitig

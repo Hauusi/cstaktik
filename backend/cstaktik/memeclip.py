@@ -992,24 +992,29 @@ def word_list(words: list[str], beat_times: list[float], per_beat: int = 1) -> l
 
     out, i = [], 0
     for w in words:
+        eol = w.endswith("\u00b6")
+        w = w.rstrip("\u00b6")
         m = re.fullmatch(r"(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?:(.+)", w)
         if m:
             a = float(m.group(1))
             sung = float(m.group(2)) if m.group(2) else None
             # gesungenes Wort: 40 ms früher einblenden, so wirkt es exakt auf dem Gesang (ITU-R BT.1359)
-            out.append({"a": max(a - WORD_LEAD_S, 0.0) if sung is not None else a, "sung": sung, "txt": m.group(3)})
+            out.append({"a": max(a - WORD_LEAD_S, 0.0) if sung is not None else a, "sung": sung, "txt": m.group(3),
+                        "eol": eol})
             continue
         if i >= len(beat_times):
             break
-        out.append({"a": beat_times[i], "sung": None, "txt": w})
+        out.append({"a": beat_times[i], "sung": None, "txt": w, "eol": eol})
         i += per_beat
     out.sort(key=lambda x: x["a"])
     merged: list[dict] = []
     for x in out:
         held = x["sung"] is not None and x["sung"] - x["a"] >= 0.35  # gezogenes Wort bekommt seine eigene Einblendung
-        if merged and not held and x["a"] - merged[-1]["a"] < MIN_WORD_S and " " not in merged[-1]["txt"]:
+        if (merged and not held and x["a"] - merged[-1]["a"] < MIN_WORD_S and " " not in merged[-1]["txt"]
+                and not merged[-1].get("eol")):
             merged[-1]["txt"] += " " + x["txt"]
             merged[-1]["sung"] = x["sung"] if x["sung"] is not None else merged[-1]["sung"]
+            merged[-1]["eol"] = x.get("eol", False)
         else:
             merged.append(dict(x))
     beat = (beat_times[-1] - beat_times[0]) / max(len(beat_times) - 1, 1)
@@ -1207,6 +1212,99 @@ def _has_glyph(c: str, font_file: str) -> bool:
 _GLYPH_FONT: dict = {}
 
 
+LYRIC_FONT = Path(__file__).parent / "static" / "fonts" / "Montserrat-ExtraBold.ttf"  # breit, modern (OFL)
+TYPE_S = 0.22  # so lange dauert es, bis alle Buchstaben eines Worts erschienen sind (Buchstabe für Buchstabe)
+LINE_HOLD_S = 1.2  # letztes Wort einer Zeile bleibt mindestens so lange stehen
+FADE_OUT_S = 0.3  # dann blendet es aus
+LYRIC_MAX_PX = 170  # Schriftgröße (fester Platz, gleiche Größe; nur zu lange Wörter kleiner)
+LYRIC_FPS = 30  # Textspur mit 30 Bildern/s (reicht für Text, halbiert die Rechenzeit)
+
+
+def lyric_schedule(items: list[dict], total: float) -> list[dict]:
+    """Wann welches Wort steht (Vorbild: ein Wort zur Zeit, bleibt bis zum nächsten, am Zeilenende länger, dann
+    weich aus). items: [{"a", "b", "txt", "eol"}] in zeitlicher Reihenfolge. Rückgabe mit "end" und "fade"."""
+    out = []
+    for j, x in enumerate(items):
+        nxt = items[j + 1]["a"] if j + 1 < len(items) else total
+        nxt = min(nxt, x.get("stop", nxt))  # nächstes Wort überhaupt (auch an der Wand): nie zwei gleichzeitig
+        if x.get("eol") or nxt - x["a"] > 2.5:  # Zeilenende oder lange Pause: länger stehen, dann ausblenden
+            end, fade = min(nxt, max(x["b"], x["a"] + LINE_HOLD_S + FADE_OUT_S), total), True
+        else:  # mitten in der Zeile: bleibt, bis das nächste Wort beginnt (keine Lücke, kein Aufpoppen)
+            end, fade = min(nxt, total), False
+        if end - x["a"] >= 0.12:
+            out.append(dict(x, end=round(end, 3), fade=fade))
+    return out
+
+
+def render_lyric_track(items: list[dict], total: float, path: Path, width: int, height: int,
+                       fps: int = OUT_FPS) -> None:
+    """Songtext als eigene, durchsichtige Videospur (RGBA, qtrle): fester Platz, gleiche Größe, Buchstaben
+    erscheinen nacheinander, Wort steht bis zum nächsten, Zeilenende blendet weich aus. Weiße Schrift mit weichem
+    Schatten, ohne Umrandung, ohne Drehung (Vorbild)."""
+    import math
+
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+    font_file = str(LYRIC_FONT if LYRIC_FONT.exists() else FONT_FILE)
+    sched = lyric_schedule(items, total)
+    # gleiche Größe für alle Wörter; nur Wörter, die nicht in 86 % der Breite passen, werden kleiner
+    texts = [printable(x["txt"], font_file) for x in sched]
+    fonts: dict[int, "ImageFont.FreeTypeFont"] = {}
+    words = []
+    for x, t in zip(sched, texts):
+        size = LYRIC_MAX_PX
+        while size > 50 and ImageFont.truetype(font_file, size).getlength(t) > width * 0.86:
+            size -= 6
+        font = fonts.setdefault(size, ImageFont.truetype(font_file, size))
+        asc, desc = font.getmetrics()
+        y0 = (height - (asc + desc)) // 2
+        img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        x0 = (width - font.getlength(t)) / 2
+        sh = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        ImageDraw.Draw(sh).text((x0, y0 + size * 0.05), t, font=font, fill=(0, 0, 0, 170))
+        sh = sh.filter(ImageFilter.GaussianBlur(max(size // 18, 3)))
+        img.alpha_composite(sh)
+        ImageDraw.Draw(img).text((x0, y0), t, font=font, fill=(255, 255, 255, 255))
+        edges = [x0 + font.getlength(t[:k]) for k in range(len(t) + 1)]  # rechte Kante nach k Buchstaben
+        words.append((x, img, edges, size))
+    proc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{width}x{height}",
+                             "-r", str(fps), "-i", "-", "-c:v", "qtrle", str(path)], stdin=subprocess.PIPE)
+    blank = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    cache: dict = {}
+    try:
+        for n in range(int(math.ceil(total * fps))):
+            t = n / fps
+            cur = next((w for w in words if w[0]["a"] <= t < w[0]["end"]), None)
+            if cur is None:
+                proc.stdin.write(blank.tobytes())
+                continue
+            x, img, edges, size = cur
+            letters = len(edges) - 1
+            reveal = min(TYPE_S, 0.45 * (x["end"] - x["a"]))
+            p = 1.0 if reveal <= 0 else min(max((t - x["a"]) / reveal, 0.0), 1.0)
+            k = min(letters, int(math.floor(p * letters)) + 1)  # sichtbare Buchstaben (der nächste blendet ein)
+            alpha = 1.0
+            if x["fade"]:
+                alpha = min(1.0, max(0.0, (x["end"] - t) / FADE_OUT_S))
+            key = (id(img), k, round(alpha, 2))
+            if key not in cache:
+                cut = int(round(edges[k])) + 1 if k < letters else width  # genau an der Buchstabenkante
+                fr = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+                fr.paste(img.crop((0, 0, cut, height)), (0, 0))
+                if alpha < 1.0:
+                    a = fr.getchannel("A").point(lambda v, f=alpha: int(v * f))
+                    fr.putalpha(a)
+                cache[key] = fr.tobytes()
+                if len(cache) > 400:
+                    cache.clear()
+            proc.stdin.write(cache[key])
+    finally:
+        proc.stdin.close()
+        proc.wait()
+    if proc.returncode:
+        raise RuntimeError("Songtext-Spur: Kodieren fehlgeschlagen")
+
+
 def lyric_pos(j: int, during_kill: bool) -> tuple[int, float]:
     """Mitte (y) und Größe eines flachen Songtext-Worts. Hält die Bildmitte frei."""
     if LANDSCAPE:
@@ -1235,6 +1333,8 @@ def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) 
 
     text = printable(text, font_file)
     fill, shadow = LYRIC_COLORS[j % len(LYRIC_COLORS)]
+    if wall:  # gleiche Farbe wie die Textspur: weiß (einheitlicher Look, Nutzer: Text soll wie eine Story wirken)
+        fill = (255, 255, 255)
     size = 260 if wall else 240  # groß wie im Vorbild; Wand: wird später perspektivisch verkleinert
     while size > 60:
         font = ImageFont.truetype(font_file, size)
@@ -1495,6 +1595,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             busy = [(x["o0"], x["o0"] + x["out"]) for x in (marks + [y for y in pl["segments"] if y["kind"] == "hold"])]
             cuts = [x["o0"] for x in pl["segments"]]
             wl = word_list(words, bt["beats"])[:MAX_WORDS]
+            flat_items: list[dict] = []
             picks = wall_picks(wl)
             for j, wd in enumerate(wl):
                 a, b, txt = wd["a"], wd["b"], wd["txt"]
@@ -1509,7 +1610,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 wanted = (j in picks) if picks else len(txt) >= 3
                 png = tmp / f"wall{j:02d}.png"
                 if wall_on and b - a >= WALL_MIN_S and wanted:
-                    word_png(txt, png, j, font, wall=True)
+                    word_png(txt, png, j, str(LYRIC_FONT) if LYRIC_FONT.exists() else font, wall=True)
                 # Wand-Wort bleibt in einer Szene: Liegt ein Schnitt im Zeitfenster, nur das längere Stück zeigen.
                 # Vorher suchte es nach dem Schnitt eine neue Wand: wirkte wie dasselbe Wort doppelt (Nutzer).
                 wa, wb = one_scene(a, b, cuts) if wanted else (a, b)
@@ -1517,18 +1618,18 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                     wall_words.append({"a": wa, "b": wb, "png": str(png), "cuts": []})
                     shown += 1
                     continue
-                png = tmp / f"w{j:02d}.png"
-                word_png(txt, png, j, font)
-                ins += ["-loop", "1", "-framerate", str(OUT_FPS), "-t", f"{total:.3f}", "-i", str(png)]
-                # während eines Kills gehört die Bildmitte dem Kill: das Wort steht dann kleiner am unteren Bildrand
-                low = any(x0 - 0.05 <= a < x1 - 0.05 for x0, x1 in busy)
-                # nie in der Bildmitte: dort ist das Fadenkreuz, also der Kill (Nutzer: Wörter verdeckten Kills).
-                # Hochformat: über dem Spielbild (frei, seit der Zähler weg ist); Querformat: unteres Fünftel.
-                cy, sc = lyric_pos(j, low)
-                fc += (f"[{k}:v]format=rgba,scale=w='2*trunc(iw*{sc}*(1+0.2*exp(-22*max(t-{a}\\,0)))/2)':h=-2:eval=frame[w{j}];"
-                       f"[{last}][w{j}]overlay=x='(W-w)/2':y='{cy}-h/2':eval=frame:"
-                       f"enable='between(t,{a},{min(b, total)})'[t{j}];")
-                last, k, shown = f"t{j}", k + 1, shown + 1
+                # flache Wörter: eine ruhige Textspur (fester Platz, Buchstabe für Buchstabe, bleibt stehen)
+                flat_items.append({"a": a, "b": b, "txt": txt, "eol": wd.get("eol", False), "stop": wd["next"]})
+                shown += 1
+            if flat_items:
+                # nie in der Bildmitte (Fadenkreuz = Kill). Hochformat: über dem Spielbild; Querformat: unten.
+                cy = lyric_pos(0, False)[0]
+                band = 360 if not LANDSCAPE else 300
+                track = tmp / "lyrics.mov"
+                render_lyric_track(flat_items, total, track, OUT_W, band, LYRIC_FPS)
+                ins += ["-i", str(track)]
+                fc += f"[{k}:v]format=rgba[lt];[{last}][lt]overlay=0:{cy - band // 2}:format=auto[ltx];"
+                last, k = "ltx", k + 1
         # Musik beim Kill-Schuss weich absenken (40 ms runter, 300 ms zurück) statt schlagartig: kein Pumpen
         duck = "+".join(f"min(1\\,max(0\\,(t-{x['o0'] - 0.04:.3f})/0.04))*min(1\\,max(0\\,({x['o0'] + KILL_SND_S + 0.3:.3f}-t)/0.3))"
                         for x in marks) or "0"

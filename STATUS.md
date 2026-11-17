@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 452 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 453 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Songtext neu nach Vorbild (Nutzer: poppt auf und verschwindet, wirkt doppelt; Vorbild Bild für Bild: ein Wort zur Zeit, fester Platz, gleiche Größe, bleibt bis zum nächsten, Zeilenende länger + weich aus). Neue Textspur `render_lyric_track` (Python/Pillow → RGBA-qtrle, 30 fps, ein Overlay): Buchstabe für Buchstabe (`TYPE_S` 0,22 s), kein Zoom/Drehen/Schrägstellen/Höhensprung, weiße Schrift mit weichem Schatten, Schrift Montserrat ExtraBold (OFL, aus @fontsource/montserrat, woff→ttf, Lizenz beigelegt), Größe 170 px, nur zu lange Wörter kleiner. `lyric_schedule`: Wort endet, wenn das nächste (auch Wand-Wort) beginnt → nie zwei gleichzeitig; Zeilenende (LRCLIB-Marke ¶ in `timed_words`, `eol` in `word_list`) hält ≥1,2 s, blendet 0,3 s aus. Wand-Wörter gleiche Schrift, weiß. Echter Lauf (3 Nutzer-Clips, 23 s): 0 Überlappungen, 35 Wörter (11 Wand), Render ~6,5 min.
 
 - 2026-11-17: Kill-Erkennung grundlegend überarbeitet, mit den 3 Original-Clips des Nutzers (9 Kills, Lösung Bild für Bild bestimmt) + 4 eigenen Testclips als Prüfstand: vorher 17/23 richtig, 7 Fehlalarme, 6 verpasst (Nutzer-Clips: 3/9); jetzt 23/23, 0 Fehlalarme, Zeit ±0,1 s. Ursachen: (1) `_boxes` hielt vor orangem/rotem Hintergrund (Mirage-Tuch) alles für Rahmen → Einträge bis 3 s zu spät/gar nicht, Hintergrund als Einträge; jetzt Rahmen = rote Kante (röter als ±3 px), Linienstück vom rechten Rand (`_run_from_right`), Ober-/Unterkante gleich lang, Innen dunkler als Umgebung + helle Schrift. (2) Fingerabdruck trennte nicht (gleich 0,71–0,91 vs. verschieden 0,69–0,87); jetzt Kantenbild des Gegnernamens (`_sig`/`_ncc`, gleich 0,98–1,0 vs. ~0,8), Wiedererkennung über letzte 6 Bilder, gleicher Platz/Breite bis 1,5 s = derselbe, Hochrutschen um einen Platz, Hereinwachsen. (3) Zeit beim Erscheinen: `_first_seen` sucht rückwärts bis 1 s nach der ersten Rahmenkante am Platz beim ersten Erscheinen (`box0`). (4) Schalldämpfer-Schüsse (M4A1-S) werden im Ton nicht erkannt: `kill_start` ohne Schuss 0,35 s vor dem Killfeed (`KILL_NO_SHOT`). Voller Schnitt mit den 3 Clips: 9/9 Kills, jedes Stück vorwärts, Killfeed nach dem Schuss.
 

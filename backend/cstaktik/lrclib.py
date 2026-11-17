@@ -22,6 +22,7 @@ API = "https://lrclib.net/api/search"
 UA = "cstaktik-clips/1.0"
 FULL_SONG_TOL = 4.0  # Musikdatei höchstens so viel kürzer/länger als der Song: gilt als ganzer Song
 MIN_MATCH = 3
+EOL = "\u00b6"  # Marke am letzten Wort einer Songzeile
 
 
 def _norm(w: str) -> str:
@@ -51,7 +52,8 @@ def timed_words(lines: list[tuple[float, str]], per_word: float = 0.42) -> list[
         span = max(min(nxt - t, per_word * len(ws) + 0.3), 0.2 * len(ws))
         step = span / len(ws)
         for k, w in enumerate(ws):
-            out.append((round(t + k * step, 3), round(t + (k + 1) * step, 3), w))
+            # letztes Wort der Zeile markieren: dort bleibt der Text länger stehen und blendet aus
+            out.append((round(t + k * step, 3), round(t + (k + 1) * step, 3), w + (EOL if k == len(ws) - 1 else "")))
     return out
 
 

@@ -13,7 +13,8 @@ def test_parse_and_timed_words():
     assert [t for t, _ in lines] == [10.0, 12.5, 16.0, 20.0]  # leere Zeile weg
     tw = lrclib.timed_words(lines)
     assert tw[0][2] == "I'm" and tw[0][0] == 10.0 and all(10.0 <= a < 12.5 for a, _, w in tw[:4])
-    assert [w for _, _, w in tw[4:11]] == "I'll follow you until you love me".split()
+    assert [w.rstrip(lrclib.EOL) for _, _, w in tw[4:11]] == "I'll follow you until you love me".split()
+    assert tw[10][2].endswith(lrclib.EOL) and not tw[9][2].endswith(lrclib.EOL)  # Zeilenende markiert
 
 
 def test_pick_prefers_synced_and_matching_length():
