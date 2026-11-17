@@ -308,3 +308,15 @@ def test_lyric_schedule_one_word_at_a_time():
     assert [(x["a"], x["end"]) for x in s[:2]] == [(1.0, 1.4), (1.4, 2.0)]  # bleibt bis zum nächsten, keine Lücke
     assert s[2]["fade"] and abs(s[2]["end"] - 3.5) < 1e-6  # Zeilenende: länger stehen, dann ausblenden
     assert s[3]["end"] == 6.5  # endet, wenn das Wand-Wort beginnt: nie zwei Wörter gleichzeitig
+
+
+def test_silent_mix_is_an_error_not_a_flat_line(tmp_path):
+    import subprocess
+    f = tmp_path / "still.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "aevalsrc=-0.08:d=2:s=48000", str(f)], check=True)
+    import pytest
+    with pytest.raises(ValueError, match="fast still"):
+        memeclip.level_chain(str(f))
+    g = tmp_path / "ton.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=440:d=2:sample_rate=48000", str(g)], check=True)
+    assert memeclip.level_chain(str(g)).startswith("highpass=f=20,")

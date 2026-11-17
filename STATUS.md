@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 453 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 454 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Kein Ton im Clip (Nutzer): Videos vom Server ab 06:22 haben eine flache Tonspur (Gleichspannung −1,26, fast still), vorher normal; dazwischen nur Kill-Erkennung geändert, aber andere Musikdatei. Vermutung: Mischung war still, `level_chain` hob +24 dB an. Lokal nicht nachstellbar (eigene Läufe normal). Jetzt: `loudness`, stille Mischung (< −45 LUFS) = Fehlermeldung statt stummes Video, highpass 20 Hz gegen Versatz, Ton-Diagnose (Spielton/Musik/Mischung in LUFS) unter dem Video (`audio_note`). Ursache offen bis Musikdatei/Diagnose vorliegt.
 
 - 2026-11-17: Songtext neu nach Vorbild (Nutzer: poppt auf und verschwindet, wirkt doppelt; Vorbild Bild für Bild: ein Wort zur Zeit, fester Platz, gleiche Größe, bleibt bis zum nächsten, Zeilenende länger + weich aus). Neue Textspur `render_lyric_track` (Python/Pillow → RGBA-qtrle, 30 fps, ein Overlay): Buchstabe für Buchstabe (`TYPE_S` 0,22 s), kein Zoom/Drehen/Schrägstellen/Höhensprung, weiße Schrift mit weichem Schatten, Schrift Montserrat ExtraBold (OFL, aus @fontsource/montserrat, woff→ttf, Lizenz beigelegt), Größe 170 px, nur zu lange Wörter kleiner. `lyric_schedule`: Wort endet, wenn das nächste (auch Wand-Wort) beginnt → nie zwei gleichzeitig; Zeilenende (LRCLIB-Marke ¶ in `timed_words`, `eol` in `word_list`) hält ≥1,2 s, blendet 0,3 s aus. Wand-Wörter gleiche Schrift, weiß. Echter Lauf (3 Nutzer-Clips, 23 s): 0 Überlappungen, 35 Wörter (11 Wand), Render ~6,5 min.
 

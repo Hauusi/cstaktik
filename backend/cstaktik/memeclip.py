@@ -1448,11 +1448,28 @@ def level_chain(path: str, target: float = None) -> str:
     import re
 
     target = TARGET_LUFS if target is None else target
-    err = subprocess.run(["ffmpeg", "-nostats", "-i", path, "-af", "ebur128", "-f", "null", "-"],
-                         capture_output=True, text=True).stderr
+    lu = loudness(path)
+    if lu is not None and lu < SILENT_LUFS:
+        raise ValueError(f"Die gemischte Tonspur ist fast still ({lu:.0f} LUFS). Bitte melden; unter dem Fehler stehen "
+                         f"die Pegel von Spielton und Musik." + (f" {AUDIO_NOTE}" if AUDIO_NOTE else ""))
+    gain = max(min(target - lu, 24.0), -24.0) if lu is not None else 0.0
+    # highpass: Gleichspannungsversatz entfernen (sonst wird er mit verstärkt, gesehen als stumme "flache Linie")
+    return f"highpass=f=20,volume={gain:.2f}dB,alimiter=limit=0.89:attack=1:release=60:level=0,aresample=48000"
+
+
+SILENT_LUFS = -45.0  # leiser als das: Tonspur gilt als stumm
+AUDIO_NOTE = ""
+
+
+def loudness(path: str, ss: float | None = None, d: float | None = None) -> float | None:
+    """Integrierte Lautheit (LUFS) einer Datei oder eines Ausschnitts, None wenn nicht messbar."""
+    import re
+
+    cmd = ["ffmpeg", "-nostats"] + (["-ss", str(ss)] if ss else []) + (["-t", str(d)] if d else []) + \
+          ["-i", path, "-vn", "-af", "ebur128", "-f", "null", "-"]
+    err = subprocess.run(cmd, capture_output=True, text=True).stderr
     m = re.findall(r"I:\s+(-?[\d.]+) LUFS", err)
-    gain = max(min(target - float(m[-1]), 24.0), -24.0) if m else 0.0
-    return f"volume={gain:.2f}dB,alimiter=limit=0.89:attack=1:release=60:level=0,aresample=48000"
+    return float(m[-1]) if m else None
 
 
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
@@ -1643,6 +1660,11 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         _run(["ffmpeg", "-v", "error", "-y", *[x for f in files for x in ("-i", str(f))],
               "-ss", str(music_ss), "-t", str(total), "-i", music, "-filter_complex", afc, "-map", "[a]",
               "-t", str(total), "-c:a", "pcm_f32le", str(mix)])
+        # Diagnose: Pegel der Teile (steht unter dem Video, bei Stille auch in der Fehlermeldung)
+        global AUDIO_NOTE
+        lv = {"Spielton": loudness(str(tmp / "game.wav")) if (tmp / "game.wav").exists() else None,
+              "Musik": loudness(music, music_ss, total), "Mischung": loudness(str(mix))}
+        AUDIO_NOTE = ", ".join(f"{k} {v:.0f} LUFS" if v is not None else f"{k} nicht messbar" for k, v in lv.items())
         mix2 = tmp / "mix2.wav"
         _run(["ffmpeg", "-v", "error", "-y", "-i", str(mix), "-af", level_chain(str(mix)), "-c:a", "pcm_f32le", str(mix2)])
         fc = fc.replace("[LOOPIN]", f"[{k}:v]")  # Schleifenbild ist der letzte Eingang
@@ -1666,7 +1688,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source,
             "lyrics_note": SUNG_NOTE, "wall": wall_stats,
             "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors")),
-            "sync_measured": measured}
+            "sync_measured": measured, "audio_note": AUDIO_NOTE}
 
 
 if __name__ == "__main__":

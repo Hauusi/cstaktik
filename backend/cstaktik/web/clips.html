@@ -90,6 +90,7 @@
   {% if j.music and j.music_auto %}<div class="st">Musik ab Sekunde {{ j.music_used|string|replace(".", ",") }}: Drop automatisch gefunden, der erste Kill liegt etwa darauf.</div>
   {% elif j.music and j.music_used == 0 and j.music_auto is sameas false %}<div class="st">Kein deutlicher Drop gefunden, die Musik startet am Anfang.</div>{% endif %}
   {% if j.music and j.sync_measured and j.sync_measured.total %}<div class="st">Nachgemessen: {{ j.sync_measured.on }} von {{ j.sync_measured.total }} Schüssen liegen auf dem Beat (höchstens 45 ms daneben{% if j.sync_measured.worst_ms is not none %}, größter Abstand {{ j.sync_measured.worst_ms }} ms{% endif %}).</div>{% endif %}
+  {% if j.audio_note %}<div class="st">Ton: {{ j.audio_note }}.</div>{% endif %}
   {% if j.music and j.words %}<div class="st">Auf Wänden: {% if j.wall %}{{ j.wall.wall }} {{ "Wort" if j.wall.wall == 1 else "Wörter" }}{% if j.wall.flat %}, bei {{ j.wall.flat }} keine Wand gefunden (flach gezeigt){% endif %}{% else %}keins (kein Wort hatte genug Zeit ohne Kill dazwischen){% endif %}.</div>{% endif %}
   {% if j.music and j.lyrics_source == "lrclib" %}<div class="st">Songtext von LRCLIB: {{ j.lyrics_note }}.</div>
   {% elif j.music and j.song and not j.words %}<div class="st">Ohne Songtext. {{ j.lyrics_note }}</div>
