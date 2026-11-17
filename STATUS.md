@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 450 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 451 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,8 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+
+- 2026-11-17: Clips einfacher Schnitt mit festen Regeln (Nutzer: Zeitlupe zu viel, springt vor/zurück, Szenen doppelt, Killfeed 1–2 s vor dem Kill). `CLEAN_EDIT` (Standard) → `plan_clean`/`_render_clip`: echtes Tempo, jede Clip-Stelle höchstens einmal vorwärts, je Kill ein Stück 1,2 s vor Kill-Schuss bis 1 s nach Killfeed (Kills < 3 s auseinander = ein Stück), Stücke ganze Schläge lang, erster Kill-Schuss auf einem Schlag, Musik ab erstem Schlag (`music_shift`), harte Schnitte (keine Zoom-Übergänge), Killfeed-Einblendung ab Erscheinen im Spiel für 1,8 s, Sync-Anzeige misst nur Kill-Schüsse. Alter Schnitt: `CLEAN_EDIT=False`. Echter Clip: Regeln eingehalten, Kill-Schüsse 0–1 ms (Plan) bzw. ≤7 ms (Schläge in der fertigen Tonspur) auf dem Beat, kein Bild länger als 2x, Render 69 s.
 
 - 2026-11-17: Kills weggeschnitten (Nutzer-Video: bei 9,3 s Killfeed, davor nur Nachladen, der Kill selbst fehlt). Ursache: Kill-Zeitlupe begann pauschal 0,1 s vor dem Killfeed-Eintrag, der Eintrag kommt aber erst nach dem Treffer (echter Clip: Kill-Schuss 0,14–0,34 s davor, beim Nutzer offenbar deutlich mehr). Jetzt `kill_start`: Zeitlupe beginnt 0,08 s vor dem letzten Schuss bis 1,5 s vor dem Eintrag (ohne Schuss wie bisher). Echter Clip: Treffer und fallender Gegner in der Zeitlupe; Sync gemessen 6/9 (vorher 7/7), Kill-Erkennung unverändert.
 

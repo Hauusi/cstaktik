@@ -261,3 +261,25 @@ def test_kill_starts_at_kill_shot():
     assert memeclip.kill_start(9.3, [8.1, 8.2, 12.0]) == 8.12  # Eintrag kam spät: trotzdem der Schuss
     assert memeclip.kill_start(4.15, []) == 4.05 and memeclip.kill_start(4.15, None) == 4.05  # ohne Schuss wie bisher
     assert memeclip.kill_start(9.3, [5.0]) == 9.2  # Schuss zu weit weg: nicht dieser
+
+
+def test_plan_clean_fixed_rules():
+    box = (1100, 80, 1270, 105)
+    bt = [round(0.2 + 0.5 * i, 3) for i in range(40)]  # 120 BPM, erster Schlag bei 0,2 s
+    kills = [{"t": 4.15, "box": box, "src": "a", "dur": 18.0}, {"t": 5.3, "box": box, "src": "a", "dur": 18.0},  # Doppel-Kill
+             {"t": 10.1, "box": box, "src": "a", "dur": 18.0}, {"t": 3.0, "box": box, "src": "b", "dur": 9.0}]
+    shots = {"a": [3.81, 5.10, 9.96], "b": [2.80]}
+    pl = memeclip.plan_clean(kills, bt, shots)
+    segs = pl["segments"]
+    assert [s["kind"] for s in segs] == ["clip"] * 3 and pl["kills_used"] == 4
+    assert len(segs[0]["kills"]) == 2  # Doppel-Kill bleibt ein durchgehendes Stück
+    o = 0.0
+    for s in segs:  # lückenlos, echtes Tempo, ganze Schläge
+        assert abs(s["o0"] - o) < 1e-3 and s["d"] == s["out"] and abs(s["out"] / 0.5 - round(s["out"] / 0.5)) < 1e-3
+        o += s["out"]
+    a = [s for s in segs if s["src"] == "a"]
+    assert a[1]["ss"] >= a[0]["ss"] + a[0]["out"] - 1e-3  # nie zurück, nichts doppelt
+    for s in segs:  # erster Kill-Schuss auf einem Schlag (Video beginnt am ersten Schlag)
+        assert abs(s["kills"][0]["shot"] / 0.5 - round(s["kills"][0]["shot"] / 0.5)) < 1e-3
+        assert all(k["feed"] >= k["shot"] for k in s["kills"])  # Killfeed nie vor dem Schuss
+    assert pl["music_shift"] == 0.2

@@ -542,6 +542,99 @@ def kill_start(t: float, shot_times: list[float] | None) -> float:
     return round(max((prev[-1] - KILL_PRE) if prev else (t - 0.10), 0.0), 3)
 
 
+CLEAN_EDIT = True  # einfacher Schnitt mit festen Regeln (siehe plan_clean); False = alter Effekt-Schnitt (plan_beat)
+CLEAN_PRE, CLEAN_POST = 1.2, 1.0  # so viel vor dem Kill-Schuss / nach dem Killfeed-Eintrag
+CLEAN_MERGE = 3.0  # Kills, deren Schüsse näher beieinander liegen, bleiben ein durchgehendes Stück (Mehrfach-Kill)
+FEED_SHOW_S = 1.8  # so lange steht der eigene Killfeed-Eintrag oben (ab dem Moment, in dem er im Spiel erscheint)
+
+
+def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | None = None) -> dict:
+    """Einfacher Schnitt mit festen Regeln (Nutzer: Zeitlupe/Vor- und Zurückspringen/doppelte Szenen "to much"):
+    1. nur echtes Tempo; 2. jede Stelle eines Clips höchstens einmal, in zeitlicher Reihenfolge; 3. je Kill ein
+    durchgehendes Stück von CLEAN_PRE vor dem Kill-Schuss bis CLEAN_POST nach dem Killfeed-Eintrag, nahe Kills
+    (Mehrfach-Kill) als ein Stück; 4. Schnitte nur zwischen den Stücken, auf dem Beat: jedes Stück beginnt so, dass
+    sein erster Kill-Schuss auf einem Schlag liegt, und ist eine ganze Zahl Schläge lang; 5. Killfeed-Eintrag ab dem
+    Moment, in dem er im Spiel erscheint. Passt nicht alles in die Musik, fallen die letzten Stücke weg."""
+    import math
+
+    nb = len(beat_times)
+    if nb < 4:
+        raise ValueError("Zu wenige Schläge im Musik-Ausschnitt.")
+    beat = (beat_times[-1] - beat_times[0]) / (nb - 1)
+    music_end = beat_times[-1] + beat * 0.5
+    # Gruppen: aufeinanderfolgende Kills im selben Clip mit nahen Schüssen
+    groups: list[list[dict]] = []
+    for k in kills:
+        ks = kill_start(k["t"], (shot_times or {}).get(k.get("src")))
+        k = dict(k, ks=ks)
+        g = groups[-1] if groups else None
+        if g and g[-1].get("src") == k.get("src") and ks - g[-1]["ks"] < CLEAN_MERGE and ks >= g[-1]["ks"]:
+            g.append(k)
+        else:
+            groups.append([k])
+    segs, o, used, prev_end = [], beat_times[0], 0, {}
+    first_beat = beat_times[0]
+    for g in groups:
+        src, dur = g[0].get("src"), g[0].get("dur", 1e9)
+        ks0 = g[0]["ks"] + KILL_PRE  # der Schuss selbst (ks liegt KILL_PRE davor)
+        lead = max(1, round(CLEAN_PRE / beat)) * beat  # erster Kill-Schuss genau auf einem Schlag
+        lo = prev_end.get(src, 0.0)
+        while ks0 - lead < lo and lead > beat - 1e-6:  # nicht in schon gezeigtes Material zurück
+            lead -= beat
+        start = ks0 - lead
+        if start < lo - 1e-6:  # nicht einmal ein Schlag Vorlauf frei: direkt am Kill-Schuss beginnen
+            start = max(lo, ks0 - 0.15)
+        end = min(max(k["t"] for k in g) + CLEAN_POST, dur - 0.05)
+        n = max(1, math.ceil((end - start) / beat - 0.25))
+        if start + n * beat > dur - 0.05:
+            n = max(1, int((dur - 0.05 - start) / beat))
+        L = n * beat
+        if o + L > music_end + 1e-6:  # Musik zu Ende
+            break
+        marks = [{"shot": round(o + (k["ks"] + KILL_PRE - start), 3), "feed": round(o + (k["t"] - start), 3),
+                  "box": k["box"], "feed_at": round(min(k["t"] + 0.2, dur - 0.05), 3)} for k in g]
+        segs.append({"kind": "clip", "ss": round(start, 3), "d": round(L, 3), "out": round(L, 3), "o0": round(o, 3),
+                     "src": src, "kills": marks})
+        prev_end[src] = start + L
+        o += L
+        used += len(g)
+    if not segs:
+        raise ValueError("Die Musik ist zu kurz für ein Kill-Stück.")
+    shift = first_beat  # Video beginnt bei 0: alles um den ersten Schlag nach vorn
+    for sg in segs:
+        sg["o0"] = round(sg["o0"] - shift, 3)
+        for mk in sg["kills"]:
+            mk["shot"], mk["feed"] = round(mk["shot"] - shift, 3), round(mk["feed"] - shift, 3)
+    last = segs[-1]
+    return {"segments": segs, "seconds": round(last["o0"] + last["out"], 3), "beat": round(beat, 4),
+            "kills_used": used, "music_shift": round(shift, 3), "marks": [dict(mk, o0=mk["shot"], out=1.0, kind="hit") for sg in segs for mk in sg["kills"]]}
+
+
+def _render_clip(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float = 0.0) -> None:
+    """Ein Stück des einfachen Schnitts: echtes Tempo, eigener Killfeed-Eintrag ab seinem Erscheinen im Spiel."""
+    src = seg.get("src") or src
+    L = seg["out"]
+    tail = f"setsar=1,fps={OUT_FPS},tpad=stop_mode=clone:stop_duration=1,trim=0:{L}"
+    feeds = []
+    if SHOW_FEED and not LANDSCAPE:
+        for i, mk in enumerate(seg.get("kills") or []):
+            feeds.append((_feed_png(src, mk, tmp, f"{out.stem}_{i}"), mk["feed"] - seg["o0"]))
+    fc = f"[0:v]scale={W}:{H},setpts=PTS-STARTPTS[s];{_vf('[s]', '1', 'c', b)};"
+    last = "c"
+    for i, (_png, at) in enumerate(feeds):
+        fc += (f"[{last}][{i + 1}:v]overlay=(W-w)/2:{BOX_Y + 24}:enable='between(t,{max(at, 0):.3f},"
+               f"{at + FEED_SHOW_S:.3f})'[f{i}];")
+        last = f"f{i}"
+    fc += (f"[{last}]{tail}[v];[0:a]aresample=48000,asetpts=PTS-STARTPTS,volume={CLEAN_GAME_VOL},"
+           f"apad=whole_dur={L},atrim=0:{L}[a]")
+    ins = [x for png, _ in feeds for x in ("-i", str(png))]
+    _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["ss"]), "-t", str(L + 0.1), "-i", src, *ins,
+          "-filter_complex", fc, "-map", "[v]", "-map", "[a]", "-t", str(L), *ENC, str(out)])
+
+
+CLEAN_GAME_VOL = 0.9  # Spielton im einfachen Schnitt: Schüsse sind das Wichtigste
+
+
 def kill_beats(n: int, nb: int, strength: list[float] | None, beat_times: list[float]) -> list[int]:
     """Schläge, auf denen die Kills landen. Je Kill der stärkste Schlag in einem Fenster (betonte Schläge wirken
     wuchtiger); die Abstände wechseln (3 bis 6 Schläge, bei wenig Musik 2 bis 4), statt starr alle 4 Schläge
@@ -722,6 +815,9 @@ def hit_pts(seg: dict, speed: float) -> str:
 
 def _render_beat_seg(src: str, seg: dict, out: Path, tmp: Path, font: str) -> None:
     """Ein Segment des Beat-Edits, genau ``out`` Sekunden lang. Spielton leise unter der Musik."""
+    if seg["kind"] == "clip":
+        _render_clip(src, seg, out, tmp, font, seg.get("bright", 0.0))
+        return
     src = seg.get("src") or src
     b = seg.get("bright", 0.0)
     if seg["kind"] == "hold":
@@ -1177,8 +1273,17 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     except Exception:  # noqa: BLE001 - ohne Bewegungsdaten werden die Schnittpunkte wie bisher gesetzt
         mots = None
     shot_times = {x: shots(x) for x in srcs}
-    pl = plan_beat(kills, duration(srcs[0]), bt["beats"], mots, bt.get("strength"), shot_times)
+    if CLEAN_EDIT:
+        pl = plan_clean(kills, bt["beats"], shot_times)
+        # Video beginnt am ersten Schlag: Musik ab dort, Raster entsprechend verschieben (sonst liegt alles um diesen
+        # Versatz neben der hörbaren Musik)
+        sh = pl.get("music_shift", 0.0)
+        music_ss = music_ss + sh
+        bt = dict(bt, beats=[round(x - sh, 4) for x in bt["beats"] if x - sh >= -1e-6])
+    else:
+        pl = plan_beat(kills, duration(srcs[0]), bt["beats"], mots, bt.get("strength"), shot_times)
     frame_grid(pl)
+    marks = pl.get("marks") or [x for x in pl["segments"] if x["kind"] == "hit"]
     try:  # Clips von hellen und dunklen Maps angleichen: ein durchgehender Look statt Farbsprüngen an Schnitten
         offs = brightness_offsets({x: luma(x) for x in srcs})
     except Exception:  # noqa: BLE001
@@ -1251,7 +1356,11 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             _run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-vn", "-c:a", "pcm_s16le",
                   str(tmp / "game.wav")])
             game_shots = shots(str(tmp / "game.wav"))
-            measured = sync_report(game_shots, bt["beats"], pl["beat"])
+            # einfacher Schnitt: nur die Kill-Schüsse werden auf den Beat gelegt, also nur die messen (im Spielton
+            # wiedergefunden, höchstens 0,12 s neben der geplanten Stelle)
+            ks_meas = ([x for x in game_shots if any(abs(x - mk["shot"]) <= 0.12 for mk in marks)] if CLEAN_EDIT
+                       else game_shots)
+            measured = sync_report(ks_meas, bt["beats"], pl["beat"])
         except Exception:  # noqa: BLE001 - die Messung ist nur eine Anzeige
             measured, game_shots = None, []
         # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar (eigener Ton-Graph)
@@ -1265,10 +1374,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         # concat ab (Fehler beim Nutzer)
         fc += "".join(f"[{i}:v]setsar=1[sv{i}];" for i in range(n))
         fc += "".join(f"[sv{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[vc0];"
-        tcuts = transition_cuts(pl["segments"])
+        tcuts = [] if CLEAN_EDIT else transition_cuts(pl["segments"])  # einfacher Schnitt: harte Schnitte
         fc += f"[vc0]{transition_vf(tcuts)}null[vc];"
         afc = afc_e + "".join(f"[e{i}]" for i in range(n)) + f"concat=n={n}:v=0:a=1[ga];"
-        afc += (f"aevalsrc='{sfx_expr(pl['segments'], pl['beat'], tcuts)}':d={total:.3f}:s=48000,"
+        afc += (f"aevalsrc='{sfx_expr(marks, pl['beat'], tcuts)}':d={total:.3f}:s=48000,"
                 f"aformat=channel_layouts=stereo,highpass=f=30,lowpass=f=9000,volume={SFX_VOL}[sfx];")
         lp = max(total - LOOP_S, 0)
         fc += (f"[LOOPIN]format=rgba,fade=t=in:st={lp:.3f}:d={LOOP_S}:alpha=1[lp];"
@@ -1278,7 +1387,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         wall_on = WALL_TEXT
         if font and words:
             # während eines Kills gehört die Bildmitte dem Kill: dort kein Songtext
-            busy = [(x["o0"], x["o0"] + x["out"]) for x in pl["segments"] if x["kind"] in ("hit", "hold")]
+            busy = [(x["o0"], x["o0"] + x["out"]) for x in (marks + [y for y in pl["segments"] if y["kind"] == "hold"])]
             cuts = [x["o0"] for x in pl["segments"]]
             wl = word_list(words, bt["beats"])[:MAX_WORDS]
             picks = wall_picks(wl)
@@ -1317,7 +1426,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 last, k, shown = f"t{j}", k + 1, shown + 1
         # Musik beim Kill-Schuss weich absenken (40 ms runter, 300 ms zurück) statt schlagartig: kein Pumpen
         duck = "+".join(f"min(1\\,max(0\\,(t-{x['o0'] - 0.04:.3f})/0.04))*min(1\\,max(0\\,({x['o0'] + KILL_SND_S + 0.3:.3f}-t)/0.3))"
-                        for x in pl["segments"] if x["kind"] == "hit") or "0"
+                        for x in marks) or "0"
         # bei jedem gemessenen Schuss die Musik kurz absenken: der Knall sticht heraus (Vorbild)
         dips = "+".join(f"exp(-pow((t-{x + 0.03:.3f})/{SHOT_DIP_S / 2:.3f}\\,2))" for x in game_shots) or "0"
         fc += f"[{last}]null[v]"
