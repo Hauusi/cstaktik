@@ -283,6 +283,35 @@ def _warp(word: "Image.Image", quad_full: np.ndarray, frame: "Image.Image", alph
     frame.alpha_composite(patch, (int(x0), int(y0)))
 
 
+def inner_box(im: "Image.Image") -> tuple[float, float, float, float]:
+    """Teil des Wort-Bilds, der auf die Wand gepasst wird (beim 3D-Schild ohne Tiefe und Leuchten)."""
+    v = im.info.get("inner") if hasattr(im, "info") else None
+    if v:
+        try:
+            x0, y0, x1, y1 = (float(p) for p in v.split(","))
+            return x0, y0, x1, y1
+        except ValueError:
+            pass
+    return 0.0, 0.0, float(im.width), float(im.height)
+
+
+def word_aspect(im: "Image.Image") -> float:
+    x0, y0, x1, y1 = inner_box(im)
+    return (x1 - x0) / max(y1 - y0, 1.0)
+
+
+def full_quad(im: "Image.Image", quad: np.ndarray) -> np.ndarray:
+    """Viereck für das ganze Bild, wenn ``quad`` nur den inneren Teil (Vorderseite) trägt."""
+    x0, y0, x1, y1 = inner_box(im)
+    if (x0, y0, x1, y1) == (0.0, 0.0, float(im.width), float(im.height)):
+        return quad
+    hm = homography(np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], np.float32), quad)
+    if hm is None:
+        return quad
+    return apply_h(hm, np.array([[0, 0], [im.width, 0], [im.width, im.height], [0, im.height]], np.float32)).astype(
+        np.float32)
+
+
 def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int, flat_y: int,
           enc: list[str], size: tuple[int, int] = (1080, 1920), box_x: int = 0) -> dict:
     """Wörter auf Wände legen. ``words``: [{"a", "b", "png"}] (Zeiten im Video, Bild des Worts).
@@ -306,7 +335,8 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 break
             t = n_frame / fps
             arr = np.frombuffer(raw, np.uint8).reshape(h_out, w_out, 3)
-            g = _gray(arr[box_y:box_y + box, box_x:box_x + box])
+            game = arr[box_y:box_y + box, box_x:box_x + box]
+            g = _gray(game)
             frame = None
             for i, w in enumerate(words):
                 if not (w["a"] <= t < w["b"]):
@@ -318,7 +348,7 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                     st = None
                 if st is None:  # Wortbeginn oder nach einem Schnitt: Wand suchen
                     im = imgs[i]
-                    pl = place(g, im.width / im.height)
+                    pl = place_on_wall(g, game[::SCALE, ::SCALE], word_aspect(im))
                     st = active[i] = ({"mode": "wall", "quad0": pl["quad"], "pts0": pl["pts"], "pts": pl["pts"].copy(),
                                        "ok": np.ones(len(pl["pts"]), bool)} if pl else {"mode": "flat"})
                     st["ncut"] = ncut
@@ -332,7 +362,7 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 k = min(1.0, (t - w["a"]) / 0.08)  # kurzes Einblenden
                 if st["mode"] == "flat":
                     im = imgs[i]
-                    sc = min(1.0, w_out * 0.8 / im.width)
+                    sc = min(0.7, w_out * 0.6 / im.width)
                     small = im.resize((int(im.width * sc), int(im.height * sc)), Image.BICUBIC)
                     frame.alpha_composite(small, ((w_out - small.width) // 2, flat_y - small.height // 2))
                     continue
@@ -356,7 +386,7 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 c = q.mean(axis=0)
                 pop = 0.85 + 0.15 * k
                 qf = ((q - c) * pop + c) * SCALE + [box_x, box_y]
-                _warp(imgs[i], qf.astype(np.float32), frame, 0.92 * k)
+                _warp(imgs[i], full_quad(imgs[i], qf.astype(np.float32)), frame, k)
             if frame is not None:
                 arr = np.asarray(frame.convert("RGB"))
             encp.stdin.write(arr.tobytes())
@@ -381,3 +411,232 @@ def available() -> bool:
 
 
 __all__ = ["apply", "place", "track", "ransac_h", "homography", "edge_slopes", "corners", "available", "Path"]
+
+
+# --- Wand als Fläche (Nutzer: Wörter sollen wie im Vorbild "TALK" groß im richtigen Winkel auf einer Wand stehen) ---
+CELL = 9            # Zellgröße in Pixeln der kleinen Auflösung (270 px Spielbild -> 30 x 30 Zellen)
+COLOR_TOL = 22.0    # Farbabstand, bis zu dem benachbarte Zellen zur selben Fläche gehören
+MIN_WALL_CELLS = 24
+HORIZON = 0.5       # Höhe des Horizonts im Spielbild (Blick meist waagrecht): dort laufen Wandkanten zusammen
+PERSP_MAX = 2.2     # eine Seite des Worts höchstens so viel höher als die andere
+
+
+def wall_regions(rgb: np.ndarray, g: np.ndarray) -> list[dict]:
+    """Glatte, einfarbige Flächen im Spielbild (Wände). Raster aus Zellen: ruhige Zellen (wenig Kanten) mit ähnlicher
+    Farbe werden verbunden. Ausgeschlossen: Bildmitte (Fadenkreuz), Himmel (hell-blau am oberen Rand), Boden (ganz
+    unter dem Horizont), unteres rechtes Viertel (Waffe), oberer Rand (Killfeed)."""
+    size = g.shape[0]
+    n = size // CELL
+    gy, gx = np.gradient(g)
+    mag = np.hypot(gx, gy)[: n * CELL, : n * CELL].reshape(n, CELL, n, CELL).mean(axis=(1, 3))
+    col = rgb[: n * CELL, : n * CELL].astype(np.float32).reshape(n, CELL, n, CELL, 3).mean(axis=(1, 3))
+    calm = mag <= max(np.percentile(mag, 55), 3.0)
+    yy, xx = np.mgrid[0:n, 0:n]
+    fx, fy = (xx + 0.5) / n, (yy + 0.5) / n
+    blocked = ((np.abs(fx - 0.5) < 0.12) & (np.abs(fy - 0.5) < 0.16)) | (fy < 0.08) | ((fx > 0.55) & (fy > 0.62))
+    calm &= ~blocked
+    lab = -np.ones((n, n), int)
+    regs = []
+    for sy in range(n):
+        for sx in range(n):
+            if not calm[sy, sx] or lab[sy, sx] >= 0:
+                continue
+            k = len(regs)
+            stack, cells = [(sy, sx)], []
+            lab[sy, sx] = k
+            ref = col[sy, sx].copy()
+            while stack:
+                y, x = stack.pop()
+                cells.append((y, x))
+                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    v, u = y + dy, x + dx
+                    if 0 <= v < n and 0 <= u < n and calm[v, u] and lab[v, u] < 0 and \
+                            np.abs(col[v, u] - ref).max() <= COLOR_TOL and np.abs(col[v, u] - col[y, x]).max() <= COLOR_TOL * 0.6:
+                        lab[v, u] = k
+                        stack.append((v, u))
+            c = np.array(cells)
+            mean = col[c[:, 0], c[:, 1]].mean(axis=0)
+            regs.append({"cells": c, "color": mean, "k": k})
+    out = []
+    for r in regs:
+        c = r["cells"]
+        if len(c) < MIN_WALL_CELLS:
+            continue
+        ys = (c[:, 0] + 0.5) / n
+        rr, gg, bb = r["color"]
+        lum = 0.299 * rr + 0.587 * gg + 0.114 * bb
+        # Himmel: hell und bläulich, oder sehr hell und oben am Rand (der oberste Rand ist gesperrt, daher Zeile 1)
+        if (bb > rr + 25 and lum > 140) or (c[:, 0].min() <= 1 and lum > 200):
+            continue
+        if ys.min() > HORIZON + 0.08:  # nur Boden
+            continue
+        if ys.max() < HORIZON - 0.25 and c[:, 0].min() <= 1:  # nur Himmel / Decke ganz oben
+            continue
+        r["mask"] = lab == r["k"]
+        out.append(r)
+    return out
+
+
+def _fit_line(x: np.ndarray, y: np.ndarray) -> tuple[float, float] | None:
+    """Gerade y = a*x + b, robust (zweimal ohne die schlechtesten 25 %)."""
+    if len(x) < 4:
+        return None
+    keep = np.ones(len(x), bool)
+    for _ in range(2):
+        a, b = np.polyfit(x[keep], y[keep], 1)
+        err = np.abs(y - (a * x + b))
+        keep = err <= max(np.percentile(err, 75), 1.0)
+        if keep.sum() < 4:
+            break
+    return float(a), float(b)
+
+
+def wall_quad(reg: dict, size: int, aspect: float) -> tuple[np.ndarray, float] | None:
+    """Wort-Viereck in einer Fläche: Ober- und Unterkante der Fläche je Spalte messen, als Geraden anpassen. Beide
+    Geraden laufen zum selben Fluchtpunkt auf dem Horizont; das Wort liegt zwischen ihnen und hat deren Neigung.
+    Rückgabe: Viereck (links oben, rechts oben, rechts unten, links unten) und Fläche des Worts."""
+    m = reg["mask"]
+    n = m.shape[0]
+    cols = [u for u in range(n) if m[:, u].any()]
+    if len(cols) < 4:
+        return None
+    xs, tops, bots = [], [], []
+    for u in cols:
+        rows = np.where(m[:, u])[0]
+        # längstes zusammenhängendes Stück in dieser Spalte
+        br = np.split(rows, np.where(np.diff(rows) > 1)[0] + 1)
+        seg = max(br, key=len)
+        if len(seg) < 2:
+            continue
+        xs.append((u + 0.5) * CELL)
+        tops.append(seg[0] * CELL)
+        bots.append((seg[-1] + 1) * CELL)
+    xs, tops, bots = map(np.asarray, (xs, tops, bots))
+    if len(xs) < 4:
+        return None
+    hz = size * HORIZON
+    ft, fb = _fit_line(xs, tops), _fit_line(xs, bots)
+    if ft is None or fb is None:
+        return None
+    # Kante am Bildrand oder an der gesperrten Mitte ist keine echte Wandkante: dann die andere Kante nehmen und den
+    # Fluchtpunkt auf den Horizont legen
+    top_real = np.median(tops) > CELL * 1.5
+    bot_real = np.median(bots) < size - CELL * 1.5
+    def through_vp(line, x_ref):
+        a, b = line
+        if abs(a) < 1e-3:
+            return None
+        vx = (hz - b) / a  # Schnittpunkt mit dem Horizont
+        return vx
+    vx = None
+    if top_real and bot_real:
+        at, bt_ = ft
+        ab, bb_ = fb
+        vy = None
+        if abs(at - ab) > 1e-4:
+            vx = (bb_ - bt_) / (at - ab)
+            vy = at * vx + bt_
+        # Waagrechte Wandkanten laufen auf den Horizont zu. Liegt der Schnittpunkt weit davon weg, ist eine der
+        # Kanten keine Wandkante (z. B. zackiger Dachrand): dann nur die gleichmäßigere Kante nehmen.
+        if vy is not None and abs(vy - hz) > size * 0.3:
+            rt = np.median(np.abs(tops - (at * xs + bt_)))
+            rb = np.median(np.abs(bots - (ab * xs + bb_)))
+            if rt <= rb:
+                bot_real = False
+            else:
+                top_real = False
+            line = ft if top_real else fb
+            vx = through_vp(line, xs.mean())
+    else:
+        line = ft if top_real else (fb if bot_real else None)
+        if line is not None:
+            vx = through_vp(line, xs.mean())
+    x0, x1 = max(xs.min() - CELL / 2, size * 0.05), min(xs.max() + CELL / 2, size * 0.95)  # Rand fürs Leuchten
+    if x1 - x0 < size * 0.15:
+        return None
+
+    def tb(x):  # Ober- und Unterkante der Fläche bei x (bezogen auf den Fluchtpunkt)
+        t, b = ft[0] * x + ft[1], fb[0] * x + fb[1]
+        if vx is not None and not (top_real and bot_real):
+            # beide Kanten durch (vx, hz): Steigung je Kante aus ihrer mittleren Höhe
+            xm = xs.mean()
+            tm, bm = np.median(tops), np.median(bots)
+            if abs(xm - vx) > 1:
+                t = hz + (tm - hz) * (x - vx) / (xm - vx)
+                b = hz + (bm - hz) * (x - vx) / (xm - vx)
+        return t, b
+    # Wort-Breite und Lage: so breit wie möglich bei passender Höhe (Wort füllt die Wand wie im Vorbild)
+    best = None
+    for frac in (0.95, 0.85, 0.75, 0.65, 0.55, 0.45):
+        w = (x1 - x0) * frac
+        for pos in (0.5, 0.3, 0.7, 0.15, 0.85):
+            xl = x0 + (x1 - x0 - w) * pos
+            xr = xl + w
+            tl, bl = tb(xl)
+            tr, br_ = tb(xr)
+            hl, hr = bl - tl, br_ - tr
+            if hl <= 4 or hr <= 4:
+                continue
+            ratio = max(hl, hr) / min(hl, hr)
+            if ratio > PERSP_MAX:
+                continue
+            # Höhe des Worts aus dem Seitenverhältnis (in der Mitte gemessen), höchstens 80 % der Wandhöhe
+            hm = (hl + hr) / 2
+            hw = min(w / aspect, hm * 0.8)
+            if hw < size * 0.07:
+                continue
+            f = hw / hm
+            # senkrecht mittig auf der Wand, aber Mitte des Worts nicht unter 64 % der Bildhöhe
+            f0 = (1 - f) / 2
+            q = np.array([[xl, tl + f0 * hl], [xr, tr + f0 * hr], [xr, tr + (f0 + f) * hr], [xl, tl + (f0 + f) * hl]],
+                         np.float32)
+            # zu steil wirkt falsch (gesehen an zackigen Kanten): mittlere Neigung höchstens MAX_SLOPE
+            if abs(((q[1, 1] - q[0, 1]) + (q[2, 1] - q[3, 1])) / 2 / w) > MAX_SLOPE:
+                continue
+            # Breite passt nur, wenn das Wort nicht schmaler gedrückt würde als es ist
+            if w > hw * aspect * 1.35:
+                continue
+            area = float(w * hw)
+            if q[:, 1].mean() > size * 0.66 or q[:, 1].min() < size * 0.06:
+                continue
+            # Viereck muss in der Fläche liegen (mind. 85 % der Zellen unter dem Wort gehören dazu)
+            yy, xx = np.mgrid[0:n, 0:n]
+            cx, cy = (xx + 0.5) * CELL, (yy + 0.5) * CELL
+            inside = _in_quad(q, cx, cy)
+            if inside.sum() < 3 or m[inside].mean() < 0.85:
+                continue
+            if best is None or area > best[1]:
+                best = (q, area)
+        if best is not None:
+            break
+    return best
+
+
+def _in_quad(q: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Liegen die Punkte im (konvexen) Viereck?"""
+    s = None
+    for i in range(4):
+        (ax, ay), (bx, by) = q[i], q[(i + 1) % 4]
+        c = (bx - ax) * (y - ay) - (by - ay) * (x - ax)
+        s = (c >= 0) if s is None else (s & (c >= 0))
+    return s
+
+
+def place_on_wall(g: np.ndarray, rgb: np.ndarray, aspect: float) -> dict | None:
+    """Größte passende Wandfläche suchen und das Wort darauf legen; Punkte rundherum für die Verfolgung."""
+    size = g.shape[0]
+    cands = []
+    for reg in wall_regions(rgb, g):
+        r = wall_quad(reg, size, aspect)
+        if r is not None:
+            cands.append((r[1], r[0], reg))
+    if not cands:
+        return None
+    _, quad, reg = max(cands, key=lambda c: c[0])
+    pad = (quad[:, 0].max() - quad[:, 0].min()) * 0.6
+    x0, x1 = int(max(quad[:, 0].min() - pad, 0)), int(min(quad[:, 0].max() + pad, size))
+    y0, y1 = int(max(quad[:, 1].min() - pad, 0)), int(min(quad[:, 1].max() + pad, size))
+    pts = corners(g, (x0, y0, x1, y1))
+    if len(pts) < MIN_POINTS:
+        return None
+    return {"quad": quad, "pts": pts, "side": "wall"}

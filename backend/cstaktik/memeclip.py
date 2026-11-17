@@ -1031,6 +1031,45 @@ def word_times(words: list[str], beat_times: list[float], per_beat: int = 1) -> 
     return [(x["a"], x["b"], x["txt"]) for x in word_list(words, beat_times, per_beat)]
 
 
+STORY_HOLD_S = 1.2  # nach dem ersten Kill: ein Schlüsselwort bleibt so viel länger als bis zum nächsten gesungenen Wort
+# kleine Füllwörter, die nach dem ersten Kill wegfallen (Vorbild zeigt dann nur noch die tragenden Wörter)
+STOPWORDS = set("""a an the and or but so to of in on at by for from with as is are was were be been am i im i'm me my
+mine you your yours he him his she her it its we us our they them their this that these those there here what who
+how why when where do does did done not no yes oh ah yeah uh ooh hey all just like if then than too very can could
+would should will wont won't don't dont can't cant got get let lets let's up out down off over into onto about
+ich du er sie es wir ihr mich dich sich mir dir uns euch der die das den dem des ein eine einen einem einer und oder
+aber so zu im in an am auf aus bei mit nach von vor für fur ist bin bist sind war hab habe hat nicht kein keine ja
+nein doch noch nur schon auch wie was wer wo wenn dann denn als""".split())
+
+
+def story_keep(ws: list[dict], first_kill: float | None) -> set[int]:
+    """Welche Wörter gezeigt werden (Vorbild: am Anfang jedes Wort, ab dem ersten Kill nur noch wichtige).
+    Bis zum ersten Kill alle. Danach: Zeilenende, lang gezogene Wörter (ab 0,35 s gesungen) und Inhaltswörter (keine
+    Füllwörter, ab 4 Buchstaben). Folgen zwei behaltene Wörter enger als 0,3 s, bleibt das wichtigere."""
+    keep: list[int] = []
+    score: dict[int, float] = {}
+    for j, x in enumerate(ws):
+        txt = x["txt"].strip()
+        if not txt:
+            continue
+        if first_kill is None or x["a"] < first_kill:
+            keep.append(j)
+            score[j] = 9.0
+            continue
+        word = "".join(c for c in txt.lower() if c.isalnum() or c == "'")
+        held = max((x.get("sung") or x["a"]) - x["a"], 0.0)
+        content = word not in STOPWORDS and len(word.replace("'", "")) >= 4
+        if x.get("eol") or held >= 0.35 or content:
+            sc = held + (0.5 if x.get("eol") else 0) + (0.3 if content else 0) + len(word) * 0.02
+            if keep and x["a"] - ws[keep[-1]]["a"] < 0.3 and score[keep[-1]] < 9.0:
+                if sc <= score[keep[-1]]:
+                    continue
+                keep.pop()
+            keep.append(j)
+            score[j] = sc
+    return set(keep)
+
+
 def wall_picks(ws: list[dict], max_share: float = 0.3) -> set[int]:
     """Welche Wörter an die Wand: die, bei denen sich der Sänger Zeit lässt. Punkte = wie lange das Wort gesungen
     wird + die Pause danach (bis zum nächsten Wort). Gezogene Wörter vor einer Pause gewinnen. Nur Wörter mit
@@ -1360,12 +1399,59 @@ def png_aspect(path) -> float:
         return im.width / max(im.height, 1)
 
 
+SIGN_FACE = (255, 214, 10)     # Vorderseite des Schilds (Vorbild "TALK": gelb, leuchtend)
+SIGN_SIDE = (150, 96, 0)       # Seitenflächen (Tiefe)
+SIGN_EDGE = (110, 60, 0)       # feine Kante um die Vorderseite
+
+
+def sign_png(text: str, path: Path, font_file: str) -> None:
+    """Wand-Wort als 3D-Schild: gelbe Vorderseite, dunklere Tiefe nach unten, weiches Leuchten rundherum. Die
+    Lage der Vorderseite (ohne Tiefe und Leuchten) steht im Bild als "inner": nur sie wird auf die Wand gepasst."""
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+    from PIL.PngImagePlugin import PngInfo
+
+    size = 300
+    while size > 60:
+        font = ImageFont.truetype(font_file, size)
+        l, t, r, b = font.getbbox(text)
+        if r - l <= 1000:
+            break
+        size -= 10
+    depth, glow, edge = max(size // 10, 6), max(size // 7, 10), max(size // 60, 2)
+    pad = glow * 2 + depth
+    fw, fh = r - l, b - t
+    w, h = fw + 2 * pad, fh + 2 * pad
+    x, y = pad - l, pad - t
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).text((x, y), text, font=font, fill=255, stroke_width=edge)
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    halo = Image.new("RGBA", (w, h), (*SIGN_FACE, 0))
+    halo.putalpha(mask.filter(ImageFilter.GaussianBlur(glow)).point(lambda v: int(min(255, v * 1.6) * 0.7)))
+    img.alpha_composite(halo)
+    side = Image.new("RGBA", (w, h), (*SIGN_SIDE, 255))
+    for d in range(depth, 0, -1):  # Tiefe: Schichten nach unten, leicht nach rechts, hinten dunkler
+        k = 0.65 + 0.35 * (1 - d / depth)
+        layer = Image.new("RGBA", (w, h), tuple(int(c * k) for c in SIGN_SIDE) + (255,))
+        img.paste(layer, (int(d * 0.35), d), mask)
+    del side
+    dr = ImageDraw.Draw(img)
+    dr.text((x, y), text, font=font, fill=(*SIGN_FACE, 255), stroke_width=edge, stroke_fill=(*SIGN_EDGE, 255))
+    dr.text((x, y), text, font=font, fill=(255, 236, 120, 255))  # helle Mitte: wirkt beleuchtet
+    dr.text((x, y + max(size // 40, 2)), text, font=font, fill=(*SIGN_FACE, 255))
+    info = PngInfo()
+    info.add_text("inner", f"{pad - edge},{pad - edge},{pad + fw + edge},{pad + fh + edge}")
+    img.save(path, pnginfo=info)
+
+
 def word_png(text: str, path: Path, j: int, font_file: str, wall: bool = False) -> None:
     """Ein Wort als Bild: fette, enge Großbuchstaben, die die Breite füllen, schräg gestellt und leicht gedreht,
     dicker schwarzer Rand und ein farbiger, versetzter Schatten. Farbe und Drehung wechseln von Wort zu Wort."""
     from PIL import Image, ImageDraw, ImageFont
 
     text = printable(text, font_file)
+    if wall:
+        sign_png(text, path, font_file)
+        return
     fill, shadow = LYRIC_COLORS[j % len(LYRIC_COLORS)]
     if wall:  # gleiche Farbe wie die Textspur: weiß (einheitlicher Look, Nutzer: Text soll wie eine Story wirken)
         fill = (255, 255, 255)
@@ -1650,12 +1736,53 @@ def preview_words(lyr: dict) -> list[dict]:
     return sorted(flat + walls, key=lambda x: x["a"])
 
 
+def split_walls(base: str, walls: list[dict], lyr: dict) -> tuple[list[dict], list[dict]]:
+    """Für jedes Wand-Wort das Bild zu seinem Beginn ansehen: Wand gefunden -> bleibt an der Wand, sonst wird es ein
+    flaches Wort der Textspur (Farbe nach Hintergrund wie dort)."""
+    import numpy as np
+    from PIL import Image
+
+    from cstaktik import wall_text
+
+    font = str(LYRIC_FONT) if LYRIC_FONT.exists() else lyr.get("font") or ""
+    w_out, h_out = lyr["out_w"], lyr["out_h"]
+    keep, moved = [], []
+    with tempfile.TemporaryDirectory() as td:
+        for w in walls:
+            raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{w['a'] + 0.04:.3f}", "-i", base, "-frames:v", "1",
+                                  "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+            ok = False
+            if len(raw) == w_out * h_out * 3 and font:
+                arr = np.frombuffer(raw, np.uint8).reshape(h_out, w_out, 3)
+                game = arr[lyr["box_y"]:lyr["box_y"] + lyr["box"], lyr["box_x"]:lyr["box_x"] + lyr["box"]]
+                png = Path(td) / "w.png"
+                word_png(w["txt"], png, w.get("j", 0), font, wall=True)
+                im = Image.open(png)
+                ok = wall_text.place_on_wall(wall_text._gray(game), game[::wall_text.SCALE, ::wall_text.SCALE],
+                                             wall_text.word_aspect(im)) is not None
+            if ok:
+                keep.append(w)
+                continue
+            f = {k: w[k] for k in ("a", "b", "txt") if k in w}
+            f.update(eol=w.get("eol", False), stop=w.get("stop", w["b"]), sung=w.get("sung"))
+            if len(raw) == w_out * h_out * 3:
+                arr = np.frombuffer(raw, np.uint8).reshape(h_out, w_out, 3)
+                y0 = max(lyr["y_mid"] - lyr["band"] // 2, 0)
+                f["dark"] = float(arr[y0:y0 + lyr["band"]].mean()) > DARK_TEXT_LUMA
+            moved.append(f)
+    return keep, moved
+
+
 def apply_lyrics(base: str, lyr: dict, out: str, sh: float = 0.0, progress=None) -> dict | None:
     """Songtext über das Video ohne Text legen, um ``sh`` Sekunden verschoben: flache Wörter als Textspur, Wand-Wörter
     auf Wände. Rückgabe: Statistik der Wand-Wörter (oder None)."""
     total = lyr["total"]
     flat = _shifted(lyr["flat"], sh, total)
     walls = _shifted(lyr["walls"], sh, total)
+    # Wand-Wörter nur dort, wo zu Wortbeginn wirklich eine Wand im Bild ist; sonst in die normale Textspur
+    walls, moved = split_walls(base, walls, lyr)
+    if moved:
+        flat = sorted(flat + moved, key=lambda x: x["a"])
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         step = out if not walls else str(tmp / "flat.mp4")
@@ -1824,11 +1951,18 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             cuts = [x["o0"] for x in pl["segments"]]
             wl = word_list(words, bt["beats"])[:MAX_WORDS]
             flat_items: list[dict] = []
-            picks = wall_picks(wl)
+            # wie eine Story (Vorbild): bis zum ersten Kill jedes Wort, danach nur die Schlüsselwörter
+            first_kill = min((mk["shot"] for mk in marks if mk.get("shot") is not None), default=None)
+            keep = story_keep(wl, first_kill)
+            picks = wall_picks(wl) & keep
+            kept = sorted(keep)
+            next_kept = {j: (wl[kept[i + 1]]["a"] if i + 1 < len(kept) else total) for i, j in enumerate(kept)}
             for j, wd in enumerate(wl):
                 a, b, txt = wd["a"], wd["b"], wd["txt"]
-                if a >= total or not txt.strip():
+                if a >= total or not txt.strip() or j not in keep:
                     continue
+                # weggelassene Wörter dazwischen: das Wort bleibt länger stehen (bis zum nächsten gezeigten, begrenzt)
+                wd = dict(wd, next=max(wd["next"], min(next_kept[j], wd["next"] + STORY_HOLD_S)))
                 b = min(b, total)
                 # Wand-Wort: kein Kill im Zeitfenster, mind. 3 Buchstaben. Liegt ein Schnitt im Fenster, endet das Wort
                 # an der Wand beim Schnitt (die Wand ist danach weg), sofern bis dahin genug Zeit bleibt.
@@ -1843,7 +1977,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 # Vorher suchte es nach dem Schnitt eine neue Wand: wirkte wie dasselbe Wort doppelt (Nutzer).
                 wa, wb = one_scene(a, b, cuts) if wanted else (a, b)
                 if wall_on and wb - wa >= WALL_MIN_S and wanted and png_aspect(png) <= WALL_MAX_ASPECT:
-                    wall_words.append({"a": wa, "b": wb, "png": str(png), "cuts": [], "txt": txt, "j": j})
+                    wall_words.append({"a": wa, "b": wb, "png": str(png), "cuts": [], "txt": txt, "j": j,
+                                       "eol": wd.get("eol", False), "stop": wd["next"], "sung": wd.get("sung")})
                     shown += 1
                     continue
                 # flache Wörter: eine ruhige Textspur (fester Platz, Buchstabe für Buchstabe, bleibt stehen)

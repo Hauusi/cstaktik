@@ -342,3 +342,27 @@ def test_shift_words_and_form_value():
     assert memeclip.shift_words(["1.00-1.40:A", "0.10:B", "C"], -0.2) == ["0.80-1.20:A", "0.00:B", "C"]
     from cstaktik.api import _shift
     assert _shift("-0,3") == -0.3 and _shift("") == 0.0 and _shift("9") == 2.0 and _shift("x") == 0.0
+
+
+def test_story_keep_all_words_until_first_kill_then_keywords():
+    ws = [{"txt": t, "a": a, "b": a + 0.2, "sung": a + h, "next": a + 0.3, "eol": e}
+          for t, a, h, e in [("I", 0.0, 0.1, False), ("can", 0.3, 0.1, False), ("feel", 0.6, 0.1, True),
+                             ("and", 2.0, 0.1, False), ("the", 2.3, 0.1, False), ("thunder", 2.6, 0.1, False),
+                             ("oh", 3.5, 0.6, False), ("is", 4.5, 0.1, False), ("loud", 4.8, 0.1, True)]]
+    keep = memeclip.story_keep(ws, first_kill=1.5)
+    assert {0, 1, 2} <= keep  # vor dem ersten Kill: jedes Wort
+    assert 5 in keep and 6 in keep and 8 in keep  # Inhaltswort, gezogenes Wort, Zeilenende
+    assert not {3, 4, 7} & keep  # Füllwörter fallen weg
+    assert memeclip.story_keep(ws, None) == set(range(len(ws)))  # ohne Kill: alles
+
+
+def test_sign_png_marks_front_face(tmp_path):
+    from PIL import Image
+
+    p = tmp_path / "s.png"
+    memeclip.sign_png("TALK", p, str(memeclip.LYRIC_FONT))
+    im = Image.open(p)
+    x0, y0, x1, y1 = (float(v) for v in im.info["inner"].split(","))
+    assert 0 < x0 < x1 < im.width and 0 < y0 < y1 < im.height
+    px = im.convert("RGBA").getpixel((int((x0 + x1) / 2), int(y1) + 2))  # unter der Vorderseite: Tiefe oder Leuchten
+    assert px[3] > 0
