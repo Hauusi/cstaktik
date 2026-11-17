@@ -1777,7 +1777,7 @@ def split_walls(base: str, walls: list[dict], lyr: dict) -> tuple[list[dict], li
                 word_png(w["txt"], png, w.get("j", 0), font, wall=True)
                 im = Image.open(png)
                 ok = wall_text.place_on_wall(wall_text._gray(game), game[::wall_text.SCALE, ::wall_text.SCALE],
-                                             wall_text.word_aspect(im)) is not None
+                                             wall_text.word_aspect(im), full=game) is not None
             if ok:
                 keep.append(w)
                 continue

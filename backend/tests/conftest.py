@@ -65,3 +65,11 @@ def _no_network_maps(tmp_path, monkeypatch):
     monkeypatch.setattr(fonts, "_get", offline)
     monkeypatch.setattr(fonts, "FONTS_DIR", tmp_path / "fonts")
     monkeypatch.setattr(radar, "LOCAL_MAPS_DIR", tmp_path / "maps")
+
+
+@pytest.fixture(autouse=True)
+def _no_depth_model(monkeypatch):
+    """Tests laden nie das Tiefenmodell herunter (schreibt sonst nach data/models)."""
+    from cstaktik import wall_text
+
+    monkeypatch.setattr(wall_text, "_DEPTH", {"s": None})

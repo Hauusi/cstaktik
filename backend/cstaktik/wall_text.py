@@ -348,7 +348,7 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                     st = None
                 if st is None:  # Wortbeginn oder nach einem Schnitt: Wand suchen
                     im = imgs[i]
-                    pl = place_on_wall(g, game[::SCALE, ::SCALE], word_aspect(im))
+                    pl = place_on_wall(g, game[::SCALE, ::SCALE], word_aspect(im), full=game)
                     st = active[i] = ({"mode": "wall", "quad0": pl["quad"], "pts0": pl["pts"], "pts": pl["pts"].copy(),
                                        "ok": np.ones(len(pl["pts"]), bool)} if pl else {"mode": "flat"})
                     st["ncut"] = ncut
@@ -565,6 +565,8 @@ def wall_quad(reg: dict, size: int, aspect: float) -> tuple[np.ndarray, float] |
         line = ft if top_real else (fb if bot_real else None)
         if line is not None:
             vx = through_vp(line, xs.mean())
+        elif reg.get("vx") is not None:  # weder Ober- noch Unterkante im Bild: Fluchtpunkt aus der Tiefenkarte
+            vx = reg["vx"]
     x0, x1 = max(xs.min() - CELL / 2, size * 0.05), min(xs.max() + CELL / 2, size * 0.95)  # Rand fürs Leuchten
     if x1 - x0 < size * 0.15:
         return None
@@ -582,7 +584,8 @@ def wall_quad(reg: dict, size: int, aspect: float) -> tuple[np.ndarray, float] |
     # Wort-Breite und Lage: so breit wie möglich bei passender Höhe (Wort füllt die Wand wie im Vorbild)
     best = None
     for frac in (0.95, 0.85, 0.75, 0.65, 0.55, 0.45):
-        w = (x1 - x0) * frac
+        # höchstens 55 % der Bildbreite: ferne Häuserfronten verschmelzen sonst zu einer Riesenfläche
+        w = min((x1 - x0) * frac, size * 0.55)
         for pos in (0.5, 0.3, 0.7, 0.15, 0.85):
             xl = x0 + (x1 - x0 - w) * pos
             xr = xl + w
@@ -636,11 +639,14 @@ def _in_quad(q: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarray:
     return s
 
 
-def place_on_wall(g: np.ndarray, rgb: np.ndarray, aspect: float) -> dict | None:
-    """Größte passende Wandfläche suchen und das Wort darauf legen; Punkte rundherum für die Verfolgung."""
+def place_on_wall(g: np.ndarray, rgb: np.ndarray, aspect: float, full: np.ndarray | None = None) -> dict | None:
+    """Größte passende Wandfläche suchen und das Wort darauf legen; Punkte rundherum für die Verfolgung.
+    ``full``: Spielbild in voller Auflösung; damit werden Wände über die Tiefenkarte gefunden (sonst über Farbe)."""
     size = g.shape[0]
     cands = []
-    for reg in wall_regions(rgb, g):
+    d = depth_map(full, size) if full is not None else None
+    regs = depth_regions(d, rgb) if d is not None else wall_regions(rgb, g)
+    for reg in regs:
         r = wall_quad(reg, size, aspect)
         if r is not None:
             cands.append((r[1], r[0], reg))
@@ -654,3 +660,124 @@ def place_on_wall(g: np.ndarray, rgb: np.ndarray, aspect: float) -> dict | None:
     if len(pts) < MIN_POINTS:
         return None
     return {"quad": quad, "pts": pts, "side": "wall"}
+
+
+# --- Wände über eine Tiefenkarte (Depth Anything V2 Small, Apache-2.0, als ONNX über onnxruntime) ---
+# Die Tiefe zeigt jede Wand als Ebene, auch Steinmauern und Kisten, unabhängig von Farbe und Muster. Für eine
+# senkrechte Wand ändert sich die Disparität (1/Tiefe) nur nach links/rechts, nicht nach oben/unten; der Boden ändert
+# sich nach unten. Gemessen an Nutzer-Clips: Wand-Zellen Steigung oben/unten ≈ 0, Boden 0,008-0,012 je Pixel.
+DEPTH_URL = ("https://github.com/fabio-sim/Depth-Anything-ONNX/releases/download/v2.0.0/"
+             "depth_anything_v2_vits.onnx")
+DEPTH_SHA256 = "d2b11a11c1d4a12b47608fa65a17ee9a4c605b55ee1730c8e3b526304f2562be"
+DEPTH_FILE = Path(__file__).resolve().parent.parent / "data" / "models" / "depth_anything_v2_vits.onnx"
+DEPTH_NOTE = ""  # warum die Tiefe nicht verfügbar ist (Anzeige)
+_DEPTH: dict = {}
+
+
+def _depth_session():
+    """ONNX-Sitzung laden; das Modell (~100 MB) beim ersten Mal herunterladen und prüfen. None ohne onnxruntime."""
+    global DEPTH_NOTE
+    if "s" in _DEPTH:
+        return _DEPTH["s"]
+    _DEPTH["s"] = None
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        DEPTH_NOTE = "onnxruntime nicht installiert: Wände nur über Farbe gesucht"
+        return None
+    try:
+        if not DEPTH_FILE.exists():
+            import hashlib
+            import urllib.request
+
+            DEPTH_FILE.parent.mkdir(parents=True, exist_ok=True)
+            tmp = DEPTH_FILE.with_suffix(".part")
+            urllib.request.urlretrieve(DEPTH_URL, tmp)
+            if hashlib.sha256(tmp.read_bytes()).hexdigest() != DEPTH_SHA256:
+                tmp.unlink()
+                DEPTH_NOTE = "Tiefenmodell: Prüfsumme falsch, nicht verwendet"
+                return None
+            tmp.rename(DEPTH_FILE)
+        so = ort.SessionOptions()
+        so.log_severity_level = 3
+        _DEPTH["s"] = ort.InferenceSession(str(DEPTH_FILE), so, providers=["CPUExecutionProvider"])
+    except Exception as e:  # noqa: BLE001 - ohne Tiefe weiter mit der Farb-Suche
+        DEPTH_NOTE = f"Tiefenmodell nicht verfügbar: {str(e)[:120]}"
+        return None
+    return _DEPTH["s"]
+
+
+def depth_map(rgb: np.ndarray, size: int) -> np.ndarray | None:
+    """Disparität (nah = groß) des Spielbilds, ``size`` x ``size``, robust auf 0..1 normiert (Himmel ≈ 0).
+    Waffe unten rechts wird bei der Normierung nicht mitgezählt."""
+    from PIL import Image
+
+    s = _depth_session()
+    if s is None:
+        return None
+    im = Image.fromarray(np.ascontiguousarray(rgb)).convert("RGB").resize((518, 518), Image.BICUBIC)
+    x = (np.asarray(im, np.float32) / 255.0 - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
+    d = s.run(None, {s.get_inputs()[0].name: x.transpose(2, 0, 1)[None].astype(np.float32)})[0]
+    d = np.asarray(Image.fromarray(np.squeeze(d).astype(np.float32)).resize((size, size), Image.BILINEAR))
+    ref = d[:, : int(size * 0.55)]
+    lo, hi = np.percentile(ref, 2), np.percentile(ref, 90)
+    return np.clip((d - lo) / max(hi - lo, 1e-6), 0, 1.5).astype(np.float32)
+
+
+def depth_regions(d: np.ndarray, rgb: np.ndarray | None = None) -> list[dict]:
+    """Senkrechte ebene Flächen aus der Tiefenkarte: je Zelle eine Ebene anpassen (Steigung links/rechts, oben/unten),
+    Zellen ohne Steigung nach oben/unten verbinden, wenn Steigung und Tiefe zusammenpassen."""
+    size = d.shape[0]
+    n = size // CELL
+    yy, xx = np.mgrid[0:CELL, 0:CELL].astype(np.float32)
+    A = np.stack([xx.ravel(), yy.ravel(), np.ones(CELL * CELL, np.float32)], 1)
+    pinv = np.linalg.pinv(A)
+    blocks = d[: n * CELL, : n * CELL].reshape(n, CELL, n, CELL).transpose(0, 2, 1, 3).reshape(n, n, CELL * CELL)
+    p = blocks @ pinv.T  # (n, n, 3): gx, gy, c
+    gx, gy = p[..., 0], p[..., 1]
+    fit = p @ A.T
+    res = np.sqrt(((fit - blocks) ** 2).mean(axis=2))
+    mean = blocks.mean(axis=2)
+    vy, vx_ = np.mgrid[0:n, 0:n]
+    fx, fy = (vx_ + 0.5) / n, (vy + 0.5) / n
+    blocked = ((np.abs(fx - 0.5) < 0.12) & (np.abs(fy - 0.5) < 0.16)) | (fy < 0.08) | ((fx > 0.55) & (fy > 0.62))
+    wall = (res < 0.02) & (mean > 0.06) & (np.abs(gy) < 0.0025) & (np.abs(gy) < 0.5 * np.abs(gx) + 0.0015) & ~blocked
+    if rgb is not None:  # Himmel (hell-bläulich) nie als Wand, auch wenn das Modell ihn nah schätzt
+        col = rgb[: n * CELL, : n * CELL].astype(np.float32).reshape(n, CELL, n, CELL, 3).mean(axis=(1, 3))
+        lum = col @ np.array([0.299, 0.587, 0.114], np.float32)
+        wall &= ~((col[..., 2] > col[..., 0] + 25) & (lum > 140))
+    lab = -np.ones((n, n), int)
+    out = []
+    for sy in range(n):
+        for sx in range(n):
+            if not wall[sy, sx] or lab[sy, sx] >= 0:
+                continue
+            k = len(out)
+            stack, cells = [(sy, sx)], []
+            lab[sy, sx] = k
+            while stack:
+                y, x = stack.pop()
+                cells.append((y, x))
+                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    v, u = y + dy, x + dx
+                    if not (0 <= v < n and 0 <= u < n) or not wall[v, u] or lab[v, u] >= 0:
+                        continue
+                    g = (gx[y, x] + gx[v, u]) / 2
+                    expect = mean[y, x] + g * CELL * dx
+                    if abs(gx[v, u] - gx[y, x]) < 0.004 and abs(mean[v, u] - expect) < 0.04:
+                        lab[v, u] = k
+                        stack.append((v, u))
+            c = np.array(cells)
+            if len(c) < MIN_WALL_CELLS:
+                out.append(None)
+                continue
+            # Fluchtpunkt aus der Tiefe: Disparität einer senkrechten Wand fällt linear zum Fluchtpunkt hin auf 0
+            xs = (c[:, 1] + 0.5) * CELL
+            ms = mean[c[:, 0], c[:, 1]]
+            vxp = None
+            if np.ptp(xs) > CELL * 2:
+                a_, b_ = np.polyfit(xs, ms, 1)
+                if abs(a_) > 5e-4:
+                    vxp = float(-b_ / a_)
+            out.append({"cells": c, "mask": lab == k, "vx": vxp, "k": k})
+    return [r for r in out if r is not None]

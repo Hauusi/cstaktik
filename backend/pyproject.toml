@@ -15,6 +15,7 @@ dependencies = [
     "cryptography>=42",
     "zstandard>=0.22",
     "anthropic>=1.0",
+    "onnxruntime>=1.17",  # Clips: Tiefenkarte für Wand-Text (fehlt es, sucht wall_text Wände über Farbe)
 ]
 
 [project.optional-dependencies]

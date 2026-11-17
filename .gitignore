@@ -55,3 +55,4 @@ backend/data/cstaktik.db
 .claude/worktrees/
 .claude/worktrees/
 backend/data/clips/
+backend/data/models/

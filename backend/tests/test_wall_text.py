@@ -85,3 +85,35 @@ def test_full_quad_inner_box():
     f = wt.full_quad(im, q)
     assert np.allclose(f, [[-50, -25], [150, -25], [150, 75], [-50, 75]], atol=1e-3)
     assert abs(wt.word_aspect(im) - 2.0) < 1e-6
+
+
+def test_depth_regions_vertical_wall_not_floor():
+    """Tiefenkarte: links eine schräge Wand (Disparität fällt nach rechts, oben/unten gleich), unten Boden
+    (Disparität steigt nach unten). Nur die Wand wird Fläche, mit Fluchtpunkt dort, wo ihre Disparität 0 wird."""
+    yy, xx = np.mgrid[0:270, 0:270].astype(np.float32)
+    d = np.full((270, 270), 0.02, np.float32)  # Himmel/fern
+    wall = xx < 100
+    d[wall] = 1.0 - xx[wall] * 0.008  # Fluchtpunkt bei x = 125
+    floor = (yy > 190) & ~wall
+    d[floor] = 0.3 + (yy[floor] - 190) * 0.01
+    regs = wt.depth_regions(d)
+    assert len(regs) == 1
+    r = regs[0]
+    assert r["mask"][:, :10].sum() > 20 and not r["mask"][-5:, 15:].any()
+    assert abs(r["vx"] - 125) < 8
+
+
+def test_place_on_wall_uses_depth_when_available(monkeypatch):
+    rgb = np.random.default_rng(6).uniform(0, 255, (270, 270, 3)).astype(np.float32)  # Farbe hilft nicht
+    g = rgb.mean(axis=2)
+    yy, xx = np.mgrid[0:270, 0:270].astype(np.float32)
+    d = np.full((270, 270), 0.02, np.float32)
+    top = 135 + (40 - 135) * (420 - xx) / 420  # Ober- und Unterkante laufen zum Fluchtpunkt (420, 135)
+    bot = 135 + (230 - 135) * (420 - xx) / 420
+    wall = (xx < 110) & (yy > top) & (yy < bot)
+    d[wall] = 1.0 - xx[wall] * 0.0015
+    monkeypatch.setattr(wt, "depth_map", lambda full, size: d)
+    pl = wt.place_on_wall(g, rgb, 2.5, full=rgb)
+    assert pl is not None
+    q = pl["quad"]
+    assert q[:, 0].max() <= 115 and q[1, 1] > q[0, 1] and q[2, 1] < q[3, 1]  # auf der Wand, rechts kleiner
