@@ -239,9 +239,10 @@ def test_render_workers_bounded():
 
 def test_kills_from_boxes_new_entry_while_old_expires():
     import numpy as np
-    A = {"w": 150, "p": np.array([0.1, 0.4, 0.0, 0.3, 0.2, 0.0, 0.5, 0.1], np.float32)}
-    B = {"w": 226, "p": np.array([0.5, 0.0, 0.0, 0.1, 0.6, 0.3, 0.0, 0.2], np.float32)}
-    box = (1100, 80, 1270, 105)
+    rng = np.random.default_rng(1)
+    A = {"w": 150, "e": rng.standard_normal((12, 70)).astype(np.float32)}  # Kantenbild Gegnername A
+    B = {"w": 226, "e": rng.standard_normal((12, 70)).astype(np.float32)}  # anderer Gegner B
+    box = (1120, 80, 1270, 105)  # Breite 150 wie A
     fb, sg = [], []
     for i in range(160):  # 8 s bei 20 Bildern/s
         t = i / 20
@@ -249,18 +250,18 @@ def test_kills_from_boxes_new_entry_while_old_expires():
         if 1.0 <= t < 3.0 and not (2.0 <= t < 2.4):  # Eintrag A mit kurzem Aussetzer (Mündungsfeuer)
             e.append(A)
         if 3.0 <= t < 5.5:  # A verschwindet genau, als B kommt: Anzahl bleibt 1
-            e.append(B)
-        fb.append([box] * len(e)); sg.append(e)
+            e.append(dict(B, w=226))
+        fb.append([box if x is A else (1044, 80, 1270, 105) for x in e]); sg.append(e)
     k = memeclip.kills_from_boxes(fb, sg)
     assert [x[0] for x in k] == [1.0, 3.0]  # Aussetzer kein neuer Kill, B trotz gleicher Anzahl erkannt
-    assert memeclip._same(A, dict(A, w=A["w"] + 10)) > 0.9  # hereingleitender Eintrag: Breite schwankt
+    assert memeclip._same(A, dict(A, w=A["w"] + 10)) == 1.0 and memeclip._same(A, dict(B, w=150)) == 0.0
 
 
 def test_kill_starts_at_kill_shot():
     assert memeclip.kill_start(4.15, [3.25, 3.52, 3.81]) == 3.73  # letzter Schuss vor dem Eintrag
     assert memeclip.kill_start(9.3, [8.1, 8.2, 12.0]) == 8.12  # Eintrag kam spät: trotzdem der Schuss
-    assert memeclip.kill_start(4.15, []) == 4.05 and memeclip.kill_start(4.15, None) == 4.05  # ohne Schuss wie bisher
-    assert memeclip.kill_start(9.3, [5.0]) == 9.2  # Schuss zu weit weg: nicht dieser
+    assert memeclip.kill_start(4.15, []) == 3.8 and memeclip.kill_start(4.15, None) == 3.8  # ohne Schuss: 0,35 s davor
+    assert memeclip.kill_start(9.3, [5.0]) == 8.95  # Schuss zu weit weg: nicht dieser
 
 
 def test_plan_clean_fixed_rules():

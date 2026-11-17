@@ -42,11 +42,20 @@ def duration(path: str) -> float:
 
 
 def _boxes(fr) -> list[tuple[int, int, int, int]]:
-    """Rote Rahmen in einem Frame-Ausschnitt (x0, y0, x1, y1 im Ausschnitt)."""
+    """Rote Rahmen in einem Frame-Ausschnitt (x0, y0, x1, y1 im Ausschnitt).
+
+    Rahmenlinie = Kante: deutlich röter als 3 Pixel darüber UND darunter. Vorher galt jedes rote Pixel als Rahmen;
+    vor orangem/rotem Hintergrund (Mirage-Tuch) war dann der ganze Bereich "Rahmen" und echte Einträge wurden
+    sekundenlang nicht erkannt (Nutzer-Clip: Eintrag ab ca. 5 s sichtbar, erst bei 7,25 s erkannt) bzw. Hintergrund
+    als Eintrag gezählt (falsche Mehrfach-Kills)."""
     import numpy as np
 
-    r, g, b = fr[..., 0], fr[..., 1], fr[..., 2]
-    red = (r > 95) & (r - np.maximum(g, b) > 40)
+    f = fr.astype(np.float32)
+    r = f[..., 0]
+    q = (r - np.maximum(f[..., 1], f[..., 2])) / np.maximum(r, 1.0)  # Rot-Anteil
+    up = np.vstack([np.full((3, q.shape[1]), -1.0, np.float32), q[:-3]])
+    dn = np.vstack([q[3:], np.full((3, q.shape[1]), -1.0, np.float32)])
+    red = (r > 90) & (q > 0.3) & (q - up > 0.12) & (q - dn > 0.12)
     rows = red.sum(axis=1)
     lines: list[list[int]] = []
     for y in range(fr.shape[0]):
@@ -55,23 +64,47 @@ def _boxes(fr) -> list[tuple[int, int, int, int]]:
                 lines[-1][1] = y
             else:
                 lines.append([y, y])
-    # Jede rote Linie darf Unterkante des einen und Oberkante des nächsten Eintrags sein: Stehen zwei Einträge direkt
-    # untereinander, verschmelzen ihre Rahmen zu einer Linie. Vorher wurde die Linie nur einmal verwendet, der untere
-    # Eintrag fehlte, bis der obere verschwand (nachgestellt mit echtem Clip: 0,8 s zu spät erkannt).
+    lum_all = fr.sum(axis=2)
+    # Jede rote Linie darf Unterkante des einen und Oberkante des nächsten Eintrags sein (zwei Einträge direkt
+    # untereinander teilen sich eine Linie).
     out = []
     for i in range(len(lines) - 1):
         gap = lines[i + 1][0] - lines[i][1]
         if not 10 <= gap <= 30:
             continue
-        xs = np.where(red[lines[i][0]:lines[i][1] + 1].any(axis=0))[0]
-        inner = fr[lines[i][1] + 2:lines[i + 1][0] - 1, xs.min() + 4:xs.max() - 3]
+        top = _run_from_right(red[lines[i][0]:lines[i][1] + 1].any(axis=0))
+        bot = _run_from_right(red[lines[i + 1][0]:lines[i + 1][1] + 1].any(axis=0))
+        if top is None or bot is None or abs(top[1] - bot[1]) > 8 or abs(top[0] - bot[0]) > 12:
+            continue  # Ober- und Unterkante gleich lang und rechtsbündig
+        x0, x1 = max(top[0], bot[0]), min(top[1], bot[1])
+        if x1 - x0 < 90:
+            continue
+        xs = np.array([x0, x1])
+        inner = lum_all[lines[i][1] + 2:lines[i + 1][0] - 1, xs.min() + 4:xs.max() - 3]
         if not inner.size:
             continue
-        lum = inner.sum(axis=2)
-        # Killfeed-Hintergrund ist dunkel und enthält helle Schrift (Spielhintergrund zwischen zwei Einträgen nicht)
-        if np.median(lum) < 200 and (lum > 450).mean() > 0.03:
+        above = lum_all[max(lines[i][0] - 6, 0):max(lines[i][0] - 1, 0), xs.min():xs.max()]
+        dark = np.median(inner) < 200 or (above.size and np.median(inner) < 0.8 * np.median(above))
+        # Killfeed-Grund ist (dunkler als die Umgebung) und enthält helle Schrift
+        if dark and (inner > 450).mean() > 0.03:
             out.append((int(xs.min()), lines[i][0], int(xs.max()), lines[i + 1][1]))
     return out
+
+
+def _run_from_right(mask, max_gap: int = 3):
+    """Zusammenhängendes Stück einer Rahmenlinie, vom rechtesten Pixel nach links (kleine Lücken erlaubt).
+    Rote Pixel im Hintergrund links neben dem Eintrag zählen so nicht zur Breite. Rückgabe (x0, x1) oder None."""
+    import numpy as np
+
+    xs = np.where(mask)[0]
+    if not len(xs):
+        return None
+    x1 = x0 = int(xs[-1])
+    for x in xs[::-1][1:]:
+        if x0 - x > max_gap + 1:
+            break
+        x0 = int(x)
+    return x0, x1
 
 
 def kills_from_counts(cnt: list[int], fps: int = FPS_SCAN) -> list[tuple[float, int]]:
@@ -99,40 +132,50 @@ def kills_from_counts(cnt: list[int], fps: int = FPS_SCAN) -> list[tuple[float, 
 
 
 SIG_SAME = 0.5  # Ähnlichkeit (0..1) ab der zwei Einträge als derselbe gelten
-SIG_CONFIRM = 4  # so viele Bilder (0,2 s) muss ein neuer Eintrag stehen
+SIG_CONFIRM = 3  # so oft muss ein neuer Eintrag gesehen werden (vor hellem Hintergrund fehlen einzelne Bilder)
+SIG_PATCH_W = 70  # rechtes Ende des Eintrags (Gegnername) für den Fingerabdruck
+SIG_NCC = 0.9  # ab dieser Kanten-Korrelation derselbe Eintrag
+SIG_NCC_NEAR, SIG_NEAR_S = 0.6, 0.6  # an derselben Stelle kurz danach genügt weniger Ähnlichkeit
+SIG_BACK_S = 1.5  # nach Aussetzer bis 1,5 s am selben Platz mit gleicher Breite: derselbe Eintrag
+SIG_GAP = 6.0  # so lange wird ein Eintrag wiedererkannt, auch wenn er zwischendurch nicht erkannt wurde
+SIG_GROW = (0.4, 8)  # neuer Kasten bis 0,4 s nach einem neuen Eintrag auf gleicher Höhe (±8 px) = derselbe, wächst
 
 
 def _sig(fr, box):
-    """Fingerabdruck eines Eintrags: Breite des roten Rahmens und das Spaltenprofil der hellen Schrift (Name, Waffe,
-    Gegner), rechtsbündig in 4-px-Streifen. Der halb durchsichtige Hintergrund zählt nicht (nur helle Pixel)."""
+    """Fingerabdruck eines Eintrags: Breite und das Kantenbild des rechten Endes (Gegnername, 70 px) in voller
+    Auflösung. Kanten statt Helligkeit: der halb durchsichtige Hintergrund stört kaum. Gemessen an echten Clips:
+    gleicher Eintrag 0,98-1,00, verschiedene Kills ~0,80 (gröbere Fingerabdrücke trennten nicht)."""
     import numpy as np
 
     x0, y0, x1, y1 = box
-    inner = fr[y0 + 3:y1 - 2, x0 + 4:x1 - 3].mean(axis=2)
-    if inner.shape[0] < 4 or inner.shape[1] < 12:
+    p = fr[y0 + 3:y1 - 2, max(x1 - 3 - SIG_PATCH_W, x0 + 4):x1 - 3].astype(np.float32).mean(axis=2)
+    if p.shape[0] < 6 or p.shape[1] < 30:
         return None
-    bright = (inner > 150).mean(axis=0)[::-1]  # rechts beginnen
-    n = len(bright) // 4
-    prof = bright[:n * 4].reshape(n, 4).mean(axis=1).astype(np.float32)
-    return {"w": x1 - x0, "p": prof}
+    e = np.abs(np.diff(p, axis=1))[:-1] + np.abs(np.diff(p, axis=0))[:, :-1]
+    return {"w": x1 - x0, "e": (e - e.mean()) / (e.std() + 1e-6)}
+
+
+def _ncc(a, b) -> float:
+    """Ähnlichkeit zweier Kantenbilder mit kleiner Verschiebungssuche (±1 px senkrecht, ±3 px waagerecht)."""
+    import numpy as np
+
+    best = -1.0
+    for dy in (-1, 0, 1):
+        for dx in (-3, -2, -1, 0, 1, 2, 3):
+            A = a[max(dy, 0):a.shape[0] + min(dy, 0), max(dx, 0):a.shape[1] + min(dx, 0)]
+            B = b[max(-dy, 0):b.shape[0] + min(-dy, 0), max(-dx, 0):b.shape[1] + min(-dx, 0)]
+            h, w = min(A.shape[0], B.shape[0]), min(A.shape[1], B.shape[1])
+            if h < 4 or w < 20:
+                continue
+            best = max(best, float((A[:h, :w] * B[:h, :w]).mean()))
+    return best
 
 
 def _same(a, b) -> float:
-    """Ähnlichkeit zweier Fingerabdrücke 0..1: ähnliche Breite (±12 px: ein neuer Eintrag gleitet herein, gemessen
-    209 -> 225 px) und ähnliches Schriftprofil (bis 2 Streifen verschoben)."""
-    import numpy as np
-
+    """1 = derselbe Eintrag (ähnliche Breite ±12 px, Kantenbild des Gegnernamens ≥ SIG_NCC), sonst 0."""
     if abs(a["w"] - b["w"]) > 12:
         return 0.0
-    best = 0.0
-    for sh in (-2, -1, 0, 1, 2):
-        pa, pb = (a["p"][sh:], b["p"]) if sh >= 0 else (a["p"], b["p"][-sh:])
-        n = min(len(pa), len(pb))
-        if n < 4:
-            continue
-        d = float(np.abs(pa[:n] - pb[:n]).mean())
-        best = max(best, 1.0 - d / 0.15)
-    return max(best, 0.0)
+    return 1.0 if _ncc(a["e"], b["e"]) >= SIG_NCC else 0.0
 
 
 def kills_from_boxes(frames_boxes: list[list[tuple]], sigs: list[list], fps: int = FPS_SCAN) -> list[tuple[float, int, tuple]]:
@@ -142,27 +185,46 @@ def kills_from_boxes(frames_boxes: list[list[tuple]], sigs: list[list], fps: int
     neuer kam, ging der Kill verloren (nachgestellt mit einem echten Clip: 2 von 4 Kills erkannt)."""
     import numpy as np
 
-    entries: list[dict] = []  # {"sig", "first", "last", "hits", "box"}
+    entries: list[dict] = []  # {"sigs", "first", "last", "hits", "box"}
     for i, (boxes, ss) in enumerate(zip(frames_boxes, sigs)):
         used = set()
         for box, sg in zip(boxes, ss):
             if sg is None:
                 continue
-            best, bi = SIG_SAME, None
+            best, bi = 0.0, None
             for k, e in enumerate(entries):
-                if k in used or i - e["last"] > GAP_S * fps:
+                if k in used or i - e["last"] > SIG_GAP * fps or abs(e["box"][2] - e["box"][0] - sg["w"]) > 12:
                     continue
-                c = _same(e["sig"], sg)
-                if c > best:
-                    best, bi = c, k
+                sim = max(_ncc(x["e"], sg["e"]) for x in e["sigs"])
+                # kurz zuvor an derselben Stelle mit gleicher Breite: derselbe Eintrag, solange nicht völlig anders
+                near = (i - e["last"] <= SIG_NEAR_S * fps and abs(e["box"][1] - box[1]) <= 4
+                        and abs(e["box"][2] - e["box"][0] - sg["w"]) <= 6)
+                # Eintrag rückt einen Platz hoch, wenn ein älterer darüber abläuft (gleiche Breite, ~21 px höher)
+                moved = (i - e["last"] <= 1.5 * fps and 15 <= e["box"][1] - box[1] <= 26
+                         and abs(e["box"][2] - e["box"][0] - sg["w"]) <= 6 and sim >= 0.75)
+                # gleicher Platz, gleiche Breite (±12), bis 1,5 s später: derselbe, auch wenn der Hintergrund hinter dem
+                # halb durchsichtigen Eintrag völlig anders ist (echte Clips: Ähnlichkeit fiel dann bis 0,29)
+                back = (i - e["last"] <= SIG_BACK_S * fps and abs(e["box"][1] - box[1]) <= 4
+                        and abs(e["box"][2] - e["box"][0] - sg["w"]) <= 12)
+                ok = sim >= SIG_NCC or (near and sim >= SIG_NCC_NEAR) or moved or back
+                near = near or moved
+                if ok and sim + (1.0 if near else 0.0) > best:
+                    best, bi = sim + (1.0 if near else 0.0), k
+            if bi is None:  # Eintrag kommt gerade erst vollständig ins Bild (Breite wächst, z. B. Assist "+")
+                for k, e in enumerate(entries):
+                    if k not in used and i - e["first"] <= SIG_GROW[0] * fps and abs(e["box"][1] - box[1]) <= SIG_GROW[1]:
+                        bi = k
+                        break
             if bi is None:
-                entries.append({"sig": sg, "first": i, "last": i, "hits": 1, "box": box})
+                entries.append({"sigs": [sg], "first": i, "last": i, "hits": 1, "box": box, "box0": box})
                 used.add(len(entries) - 1)
             else:
                 e = entries[bi]
-                e["last"], e["hits"], e["sig"] = i, e["hits"] + 1, sg  # neuester Stand (Eintrag gleitet herein)
+                e["last"], e["hits"], e["box"] = i, e["hits"] + 1, box
+                e["sigs"] = (e["sigs"] + [sg])[-6:]
                 used.add(bi)
-    out = [(round(e["first"] / fps, 2), e["first"], e["box"]) for e in entries if e["hits"] >= SIG_CONFIRM]
+    # Position beim ersten Erscheinen (später rückt der Eintrag ggf. hoch, wenn ältere ablaufen)
+    out = [(round(e["first"] / fps, 2), e["first"], e["box0"]) for e in entries if e["hits"] >= SIG_CONFIRM]
     return sorted(out)
 
 
@@ -175,7 +237,44 @@ def detect(path: str) -> list[dict]:
     frames = np.frombuffer(raw, np.uint8).reshape(-1, CH, CW, 3).astype(np.int16)
     boxes = [_boxes(f) for f in frames]
     sigs = [[_sig(f, bx) for bx in b] for f, b in zip(frames, boxes)]
-    return [{"t": t, "box": (bx[0] + W - CW, bx[1], bx[2] + W - CW, bx[3])} for t, _, bx in kills_from_boxes(boxes, sigs)]
+    cands = []
+    for t, i, bx in kills_from_boxes(boxes, sigs):
+        i0 = _first_seen(frames, i, bx)
+        cands.append({"t": round(i0 / FPS_SCAN, 2), "box": (bx[0] + W - CW, bx[1], bx[2] + W - CW, bx[3])})
+    return cands
+
+
+def _first_seen(frames, i: int, box, back_s: float = 1.0) -> int:
+    """Erstes Bild, in dem der Eintrag schon zu sehen war: rückwärts, solange am selben Platz (±4 px Höhe, gleicher
+    rechter Rand) eine rote Rahmen-Kante oben und unten steht (lockerer als _boxes, das beim Einblenden die ersten
+    Bilder verwirft; gemessen bis 0,55 s zu spät)."""
+    import numpy as np
+
+    x0, y0, x1, y1 = box
+    first, misses = i, 0
+    for j in range(i - 1, max(i - int(back_s * FPS_SCAN), 0) - 1, -1):
+        f = frames[j].astype(np.float32)
+        ok = True
+        for y in (y0, y1):
+            ya = max(y - 6, 0)
+            band = f[ya:y + 7, max(x1 - 90, 0):x1 + 1]
+            r = band[..., 0]
+            q = (r - np.maximum(band[..., 1], band[..., 2])) / np.maximum(r, 1.0)
+            up = np.vstack([np.full((3, q.shape[1]), -1.0, np.float32), q[:-3]])
+            dn = np.vstack([q[3:], np.full((3, q.shape[1]), -1.0, np.float32)])
+            edge = (r > 90) & (q > 0.3) & (q - up > 0.12) & (q - dn > 0.12)  # wie in _boxes: Kante, kein Hintergrund
+            rows = edge.sum(axis=1)[4:-4] if edge.shape[0] > 8 else edge.sum(axis=1)  # nur ±2 px um die Kante
+            if not len(rows) or rows.max() < 45:
+                ok = False
+                break
+        if not ok:
+            misses += 1
+            if misses > 2:  # einzelne schwache Bilder (heller Hintergrund) überspringen
+                break
+            continue
+        misses = 0
+        first = j
+    return first
 
 
 def detect_all(srcs: list[str]) -> list[dict]:
@@ -536,6 +635,7 @@ def _piecewise_pts(anchors: list[tuple[float, float]], ss: float) -> str:
 
 KILL_SHOT_BACK = 1.5  # so weit vor dem Killfeed-Eintrag wird der Kill-Schuss gesucht
 KILL_PRE = 0.08  # Zeitlupe beginnt so kurz vor dem Schuss (Mündungsfeuer und Treffer sind ganz drin)
+KILL_NO_SHOT = 0.35  # ohne erkennbaren Schuss (Schalldämpfer, Messer, Granate): so weit vor dem Killfeed-Eintrag
 
 
 def kill_start(t: float, shot_times: list[float] | None) -> float:
@@ -544,7 +644,7 @@ def kill_start(t: float, shot_times: list[float] | None) -> float:
     begann die Zeitlupe pauschal 0,1 s vor dem Eintrag, und der eigentliche Kill fiel heraus. Ohne Schuss (Granate,
     Messer): wie bisher."""
     prev = [x for x in (shot_times or []) if t - KILL_SHOT_BACK <= x <= t + 0.05]
-    return round(max((prev[-1] - KILL_PRE) if prev else (t - 0.10), 0.0), 3)
+    return round(max((prev[-1] - KILL_PRE) if prev else (t - KILL_NO_SHOT), 0.0), 3)
 
 
 CLEAN_EDIT = True  # einfacher Schnitt mit festen Regeln (siehe plan_clean); False = alter Effekt-Schnitt (plan_beat)
