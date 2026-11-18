@@ -214,3 +214,16 @@ def test_align_local_chorus_repeats_stay_in_sync():
     err = sorted(abs(g - t) for g, t in zip(got, want))
     assert err[len(err) // 2] < 0.05 and err[-1] < 0.6  # ein nicht erkanntes Wort direkt an der Schnittkante: 0,57 s
     assert not [g for g in got if 6.0 < g < 18.0]  # in der Pause ohne Gesang steht kein Text
+
+
+def test_align_local_keeps_text_when_recognition_stops():
+    """Spracherkennung erkennt nur die ersten 3 s (danach laute Musik): der Text muss trotzdem bis zum Ende laufen,
+    mit der Verschiebung der letzten erkannten Wörter (Nutzer: nach 3 s gar kein Text mehr)."""
+    lines = [(110.0 + 2 * k, f"line number {k} goes here") for k in range(14)]
+    tw = lrclib.timed_words(lines)
+    sung = [f"{a - 110 + 0.4:.2f}-{e - 110 + 0.4:.2f}:{w.rstrip(lrclib.EOL)}" for a, e, w in tw if a < 113]
+    words, n = lrclib.align_local(tw, 0.0, 110.0, 28.0, sung)
+    starts = [float(w.split("-")[0]) for w in words]
+    assert n >= 3 and max(starts) > 25  # Text bis zum Ende
+    late = [float(w.split("-")[0]) for w in words if w.endswith(":line")]
+    assert all(abs(t - (round(t - 0.4) + 0.4)) < 0.05 for t in late)  # Verschiebung 0,4 s überall

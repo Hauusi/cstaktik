@@ -390,7 +390,6 @@ def music_start(lines: list[tuple[float, str]], text: str | None) -> tuple[float
 
 LOCAL_WINDOW_S = 30.0  # Songtext so weit vor/nach dem geschätzten Ausschnitt mit dem Gesang vergleichen
 LOCAL_SHIFT_S = 20.0   # so weit darf eine Zeile in der Musikdatei anders liegen als die eine geschätzte Verschiebung
-LOCAL_HOLD_S = 8.0     # Zeilen vor dem ersten / nach dem letzten erkannten Wort: nur so weit davon übernehmen
 
 
 def _anchors(win: list[tuple[float, float, str]], rec: list[tuple[float, float, str]]) -> list[tuple[int, float, float]]:
@@ -459,15 +458,19 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
             if lo is not None and hi is not None and abs(corr[hi] - corr[lo]) <= 1.0:
                 f = (a - win[lo][0]) / max(win[hi][0] - win[lo][0], 1e-6)
                 c = corr[lo] + (corr[hi] - corr[lo]) * f
-            else:
-                # Sprung zwischen den Nachbarn (Datei anders geschnitten) oder Rand: nicht über die Lücke verteilen
-                # (stand sonst Text, wo nichts gesungen wird). Die Verschiebung der Seite nehmen, auf der an dieser
-                # Stelle Gesang erkannt wurde; nirgends Gesang: Wort weglassen.
-                cands = [(abs(a - win[k][0]), corr[k]) for k in (lo, hi)
-                         if k is not None and abs(a - win[k][0]) <= LOCAL_HOLD_S and speech_near(a + corr[k])]
+            elif lo is not None and hi is not None:
+                # Sprung zwischen den Nachbarn (Datei anders geschnitten): nicht über die Lücke verteilen (stand sonst
+                # Text, wo nichts gesungen wird). Die Verschiebung der Seite nehmen, auf der an dieser Stelle Gesang
+                # erkannt wurde; auf keiner Seite Gesang: dort ist die Pause, Wort weglassen.
+                cands = [(abs(a - win[k][0]), corr[k]) for k in (lo, hi) if speech_near(a + corr[k])]
                 if not cands:
                     continue
                 c = min(cands)[1]
+            else:
+                # vor dem ersten / nach dem letzten erkannten Wort: Verschiebung des nächsten Ankers weiterführen.
+                # Kein Weglassen: Erkennt die Spracherkennung später nichts mehr (laute Musik), soll der Text trotzdem
+                # weiterlaufen (Nutzer: nach 3 s kein Text mehr, weil hier vorher nur nahe Zeilen blieben)
+                c = corr[lo if lo is not None else hi]
         va, ve = a + c, ends.get(i, e + c)
         if -EARLY_S <= va < 0 and ve > 0.05:
             va = 0.0
