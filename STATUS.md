@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 472 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 473 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-18: LRCLIB-Text abschnittsweise auf den Gesang (Nutzer-Clip "Heartbeat", Start Sekunde 14: Gesang ab Clip-Sekunde 2, Text erst ab 15; Datei anders geschnitten als die LRCLIB-Version "dirty", eine einzige Verschiebung ließ den Anfang vor dem Videostart). `lrclib.align_local`: LRCLIB-Wörter ±30 s um die Schätzung, unscharf in Reihenfolge den erkannten Wörtern zugeordnet (bis 20 s daneben), Ausreißer (Refrain-Wiederholung) über Nachbar-Median raus, jedes Wort bekommt die Korrektur seiner Nachbarn, Zeilen bis 8 s vor/nach dem ersten/letzten Anker. Unter 3 Ankern wie bisher (`refine`). Test mit nachgebildetem Gesang (zwei Abschnitte, 13 s Unterschied); echter Gesang hier nicht prüfbar (keine Spracherkennung, LRCLIB gesperrt).
 - 2026-11-17: Musik-Start an der gewünschten Stelle (Nutzer: "er soll die Passage erkennen, ich will die Hook nehmen"): Feld "Musik ab" leer + Text eingefügt oder Song gewählt → `clips.find_start`: LRCLIB-Suche (Songname, sonst erste Textzeile), nur bei ganzer Songdatei (Länge ±4 s). Mit Text: `lrclib.find_passage` (erste 8 Wörter unscharf gegen den Songtext, erste beste Stelle ≥ 0,7), ohne Text: `lrclib.hook_start` (häufigste Zeile ab 3 Wörtern, erstes Vorkommen); Start 0,25 s vor dem ersten Wort (`LEAD_S`). Gefunden → Wortzeiten von LRCLIB statt ein Wort je Schlag; nicht gefunden → ab Dateianfang mit Grund im Auftrag (`music_found`). Hier nur mit nachgebildeten LRCLIB-Daten getestet (lrclib.net in der Cloud-Sitzung gesperrt).
 - 2026-11-17: Wand-Kandidaten: `WALL_MAX_ASPECT` 3,6 → 7,0 (misst seit dem 3D-Schild nur die Vorderseite, dadurch fielen fast alle Wörter raus: Testlauf 2 von 14 Kandidaten). Ob die Wand groß genug ist, entscheidet `wall_text.wall_quad` (Mindesthöhe 7 % des Spielbilds), sonst flach.
 - 2026-11-17: Wände über Tiefenkarte (Nutzer: Wörter fast nie an Wänden): Depth Anything V2 Small (Apache-2.0, ONNX aus GitHub-Release fabio-sim/Depth-Anything-ONNX, ~100 MB, SHA-256 geprüft, wird beim ersten Gebrauch nach `data/models/` geladen, nicht im Repo) über onnxruntime (CPU ~0,55 s je Bild). `wall_text.depth_regions`: je Zelle Ebene in der Disparität, Wand = keine Steigung nach oben/unten (Boden: Steigung nach unten), Fluchtpunkt aus dem Abfall der Disparität. 54 Testbilder der 3 Nutzer-Clips: Wand in 34 statt 19, auch schräge Steinmauern im richtigen Winkel. Wort höchstens 55 % der Bildbreite. Ohne onnxruntime: alte Farb-Suche (`DEPTH_NOTE`). Tests laden das Modell nie (conftest).

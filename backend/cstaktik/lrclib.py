@@ -384,3 +384,67 @@ def music_start(lines: list[tuple[float, str]], text: str | None) -> tuple[float
     if t is not None:
         return max(t - LEAD_S, 0.0), "Hook (am häufigsten wiederholte Zeile)"
     return None, "keine wiederholte Zeile im Songtext"
+
+
+LOCAL_WINDOW_S = 30.0  # Songtext so weit vor/nach dem geschätzten Ausschnitt mit dem Gesang vergleichen
+LOCAL_SHIFT_S = 20.0   # so weit darf eine Zeile in der Musikdatei anders liegen als die eine geschätzte Verschiebung
+LOCAL_HOLD_S = 8.0     # Zeilen vor dem ersten / nach dem letzten erkannten Wort: nur so weit davon übernehmen
+
+
+def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: float, total: float,
+                sung: list[str] | None) -> tuple[list[str], int]:
+    """LRCLIB-Wörter abschnittsweise auf den Gesang legen. Eine einzige Verschiebung für den ganzen Ausschnitt reicht
+    nicht, wenn die Musikdatei anders geschnitten ist als die LRCLIB-Version (Nutzer: Gesang ab Sekunde 2, Text erst ab
+    Sekunde 15). Die erkannten Wörter werden den Songtext-Wörtern in Reihenfolge zugeordnet (unscharf, bis
+    ``LOCAL_SHIFT_S`` neben der Schätzung); Ausreißer fallen weg; jedes Wort bekommt die Korrektur seiner Nachbarn.
+    Rückgabe (Wörter "a-e:WORT" im Video, Zahl der Anker). Unter MIN_MATCH Ankern: ([], n)."""
+    if not sung:
+        return [], 0
+    base = offset + music_ss
+    win = [(a - base, e - base, w) for a, e, w in words if -LOCAL_WINDOW_S <= a - base <= total + LOCAL_WINDOW_S]
+    rec = []
+    for w in sung:
+        tm, txt = w.split(":", 1)
+        parts = [float(x) for x in tm.split("-")]
+        rec.append((parts[0], parts[-1], _norm(txt)))
+    pairs = fuzzy_align([(a, _norm(w.rstrip(EOL))) for a, _, w in win], [(r[0], r[2]) for r in rec], LOCAL_SHIFT_S)
+    # nur Wörter mit mehr als einem Buchstaben als Anker ("a", "i" passen überall)
+    anc = sorted((i, rec[j][0] - win[i][0], rec[j][1]) for i, j in pairs.items() if len(_norm(win[i][2])) > 1)
+    # Ausreißer: Korrektur weicht stark vom Median der Nachbarn ab (falsch zugeordnete Wiederholung im Refrain)
+    good = []
+    for k, (i, c, e) in enumerate(anc):
+        nb = [x[1] for x in anc[max(0, k - 3):k + 4]]
+        if abs(c - sorted(nb)[len(nb) // 2]) <= 1.5:
+            good.append((i, c, e))
+    if len(good) < MIN_MATCH:
+        return [], len(good)
+    idx = [g[0] for g in good]
+    corr = {g[0]: g[1] for g in good}
+    ends = {g[0]: g[2] for g in good}
+    out, last = [], -1e9
+    for i, (a, e, w) in enumerate(win):
+        if i in corr:
+            c = corr[i]
+        else:
+            lo = max((k for k in idx if k < i), default=None)
+            hi = min((k for k in idx if k > i), default=None)
+            if lo is None:  # vor dem ersten erkannten Wort: nur nahe Zeilen übernehmen
+                if win[hi][0] - a > LOCAL_HOLD_S:
+                    continue
+                c = corr[hi]
+            elif hi is None:
+                if a - win[lo][0] > LOCAL_HOLD_S:
+                    continue
+                c = corr[lo]
+            else:
+                f = (a - win[lo][0]) / max(win[hi][0] - win[lo][0], 1e-6)
+                c = corr[lo] + (corr[hi] - corr[lo]) * f
+        va, ve = a + c, ends.get(i, e + c)
+        if -EARLY_S <= va < 0 and ve > 0.05:
+            va = 0.0
+        if not 0 <= va < total:
+            continue
+        va = max(va, last + 0.05)  # Reihenfolge erhalten
+        out.append(f"{va:.2f}-{min(max(ve, va + 0.1), total):.2f}:{w}")
+        last = va
+    return out, len(good)

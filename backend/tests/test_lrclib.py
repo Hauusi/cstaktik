@@ -160,3 +160,31 @@ def test_hook_and_music_start():
     t, why = lrclib.music_start(DERULO, "two-step to the bedroom")
     assert t == 16.5 - lrclib.LEAD_S and "Stelle" in why
     assert lrclib.music_start([(1.0, "nur eine zeile hier")], "")[0] is None
+
+
+def test_align_local_file_cut_differently_than_lrclib():
+    """Datei anders geschnitten als die LRCLIB-Version: Abschnitt A liegt 24 s früher als im Songtext, Abschnitt B
+    nur 11 s (in der Datei ist zwischen A und B eine Pause länger). Eine Verschiebung für alles (die von B) liess A
+    vor dem Videostart verschwinden (Nutzer: Gesang ab Sekunde 2, Text erst ab 15)."""
+    lines = [(40.0, "I wanted you to know"), (43.0, "that I am ready for the night"), (46.5, "never gonna leave you"),
+             (49.0, "you are my heartbeat tonight"),
+             (55.0, "running through the city lights"), (58.0, "calling out your name again"),
+             (61.0, "we can make it if we try"), (64.0, "hold me closer through the fire")]
+    tw = lrclib.timed_words(lines)
+    music_ss = 14.0
+    sung = []
+    for k, (a, e, w) in enumerate(tw):
+        off = 24.0 if a < 52 else 11.0
+        va, ve = a - off - music_ss, e - off - music_ss
+        if k % 4 == 3:
+            continue  # nicht erkannt
+        txt = w.rstrip(lrclib.EOL)
+        if k % 7 == 2:
+            txt = txt + "e"  # leicht falsch erkannt
+        sung.append(f"{va:.2f}-{ve:.2f}:{txt}")
+    words, n = lrclib.align_local(tw, 11.0, music_ss, 36.0, sung)  # Schätzung passt nur zu Abschnitt B
+    t = {w.split(":", 1)[1].rstrip(lrclib.EOL).lower(): float(w.split(":", 1)[0].split("-")[0]) for w in words}
+    assert n >= 10
+    assert abs(t["wanted"] - (tw[1][0] - 24 - music_ss)) < 0.3  # Abschnitt A: ab etwa Sekunde 2 da
+    assert abs(t["running"] - (55.0 - 11 - music_ss)) < 0.3  # Abschnitt B stimmt weiter
+    assert all(0 <= float(w.split("-")[0]) < 36 for w in words)

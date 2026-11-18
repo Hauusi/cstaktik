@@ -1895,11 +1895,16 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 lrc_note = f"Songtext für {name} gefunden, aber die Stelle im Song nicht: {why}."
             else:
                 words = lrclib.clip_words(tw, off, music_ss, pl["seconds"])
-                # LRCLIB hat nur Zeiten je Zeile: Wortzeiten mit der Spracherkennung nachschärfen (falls installiert)
-                if words:
-                    if sung is None:
-                        near = [w for a, _, w in tw if music_ss + off - 2 <= a <= music_ss + off + pl["seconds"] + 2]
-                        sung = sung_words(music, music_ss, pl["seconds"], " ".join(near)[:600])
+                if sung is None:  # ganzer Song: Gesang im Ausschnitt erkennen, um die Wortzeiten nachzuschärfen
+                    near = [w for a, _, w in tw if music_ss + off - 2 <= a <= music_ss + off + pl["seconds"] + 2]
+                    sung = sung_words(music, music_ss, pl["seconds"], " ".join(near)[:600])
+                # Abschnittsweise auf den Gesang legen: passt auch, wenn die Datei anders geschnitten ist als die
+                # LRCLIB-Version (eine Verschiebung für alles ließ den Anfang weg, Nutzer-Video "Heartbeat")
+                local, n_fit = lrclib.align_local(tw, off, music_ss, pl["seconds"], sung)
+                if local:
+                    words = local
+                    why += f", Zeilen abschnittsweise über {n_fit} erkannte Wörter auf den Gesang gelegt"
+                elif words:  # zu wenig Anker: wie bisher eine Verschiebung + Nachschärfen in der Nähe
                     words, n_fit = lrclib.refine(words, sung)
                     if n_fit:
                         why += f", Wortzeiten über {n_fit} erkannte Wörter angepasst"
