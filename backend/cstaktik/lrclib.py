@@ -18,6 +18,8 @@ import re
 import urllib.parse
 import urllib.request
 
+import numpy as np
+
 API = "https://lrclib.net/api/search"
 UA = "cstaktik-clips/1.0"
 FULL_SONG_TOL = 4.0  # Musikdatei höchstens so viel kürzer/länger als der Song: gilt als ganzer Song
@@ -391,6 +393,35 @@ LOCAL_SHIFT_S = 20.0   # so weit darf eine Zeile in der Musikdatei anders liegen
 LOCAL_HOLD_S = 8.0     # Zeilen vor dem ersten / nach dem letzten erkannten Wort: nur so weit davon übernehmen
 
 
+def _anchors(win: list[tuple[float, float, str]], rec: list[tuple[float, float, str]]) -> list[tuple[int, float, float]]:
+    """Anker (LRCLIB-Wort, Korrektur, Ende im Gesang) in zwei Durchgängen. 1) grob: unscharf bis LOCAL_SHIFT_S
+    daneben, nur Wörter ab 3 Buchstaben; Ausreißer gegen den Median der Anker in ±6 s Songzeit raus (ein Refrain
+    wiederholt dieselben Wörter: grob zugeordnet landet ein Wort sonst bei der falschen Wiederholung, die Wörter
+    dazwischen laufen dann asynchron). 2) fein: mit der daraus geglätteten Verschiebung je Stelle nur noch bis 1,2 s
+    daneben zuordnen."""
+    def run(est, shift, minlen):
+        pairs = fuzzy_align([(e, _norm(w.rstrip(EOL))) for e, (_, _, w) in zip(est, win)], [(r[0], r[2]) for r in rec],
+                            shift)
+        return sorted((i, rec[j][0] - win[i][0], rec[j][1]) for i, j in pairs.items()
+                      if len(_norm(win[i][2])) >= minlen)
+
+    def clean(anc, span):
+        out = []
+        for i, c, e in anc:
+            nb = sorted(x[1] for x in anc if abs(win[x[0]][0] - win[i][0]) <= span)
+            if abs(c - nb[len(nb) // 2]) <= 1.0:
+                out.append((i, c, e))
+        return out
+
+    coarse = clean(run([a for a, _, _ in win], LOCAL_SHIFT_S, 3), 6.0)
+    if len(coarse) < MIN_MATCH:
+        return coarse
+    ca = [win[i][0] for i, _, _ in coarse]
+    cc = [c for _, c, _ in coarse]
+    est = [a + float(np.interp(a, ca, cc)) for a, _, _ in win]
+    return clean(run(est, 1.2, 2), 4.0)
+
+
 def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: float, total: float,
                 sung: list[str] | None) -> tuple[list[str], int]:
     """LRCLIB-Wörter abschnittsweise auf den Gesang legen. Eine einzige Verschiebung für den ganzen Ausschnitt reicht
@@ -407,38 +438,36 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
         tm, txt = w.split(":", 1)
         parts = [float(x) for x in tm.split("-")]
         rec.append((parts[0], parts[-1], _norm(txt)))
-    pairs = fuzzy_align([(a, _norm(w.rstrip(EOL))) for a, _, w in win], [(r[0], r[2]) for r in rec], LOCAL_SHIFT_S)
-    # nur Wörter mit mehr als einem Buchstaben als Anker ("a", "i" passen überall)
-    anc = sorted((i, rec[j][0] - win[i][0], rec[j][1]) for i, j in pairs.items() if len(_norm(win[i][2])) > 1)
-    # Ausreißer: Korrektur weicht stark vom Median der Nachbarn ab (falsch zugeordnete Wiederholung im Refrain)
-    good = []
-    for k, (i, c, e) in enumerate(anc):
-        nb = [x[1] for x in anc[max(0, k - 3):k + 4]]
-        if abs(c - sorted(nb)[len(nb) // 2]) <= 1.5:
-            good.append((i, c, e))
+    good = _anchors(win, rec)
     if len(good) < MIN_MATCH:
         return [], len(good)
     idx = [g[0] for g in good]
     corr = {g[0]: g[1] for g in good}
     ends = {g[0]: g[2] for g in good}
     out, last = [], -1e9
+    rec_t = np.array([r[0] for r in rec])
+
+    def speech_near(t: float) -> bool:  # gibt es dort überhaupt erkannten Gesang?
+        return bool(len(rec_t)) and float(np.min(np.abs(rec_t - t))) <= 1.0
+
     for i, (a, e, w) in enumerate(win):
         if i in corr:
             c = corr[i]
         else:
             lo = max((k for k in idx if k < i), default=None)
             hi = min((k for k in idx if k > i), default=None)
-            if lo is None:  # vor dem ersten erkannten Wort: nur nahe Zeilen übernehmen
-                if win[hi][0] - a > LOCAL_HOLD_S:
-                    continue
-                c = corr[hi]
-            elif hi is None:
-                if a - win[lo][0] > LOCAL_HOLD_S:
-                    continue
-                c = corr[lo]
-            else:
+            if lo is not None and hi is not None and abs(corr[hi] - corr[lo]) <= 1.0:
                 f = (a - win[lo][0]) / max(win[hi][0] - win[lo][0], 1e-6)
                 c = corr[lo] + (corr[hi] - corr[lo]) * f
+            else:
+                # Sprung zwischen den Nachbarn (Datei anders geschnitten) oder Rand: nicht über die Lücke verteilen
+                # (stand sonst Text, wo nichts gesungen wird). Die Verschiebung der Seite nehmen, auf der an dieser
+                # Stelle Gesang erkannt wurde; nirgends Gesang: Wort weglassen.
+                cands = [(abs(a - win[k][0]), corr[k]) for k in (lo, hi)
+                         if k is not None and abs(a - win[k][0]) <= LOCAL_HOLD_S and speech_near(a + corr[k])]
+                if not cands:
+                    continue
+                c = min(cands)[1]
         va, ve = a + c, ends.get(i, e + c)
         if -EARLY_S <= va < 0 and ve > 0.05:
             va = 0.0

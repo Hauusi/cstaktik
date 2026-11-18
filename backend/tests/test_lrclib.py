@@ -188,3 +188,29 @@ def test_align_local_file_cut_differently_than_lrclib():
     assert abs(t["wanted"] - (tw[1][0] - 24 - music_ss)) < 0.3  # Abschnitt A: ab etwa Sekunde 2 da
     assert abs(t["running"] - (55.0 - 11 - music_ss)) < 0.3  # Abschnitt B stimmt weiter
     assert all(0 <= float(w.split("-")[0]) < 36 for w in words)
+
+
+def test_align_local_chorus_repeats_stay_in_sync():
+    """Refrain wiederholt dieselben Wörter alle 4 s; in der Datei liegt ab Songzeit 116 alles 13 s später (dort eine
+    Pause ohne Gesang). Jedes Wort muss bei seinem Gesang bleiben, in der Pause darf kein Text stehen."""
+    lines = []
+    for k in range(8):
+        lines.append((100.0 + 4 * k, "heartbeat heartbeat"))
+        lines.append((102.0 + 4 * k, "I wanted you to know"))
+    tw = lrclib.timed_words(lines)
+    music_ss = 110.0
+    truth, sung = {}, []
+    for k, (a, e, w) in enumerate(tw):
+        off = 0.0 if a < 116 else -13.0  # ab Songzeit 116 liegt alles 13 s später in der Datei
+        va, ve = a - off - music_ss, e - off - music_ss
+        truth[k] = va
+        if k % 5 != 4 and va >= 0:
+            sung.append(f"{va:.2f}-{ve:.2f}:{w.rstrip(lrclib.EOL)}")
+    sung.sort(key=lambda x: float(x.split("-")[0]))
+    words, n = lrclib.align_local(tw, 0.0, music_ss, 30.0, sung)
+    got = [float(w.split("-")[0]) for w in words]
+    want = sorted(v for v in truth.values() if 0 <= v < 30)
+    assert len(got) == len(want)
+    err = sorted(abs(g - t) for g, t in zip(got, want))
+    assert err[len(err) // 2] < 0.05 and err[-1] < 0.6  # ein nicht erkanntes Wort direkt an der Schnittkante: 0,57 s
+    assert not [g for g in got if 6.0 < g < 18.0]  # in der Pause ohne Gesang steht kein Text
