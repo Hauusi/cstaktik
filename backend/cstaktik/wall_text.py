@@ -368,6 +368,12 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                     continue
                 if st["mode"] == "lost":
                     continue
+                if st["mode"] == "frozen":  # Wand verloren: an der letzten Stelle stehen lassen
+                    q = st["q"]
+                    c = q.mean(axis=0)
+                    qf = ((q - c) * (0.85 + 0.15 * k) + c) * SCALE + [box_x, box_y]
+                    _warp(imgs[i], full_quad(imgs[i], qf.astype(np.float32)), frame, k)
+                    continue
                 sim = similarity(st["pts0"][st["ok"]], st["pts"][st["ok"]])
                 q_h = None
                 if sim is None or sim[2] > 3.0:
@@ -381,15 +387,13 @@ def apply(src: str, out: str, words: list[dict], box_y: int, box: int, fps: int,
                 if q_h is not None:
                     st["q"] = q = q_h if "q" not in st else st["q"] * 0.35 + q_h * 0.65
                     st["fade"] = 1.0
-                elif sim is None or sim[2] > 3.0:  # Wand verloren: kurz ausblenden statt springen
-                    st["fade"] = st.get("fade", 1.0) - 1 / (0.15 * fps)
-                    if st["fade"] <= 0 or "q" not in st:
-                        # Wand gleich zu Beginn verloren: Wort flach zeigen (Nutzer: Wörter fehlten). Stand es schon
-                        # eine Weile an der Wand: ausgeblendet lassen; der Wechsel Wand -> flach wirkte falsch
-                        # (Nutzer-Video: "LET" erst blass an der Wand, dann flach)
-                        st["mode"] = "flat" if t - w["a"] < 0.3 else "lost"
-                        continue
-                    q = st["q"]
+                elif sim is None or sim[2] > 3.0:
+                    # Wand verloren: Wort bleibt ab jetzt fest an seiner letzten Stelle stehen, ohne Ausblenden.
+                    # Vorher: blendete aus und wieder ein, sobald die Verfolgung kurz wieder griff, oder sprang nach
+                    # flach (Nutzer: "Wort taucht auf, verschwindet kurz, taucht wieder auf")
+                    st["mode"] = "frozen"
+                    q = st.get("q", st["quad0"])
+                    st["q"] = q
                 else:
                     sc, tr, _err = sim
                     q_new = st["quad0"] * sc + tr
