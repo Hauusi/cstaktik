@@ -1167,6 +1167,41 @@ def _hallucinated(seg) -> bool:
     return getattr(seg, "no_speech_prob", 0) > 0.6 and getattr(seg, "avg_logprob", 0) < -1.0
 
 
+WHISPER_MODELS = ("medium", "small")  # größtes zuerst: erkennt Gesang deutlich besser; small als Rückfall
+WHISPER_USED = ""
+_WHISPER: dict = {}
+
+
+def _mem_available_gb() -> float:
+    """Freier Arbeitsspeicher laut /proc/meminfo (Linux); unbekannt: 99."""
+    try:
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) / 1024 / 1024
+    except OSError:
+        pass
+    return 99.0
+
+
+def _whisper(WhisperModel):
+    """Whisper-Modell laden, größtes zuerst (Nutzer-Song "Cannibal": "small" verhörte sich im Refrain). Klappt es nicht
+    (zu wenig Speicher, Download scheitert), das nächstkleinere. Einmal geladen bleibt es im Speicher."""
+    global WHISPER_USED
+    if "m" in _WHISPER:
+        return _WHISPER["m"]
+    last = None
+    for name in WHISPER_MODELS:
+        if name == "medium" and _mem_available_gb() < 3.0:  # sonst beendet der Server den Dienst wegen Speichermangel
+            continue
+        try:
+            _WHISPER["m"] = WhisperModel(name, device="cpu", compute_type="int8")
+            WHISPER_USED = name
+            return _WHISPER["m"]
+        except Exception as e:  # noqa: BLE001 - nächstkleineres Modell versuchen
+            last = e
+    raise last
+
+
 def sung_words(music: str, ss: float, d: float, hint: str | None = None) -> list[str] | None:
     """Gesungene Wörter mit Zeitpunkt aus dem Musik-Ausschnitt, als "Sekunde:WORT". Braucht die Bibliothek
     faster-whisper (läuft lokal, ohne Kosten; lädt beim ersten Mal ein Sprachmodell). Ist sie nicht installiert oder
@@ -1199,7 +1234,7 @@ def sung_words(music: str, ss: float, d: float, hint: str | None = None) -> list
             raw = _run(["ffmpeg", "-v", "error", "-ss", str(ss), "-t", str(d), "-i", music, "-vn", "-ac", "1", "-ar",
                         "16000", "-af", "highpass=f=180,lowpass=f=4500", "-f", "f32le", "-"])
             audio = np.frombuffer(raw, np.float32)
-        model = WhisperModel("small", device="cpu", compute_type="int8")
+        model = _whisper(WhisperModel)
         # Gesang über Musik: nicht beim ersten unsicheren Stück aufhören (kein Abbruch bei "keine Sprache", kein
         # Fortschreiben des vorigen Texts, das sich sonst aufhängt), gründlichere Suche
         # Eingefügter Songtext als Vorgabe: Die Erkennung sucht dann gezielt nach diesen Wörtern
@@ -1222,8 +1257,9 @@ def sung_words(music: str, ss: float, d: float, hint: str | None = None) -> list
         else:
             t0 = float(out[0].split("-")[0])
             t1 = float(out[-1].split(":")[0].split("-")[-1])
-            SUNG_NOTE = (f"{len(out)} Wörter erkannt" + (" (Stimme von der Musik getrennt)" if separated else
-                                                           f" (ohne Stimmtrennung: {vocals.NOTE or 'nicht verfügbar'})")
+            SUNG_NOTE = (f"{len(out)} Wörter erkannt (Whisper {WHISPER_USED or '?'}"
+                         + (", Stimme von der Musik getrennt)" if separated else
+                                                           f", ohne Stimmtrennung: {vocals.NOTE or 'nicht verfügbar'})")
                          + f", von {t0:.1f} bis {t1:.1f} s".replace(".", ",")
                          + (f" (das Video ist {d:.1f} s lang)".replace(".", ",") if t1 < d * 0.6 else "") + ".")
         return out or None

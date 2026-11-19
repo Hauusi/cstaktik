@@ -471,3 +471,32 @@ def test_split_walls_groups_pick_best_with_wall(tmp_path, monkeypatch):
     assert [x["txt"] for x in keep] == ["TAKE"]  # Gruppe 0: bestes Wort mit Wand
     assert sorted(x["txt"] for x in moved) == ["BEDROOM", "DANCING", "LET", "STEP"]  # alle übrigen normal (jedes Wort)
     assert keep[0]["b"] <= 4.0  # endet, wenn das nächste Wort kommt
+
+
+def test_whisper_falls_back_to_smaller_model(monkeypatch):
+    tried = []
+
+    class Fake:
+        def __init__(self, name, device, compute_type):
+            tried.append(name)
+            if name == "medium":
+                raise MemoryError("zu wenig Speicher")
+
+    monkeypatch.setattr(memeclip, "_WHISPER", {})
+    monkeypatch.setattr(memeclip, "_mem_available_gb", lambda: 8.0)
+    m = memeclip._whisper(Fake)
+    assert isinstance(m, Fake) and tried == ["medium", "small"] and memeclip.WHISPER_USED == "small"
+    assert memeclip._whisper(Fake) is m  # bleibt geladen
+
+
+def test_whisper_skips_medium_when_memory_low(monkeypatch):
+    tried = []
+
+    class Fake:
+        def __init__(self, name, device, compute_type):
+            tried.append(name)
+
+    monkeypatch.setattr(memeclip, "_WHISPER", {})
+    monkeypatch.setattr(memeclip, "_mem_available_gb", lambda: 1.5)
+    memeclip._whisper(Fake)
+    assert tried == ["small"]
