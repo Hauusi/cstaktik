@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 478 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 480 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-19: Text-Teil neu (Nutzer + Kollege, Vorbild 1 und 2): `memeclip.text_plan`: am Anfang ganze Zeilen, die sich Wort für Wort aufbauen (Zeilen, die vor dem ersten Kill beginnen, mind. die erste, höchstens 3, je bis 7 Wörter; `_line_layout` ein bis zwei Reihen, bis 120 px, feste Wortplätze; `_line_frame`), danach je Zeile nur das betonte Wort (gezogen, Inhaltswort, Länge, Zeilenende; lange Zeilen zwei), möglichst als gelbes Schild an der Wand, sonst einzeln flach. Ab dem Drop kein Text. Ohne Drop wie bisher.
 - 2026-11-19: Klammern im Songtext werden nicht mehr angezeigt (Nutzer), `printable` entfernt "(" und ")" (Textspur, Wand-Schild, Live-Vorschau).
 - 2026-11-19: Songtext-Timing mit echten Nutzer-Daten ("Cannibal", Diagnose-Screenshot): LRCLIB liegt je Zeile anders daneben (+1,4 s am Anfang, −0,3 s bei 9 s, +0,3 s bei 32 s), die Erkennung setzte 4 Wörter auf 15,78 s, bei 28–31 s wird anderer Text gesungen als bei LRCLIB. Alte Ausreißer-Regel verwarf die richtigen Wörter ab 9 s (Text 1,7 s zu spät). Neu in `lrclib.align_local`: Anker als beste Kette (DP: Ähnlichkeit, lange Wörter mehr, −0,05 je s Abstand zur Schätzung; Verschiebungsänderung in derselben Zeile 1,5/s, zwischen Zeilen bis 2,5 s billig, darüber fester Preis 3), Verschiebung je Zeile; Wörter mit gleicher Erkennungszeit nicht als Anker; Klammer-Gruppen (Hintergrund-Gesang) nur, wenn ein Wort davon erkannt ist; freie gleich geschriebene erkannte Wörter bis 1 s daneben werden übernommen, Reihenfolge in beide Richtungen gesichert; lange Strecke ohne Gesang zwischen zwei Ankern bleibt ohne Text; ab 4 erkannten Wörtern am Stück ohne LRCLIB-Gegenstück steht dort der gesungene Text. Test mit den echten Daten (`test_align_local_real_user_data_cannibal`).
 - 2026-11-19: Fehler "could not convert string to float" beim Schneiden (Nutzer): Diagnose las negative Zeiten (LRCLIB-Wort vor dem Videostart, "-1.50:...") falsch. Jetzt Regex für den Start, und `_safe_debug`: die Diagnose kann den Schnitt nie mehr abbrechen.

@@ -1070,6 +1070,52 @@ def story_keep(ws: list[dict], first_kill: float | None) -> set[int]:
     return set(keep)
 
 
+LINE_INTRO_MAX = 3      # so viele ganze Zeilen höchstens am Anfang
+LINE_INTRO_WORDS = 7    # längere Zeilen nicht als ganze Zeile (zu klein zu lesen)
+
+
+def text_plan(ws: list[dict], first_kill: float | None, t_drop: float) -> tuple[dict, set]:
+    """Was im Text-Teil gezeigt wird (Nutzer + Kollege, Vorbild 1 und 2): am Anfang ganze Zeilen, die sich Wort für
+    Wort aufbauen, solange es ruhig ist (Zeilen, die vor dem ersten Kill beginnen, höchstens LINE_INTRO_MAX, mindestens
+    die erste); danach je Zeile nur das betonte Wort (bei langen Zeilen zwei), möglichst als Schild an der Wand.
+    Rückgabe ({Wort-Index: (Zeile als Wortliste, Position)}, {betonte Wort-Indizes})."""
+    lines: list[list[int]] = [[]]
+    for j, x in enumerate(ws):
+        if x["a"] >= t_drop - 0.15 or not x["txt"].strip():
+            continue
+        lines[-1].append(j)
+        if x.get("eol") or len(lines[-1]) >= 6 and not any(w.get("eol") for w in ws):
+            lines.append([])
+    lines = [ln for ln in lines if ln]
+    line_words: dict[int, tuple[list[str], int]] = {}
+    intro = 0
+    for ln in lines:
+        start = ws[ln[0]]["a"]
+        calm = first_kill is None or start < first_kill or intro == 0
+        if intro < LINE_INTRO_MAX and calm and len(ln) <= LINE_INTRO_WORDS and (intro == 0 or start < (first_kill or 0)):
+            words = [ws[j]["txt"] for j in ln]
+            for pos, j in enumerate(ln):
+                line_words[j] = (words, pos)
+            intro += 1
+        else:
+            break
+    emph: set[int] = set()
+    for ln in lines:
+        if ln[0] in line_words:
+            continue
+
+        def score(j):
+            x = ws[j]
+            w = "".join(c for c in x["txt"].lower() if c.isalnum() or c == "'")
+            held = max((x.get("sung") or x["a"]) - x["a"], 0.0)
+            return (held + (0.3 if w not in STOPWORDS else -1.0) + min(len(w), 8) * 0.06
+                    + (0.2 if x.get("eol") else 0.0))
+
+        ranked = sorted(ln, key=score, reverse=True)
+        emph.update(ranked[:2 if len(ln) >= 7 else 1])
+    return line_words, emph
+
+
 def wall_picks(ws: list[dict], max_share: float = 0.5) -> set[int]:
     """Welche Wörter an die Wand: die, bei denen sich der Sänger Zeit lässt. Punkte = wie lange das Wort gesungen
     wird + die Pause danach (bis zum nächsten Wort). Gezogene Wörter vor einer Pause gewinnen. Nur Wörter mit
@@ -1294,6 +1340,68 @@ def lyric_schedule(items: list[dict], total: float) -> list[dict]:
     return out
 
 
+LINE_MAX_PX = 120  # Schriftgröße ganzer Zeilen (bis zwei Reihen)
+
+
+def _line_layout(line: list[str], font_file: str, width: int, height: int) -> dict:
+    """Zeile auf ein bis zwei Reihen verteilen, so groß wie möglich (höchstens LINE_MAX_PX), mittig. Die Lage jedes
+    Worts steht fest, damit beim Aufbauen nichts springt."""
+    from PIL import ImageFont
+
+    ws = [printable(w, font_file) for w in line]
+    best = None
+    for size in range(LINE_MAX_PX, 40, -6):
+        font = ImageFont.truetype(font_file, size)
+        asc, desc = font.getmetrics()
+        sp = font.getlength(" ")
+        splits = [len(ws)] + list(range(1, len(ws)))  # eine Reihe, sonst Umbruch nach Wort k
+        for k in splits:
+            rows = [ws[:k], ws[k:]] if k < len(ws) else [ws]
+            widths = [sum(font.getlength(w) for w in r) + sp * (len(r) - 1) for r in rows]
+            if max(widths) <= width * 0.86 and len(rows) * (asc + desc) <= height * 0.95:
+                bal = max(widths) - min(widths) if len(rows) == 2 else 0
+                if best is None or (len(rows), bal) < (len(best["rows"]), best["bal"]):
+                    best = {"rows": rows, "bal": bal, "widths": widths}
+        if best:
+            font = ImageFont.truetype(font_file, size)
+            asc, desc = font.getmetrics()
+            rh = asc + desc
+            y0 = (height - rh * len(best["rows"])) // 2
+            pos, n = [], 0
+            for r, (row, wdt) in enumerate(zip(best["rows"], best["widths"])):
+                x = (width - wdt) / 2
+                for w in row:
+                    pos.append((x, y0 + r * rh, w))
+                    x += font.getlength(w) + sp
+                    n += 1
+            return {"font": font, "size": size, "pos": pos}
+    font = ImageFont.truetype(font_file, 44)
+    return {"font": font, "size": 44, "pos": [(width * 0.07, 0, " ".join(ws))]}
+
+
+def _line_frame(lay: dict, k: int, p: float, dark: bool, width: int, height: int):
+    """Bild einer Zeile: Wörter vor ``k`` ganz, Wort ``k`` zu Anteil ``p`` (Buchstabe für Buchstabe)."""
+    from PIL import Image, ImageDraw, ImageFilter
+
+    font, size = lay["font"], lay["size"]
+    parts = []
+    for i, (x, y, w) in enumerate(lay["pos"][:k + 1]):
+        if i == k:
+            w = w[:max(1, int(len(w) * p + 0.999))]
+        parts.append((x, y, w))
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    sh = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    ds = ImageDraw.Draw(sh)
+    glow = (255, 255, 255, 70) if dark else (0, 0, 0, 170)
+    for x, y, w in parts:
+        ds.text((x, y + (0 if dark else size * 0.05)), w, font=font, fill=glow)
+    img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(max(size // 18, 3))))
+    d = ImageDraw.Draw(img)
+    for x, y, w in parts:
+        d.text((x, y), w, font=font, fill=(17, 17, 17, 255) if dark else (255, 255, 255, 255))
+    return img
+
+
 def render_lyric_track(items: list[dict], total: float, path: Path, width: int, height: int,
                        fps: int = OUT_FPS) -> None:
     """Songtext als eigene, durchsichtige Videospur (RGBA, qtrle): fester Platz, gleiche Größe, Buchstaben
@@ -1309,7 +1417,13 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
     texts = [printable(x["txt"], font_file) for x in sched]
     fonts: dict[int, "ImageFont.FreeTypeFont"] = {}
     words = []
+    line_dark = False
     for x, t in zip(sched, texts):
+        if x.get("line"):  # ganze Zeile, baut sich Wort für Wort auf: eigene Darstellung (siehe _line_frame)
+            if x.get("pos", 0) == 0:
+                line_dark = x.get("dark", False)
+            words.append((dict(x, dark=line_dark), _line_layout(x["line"], font_file, width, height), None, 0))
+            continue
         size = LYRIC_MAX_PX
         while size > 50 and ImageFont.truetype(font_file, size).getlength(t) > width * 0.86:
             size -= 6
@@ -1341,6 +1455,29 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
                 proc.stdin.write(blank.tobytes())
                 continue
             x, img, edges, size = cur
+            if edges is None:  # ganze Zeile
+                sung = (x["sung"] - x["a"]) if x.get("sung") else TYPE_S
+                reveal = min(max(0.8 * sung, 0.12), 0.6, 0.6 * (x["end"] - x["a"]))
+                p = 1.0 if reveal <= 0 else min(max((t - x["a"]) / reveal, 0.0), 1.0)
+                alpha, blur = 1.0, 0.0
+                if x.get("pos", 0) == 0:
+                    alpha = min(1.0, max(0.0, (t - x["a"]) / FADE_IN_S))
+                if x["fade"]:
+                    out = min(1.0, max(0.0, (x["end"] - t) / FADE_OUT_S))
+                    alpha = min(alpha, out)
+                    blur = round((1.0 - out) * BLUR_OUT_PX, 1)
+                key = ("L", tuple(x["line"]), x["pos"], round(p, 2), round(alpha, 2), blur, x.get("dark", False))
+                if key not in cache:
+                    fr = _line_frame(img, x["pos"], p, x.get("dark", False), width, height)
+                    if blur > 0:
+                        fr = fr.filter(ImageFilter.GaussianBlur(blur))
+                    if alpha < 1.0:
+                        fr.putalpha(fr.getchannel("A").point(lambda v, f=alpha: int(v * f)))
+                    cache[key] = fr.tobytes()
+                    if len(cache) > 400:
+                        cache.clear()
+                proc.stdin.write(cache[key])
+                continue
             letters = len(edges) - 1
             # Buchstaben im Tempo des Gesangs: über die Zeit, in der das Wort gesungen wird (0,12-0,6 s)
             sung = (x["sung"] - x["a"]) if x.get("sung") else TYPE_S
@@ -2059,11 +2196,14 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             # wie eine Story (Vorbild): bis zum ersten Kill jedes Wort, danach nur die Schlüsselwörter
             first_kill = min((mk["shot"] for mk in marks if mk.get("shot") is not None), default=None)
             text_end = t_drop or total
-            if t_drop:  # Aufbau wie die Vorbilder: im Text-Teil jedes Wort, ab dem Drop keins
-                keep = {j for j, x in enumerate(wl) if x["a"] < t_drop - 0.15}
+            line_words: dict = {}
+            if t_drop:  # Aufbau wie die Vorbilder: ganze Zeilen am Anfang, dann betonte Wörter, ab dem Drop keins
+                line_words, emph = text_plan(wl, first_kill, t_drop)
+                keep = set(line_words) | emph
+                picks = set(emph)
             else:
                 keep = story_keep(wl, first_kill)
-            picks = wall_picks(wl) & keep
+                picks = wall_picks(wl) & keep
             kept = sorted(keep)
             next_kept = {j: (wl[kept[i + 1]]["a"] if i + 1 < len(kept) else text_end) for i, j in enumerate(kept)}
             for j, wd in enumerate(wl):
@@ -2078,7 +2218,9 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 if j in picks:  # gezogenes Wort: bleibt durch die Pause an der Wand, bis das nächste Wort kommt
                     b = min(max(b, wd["next"]), a + 2.5, text_end)
                 # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: alle passenden.
-                wanted = (j in picks) if picks else len(txt) >= 3
+                wanted = (j in picks) if (picks or line_words) else len(txt) >= 3
+                if j in line_words:  # ganze Zeile: nie an die Wand, Wort für Wort in der Textspur
+                    wanted = False
                 png = tmp / f"wall{j:02d}.png"
                 if wall_on and b - a >= WALL_MIN_S and wanted:
                     word_png(txt, png, j, str(LYRIC_FONT) if LYRIC_FONT.exists() else font, wall=True)
@@ -2091,8 +2233,11 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                     shown += 1
                     continue
                 # flache Wörter: eine ruhige Textspur (fester Platz, Buchstabe für Buchstabe, bleibt stehen)
-                flat_items.append({"a": a, "b": b, "txt": txt, "eol": wd.get("eol", False), "stop": wd["next"],
-                                   "sung": wd.get("sung")})
+                item = {"a": a, "b": b, "txt": txt, "eol": wd.get("eol", False), "stop": wd["next"],
+                        "sung": wd.get("sung")}
+                if j in line_words:
+                    item["line"], item["pos"] = line_words[j]
+                flat_items.append(item)
                 shown += 1
             if flat_items:
                 # nie in der Bildmitte (Fadenkreuz = Kill); Farbe je Wort nach Hintergrund

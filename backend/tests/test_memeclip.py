@@ -410,3 +410,27 @@ def test_lyrics_debug_compact():
     assert d["gezeigt"] == ["0.40 hope", "0.85 you"] and d["erkannt"][0] == "0.42 hope" and d["lrclib"][:3] == ["-1.50 so", "0.50 hope", "0.90 you"]
     assert memeclip._lyrics_debug({}, [], None) is None
     assert memeclip._safe_debug(None, ["0.1-0.2:x"], None) is None  # kaputte Eingabe: nie ein Fehler
+
+
+def test_text_plan_lines_first_then_emphasis():
+    def w(t, a, eol=False, held=0.1):
+        return {"txt": t, "a": a, "b": a + 0.3, "sung": a + held, "next": a + 0.3, "eol": eol}
+
+    ws = [w("hope", 0.0), w("you", 0.3), w("know", 0.6, True),  # Zeile 1 vor dem ersten Kill: ganze Zeile
+          w("let", 2.0), w("me", 2.3), w("take", 2.6), w("you", 2.9), w("dancing", 3.2, True, 0.8),  # betont: dancing
+          w("two-step", 5.0), w("to", 5.4), w("the", 5.6), w("bedroom", 5.9, True, 0.5),
+          w("after", 12.5), w("drop", 12.8, True)]
+    lines, emph = memeclip.text_plan(ws, first_kill=1.5, t_drop=12.0)
+    assert set(lines) == {0, 1, 2} and lines[1] == (["hope", "you", "know"], 1)
+    assert emph == {7, 11}  # je Zeile das betonte Wort, nichts nach dem Drop
+    lines2, _ = memeclip.text_plan(ws, first_kill=4.0, t_drop=12.0)
+    assert set(lines2) == {0, 1, 2, 3, 4, 5, 6, 7}  # beide Zeilen beginnen vor dem Kill
+
+
+def test_line_layout_and_frame_no_jump():
+    f = str(memeclip.LYRIC_FONT)
+    lay = memeclip._line_layout(["we", "don't", "need", "no", "dance", "floor"], f, 1080, 360)
+    assert len({y for _, y, _ in lay["pos"]}) in (1, 2) and all(0 <= x and x < 1080 for x, _, _ in lay["pos"])
+    a = memeclip._line_frame(lay, 1, 1.0, False, 1080, 360).getbbox()
+    b = memeclip._line_frame(lay, 3, 1.0, False, 1080, 360).getbbox()
+    assert a[0] == b[0] or a[1] == b[1]  # bereits stehende Wörter bewegen sich nicht
