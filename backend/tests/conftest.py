@@ -81,3 +81,11 @@ def _no_vocal_model(monkeypatch):
     from cstaktik import vocals
 
     monkeypatch.setattr(vocals, "_SESS", {"s": None})
+
+
+@pytest.fixture(autouse=True)
+def _no_ctc_model(monkeypatch):
+    """Tests laden nie das Sprachmodell für Forced Alignment herunter."""
+    from cstaktik import forced
+
+    monkeypatch.setattr(forced, "_SESS", {"s": None})

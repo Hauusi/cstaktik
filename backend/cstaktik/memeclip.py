@@ -2188,6 +2188,19 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     elif not words and not song:  # weder Text noch Song: aus dem Gesang erkennen (falls installiert)
         words = sung_words(music, music_ss, pl["seconds"])
         source = "erkannt" if words else None
+    if words and any(":" in w for w in words):
+        # Forced Alignment: den Text in der getrennten Gesangsspur wiederfinden (rät nicht, was gesungen wird, sondern
+        # sucht nur, wann; Nutzer-Song "Cannibal": Wörter bis 0,8 s daneben, danach auf 0,04 s)
+        try:
+            from cstaktik import forced, vocals
+
+            words, n_sure = forced.refine_words(words, vocals.vocals_16k(music, music_ss, pl["seconds"]))
+            if n_sure and lrc_note:
+                lrc_note += f", {n_sure} Wörter per Forced Alignment im Gesang gefunden"
+            elif n_sure:
+                lrc_note = f"{n_sure} Wörter per Forced Alignment im Gesang gefunden"
+        except Exception:  # noqa: BLE001 - ohne Feinabstimmung bleibt die bisherige Zuordnung
+            pass
     if lrc_note:
         SUNG_NOTE = lrc_note
     if lyrics_shift and words:  # vom Nutzer eingestellt: alle Wörter früher (−) oder später (+)
