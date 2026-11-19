@@ -11,5 +11,11 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pip install -q /tmp/claude-0/*/sherpa_onnx-*.whl)",
+      "Bash(curl -sL -o * https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/*)"
+    ]
   }
 }
