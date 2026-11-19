@@ -1909,7 +1909,7 @@ def preview_words(lyr: dict) -> list[dict]:
 def split_walls(base: str, walls: list[dict], lyr: dict) -> tuple[list[dict], list[dict]]:
     """Für jedes Wand-Wort das Bild zu seinem Beginn ansehen: Wand gefunden -> bleibt an der Wand, sonst wird es ein
     flaches Wort der Textspur (Farbe nach Hintergrund wie dort). Betonte Wörter in Gruppen ("group", "rank", "need"):
-    je Gruppe die besten "need" Wörter mit Wand; fehlen welche, die besten übrigen flach, der Rest entfällt."""
+    je Gruppe die besten "need" Wörter mit Wand an die Wand, alle übrigen normal in die Textspur."""
     import numpy as np
     from PIL import Image
 
@@ -1966,7 +1966,7 @@ def split_walls(base: str, walls: list[dict], lyr: dict) -> tuple[list[dict], li
                 frames[id(w)] = frame(w)
                 if has_wall(w, frames[id(w)], td):
                     chosen.append(w)
-            fill = [w for w in ws if w not in chosen][:need - len(chosen)]
+            fill = [w for w in ws if w not in chosen]  # jedes Wort wird gezeigt: ohne Wand normal in der Textspur
             keep += chosen
             moved += [to_flat(w, frames.get(id(w)) if id(w) in frames else frame(w)) for w in fill]
     # nie zwei Wörter gleichzeitig: jedes endet, wenn das nächste gezeigte beginnt
@@ -2248,16 +2248,13 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             text_end = t_drop or total
             line_words: dict = {}
             emph_of: dict = {}
-            group_next: dict = {}
             if t_drop:  # Aufbau wie die Vorbilder: ganze Zeilen am Anfang, dann betonte Wörter, ab dem Drop keins
                 line_words, emph = text_plan(wl, first_kill, t_drop)
-                keep = set(line_words) | set(emph)
+                # jedes Wort wird gezeigt (Nutzer: nur "CANNIBAL" stand da, gesungen wurde die ganze Zeile); die
+                # betonten Wörter kommen, wenn eine Wand da ist, als Schild an die Wand, sonst normal
+                keep = {j for j, x in enumerate(wl) if x["a"] < t_drop - 0.15}
                 picks = set(emph)
                 emph_of = emph
-                for g in {v[0] for v in emph.values()}:  # bis wann ein betontes Wort stehen darf
-                    last_a = max(wl[j]["a"] for j, v in emph.items() if v[0] == g)
-                    later = [wl[j]["a"] for j in keep if wl[j]["a"] > last_a and emph.get(j, (None,))[0] != g]
-                    group_next[g] = min(later, default=text_end)
             else:
                 keep = story_keep(wl, first_kill)
                 picks = wall_picks(wl) & keep
@@ -2277,16 +2274,16 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: alle passenden.
                 if j in emph_of:  # betontes Wort (Kandidat): Wand oder Ersatz entscheidet split_walls am Bild
                     g, r, need = emph_of[j]
-                    b = min(max(b, group_next[g]), a + 2.5, text_end)
+                    b = min(max(b, wd["next"]), a + 2.5, text_end)  # bis das nächste Wort kommt
                     png = tmp / f"wall{j:02d}.png"
                     word_png(txt, png, j, str(LYRIC_FONT) if LYRIC_FONT.exists() else font, wall=True)
                     wa, wb = one_scene(a, b, cuts)
                     ok = wall_on and wb - wa >= WALL_MIN_S and png_aspect(png) <= WALL_MAX_ASPECT
                     wall_words.append({"a": wa if ok else a, "b": wb if ok else b, "png": str(png), "cuts": [],
-                                       "txt": txt, "j": j, "eol": wd.get("eol", False), "stop": group_next[g],
+                                       "txt": txt, "j": j, "eol": wd.get("eol", False), "stop": wd["next"],
                                        "sung": wd.get("sung"), "group": g, "rank": r, "need": need,
                                        "eligible": ok, "flat_b": b})
-                    shown += 1 if r < need else 0
+                    shown += 1
                     continue
                 wanted = (j in picks) if (picks or line_words) else len(txt) >= 3
                 if j in line_words:  # ganze Zeile: nie an die Wand, Wort für Wort in der Textspur

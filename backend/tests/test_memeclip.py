@@ -440,7 +440,7 @@ def test_line_layout_and_frame_no_jump():
 
 
 def test_split_walls_groups_pick_best_with_wall(tmp_path, monkeypatch):
-    """Je Gruppe das beste Wort mit Wand; ohne Wand das beste flach; nie zwei Wörter gleichzeitig."""
+    """Je Gruppe das beste Wort mit Wand an die Wand, alle übrigen normal; nie zwei Wörter gleichzeitig."""
     import subprocess
 
     from cstaktik import wall_text
@@ -469,5 +469,5 @@ def test_split_walls_groups_pick_best_with_wall(tmp_path, monkeypatch):
              w("BEDROOM", 4.0, 1, 0), w("STEP", 4.3, 1, 1)]
     keep, moved = memeclip.split_walls(str(base), walls, lyr)
     assert [x["txt"] for x in keep] == ["TAKE"]  # Gruppe 0: bestes Wort mit Wand
-    assert [x["txt"] for x in moved] == ["BEDROOM"]  # Gruppe 1: keine Wand, bestes flach
+    assert sorted(x["txt"] for x in moved) == ["BEDROOM", "DANCING", "LET", "STEP"]  # alle übrigen normal (jedes Wort)
     assert keep[0]["b"] <= 4.0  # endet, wenn das nächste Wort kommt
