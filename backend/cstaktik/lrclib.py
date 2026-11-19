@@ -499,6 +499,14 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
         if parts:
             rec.append((parts[0], parts[-1], _norm(txt), txt.strip("-")))
     good = _anchors(win, rec)
+    # Ausreißer in der eigenen Zeile: hat eine Zeile mindestens 3 Anker, zählt keiner, der mehr als 0,35 s von ihrem
+    # Median abweicht (Nutzer-Daten: "I'll" 0,5 s zu früh erkannt, "eat you up" derselben Zeile richtig)
+    ln_of = _lines(win)
+    by_line: dict = {}
+    for g in good:
+        by_line.setdefault(ln_of[g[0]], []).append(g[1])
+    med = {k: sorted(v)[len(v) // 2] for k, v in by_line.items() if len(v) >= 3}
+    good = [g for g in good if ln_of[g[0]] not in med or abs(g[1] - med[ln_of[g[0]]]) <= 0.35]
     if len(good) < MIN_MATCH:
         return [], len(good)
     idx = [g[0] for g in good]
@@ -554,7 +562,7 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
         nw = _norm(w.rstrip(EOL))
         if len(nw) < 3:  # kurze Wörter ("I", "am") hört die Erkennung im Gesang an vielen Stellen
             continue
-        js = [j for j, r in enumerate(rec) if j not in used_rec and j not in bad and abs(r[0] - va) <= 1.0
+        js = [j for j, r in enumerate(rec) if j not in used_rec and j not in bad and abs(r[0] - va) <= 0.35
               and r[2] and difflib.SequenceMatcher(None, nw, r[2]).ratio() >= 0.8]
         # Reihenfolge gegenüber den festen (erkannten) Nachbarn bleibt
         lo_t = max((placed[m][0] for m in range(k) if fixed[m]), default=-1e9)
@@ -596,6 +604,10 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
     if len(cur) >= REPLACE_MIN:
         runs.append(cur)
     for run in runs:
+        # nur echter Text ersetzt LRCLIB: mindestens 2 Wörter ab 4 Buchstaben (Nutzer-Daten: "I am I am" aus dem
+        # Hintergrund-Gesang stand sonst zusätzlich da)
+        if sum(1 for j in run if len(rec[j][2]) >= 4) < 2:
+            continue
         t0, t1 = rec[run[0]][0] - 0.2, rec[run[-1]][0] + 0.2
         inside = [p for p in placed if t0 <= p[0] <= t1]
         if sum(1 for p in inside if p[3] and not p[2].startswith("(") and not p[2].rstrip(EOL).endswith(")")) \

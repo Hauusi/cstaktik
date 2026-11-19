@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 484 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 485 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -266,6 +266,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-19: Nach Stimmtrennung (Nutzer-Clip nachgemessen mit sherpa-onnx: "cannibal" 4,40/11,84, "I'll eat you up" 15,52-16,56): 1. "cannibal" jetzt 4,24 (vorher 4,0), 2. 11,56 (vorher 11,0). Zwei neue Fehler behoben: (1) "I'll" 0,5 s zu früh, weil Whisper es dort hörte, obwohl "eat you up" derselben Zeile richtig lag → Anker, die mehr als 0,35 s vom Median ihrer Zeile abweichen (ab 3 Ankern), zählen nicht; freie erkannte Wörter nur noch bis 0,35 s neben der Schätzung übernehmen (vorher 1 s). (2) zusätzliches "I am I am" (8,7-10,7 s) aus der Ersetzen-Regel → ersetzt nur noch, wenn mindestens 2 erkannte Wörter ab 4 Buchstaben dabei sind. Zweiter Test mit echten Nutzer-Daten.
 - 2026-11-19: Stimmtrennung vor Whisper (`vocals.py`, Nutzer-Wunsch "automatisch statt Mitklopfen"): Whisper hörte den Gesang zusammen mit der Musik und verhörte sich im Refrain ("Cannibal": "cannibal" bei 9,76 s erkannt; Messung mit sherpa-onnx am Nutzer-Video: gesungen 11,84 s). Jetzt hört Whisper nur die getrennte Stimme; Hinweis "(Stimme von der Musik getrennt)" in der Erkennungs-Zeile. Getestet: STFT hin/zurück verlustfrei, Durchlass-Modell gibt das Signal zurück, echte Trennung am Nutzer-Video (Korrelation 0,999 mit Prüftrennung). Whisper selbst hier nicht prüfbar (Modell-Download gesperrt): Wirkung zeigt der nächste Clip (Songtext-Diagnose). Verworfen nach Messung: Zeilen auf Stimm-Einsätze schieben (traf einzelne Stellen, verschob andere um ein Wort).
 - 2026-11-19: Songtext zu früh (Nutzer, LRCLIB über Song-Vorschlag, "Cannibal"): erstmals unabhängig nachgemessen (sherpa-onnx Zipformer in der Cloud-Sitzung, Freigabe vom Nutzer in `.claude/settings.json`): am Nutzer-Ausschnitt wird "cannibal" bei ca. 11,4 s gesungen (LRCLIB+1,4 s = 11,41), die Server-Erkennung hörte 9,76 → der vorige Umbau vertraute einzelnen falsch gehörten Wörtern. Jetzt: Zeilen-Verschiebung ändert sich bis 1 s billig, darüber 2,5 je s (`LINE_STEEP`), ab 3 s fester Sprungpreis; kurze Wörter (unter 3 Buchstaben) werden nicht mehr auf erkannte Zeiten gezogen; Pausen-Regel erst ab 1,5 s Abstand zum Gesang. Test mit den echten Daten angepasst (2. Refrain bei 11,1 statt 9,8).
 - 2026-11-19: Wieder jedes Wort im Text-Teil (Nutzer-Video: gesungen wurde die ganze Zeile, angezeigt nur "CANNIBAL", das betonte Wort jeder Zeile). Erste Zeile(n) weiter als ganze Zeile; betonte Wörter kommen als Schild an die Wand, wenn eine im Bild ist, alle anderen Wörter (auch nicht gewählte Kandidaten) normal in der Textspur zu ihrer Zeit.

@@ -258,7 +258,8 @@ def test_align_local_real_user_data_cannibal():
     for a, w in out:
         t.setdefault(w, []).append(a)
     assert n >= 20
-    assert t["you"][0] == 0.0 and t["better"][0] == 0.92  # Anfang wie bisher
+    # Anfang: unabhängige Messung am Nutzer-Video (sherpa-onnx) hört "you" bei 0,64 s
+    assert abs(t["you"][0] - 0.64) < 0.1 and t["better"][0] == 0.92
     # 2. Refrain: unabhängige Erkennung (sherpa-onnx) am Nutzer-Ausschnitt hört "cannibal" bei ca. 11,4 s, LRCLIB+1,4 s
     # sagt 11,41; die Server-Erkennung hörte 9,76 (falsch, Text kam zu früh, Nutzer: "kommen viel zu früh")
     assert any(abs(a - 11.4) < 0.5 for a in t["cannibal"]) and not any(9.0 < a < 10.5 for a in t["cannibal"])
@@ -266,3 +267,27 @@ def test_align_local_real_user_data_cannibal():
     assert t["Whenever"] == [31.86]
     times = [a for a, _ in out]
     assert all(b > a for a, b in zip(times, times[1:]))  # Reihenfolge, nie zwei Wörter gleichzeitig
+
+
+CANNIBAL_REC_SEPARATED = ("0.00 you · 0.94 better · 1.44 run · 2.08 I · 3.34 am · 5.64 cannibal · 7.18 cannibal · 8.72 I · "
+                          "9.26 am · 9.88 I · 10.68 am · 12.30 cannibal · 15.00 I'll · 15.78 eat · 16.08 you · 16.46 up · "
+                          "16.92 I · 18.22 am · 20.04 cannibal · 22.12 cannibal · 23.54 I · 24.10 am · 24.72 I · 25.96 am · "
+                          "27.36 cannibal · 29.32 cannibal")
+
+
+def test_align_local_real_user_data_separated_vocals():
+    """Zweiter Nutzer-Clip (Whisper auf getrennter Stimme): "I'll" 0,5 s zu früh erkannt, "eat you up" richtig (Messung:
+    I'll 15,52 / eat 15,84 / you 16,20 / up 16,56); zusätzlich gehörtes "I am I am" (8,7-10,7 s) darf nicht als
+    eigener Text erscheinen."""
+    global CANNIBAL_REC
+    old = CANNIBAL_REC
+    CANNIBAL_REC = CANNIBAL_REC_SEPARATED
+    try:
+        out, n = _cannibal()
+    finally:
+        CANNIBAL_REC = old
+    t = {}
+    for a, w in out:
+        t.setdefault(w, []).append(a)
+    assert any(abs(a - 15.52) < 0.15 for a in t["(I'll"])
+    assert not [a for a, w in out if 8.0 < a < 10.3]
