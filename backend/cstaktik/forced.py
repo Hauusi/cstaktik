@@ -319,6 +319,18 @@ def confirm(words: list[str], logp: np.ndarray, vocab: Vocab, sung: list[str] | 
                 break
             j += 1
         moved += 1
+        # Zusammenstoß mit den nächsten Wörtern (Nutzer-Clip: Echo "(cannibal," stand 0,06 s nach dem korrigierten
+        # "cannibal"): solche Wörter rücken auf das nächste gehörte gleiche Wort, sonst knapp dahinter
+        last = items[j][0] if j < len(items) else best
+        for m in range(j + 1, len(items)):
+            if items[m][0] >= last + 0.15:
+                break
+            mw = _norm(items[m][2].rstrip(EOL).strip("(),.!?"))
+            nxt = [rt for rt, rw in rec if rt >= last + 0.15 and rw and (rw == mw or rw.startswith(mw[:4]) and len(mw) >= 4)]
+            new = min(nxt) if nxt and min(nxt) - last <= 1.5 else last + 0.25
+            items[m][1] += new - items[m][0]
+            items[m][0] = new
+            last = new
     out, last = [], -1e9
     for a, e, txt in items:
         a = max(a, last + 0.05)

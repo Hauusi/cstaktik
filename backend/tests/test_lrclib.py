@@ -293,3 +293,18 @@ def test_align_local_real_user_data_separated_vocals():
     assert t["you"][0] == 0.0 and t["better"][0] == 0.94 and t["run"][0] == 1.44  # vom Nutzer bestätigter Anfang
     assert "boys" not in t
     assert not [a for a, w in out if 8.0 < a < 10.3]
+
+
+def test_align_local_collapsed_pair_keeps_last_and_no_early_word():
+    """Nutzer-Clip: Whisper setzte "better" und "run" beide auf 0,80 s; vorher wurden beide verworfen, die erste Zeile
+    rutschte 2 s nach hinten und ein "cannibal" aus der Zeile vor dem Videostart stand bei 0,00."""
+    E = lrclib.EOL
+    tw = [(-4.60, -4.40, "I"), (-4.37, -4.17, "am"), (-4.13, -3.93, "cannibal" + E),
+          (-2.37, -2.17, "I"), (-2.12, -1.92, "eat"), (-2.00, -1.88, "boys"), (-1.87, -1.67, "up,"),
+          (-1.62, -1.42, "you"), (-1.37, -1.17, "better"), (-0.88, -0.68, "run" + E),
+          (1.17, 1.37, "I"), (1.40, 1.60, "am"), (1.64, 1.84, "cannibal" + E)]
+    sung = ["0.00-0.30:You", "0.80-1.10:better", "0.80-1.10:run", "1.60-1.90:I", "3.26-3.56:am", "5.38-5.70:cannibal"]
+    words, n = lrclib.align_local(tw, 0.0, 0.0, 10.0, sung)
+    t = {w.split(":", 1)[1].rstrip(E): float(w.split("-")[0]) for w in words}
+    assert t["you"] == 0.0 and t["run"] == 0.80 and t["better"] < t["run"]
+    assert min(float(w.split("-")[0]) for w in words if "cannibal" in w) > 1.0  # kein "cannibal" am Anfang

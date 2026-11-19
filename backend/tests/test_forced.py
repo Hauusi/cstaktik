@@ -68,3 +68,15 @@ def test_confirm_when_model_and_whisper_agree():
     assert n == 1 and abs(t[2] - 5.32) < 0.01 and t[0] == 2.85 and t[3] == 8.58  # nur dieses Wort, Folgezeile bleibt
     out2, n2 = forced.confirm(words, lp, _Voc2(), ["7.50-7.80:cannibal"])  # Whisper woanders: keine Bestätigung
     assert n2 == 0 and out2[2].startswith("3.31")
+
+
+def test_confirm_pushes_echo_words_to_next_heard():
+    """Korrigiertes "cannibal" darf nicht mit dem Echo zusammenstoßen: Echo rückt auf das nächste gehörte."""
+    lp = np.full((250, 4), -8.0)
+    lp[:, 3] = -0.05
+    lp[133, 0], lp[133, 3] = -0.2, -5.0
+    words = ["3.31-3.80:cannibal¶", "5.38-5.70:(cannibal,", "6.36-6.70:cannibal,", "7.06-7.30:I"]
+    sung = ["5.38-5.70:cannibal", "6.36-6.70:cannibal", "7.28-7.50:cannibal", "8.34-8.60:I"]
+    out, n = forced.confirm(words, lp, _Voc2(), sung)
+    t = [float(w.split("-")[0]) for w in out]
+    assert n == 1 and abs(t[0] - 5.32) < 0.01 and t[1] == 6.36 and t[2] == 7.28 and t[3] == 8.34

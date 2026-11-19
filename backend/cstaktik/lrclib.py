@@ -402,12 +402,13 @@ REPLACE_MIN = 4      # so viele erkannte Wörter am Stück ohne passende LRCLIB-
 
 
 def _collapsed(rec: list[tuple]) -> set[int]:
-    """Erkannte Wörter, deren Startzeit mit dem Nachbarn zusammenfällt (Nutzer-Daten "Cannibal": vier Wörter bei
-    15,78 s). Solche Zeiten sind geraten."""
+    """Erkannte Wörter, deren Startzeit mit dem nächsten zusammenfällt (Nutzer-Daten "Cannibal": vier Wörter bei
+    15,78 s, "better"/"run" bei 0,80 s). Deren Zeiten sind geraten; nur das letzte Wort der Gruppe zählt."""
     bad = set()
     for j in range(1, len(rec)):
         if abs(rec[j][0] - rec[j - 1][0]) < COLLAPSE_S:
-            bad.update((j - 1, j))
+            bad.add(j - 1)  # das letzte Wort der Gruppe behält seine Zeit (Nutzer-Daten: "eat" 15,78 stimmte,
+            # "cannibal"/"I'll" davor nicht; "run" 0,80 stimmte, "better" davor nicht)
     return bad
 
 
@@ -619,8 +620,10 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
         placed += [(rec[j][0], rec[j][1], rec[j][3] + (EOL if j == run[-1] else ""), True) for j in run]
     placed.sort(key=lambda p: p[0])
     out, last = [], -1e9
-    for va, ve, w, _ in placed:
-        if -EARLY_S <= va < 0 and ve > 0.3:
+    for va, ve, w, heard in placed:
+        # kurz vor dem Videostart begonnen: nur zeigen, wenn es auch gehört wurde (Nutzer-Clip: "cannibal" aus der
+        # Zeile davor stand bei 0,00)
+        if -EARLY_S <= va < 0 and ve > 0.3 and heard:
             va = 0.0
         if not 0 <= va < total:
             continue
