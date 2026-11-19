@@ -182,6 +182,7 @@ def test_printable_lyrics_and_wall_perspective():
     f = glob.glob(str(memeclip.Path(memeclip.__file__).parent / "static/fonts/*.ttf"))[0]
     assert memeclip.printable("mу", f) == "MY"  # kyrillisches y sieht aus wie ein lateinisches
     assert memeclip.printable("don’t​", f) == "DON'T"  # typografischer Apostroph, unsichtbares Zeichen
+    assert memeclip.printable("(cannibal,", f) == "CANNIBAL," and memeclip.printable("up)", f) == "UP"  # keine Klammern
     assert memeclip.printable("go\U0001F600", f) == "GO"  # Zeichen ohne Glyph fällt weg statt Kästchen
     t, b = wall_text.limit_perspective(0.6, -0.4, 100, 20)
     hl, hr = 20 + (t - b) * 50, 20 - (t - b) * 50

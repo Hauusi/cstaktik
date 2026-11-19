@@ -1249,7 +1249,8 @@ def printable(text: str, font_file: str) -> str:
     weggelassen (vorher erschien dafür ein Kästchen, gesehen bei "MY")."""
     import unicodedata
 
-    t = unicodedata.normalize("NFKC", text).translate(LOOKALIKE).upper()
+    # Klammern aus dem Songtext (Hintergrund-Gesang) nicht anzeigen (Nutzer: "die () sollen nicht angezeigt werden")
+    t = unicodedata.normalize("NFKC", text).translate(LOOKALIKE).upper().replace("(", "").replace(")", "")
     t = "".join(c for c in t if unicodedata.category(c)[0] != "C")  # Steuer- und unsichtbare Zeichen
     t = "".join(c for c in t if c == " " or _has_glyph(c, font_file))
     return t.strip() or text.strip().upper()
