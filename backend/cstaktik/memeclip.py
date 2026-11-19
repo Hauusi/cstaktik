@@ -2230,7 +2230,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         try:
             from cstaktik import forced, vocals
 
-            words, n_sure = forced.refine_words(words, vocals.vocals_16k(music, music_ss, pl["seconds"]))
+            words, n_sure = forced.refine_words(words, vocals.vocals_16k(music, music_ss, pl["seconds"]), sung)
             if n_sure and lrc_note:
                 lrc_note += f", {n_sure} Wörter per Forced Alignment im Gesang gefunden"
             elif n_sure:

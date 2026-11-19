@@ -242,8 +242,9 @@ def _load():
     return _SESS["s"]
 
 
-def refine_words(words: list[str], vocals16k: np.ndarray | None) -> tuple[list[str], int]:
-    """Wörter mit der Gesangsspur (16 kHz, ab Videostart) nachschärfen. Ohne Modell oder Spur: unverändert."""
+def refine_words(words: list[str], vocals16k: np.ndarray | None, sung: list[str] | None = None) -> tuple[list[str], int]:
+    """Wörter mit der Gesangsspur (16 kHz, ab Videostart) nachschärfen: erst doppelt bestätigte Wörter (``confirm``),
+    dann Zeilen per Forced Alignment (``refine``). Ohne Modell oder Spur: unverändert."""
     if not words or vocals16k is None or len(vocals16k) < 16000:
         return words, 0
     m = _load()
@@ -253,4 +254,74 @@ def refine_words(words: list[str], vocals16k: np.ndarray | None) -> tuple[list[s
     f = features(vocals16k).T[None].astype(np.float32)
     logp = sess.run(None, {sess.get_inputs()[0].name: f,
                            sess.get_inputs()[1].name: np.array([f.shape[2]], np.int64)})[0][0]
-    return refine(words, logp, vocab)
+    words, n_conf = confirm(words, logp, vocab, sung)
+    words, n_sure = refine(words, logp, vocab)
+    return words, n_conf + n_sure
+
+
+STRONG_LOGP = -2.0    # sehr deutlicher Ausschlag des Modells für den Wortanfang
+STRONG_AGREE_S = 0.3  # Whisper hörte dasselbe Wort so nah daran
+STRONG_RANGE_S = 3.5  # so weit darf ein so bestätigtes Wort von der bisherigen Schätzung liegen
+
+
+def _norm(w: str) -> str:
+    return re.sub(r"[^a-z0-9']", "", w.lower())
+
+
+def confirm(words: list[str], logp: np.ndarray, vocab: Vocab, sung: list[str] | None) -> tuple[list[str], int]:
+    """Wörter, die zwei unabhängige Verfahren an derselben Stelle hören: ein sehr deutlicher Ausschlag dieses Modells
+    für den Wortanfang UND Whisper hörte dasselbe Wort höchstens 0,3 s daneben. Dann gilt diese Zeit, auch wenn LRCLIB
+    weit daneben liegt (Nutzer-Clip: LRCLIB "cannibal" fast 4 s neben dem Gesang; Whisper 5,36 s, Modell 5,32 s,
+    gezeigt wurde 3,25 s). Die folgenden Wörter derselben Zeile rücken mit. Nur Wörter ab 5 Buchstaben."""
+    if not words or not sung:
+        return words, 0
+    rec = []
+    for w in sung:
+        tm, txt = w.split(":", 1)
+        parts = [float(x) for x in tm.split("-") if x]
+        if parts:
+            rec.append((parts[0], _norm(txt)))
+    items = []
+    for w in words:
+        tm, txt = w.split(":", 1)
+        a, e = (float(x) for x in tm.split("-"))
+        items.append([a, e, txt])
+    n_steps, moved = logp.shape[0], 0
+    for k, it in enumerate(items):
+        nw = _norm(it[2].rstrip(EOL).strip("()"))
+        ids = vocab.encode(nw)
+        if len(nw) < 5 or not ids:
+            continue
+        col = logp[:, ids[0]]
+        lo_t = items[k - 1][0] + 0.05 if k else 0.0
+        hi_t = it[0] + STRONG_RANGE_S
+        best = None
+        for t in range(max(int((it[0] - STRONG_RANGE_S) / FRAME), 0), min(int(hi_t / FRAME) + 1, n_steps)):
+            if col[t] < STRONG_LOGP or (t and col[t - 1] > col[t]) or (t + 1 < n_steps and col[t + 1] > col[t]):
+                continue
+            ts = t * FRAME
+            if ts <= lo_t:
+                continue
+            if not any(abs(rt - ts) <= STRONG_AGREE_S and (rw == nw or rw.startswith(nw[:4]) or nw.startswith(rw[:4]))
+                       for rt, rw in rec if len(rw) >= 3):
+                continue
+            if best is None or abs(ts - it[0]) < abs(best - it[0]):
+                best = ts
+        if best is None or abs(best - it[0]) < 0.08:
+            continue
+        d = best - it[0]
+        # dieses Wort und die folgenden derselben Zeile verschieben
+        j = k
+        while j < len(items):
+            items[j][0] += d
+            items[j][1] += d
+            if items[j][2].endswith(EOL):
+                break
+            j += 1
+        moved += 1
+    out, last = [], -1e9
+    for a, e, txt in items:
+        a = max(a, last + 0.05)
+        out.append(f"{a:.2f}-{max(e, a + 0.1):.2f}:{txt}")
+        last = a
+    return out, moved
