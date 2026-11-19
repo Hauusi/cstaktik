@@ -97,6 +97,7 @@
   <b>{{ j.name }}</b>
   {% if j.status == "fertig" and j.has_video %}
   <div class="st num">{{ j.kills }} {{ "Kill" if j.kills == 1 else "Kills" }} im Video{% if j.found and j.found > j.kills %} (von {{ j.found }} gefundenen: die Musik war zu kurz für alle){% endif %} · {{ j.seconds|string|replace(".", ",") }} Sekunden{% if j.bpm %} · {{ j.bpm|string|replace(".", ",") }} Schläge pro Minute{% endif %}{% if j.synced %} · {{ j.synced }} {{ "Schuss" if j.synced == 1 else "Schüsse" }} auf dem Beat{% endif %}{% if j.words is not none and j.music %} · {{ j.words }} {{ "Wort" if j.words == 1 else "Wörter" }} Songtext{% endif %}</div>
+  {% if j.drop %}<div class="st">Aufbau: Text-Teil (schwarz-weiß) bis Sekunde {{ j.drop|string|replace(".", ",") }}, dann Drop und Kills in Farbe ohne Text.</div>{% endif %}
   {% if j.music and j.music_auto %}<div class="st">Musik ab Sekunde {{ j.music_used|string|replace(".", ",") }}: Drop automatisch gefunden, der erste Kill liegt etwa darauf.</div>
   {% elif j.music and j.music_found %}<div class="st">Musik: {{ j.music_found }}. Anderer Start: Sekunde bei „Musik ab“ eintragen.</div>
   {% elif j.music and j.music_start_note %}<div class="st">Musik ab Anfang der Datei (Songtext/Song angegeben). Anderer Start: Sekunde bei „Musik ab“ eintragen.</div>

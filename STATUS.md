@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 475 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 476 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-19: Aufbau nach 3 Vorbild-Clips (100k+ Likes, gemessen: Text-Teil 17–28 s mit wenigen Schnitten, danach Kills im Beat ohne Text; Text-Teil oft schwarz-weiß, Text farbig). `memeclip.story_drop`: Drop an einem Schnitt zwischen 25 und 75 % des Videos, wo der Bass am stärksten anzieht (sonst Schnitt nahe 45 %). Bis zum Drop jedes Wort, danach keins (ersetzt die Schlüsselwort-Regel, die nur noch ohne Drop gilt); Text-Teil Sättigung 0,3 + Kontrast 1,08, am Drop 0,07 s weißer Blitz (`DROP_SAT`, `DROP_FLASH_S`, `STORY_DROP`). Auch beim Nachjustieren kein Text nach dem Drop. Anzeige im Auftrag. Sicherungsstand davor: Branch `stand-2026-11-19-vor-proficlip`.
 - 2026-11-18: Nach 3 s kein Songtext mehr (Nutzer): `align_local` ließ Wörter vor dem ersten / nach dem letzten erkannten Wort weg, wenn sie mehr als 8 s entfernt waren oder dort kein Gesang erkannt wurde; erkennt die Spracherkennung später nichts mehr (laute Musik), verschwand der ganze Rest. Jetzt: an den Rändern läuft die Verschiebung des nächsten Ankers weiter (kein Weglassen); weggelassen wird nur noch zwischen zwei Ankern mit Sprung (Datei anders geschnitten), wenn an keiner Seite Gesang erkannt ist. `LOCAL_HOLD_S` entfernt. Test: Erkennung nur in den ersten 3 s → Text bis zum Ende, Verschiebung durchgehend.
 - 2026-11-18: Songtext läuft nach ein paar Sekunden asynchron (Nutzer-Video "Heartbeat", Start 110 s): nachgestellt mit Refrain alle 4 s und Datei, die ab einer Stelle 13 s anders liegt. `align_local` verteilte Wörter über die Lücke (Text, wo nichts gesungen wird) und ordnete grob falsche Refrain-Wiederholungen zu. Jetzt `_anchors` zweistufig (grob bis 20 s, Ausreißer gegen Median ±6 s Songzeit, dann fein bis 1,2 s um die geglättete Verschiebung), bei Sprung zwischen Nachbar-Ankern keine Verteilung über die Lücke: Wort bekommt die Verschiebung der Seite, an der dort Gesang erkannt ist, sonst weg. Test: Median-Fehler < 0,05 s, kein Text in der Pause. Echter Gesang hier nicht prüfbar (Spracherkennung-Download vom Sicherheitsfilter blockiert).
 - 2026-11-18: Wort blinkt (Nutzer: taucht auf, verschwindet kurz, taucht wieder auf): Wand-Wort blendete bei kurz verlorener Verfolgung aus und sofort wieder ein, oder sprang nach flach. Jetzt `wall_text.apply`: Wand verloren → Wort bleibt fest an der letzten Stelle stehen (Zustand "frozen"), kein Aus-/Einblenden, kein Wechsel nach flach. Messung am Testvideo (Text-Pixel fertig vs. ohne Text, 30 fps): Blinker bei 0,93 s und 5,67 s weg; übrige Lücken sind Wechsel zwischen verschiedenen Wörtern (Bild für Bild geprüft).

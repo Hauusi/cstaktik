@@ -384,3 +384,20 @@ def test_typed_words_keep_line_ends():
     txt = clips.lyrics_text("hope you know  what I mean\r\n\nLet me take you dancing \n")
     assert txt == "hope you know what I mean\nLet me take you dancing"
     assert clips.typed_words(txt)[5] == "mean¶" and clips.typed_words(txt)[-1] == "dancing¶"
+
+
+def test_story_drop_at_cut_where_bass_rises(tmp_path):
+    """Drop am Schnitt, an dem der Bass einsetzt (Vorbilder: Text-Teil, dann Kills ohne Text)."""
+    import subprocess
+
+    m = tmp_path / "m.wav"
+    # 20 s: bis 11 s leise Hi-Hats, ab 11 s Bass
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "aevalsrc='0.05*(random(0)*2-1)+gte(t,11)*0.8*sin(2*PI*55*t)':d=20:s=8000", str(m)], check=True)
+    segs = [{"o0": x} for x in (0.0, 3.0, 7.0, 11.0, 14.0, 17.0)]
+    assert memeclip.story_drop(str(m), 0.0, 20.0, segs) == 11.0
+    assert memeclip.story_drop(str(m), 0.0, 8.0, segs) is None  # zu kurz
+    flat = tmp_path / "f.wav"  # ohne Anstieg: Schnitt nahe 45 %
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "aevalsrc='0.3*sin(2*PI*55*t)':d=20:s=8000",
+                    str(flat)], check=True)
+    assert memeclip.story_drop(str(flat), 0.0, 20.0, segs) == 7.0

@@ -1797,6 +1797,10 @@ def apply_lyrics(base: str, lyr: dict, out: str, sh: float = 0.0, progress=None)
     total = lyr["total"]
     flat = _shifted(lyr["flat"], sh, total)
     walls = _shifted(lyr["walls"], sh, total)
+    if lyr.get("drop"):  # verschoben: trotzdem kein Text nach dem Drop
+        dr = lyr["drop"]
+        flat = [dict(x, b=min(x["b"], dr), stop=min(x.get("stop", dr), dr)) for x in flat if x["a"] < dr - 0.1]
+        walls = [dict(x, b=min(x["b"], dr)) for x in walls if x["a"] < dr - 0.1]
     # Wand-Wörter nur dort, wo zu Wortbeginn wirklich eine Wand im Bild ist; sonst in die normale Textspur
     walls, moved = split_walls(base, walls, lyr)
     if moved:
@@ -1829,6 +1833,41 @@ def apply_lyrics(base: str, lyr: dict, out: str, sh: float = 0.0, progress=None)
                                size=(lyr["out_w"], lyr["out_h"]), box_x=lyr["box_x"],
                                enc=["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
                                     "-movflags", "+faststart"])
+
+
+STORY_DROP = True      # Aufbau wie die Vorbilder (3 Clips mit 100k+ Likes): Text-Teil, dann Drop, dann Kills ohne Text
+DROP_SAT = 0.3         # Sättigung im Text-Teil (Vorbilder: fast schwarz-weiß, Text farbig); ab dem Drop volle Farbe
+DROP_FLASH_S = 0.07    # kurzer weißer Blitz am Drop
+
+
+def story_drop(music: str, music_ss: float, total: float, segs: list[dict]) -> float | None:
+    """Wo der Text-Teil endet und die Kills ohne Text beginnen: an einem Schnitt zwischen 25 und 75 % des Videos, dort
+    wo die Musik (Bass) am stärksten anzieht (2 s danach gegen 2 s davor). Ohne deutlichen Anstieg: der Schnitt nahe
+    45 %. None bei unter 10 s oder weniger als 3 Stücken (dann wie bisher)."""
+    import numpy as np
+
+    cuts = [x["o0"] for x in segs[1:] if 0.25 * total <= x["o0"] <= 0.75 * total]
+    if total < 10 or len(segs) < 3 or not cuts:
+        return None
+    try:
+        raw = _run(["ffmpeg", "-v", "error", "-ss", f"{music_ss:.3f}", "-t", f"{total:.3f}", "-i", music, "-vn", "-ac", "1",
+                    "-ar", "8000", "-af", "lowpass=f=150", "-f", "f32le", "-"])
+        x = np.frombuffer(raw, np.float32)
+        hop = 400  # 50 ms
+        e = np.sqrt((x[: len(x) // hop * hop].reshape(-1, hop) ** 2).mean(axis=1))
+        ref = float(np.percentile(e, 90)) or 1e-9
+
+        def score(t):
+            k = int(t / 0.05)
+            a, b = e[max(k - 40, 0):k], e[k:k + 40]
+            return (float(b.mean()) - float(a.mean())) / ref if len(a) and len(b) else -1.0
+
+        best = max(cuts, key=score)
+        if score(best) >= 0.15:
+            return round(best, 3)
+    except Exception:  # noqa: BLE001 - ohne Musik-Analyse: Schnitt nahe 45 %
+        pass
+    return round(min(cuts, key=lambda c: abs(c - 0.45 * total)), 3)
 
 
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
@@ -1961,7 +2000,15 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         fc += "".join(f"[{i}:v]setsar=1[sv{i}];" for i in range(n))
         fc += "".join(f"[sv{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[vc0];"
         tcuts = [] if CLEAN_EDIT else transition_cuts(pl["segments"])  # einfacher Schnitt: harte Schnitte
-        fc += f"[vc0]{transition_vf(tcuts)}null[vc];"
+        t_drop = story_drop(music, music_ss, total, pl["segments"]) if (STORY_DROP and CLEAN_EDIT) else None
+        if t_drop:  # Text-Teil fast schwarz-weiß und etwas mehr Kontrast, am Drop kurzer Blitz, danach volle Farbe
+            d0 = f"{t_drop:.3f}"
+            grade = (f"hue=s={DROP_SAT}:enable='lt(t,{d0})',eq=contrast=1.08:enable='lt(t,{d0})',"
+                     f"drawbox=x=0:y=0:w=iw:h=ih:color=white@0.55:t=fill:"
+                     f"enable='between(t,{d0},{t_drop + DROP_FLASH_S:.3f})',")
+        else:
+            grade = ""
+        fc += f"[vc0]{transition_vf(tcuts)}{grade}null[vc];"
         lp = max(total - LOOP_S, 0)
         fc += (f"[LOOPIN]format=rgba,fade=t=in:st={lp:.3f}:d={LOOP_S}:alpha=1[lp];"
                f"[vc][lp]overlay=0:0:enable='gte(t,{lp:.3f})'[v0];")
@@ -1976,21 +2023,25 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             flat_items: list[dict] = []
             # wie eine Story (Vorbild): bis zum ersten Kill jedes Wort, danach nur die Schlüsselwörter
             first_kill = min((mk["shot"] for mk in marks if mk.get("shot") is not None), default=None)
-            keep = story_keep(wl, first_kill)
+            text_end = t_drop or total
+            if t_drop:  # Aufbau wie die Vorbilder: im Text-Teil jedes Wort, ab dem Drop keins
+                keep = {j for j, x in enumerate(wl) if x["a"] < t_drop - 0.15}
+            else:
+                keep = story_keep(wl, first_kill)
             picks = wall_picks(wl) & keep
             kept = sorted(keep)
-            next_kept = {j: (wl[kept[i + 1]]["a"] if i + 1 < len(kept) else total) for i, j in enumerate(kept)}
+            next_kept = {j: (wl[kept[i + 1]]["a"] if i + 1 < len(kept) else text_end) for i, j in enumerate(kept)}
             for j, wd in enumerate(wl):
                 a, b, txt = wd["a"], wd["b"], wd["txt"]
                 if a >= total or not txt.strip() or j not in keep:
                     continue
                 # weggelassene Wörter dazwischen: das Wort bleibt länger stehen (bis zum nächsten gezeigten, begrenzt)
-                wd = dict(wd, next=max(wd["next"], min(next_kept[j], wd["next"] + STORY_HOLD_S)))
-                b = min(b, total)
+                wd = dict(wd, next=min(max(wd["next"], min(next_kept[j], wd["next"] + STORY_HOLD_S)), text_end))
+                b = min(b, text_end)
                 # Wand-Wort: kein Kill im Zeitfenster, mind. 3 Buchstaben. Liegt ein Schnitt im Fenster, endet das Wort
                 # an der Wand beim Schnitt (die Wand ist danach weg), sofern bis dahin genug Zeit bleibt.
                 if j in picks:  # gezogenes Wort: bleibt durch die Pause an der Wand, bis das nächste Wort kommt
-                    b = min(max(b, wd["next"]), a + 2.5, total)
+                    b = min(max(b, wd["next"]), a + 2.5, text_end)
                 # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: alle passenden.
                 wanted = (j in picks) if picks else len(txt) >= 3
                 png = tmp / f"wall{j:02d}.png"
@@ -2039,13 +2090,13 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                    {k2: v for k2, v in w.items() if k2 != "png"} for w in wall_words],
                "total": total, "out_w": OUT_W, "out_h": OUT_H, "box": BOX, "box_y": BOX_Y, "box_x": BOX_X,
                "fps": OUT_FPS, "y_mid": lyric_pos(0, False)[0], "band": 360 if not LANDSCAPE else 300,
-               "font": font, "shift": 0.0}
+               "font": font, "shift": 0.0, "drop": t_drop}
         save_lyrics(out, lyr)
         wall_stats = apply_lyrics(str(base_path(out)), lyr, out, 0.0)
         if progress:
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
-            "segments": pl["segments"], "words": shown, "clips": len(srcs), "lyrics_source": source,
+            "segments": pl["segments"], "words": shown, "drop": t_drop, "clips": len(srcs), "lyrics_source": source,
             "lyrics_note": SUNG_NOTE, "wall": wall_stats,
             "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors")),
             "sync_measured": measured, "audio_note": AUDIO_NOTE}
