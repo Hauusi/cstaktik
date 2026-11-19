@@ -1115,7 +1115,13 @@ def text_plan(ws: list[dict], first_kill: float | None, t_drop: float) -> tuple[
             return (held + (0.3 if w not in STOPWORDS else -1.0) + min(len(w), 8) * 0.06
                     + (0.2 if x.get("eol") else 0.0))
 
-        ranked = sorted(ln, key=score, reverse=True)
+        def content(j):  # Füllwörter ("the", "to") nie betonen, auch nicht als Ersatz
+            w = "".join(c for c in ws[j]["txt"].lower() if c.isalnum() or c == "'")
+            return w not in STOPWORDS and len(w) >= 3
+
+        ranked = sorted((j for j in ln if content(j)), key=score, reverse=True)
+        if not ranked:
+            continue
         n_emph = 2 if len(ln) >= 7 else 1
         # bis zu 3 Kandidaten je betontem Platz: an die Wand kommt der beste, für den eine Wand im Bild ist
         for r, j in enumerate(ranked[:n_emph + 2]):
@@ -1352,7 +1358,7 @@ LINE_MAX_PX = 120  # Schriftgröße ganzer Zeilen (bis zwei Reihen)
 
 
 def _line_layout(line: list[str], font_file: str, width: int, height: int) -> dict:
-    """Zeile auf ein bis zwei Reihen verteilen, so groß wie möglich (höchstens LINE_MAX_PX), mittig. Die Lage jedes
+    """Zeile auf ein bis drei Reihen verteilen, so groß wie möglich (höchstens LINE_MAX_PX), mittig. Die Lage jedes
     Worts steht fest, damit beim Aufbauen nichts springt."""
     from PIL import ImageFont
 
@@ -1362,12 +1368,12 @@ def _line_layout(line: list[str], font_file: str, width: int, height: int) -> di
         font = ImageFont.truetype(font_file, size)
         asc, desc = font.getmetrics()
         sp = font.getlength(" ")
-        splits = [len(ws)] + list(range(1, len(ws)))  # eine Reihe, sonst Umbruch nach Wort k
-        for k in splits:
-            rows = [ws[:k], ws[k:]] if k < len(ws) else [ws]
+        layouts = [[ws]] + [[ws[:k], ws[k:]] for k in range(1, len(ws))] + \
+            [[ws[:k], ws[k:m], ws[m:]] for k in range(1, len(ws)) for m in range(k + 1, len(ws))]
+        for rows in layouts:
             widths = [sum(font.getlength(w) for w in r) + sp * (len(r) - 1) for r in rows]
             if max(widths) <= width * 0.86 and len(rows) * (asc + desc) <= height * 0.95:
-                bal = max(widths) - min(widths) if len(rows) == 2 else 0
+                bal = max(widths) - min(widths) if len(rows) > 1 else 0
                 if best is None or (len(rows), bal) < (len(best["rows"]), best["bal"]):
                     best = {"rows": rows, "bal": bal, "widths": widths}
         if best:

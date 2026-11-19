@@ -424,7 +424,8 @@ def test_text_plan_lines_first_then_emphasis():
     assert set(lines) == {0, 1, 2} and lines[1] == (["hope", "you", "know"], 1)
     best = {j for j, (g, r, need) in emph.items() if r == 0}
     assert best == {7, 11} and all(wd < 12 for wd in emph)  # je Zeile das betonte Wort zuerst, nichts nach dem Drop
-    assert {g for g, _, _ in emph.values()} == {0, 1} and max(r for _, r, _ in emph.values()) == 2  # Ersatz-Kandidaten
+    assert {g for g, _, _ in emph.values()} == {0, 1} and max(r for _, r, _ in emph.values()) >= 1  # Ersatz-Kandidaten
+    assert not {ws[j]["txt"] for j in emph} & {"to", "the", "you", "me", "let"}  # Füllwörter nie betont
     lines2, _ = memeclip.text_plan(ws, first_kill=4.0, t_drop=12.0)
     assert set(lines2) == {0, 1, 2, 3, 4, 5, 6, 7}  # beide Zeilen beginnen vor dem Kill
 
