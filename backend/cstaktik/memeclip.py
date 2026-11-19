@@ -1870,8 +1870,18 @@ def story_drop(music: str, music_ss: float, total: float, segs: list[dict]) -> f
     return round(min(cuts, key=lambda c: abs(c - 0.45 * total)), 3)
 
 
+def _safe_debug(dbg: dict, words, sung) -> dict | None:
+    """Diagnose darf den Schnitt nie abbrechen (Nutzer: Fehler "could not convert string to float")."""
+    try:
+        return _lyrics_debug(dbg, words, sung)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _lyrics_debug(dbg: dict, words, sung) -> dict | None:
     """Diagnose kompakt: je Liste höchstens 120 Einträge "Sekunde Wort" (Sekunden im Video)."""
+    import re
+
     def fmt(xs):
         out = []
         for w in (xs or [])[:120]:
@@ -1879,7 +1889,8 @@ def _lyrics_debug(dbg: dict, words, sung) -> dict | None:
             if not _:
                 out.append(w)
                 continue
-            out.append(f"{float(tm.split('-')[0]):.2f} {txt.rstrip(chr(182))}")
+            m = re.match(r"-?\d+(?:\.\d+)?", tm)  # Start, auch negativ ("-1.50" liegt vor dem Videostart)
+            out.append(f"{float(m.group(0)):.2f} {txt.rstrip(chr(182))}" if m else w)
         return out
 
     if not words and not sung:
@@ -2119,7 +2130,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         if progress:
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
-            "lyrics_debug": _lyrics_debug(dbg, words or [], sung),
+            "lyrics_debug": _safe_debug(dbg, words or [], sung),
             "segments": pl["segments"], "words": shown, "drop": t_drop, "clips": len(srcs), "lyrics_source": source,
             "lyrics_note": SUNG_NOTE, "wall": wall_stats,
             "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors")),
