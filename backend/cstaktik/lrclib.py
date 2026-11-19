@@ -393,6 +393,8 @@ LOCAL_SHIFT_S = 20.0   # so weit darf eine Zeile in der Musikdatei anders liegen
 
 
 CHAIN_LAMBDA = 1.5   # Strafe je Sekunde, um die sich die Verschiebung zwischen zwei Ankern derselben Zeile ändert
+LINE_STEEP = 2.5     # je Sekunde Zeilen-Verschiebung über 1 s (Nutzer-Daten "Cannibal": falsch gehörte "am"/"cannibal"
+                     # zogen den 2. Refrain 1,7 s nach vorn; unabhängige Erkennung bestätigte LRCLIB + 1,4 s)
 JUMP_COST = 3.0      # Sprung zwischen Zeilen über 2,5 s (Datei anders geschnitten): fester Preis, lohnt ab ~4 Wörtern
 LINE_LAMBDA = 0.25   # dasselbe zwischen zwei Zeilen: LRCLIB setzt jede Zeile von Hand, jede liegt anders daneben
 COLLAPSE_S = 0.03    # erkannte Wörter mit (fast) gleicher Startzeit: Zeitstempel der Erkennung kaputt, nicht verwenden
@@ -441,8 +443,10 @@ def _anchors(win: list[tuple[float, float, str]], rec: list[tuple]) -> list[tupl
                 d = abs(c - cm)
                 # gleiche Zeile: streng; neue Zeile: bis 2,5 s billig (Handarbeit-Fehler je Zeile), darüber teuer
                 # (sonst springt die Kette bei wiederholten Wörtern zu einer ganz anderen Zeile)
-                pen = CHAIN_LAMBDA * d if line[im] == line[i] else LINE_LAMBDA * min(d, 2.5) + (JUMP_COST if d > 2.5
-                                                                                                else 0.0)
+                if line[im] == line[i]:
+                    pen = CHAIN_LAMBDA * d
+                else:  # bis 1 s je Zeile billig (Handarbeit), darüber teuer, ab 3 s fester Sprungpreis (Schnitt)
+                    pen = LINE_LAMBDA * min(d, 1.0) + (JUMP_COST if d > 3.0 else LINE_STEEP * max(d - 1.0, 0.0))
                 v = best[m] + w - pen
                 if v > best[k]:
                     best[k], prev[k] = v, m
@@ -529,7 +533,7 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
                 c = corr[lo] + (corr[hi] - corr[lo]) * f
                 # lange Strecke zwischen zwei erkannten Wörtern ohne jeden erkannten Gesang: Instrumental-Pause,
                 # dort kein Text (sonst stand dort Text aus einer Refrain-Wiederholung)
-                if (win[hi][0] + corr[hi]) - (win[lo][0] + corr[lo]) > 4.0 and not speech_near(a + c, 0.5):
+                if (win[hi][0] + corr[hi]) - (win[lo][0] + corr[lo]) > 4.0 and not speech_near(a + c, 1.5):
                     continue
             elif lo is not None and hi is not None:
                 # Sprung zwischen den Nachbarn (Datei anders geschnitten): nicht über die Lücke verteilen. Die
@@ -548,6 +552,8 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
         if anc:
             continue
         nw = _norm(w.rstrip(EOL))
+        if len(nw) < 3:  # kurze Wörter ("I", "am") hört die Erkennung im Gesang an vielen Stellen
+            continue
         js = [j for j, r in enumerate(rec) if j not in used_rec and j not in bad and abs(r[0] - va) <= 1.0
               and r[2] and difflib.SequenceMatcher(None, nw, r[2]).ratio() >= 0.8]
         # Reihenfolge gegenüber den festen (erkannten) Nachbarn bleibt
