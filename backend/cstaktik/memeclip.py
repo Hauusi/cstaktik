@@ -1189,9 +1189,16 @@ def sung_words(music: str, ss: float, d: float, hint: str | None = None) -> list
         # Ton selbst einlesen (16 kHz, Mono) und als Zahlenreihe übergeben: So braucht die Erkennung ihre eigene
         # Datei-Bibliothek (PyAV) nicht, die auf manchen Servern zu alt ist.
         # Bass und Höhen weg (Kick, Hi-Hats), Stimmbereich bleibt: weniger Musik, die die Erkennung stört
-        raw = _run(["ffmpeg", "-v", "error", "-ss", str(ss), "-t", str(d), "-i", music, "-vn", "-ac", "1", "-ar", "16000",
-                    "-af", "highpass=f=180,lowpass=f=4500", "-f", "f32le", "-"])
-        audio = np.frombuffer(raw, np.float32)
+        # zuerst die Stimme von der Musik trennen: die Erkennung hört dann nur den Gesang (Nutzer-Song "Cannibal":
+        # mit Musik "cannibal" bei 9,76 s gehört, gesungen bei 11,84 s)
+        from cstaktik import vocals
+
+        audio = vocals.vocals_16k(music, ss, d)
+        separated = audio is not None
+        if audio is None:
+            raw = _run(["ffmpeg", "-v", "error", "-ss", str(ss), "-t", str(d), "-i", music, "-vn", "-ac", "1", "-ar",
+                        "16000", "-af", "highpass=f=180,lowpass=f=4500", "-f", "f32le", "-"])
+            audio = np.frombuffer(raw, np.float32)
         model = WhisperModel("small", device="cpu", compute_type="int8")
         # Gesang über Musik: nicht beim ersten unsicheren Stück aufhören (kein Abbruch bei "keine Sprache", kein
         # Fortschreiben des vorigen Texts, das sich sonst aufhängt), gründlichere Suche
@@ -1215,7 +1222,9 @@ def sung_words(music: str, ss: float, d: float, hint: str | None = None) -> list
         else:
             t0 = float(out[0].split("-")[0])
             t1 = float(out[-1].split(":")[0].split("-")[-1])
-            SUNG_NOTE = (f"{len(out)} Wörter erkannt, von {t0:.1f} bis {t1:.1f} s".replace(".", ",")
+            SUNG_NOTE = (f"{len(out)} Wörter erkannt" + (" (Stimme von der Musik getrennt)" if separated else
+                                                           f" (ohne Stimmtrennung: {vocals.NOTE or 'nicht verfügbar'})")
+                         + f", von {t0:.1f} bis {t1:.1f} s".replace(".", ",")
                          + (f" (das Video ist {d:.1f} s lang)".replace(".", ",") if t1 < d * 0.6 else "") + ".")
         return out or None
     except Exception as e:  # noqa: BLE001 - ohne Erkennung läuft der Schnitt trotzdem

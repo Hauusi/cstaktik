@@ -73,3 +73,11 @@ def _no_depth_model(monkeypatch):
     from cstaktik import wall_text
 
     monkeypatch.setattr(wall_text, "_DEPTH", {"s": None})
+
+
+@pytest.fixture(autouse=True)
+def _no_vocal_model(monkeypatch):
+    """Tests laden nie das Trennmodell herunter."""
+    from cstaktik import vocals
+
+    monkeypatch.setattr(vocals, "_SESS", {"s": None})
