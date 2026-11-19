@@ -32,6 +32,7 @@
 .cj video { display: block; width: 100%; max-width: 360px; margin: 10px auto 0; border-radius: 12px; background: #000; }
 .cj .row { display: flex; gap: 16px; align-items: center; margin-top: 10px; } .cj .row a { color: var(--orange); font-weight: 700; font-size: 14px; }
 .cj .row button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; padding: 0; }
+  .dbgl{font-family:ui-monospace,monospace;font-size:.72rem;line-height:1.35;word-break:break-word;margin:.4rem 0}
 </style>
 {% endblock %}
 {% block hero %}
@@ -112,6 +113,13 @@
   {% elif j.music and not j.lyrics %}<div class="st">Ohne Songtext. {{ j.lyrics_note or "Die Spracherkennung hat nichts geliefert." }}</div>{% endif %}
   {% if j.music and (j.lyrics or j.lyrics_source) and not j.words %}<div class="st err">Der Songtext wurde nicht eingeblendet. Bitte melden.</div>{% endif %}
   <video controls playsinline preload="metadata" src="/clips/{{ j.id }}/video"></video>
+  {% if j.lyrics_debug %}
+  <details class="dbg"><summary>Songtext-Diagnose (Screenshot an den Entwickler)</summary>
+    <small>Sekunden im Video. „Erkannt“ = was die Spracherkennung im Gesang hört, „LRCLIB“ = Zeiten laut Songtext-Datenbank, „Gezeigt“ = was im Video steht.</small>
+    {% for k, label in [("gezeigt", "Gezeigt"), ("erkannt", "Erkannt"), ("lrclib", "LRCLIB"), ("eingefuegt", "Eingefügt")] %}{% if j.lyrics_debug[k] %}
+    <p class="dbgl"><b>{{ label }}:</b> {{ j.lyrics_debug[k]|join(" · ") }}</p>{% endif %}{% endfor %}
+  </details>
+  {% endif %}
   {% if j.has_lyrics %}
   <details class="ly" data-job="{{ j.id }}"><summary>Songtext-Timing nachjustieren</summary>
     <div class="lyv"><video controls playsinline preload="none"></video><div class="lyt"></div></div>

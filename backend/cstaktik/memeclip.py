@@ -1870,6 +1870,24 @@ def story_drop(music: str, music_ss: float, total: float, segs: list[dict]) -> f
     return round(min(cuts, key=lambda c: abs(c - 0.45 * total)), 3)
 
 
+def _lyrics_debug(dbg: dict, words, sung) -> dict | None:
+    """Diagnose kompakt: je Liste höchstens 120 Einträge "Sekunde Wort" (Sekunden im Video)."""
+    def fmt(xs):
+        out = []
+        for w in (xs or [])[:120]:
+            tm, _, txt = w.partition(":")
+            if not _:
+                out.append(w)
+                continue
+            out.append(f"{float(tm.split('-')[0]):.2f} {txt.rstrip(chr(182))}")
+        return out
+
+    if not words and not sung:
+        return None
+    return {"gezeigt": fmt([w for w in words if ":" in w]), "erkannt": fmt(sung),
+            "lrclib": fmt(dbg.get("lrclib")), "eingefuegt": [w.rstrip(chr(182)) for w in dbg.get("typed", [])][:120]}
+
+
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None, song: str | None = None, fmt: str = "hoch",
               lyrics_shift: float = 0.0) -> dict:
@@ -1913,6 +1931,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         sg["bright"] = offs.get(sg.get("src") or srcs[0], 0.0)
     font = _font()
     shown, source = 0, "eingetragen" if words else None
+    sung = None
+    dbg: dict = {}  # Diagnose für die Anzeige: was LRCLIB sagt, was die Spracherkennung hört, was gezeigt wird
     global SUNG_NOTE
     lrc_note = None
     if song and not words:  # Songname angegeben: Text mit Zeitstempeln von LRCLIB, Stelle im Song bestimmen
@@ -1939,6 +1959,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                     sung = sung_words(music, music_ss, pl["seconds"], " ".join(near)[:600])
                 # Abschnittsweise auf den Gesang legen: passt auch, wenn die Datei anders geschnitten ist als die
                 # LRCLIB-Version (eine Verschiebung für alles ließ den Anfang weg, Nutzer-Video "Heartbeat")
+                dbg["lrclib"] = [f"{a - off - music_ss:.2f}:{w}" for a, _, w in tw
+                                 if -2 <= a - off - music_ss <= pl["seconds"] + 2]
                 local, n_fit = lrclib.align_local(tw, off, music_ss, pl["seconds"], sung)
                 if local:
                     words = local
@@ -1952,6 +1974,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     if words and not any(":" in w for w in words):
         # Text eingefügt: mit der Spracherkennung (falls installiert) auf den Gesang legen, Text bleibt der eigene
         sung = sung_words(music, music_ss, pl["seconds"], " ".join(words))
+        dbg["typed"] = list(words)
         if sung:
             words, source = align_lyrics(words, sung, pl["seconds"]), "ausgerichtet"
     elif not words and not song:  # weder Text noch Song: aus dem Gesang erkennen (falls installiert)
@@ -2096,6 +2119,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         if progress:
             progress(len(pl["segments"]) + 1, len(pl["segments"]) + 1)
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
+            "lyrics_debug": _lyrics_debug(dbg, words or [], sung),
             "segments": pl["segments"], "words": shown, "drop": t_drop, "clips": len(srcs), "lyrics_source": source,
             "lyrics_note": SUNG_NOTE, "wall": wall_stats,
             "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors")),

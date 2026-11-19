@@ -401,3 +401,10 @@ def test_story_drop_at_cut_where_bass_rises(tmp_path):
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "aevalsrc='0.3*sin(2*PI*55*t)':d=20:s=8000",
                     str(flat)], check=True)
     assert memeclip.story_drop(str(flat), 0.0, 20.0, segs) == 7.0
+
+
+def test_lyrics_debug_compact():
+    d = memeclip._lyrics_debug({"lrclib": ["0.50:hope", "0.90:you¶"]}, ["0.40-0.80:hope", "0.85-1.20:you¶"],
+                               ["0.42-0.70:hope", "0.88-1.10:you"])
+    assert d["gezeigt"] == ["0.40 hope", "0.85 you"] and d["erkannt"][0] == "0.42 hope" and d["lrclib"][1] == "0.90 you"
+    assert memeclip._lyrics_debug({}, [], None) is None
