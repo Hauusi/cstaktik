@@ -258,8 +258,9 @@ def test_align_local_real_user_data_cannibal():
     for a, w in out:
         t.setdefault(w, []).append(a)
     assert n >= 20
-    # Anfang: unabhängige Messung am Nutzer-Video (sherpa-onnx) hört "you" bei 0,64 s
-    assert abs(t["you"][0] - 0.64) < 0.1 and t["better"][0] == 0.92
+    # Anfang: vom Nutzer bestätigt ("die ersten 3 Wörter sind genau richtig")
+    assert t["you"][0] == 0.0 and t["better"][0] == 0.92 and t["run"][0] == 1.44
+    assert "boys" not in t  # vor dem Videostart gesungen
     # 2. Refrain: unabhängige Erkennung (sherpa-onnx) am Nutzer-Ausschnitt hört "cannibal" bei ca. 11,4 s, LRCLIB+1,4 s
     # sagt 11,41; die Server-Erkennung hörte 9,76 (falsch, Text kam zu früh, Nutzer: "kommen viel zu früh")
     assert any(abs(a - 11.4) < 0.5 for a in t["cannibal"]) and not any(9.0 < a < 10.5 for a in t["cannibal"])
@@ -276,9 +277,9 @@ CANNIBAL_REC_SEPARATED = ("0.00 you · 0.94 better · 1.44 run · 2.08 I · 3.34
 
 
 def test_align_local_real_user_data_separated_vocals():
-    """Zweiter Nutzer-Clip (Whisper auf getrennter Stimme): "I'll" 0,5 s zu früh erkannt, "eat you up" richtig (Messung:
-    I'll 15,52 / eat 15,84 / you 16,20 / up 16,56); zusätzlich gehörtes "I am I am" (8,7-10,7 s) darf nicht als
-    eigener Text erscheinen."""
+    """Zweiter Nutzer-Clip (Whisper auf getrennter Stimme): bestätigter Anfang bleibt; zusätzlich gehörtes "I am I am"
+    (8,7-10,7 s) darf nicht als eigener Text erscheinen. "I'll" (0,5 s zu früh erkannt) korrigiert erst das Forced
+    Alignment (forced.py), siehe test_forced."""
     global CANNIBAL_REC
     old = CANNIBAL_REC
     CANNIBAL_REC = CANNIBAL_REC_SEPARATED
@@ -289,5 +290,6 @@ def test_align_local_real_user_data_separated_vocals():
     t = {}
     for a, w in out:
         t.setdefault(w, []).append(a)
-    assert any(abs(a - 15.52) < 0.15 for a in t["(I'll"])
+    assert t["you"][0] == 0.0 and t["better"][0] == 0.94 and t["run"][0] == 1.44  # vom Nutzer bestätigter Anfang
+    assert "boys" not in t
     assert not [a for a, w in out if 8.0 < a < 10.3]

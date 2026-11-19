@@ -184,7 +184,10 @@ def refine(words: list[str], logp: np.ndarray, vocab: Vocab) -> tuple[list[str],
         first, conf = r
         sure = {wi: first[wi] * FRAME for wi in first
                 if conf[wi] >= SURE_LOGP and abs(first[wi] * FRAME - items[ln[wi]][0]) <= MAX_MOVE_S}
-        if not sure:
+        # eine Zeile wird nur verschoben, wenn mindestens 2 sichere Wörter dieselbe Verschiebung zeigen (Nutzer: der
+        # bestätigte Anfang "you better run" rutschte wegen eines einzelnen Worts 0,24 s nach hinten)
+        dd = sorted(sure[wi] - items[ln[wi]][0] for wi in sure)
+        if len(dd) < 2 or dd[len(dd) // 2] - dd[0] > 0.15 and dd[-1] - dd[len(dd) // 2] > 0.15:
             continue
         d = sorted(sure[wi] - items[ln[wi]][0] for wi in sure)[len(sure) // 2]
         for wi, k in enumerate(ln):

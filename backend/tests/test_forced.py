@@ -40,3 +40,11 @@ def test_features_shape_and_no_model():
     f = forced.features(np.random.default_rng(1).uniform(-0.1, 0.1, 16000).astype(np.float32))
     assert f.shape == (100, 80) and abs(float(f.mean())) < 1e-3
     assert forced.refine_words(["0.1-0.2:you"], np.zeros(32000, np.float32)) == (["0.1-0.2:you"], 0)  # ohne Modell
+
+
+def test_refine_needs_two_agreeing_sure_words():
+    """Ein einzelnes sicheres Wort verschiebt seine Zeile nicht (Nutzer: bestätigter Anfang rutschte sonst weg)."""
+    lp = _logp({30: 0})
+    words = ["0.00-0.40:you", "0.94-1.20:better", "1.44-1.60:run\u00b6"]
+    out, n = forced.refine(words, lp, _Voc())
+    assert n == 0 and out[0].startswith("0.00-")

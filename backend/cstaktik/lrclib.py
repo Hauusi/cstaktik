@@ -506,7 +506,8 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
     for g in good:
         by_line.setdefault(ln_of[g[0]], []).append(g[1])
     med = {k: sorted(v)[len(v) // 2] for k, v in by_line.items() if len(v) >= 3}
-    good = [g for g in good if ln_of[g[0]] not in med or abs(g[1] - med[ln_of[g[0]]]) <= 0.35]
+    outliers = {g[3] for g in good if ln_of[g[0]] in med and abs(g[1] - med[ln_of[g[0]]]) > 0.35}
+    good = [g for g in good if g[3] not in outliers]
     if len(good) < MIN_MATCH:
         return [], len(good)
     idx = [g[0] for g in good]
@@ -562,7 +563,8 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
         nw = _norm(w.rstrip(EOL))
         if len(nw) < 3:  # kurze Wörter ("I", "am") hört die Erkennung im Gesang an vielen Stellen
             continue
-        js = [j for j, r in enumerate(rec) if j not in used_rec and j not in bad and abs(r[0] - va) <= 0.35
+        js = [j for j, r in enumerate(rec) if j not in used_rec and j not in bad and j not in outliers
+              and abs(r[0] - va) <= 1.0
               and r[2] and difflib.SequenceMatcher(None, nw, r[2]).ratio() >= 0.8]
         # Reihenfolge gegenüber den festen (erkannten) Nachbarn bleibt
         lo_t = max((placed[m][0] for m in range(k) if fixed[m]), default=-1e9)
