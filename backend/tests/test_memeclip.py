@@ -422,7 +422,9 @@ def test_text_plan_lines_first_then_emphasis():
           w("after", 12.5), w("drop", 12.8, True)]
     lines, emph = memeclip.text_plan(ws, first_kill=1.5, t_drop=12.0)
     assert set(lines) == {0, 1, 2} and lines[1] == (["hope", "you", "know"], 1)
-    assert emph == {7, 11}  # je Zeile das betonte Wort, nichts nach dem Drop
+    best = {j for j, (g, r, need) in emph.items() if r == 0}
+    assert best == {7, 11} and all(wd < 12 for wd in emph)  # je Zeile das betonte Wort zuerst, nichts nach dem Drop
+    assert {g for g, _, _ in emph.values()} == {0, 1} and max(r for _, r, _ in emph.values()) == 2  # Ersatz-Kandidaten
     lines2, _ = memeclip.text_plan(ws, first_kill=4.0, t_drop=12.0)
     assert set(lines2) == {0, 1, 2, 3, 4, 5, 6, 7}  # beide Zeilen beginnen vor dem Kill
 
@@ -434,3 +436,37 @@ def test_line_layout_and_frame_no_jump():
     a = memeclip._line_frame(lay, 1, 1.0, False, 1080, 360).getbbox()
     b = memeclip._line_frame(lay, 3, 1.0, False, 1080, 360).getbbox()
     assert a[0] == b[0] or a[1] == b[1]  # bereits stehende Wörter bewegen sich nicht
+
+
+def test_split_walls_groups_pick_best_with_wall(tmp_path, monkeypatch):
+    """Je Gruppe das beste Wort mit Wand; ohne Wand das beste flach; nie zwei Wörter gleichzeitig."""
+    import subprocess
+
+    from cstaktik import wall_text
+
+    base = tmp_path / "b.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=108x192:r=10:d=6", str(base)],
+                   check=True)
+    lyr = {"out_w": 108, "out_h": 192, "box": 108, "box_y": 44, "box_x": 0, "y_mid": 60, "band": 36}
+    monkeypatch.setattr(wall_text, "place_on_wall", lambda g, rgb, asp, full=None: {"quad": 1}
+                        if WALLS.get(round(TIMES.pop(0), 1)) else None)
+    WALLS = {1.5: True}  # nur das zweitbeste Wort der Gruppe 0 hat eine Wand
+    TIMES = []
+    orig = subprocess.run
+
+    def run(cmd, **kw):  # Startzeit des geprüften Bilds mitschreiben
+        if "-ss" in cmd:
+            TIMES.append(float(cmd[cmd.index("-ss") + 1]) - 0.04)
+        return orig(cmd, **kw)
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    def w(txt, a, g, r):
+        return {"a": a, "b": a + 2.0, "txt": txt, "j": 0, "group": g, "rank": r, "need": 1, "eligible": True}
+
+    walls = [w("DANCING", 1.0, 0, 0), w("TAKE", 1.5, 0, 1), w("LET", 2.0, 0, 2),
+             w("BEDROOM", 4.0, 1, 0), w("STEP", 4.3, 1, 1)]
+    keep, moved = memeclip.split_walls(str(base), walls, lyr)
+    assert [x["txt"] for x in keep] == ["TAKE"]  # Gruppe 0: bestes Wort mit Wand
+    assert [x["txt"] for x in moved] == ["BEDROOM"]  # Gruppe 1: keine Wand, bestes flach
+    assert keep[0]["b"] <= 4.0  # endet, wenn das nächste Wort kommt

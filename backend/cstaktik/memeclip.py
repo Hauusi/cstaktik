@@ -1074,11 +1074,12 @@ LINE_INTRO_MAX = 3      # so viele ganze Zeilen höchstens am Anfang
 LINE_INTRO_WORDS = 7    # längere Zeilen nicht als ganze Zeile (zu klein zu lesen)
 
 
-def text_plan(ws: list[dict], first_kill: float | None, t_drop: float) -> tuple[dict, set]:
+def text_plan(ws: list[dict], first_kill: float | None, t_drop: float) -> tuple[dict, dict]:
     """Was im Text-Teil gezeigt wird (Nutzer + Kollege, Vorbild 1 und 2): am Anfang ganze Zeilen, die sich Wort für
     Wort aufbauen, solange es ruhig ist (Zeilen, die vor dem ersten Kill beginnen, höchstens LINE_INTRO_MAX, mindestens
     die erste); danach je Zeile nur das betonte Wort (bei langen Zeilen zwei), möglichst als Schild an der Wand.
-    Rückgabe ({Wort-Index: (Zeile als Wortliste, Position)}, {betonte Wort-Indizes})."""
+    Rückgabe ({Wort-Index: (Zeile als Wortliste, Position)}, {Kandidat: (Gruppe, Rang, Anzahl)}). Je Gruppe werden
+    "Anzahl" Wörter gezeigt: die besten mit Wand im Bild, fehlen welche, die besten übrigen flach (split_walls)."""
     lines: list[list[int]] = [[]]
     for j, x in enumerate(ws):
         if x["a"] >= t_drop - 0.15 or not x["txt"].strip():
@@ -1092,14 +1093,17 @@ def text_plan(ws: list[dict], first_kill: float | None, t_drop: float) -> tuple[
     for ln in lines:
         start = ws[ln[0]]["a"]
         calm = first_kill is None or start < first_kill or intro == 0
-        if intro < LINE_INTRO_MAX and calm and len(ln) <= LINE_INTRO_WORDS and (intro == 0 or start < (first_kill or 0)):
+        # die erste Zeile immer ganz (bis 12 Wörter, zwei Reihen), weitere nur vor dem ersten Kill
+        if intro < LINE_INTRO_MAX and calm and (len(ln) <= 12 if intro == 0 else
+                                               len(ln) <= LINE_INTRO_WORDS and start < (first_kill or 0)):
             words = [ws[j]["txt"] for j in ln]
             for pos, j in enumerate(ln):
                 line_words[j] = (words, pos)
             intro += 1
         else:
             break
-    emph: set[int] = set()
+    emph: dict[int, tuple[int, int, int]] = {}  # Wort -> (Gruppe, Rang, wie viele aus der Gruppe gezeigt werden)
+    emph_lines: list[int] = []
     for ln in lines:
         if ln[0] in line_words:
             continue
@@ -1112,7 +1116,11 @@ def text_plan(ws: list[dict], first_kill: float | None, t_drop: float) -> tuple[
                     + (0.2 if x.get("eol") else 0.0))
 
         ranked = sorted(ln, key=score, reverse=True)
-        emph.update(ranked[:2 if len(ln) >= 7 else 1])
+        n_emph = 2 if len(ln) >= 7 else 1
+        # bis zu 3 Kandidaten je betontem Platz: an die Wand kommt der beste, für den eine Wand im Bild ist
+        for r, j in enumerate(ranked[:n_emph + 2]):
+            emph[j] = (len(emph_lines), r, n_emph)
+        emph_lines.append(ln[0])
     return line_words, emph
 
 
@@ -1894,7 +1902,8 @@ def preview_words(lyr: dict) -> list[dict]:
 
 def split_walls(base: str, walls: list[dict], lyr: dict) -> tuple[list[dict], list[dict]]:
     """Für jedes Wand-Wort das Bild zu seinem Beginn ansehen: Wand gefunden -> bleibt an der Wand, sonst wird es ein
-    flaches Wort der Textspur (Farbe nach Hintergrund wie dort)."""
+    flaches Wort der Textspur (Farbe nach Hintergrund wie dort). Betonte Wörter in Gruppen ("group", "rank", "need"):
+    je Gruppe die besten "need" Wörter mit Wand; fehlen welche, die besten übrigen flach, der Rest entfällt."""
     import numpy as np
     from PIL import Image
 
@@ -1902,30 +1911,65 @@ def split_walls(base: str, walls: list[dict], lyr: dict) -> tuple[list[dict], li
 
     font = str(LYRIC_FONT) if LYRIC_FONT.exists() else lyr.get("font") or ""
     w_out, h_out = lyr["out_w"], lyr["out_h"]
+
+    def frame(w):
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{w['a'] + 0.04:.3f}", "-i", base, "-frames:v", "1",
+                              "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+        return np.frombuffer(raw, np.uint8).reshape(h_out, w_out, 3) if len(raw) == w_out * h_out * 3 else None
+
+    def has_wall(w, arr, td):
+        if arr is None or not font or not w.get("eligible", True):
+            return False
+        game = arr[lyr["box_y"]:lyr["box_y"] + lyr["box"], lyr["box_x"]:lyr["box_x"] + lyr["box"]]
+        png = Path(td) / "w.png"
+        word_png(w["txt"], png, w.get("j", 0), font, wall=True)
+        im = Image.open(png)
+        return wall_text.place_on_wall(wall_text._gray(game), game[::wall_text.SCALE, ::wall_text.SCALE],
+                                       wall_text.word_aspect(im), full=game) is not None
+
+    def to_flat(w, arr):
+        f = {k: w[k] for k in ("a", "b", "txt") if k in w}
+        f.update(eol=w.get("eol", False), stop=w.get("stop", w["b"]), sung=w.get("sung"))
+        if w.get("flat_b"):
+            f["b"] = w["flat_b"]
+        if arr is not None:
+            y0 = max(lyr["y_mid"] - lyr["band"] // 2, 0)
+            f["dark"] = float(arr[y0:y0 + lyr["band"]].mean()) > DARK_TEXT_LUMA
+        return f
+
     keep, moved = [], []
+    groups: dict = {}
     with tempfile.TemporaryDirectory() as td:
         for w in walls:
-            raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{w['a'] + 0.04:.3f}", "-i", base, "-frames:v", "1",
-                                  "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
-            ok = False
-            if len(raw) == w_out * h_out * 3 and font:
-                arr = np.frombuffer(raw, np.uint8).reshape(h_out, w_out, 3)
-                game = arr[lyr["box_y"]:lyr["box_y"] + lyr["box"], lyr["box_x"]:lyr["box_x"] + lyr["box"]]
-                png = Path(td) / "w.png"
-                word_png(w["txt"], png, w.get("j", 0), font, wall=True)
-                im = Image.open(png)
-                ok = wall_text.place_on_wall(wall_text._gray(game), game[::wall_text.SCALE, ::wall_text.SCALE],
-                                             wall_text.word_aspect(im), full=game) is not None
-            if ok:
-                keep.append(w)
+            if "group" in w:
+                groups.setdefault(w["group"], []).append(w)
                 continue
-            f = {k: w[k] for k in ("a", "b", "txt") if k in w}
-            f.update(eol=w.get("eol", False), stop=w.get("stop", w["b"]), sung=w.get("sung"))
-            if len(raw) == w_out * h_out * 3:
-                arr = np.frombuffer(raw, np.uint8).reshape(h_out, w_out, 3)
-                y0 = max(lyr["y_mid"] - lyr["band"] // 2, 0)
-                f["dark"] = float(arr[y0:y0 + lyr["band"]].mean()) > DARK_TEXT_LUMA
-            moved.append(f)
+            arr = frame(w)
+            if has_wall(w, arr, td):
+                keep.append(w)
+            else:
+                moved.append(to_flat(w, arr))
+        for g, ws in groups.items():
+            ws = sorted(ws, key=lambda w: w["rank"])
+            need = ws[0].get("need", 1)
+            frames = {}
+            chosen = []
+            for w in ws:
+                if len(chosen) >= need:
+                    break
+                frames[id(w)] = frame(w)
+                if has_wall(w, frames[id(w)], td):
+                    chosen.append(w)
+            fill = [w for w in ws if w not in chosen][:need - len(chosen)]
+            keep += chosen
+            moved += [to_flat(w, frames.get(id(w)) if id(w) in frames else frame(w)) for w in fill]
+    # nie zwei Wörter gleichzeitig: jedes endet, wenn das nächste gezeigte beginnt
+    shown = sorted(keep + moved, key=lambda x: x["a"])
+    for x, y in zip(shown, shown[1:]):
+        if x["b"] > y["a"]:
+            x["b"] = max(y["a"], x["a"] + 0.15)
+        if x.get("stop", 0) > y["a"]:
+            x["stop"] = y["a"]
     return keep, moved
 
 
@@ -2197,10 +2241,17 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             first_kill = min((mk["shot"] for mk in marks if mk.get("shot") is not None), default=None)
             text_end = t_drop or total
             line_words: dict = {}
+            emph_of: dict = {}
+            group_next: dict = {}
             if t_drop:  # Aufbau wie die Vorbilder: ganze Zeilen am Anfang, dann betonte Wörter, ab dem Drop keins
                 line_words, emph = text_plan(wl, first_kill, t_drop)
-                keep = set(line_words) | emph
+                keep = set(line_words) | set(emph)
                 picks = set(emph)
+                emph_of = emph
+                for g in {v[0] for v in emph.values()}:  # bis wann ein betontes Wort stehen darf
+                    last_a = max(wl[j]["a"] for j, v in emph.items() if v[0] == g)
+                    later = [wl[j]["a"] for j in keep if wl[j]["a"] > last_a and emph.get(j, (None,))[0] != g]
+                    group_next[g] = min(later, default=text_end)
             else:
                 keep = story_keep(wl, first_kill)
                 picks = wall_picks(wl) & keep
@@ -2218,6 +2269,19 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 if j in picks:  # gezogenes Wort: bleibt durch die Pause an der Wand, bis das nächste Wort kommt
                     b = min(max(b, wd["next"]), a + 2.5, text_end)
                 # gesungener Text: die Wörter, bei denen sich der Sänger Zeit lässt; eingetippter Text: alle passenden.
+                if j in emph_of:  # betontes Wort (Kandidat): Wand oder Ersatz entscheidet split_walls am Bild
+                    g, r, need = emph_of[j]
+                    b = min(max(b, group_next[g]), a + 2.5, text_end)
+                    png = tmp / f"wall{j:02d}.png"
+                    word_png(txt, png, j, str(LYRIC_FONT) if LYRIC_FONT.exists() else font, wall=True)
+                    wa, wb = one_scene(a, b, cuts)
+                    ok = wall_on and wb - wa >= WALL_MIN_S and png_aspect(png) <= WALL_MAX_ASPECT
+                    wall_words.append({"a": wa if ok else a, "b": wb if ok else b, "png": str(png), "cuts": [],
+                                       "txt": txt, "j": j, "eol": wd.get("eol", False), "stop": group_next[g],
+                                       "sung": wd.get("sung"), "group": g, "rank": r, "need": need,
+                                       "eligible": ok, "flat_b": b})
+                    shown += 1 if r < need else 0
+                    continue
                 wanted = (j in picks) if (picks or line_words) else len(txt) >= 3
                 if j in line_words:  # ganze Zeile: nie an die Wand, Wort für Wort in der Textspur
                     wanted = False
