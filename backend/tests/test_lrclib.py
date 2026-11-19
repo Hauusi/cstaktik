@@ -227,3 +227,40 @@ def test_align_local_keeps_text_when_recognition_stops():
     assert n >= 3 and max(starts) > 25  # Text bis zum Ende
     late = [float(w.split("-")[0]) for w in words if w.endswith(":line")]
     assert all(abs(t - (round(t - 0.4) + 0.4)) < 0.05 for t in late)  # Verschiebung 0,4 s überall
+
+
+# Echte Daten aus einem Nutzer-Clip ("Cannibal", Diagnose-Anzeige): was die Spracherkennung hörte und was LRCLIB sagt
+CANNIBAL_REC = "0.00 you · 0.92 better · 1.44 run · 2.56 I · 3.62 am · 5.50 cannibal · 7.06 I · 9.24 am · 9.76 cannibal · 14.46 I · 15.66 am · 15.78 cannibal · 15.78 I'll · 15.78 eat · 16.08 you · 16.44 up · 16.92 I · 18.44 am · 19.62 cannibal · 21.98 I · 23.94 am · 24.54 cannibal · 28.12 Can · 28.64 you · 29.04 buy · 29.36 me · 29.84 a · 29.98 book · 30.32 Oh · 30.76 you · 30.82 should · 31.18 read · 31.60 me · 31.86 Whenever · 32.26 you · 32.70 tell · 32.94 me · 33.20 I'm · 33.44 pretty · 33.74 That's · 34.22 when · 34.32 the · 34.40 hunger · 34.70 really · 35.22 hits · 35.48 me · 35.72 Your · 35.96 little · 36.22 heart · 36.44 goes · 36.64 pitter · 37.08 -patter · 37.60 I · 37.80 want · 37.98 your · 38.10 liver · 38.38 on · 38.84 a · 39.00 pla · 39.16 -"
+CANNIBAL_LRC = "-1.69 I · -1.44 eat · -1.20 boys · -0.95 up, · -0.70 you · -0.45 better · 0.04 run · 2.09 I · 2.32 am · 2.56 cannibal · 3.26 (cannibal, · 3.96 cannibal, · 4.65 I · 4.89 am) · 9.51 I · 9.76 am · 10.01 cannibal · 10.75 (cannibal) · 14.90 (I'll · 15.16 eat · 15.42 you · 15.68 up) · 15.94 I · 16.20 am · 16.87 I · 17.10 am · 17.34 cannibal · 18.04 (cannibal, · 18.73 cannibal, · 19.43 I · 19.67 am) · 24.25 I · 24.50 am · 24.75 cannibal · 25.49 (cannibal) · 29.70 (I'll · 29.98 eat · 30.27 you · 30.56 up) · 31.60 Whenever · 32.18 you · 32.37 tell · 32.57 me · 32.76 I'm · 32.95 pretty · 33.34 That's · 33.56 when · 33.78 the · 34.00 hunger · 34.43 really · 34.87 hits · 35.09 me · 35.31 You're · 35.64 little · 35.97 heart · 36.14 goes · 36.31 pitter · 36.64 patter · 36.97 I · 37.20 want · 37.42 your · 37.65 liver · 38.10 on · 38.32 a · 38.55 platter · 39.00 Use · 39.40 your · 39.59 finger · 39.99 to · 40.19 stir · 40.38 my · 40.58 tea · 40.78 And · 41.01 for"
+
+
+def _cannibal():
+    def parse(s):
+        return [(float(x.split(" ", 1)[0]), x.split(" ", 1)[1]) for x in s.split(" · ")]
+
+    lrc, rec = parse(CANNIBAL_LRC), parse(CANNIBAL_REC)
+    tw = []
+    for k, (a, w) in enumerate(lrc):
+        nxt = lrc[k + 1][0] if k + 1 < len(lrc) else a + 1
+        tw.append((a, a + 0.2, w + (lrclib.EOL if nxt - a > 0.6 or w in ("pretty", "patter", "platter") else "")))
+    sung = [f"{t:.2f}-{max(min(rec[k + 1][0] if k + 1 < len(rec) else t + 0.3, t + 0.6), t + 0.05):.2f}:{w}"
+            for k, (t, w) in enumerate(rec)]
+    words, n = lrclib.align_local(tw, 0.0, 0.0, 39.3, sung)
+    return [(float(w.split("-")[0]), w.split(":", 1)[1].rstrip(lrclib.EOL)) for w in words], n
+
+
+def test_align_local_real_user_data_cannibal():
+    """Nutzer: Anfang passt, dann daneben. LRCLIB liegt je Zeile anders daneben (+1,4 s am Anfang, -0,3 s bei 9 s),
+    die Erkennung setzt bei 15,78 s vier Wörter auf dieselbe Zeit, bei 28-31 s wird anderer Text gesungen."""
+    out, n = _cannibal()
+    t = {}
+    for a, w in out:
+        t.setdefault(w, []).append(a)
+    assert n >= 20
+    assert t["you"][0] == 0.0 and t["better"][0] == 0.92  # Anfang wie bisher
+    assert any(abs(a - 9.24) < 0.05 for a in t["am"])  # 2. Refrain bei der Erkennung (vorher 10,95, 1,7 s zu spät)
+    assert not any(10.5 < a < 11.5 for a in t["am"])
+    assert t["Can"] == [28.12] and t["book"] == [29.98] and t["read"] == [31.18]  # gesungener Text statt LRCLIB
+    assert t["Whenever"] == [31.86]
+    times = [a for a, _ in out]
+    assert all(b > a for a, b in zip(times, times[1:]))  # Reihenfolge, nie zwei Wörter gleichzeitig

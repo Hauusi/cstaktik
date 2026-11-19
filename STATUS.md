@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 477 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 478 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -265,6 +265,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-19: Songtext-Timing mit echten Nutzer-Daten ("Cannibal", Diagnose-Screenshot): LRCLIB liegt je Zeile anders daneben (+1,4 s am Anfang, −0,3 s bei 9 s, +0,3 s bei 32 s), die Erkennung setzte 4 Wörter auf 15,78 s, bei 28–31 s wird anderer Text gesungen als bei LRCLIB. Alte Ausreißer-Regel verwarf die richtigen Wörter ab 9 s (Text 1,7 s zu spät). Neu in `lrclib.align_local`: Anker als beste Kette (DP: Ähnlichkeit, lange Wörter mehr, −0,05 je s Abstand zur Schätzung; Verschiebungsänderung in derselben Zeile 1,5/s, zwischen Zeilen bis 2,5 s billig, darüber fester Preis 3), Verschiebung je Zeile; Wörter mit gleicher Erkennungszeit nicht als Anker; Klammer-Gruppen (Hintergrund-Gesang) nur, wenn ein Wort davon erkannt ist; freie gleich geschriebene erkannte Wörter bis 1 s daneben werden übernommen, Reihenfolge in beide Richtungen gesichert; lange Strecke ohne Gesang zwischen zwei Ankern bleibt ohne Text; ab 4 erkannten Wörtern am Stück ohne LRCLIB-Gegenstück steht dort der gesungene Text. Test mit den echten Daten (`test_align_local_real_user_data_cannibal`).
 - 2026-11-19: Fehler "could not convert string to float" beim Schneiden (Nutzer): Diagnose las negative Zeiten (LRCLIB-Wort vor dem Videostart, "-1.50:...") falsch. Jetzt Regex für den Start, und `_safe_debug`: die Diagnose kann den Schnitt nie mehr abbrechen.
 - 2026-11-19: Songtext-Diagnose im Auftrag (Nutzer: Timing am Anfang gut, dann daneben; hier ohne Spracherkennung nicht nachstellbar): `memeclip._lyrics_debug` speichert je Clip "Gezeigt", "Erkannt" (Spracherkennung), "LRCLIB" und "Eingefügt" als Sekunde + Wort (je max. 120), Anzeige als aufklappbarer Block "Songtext-Diagnose" unter dem Clip zum Abfotografieren.
 - 2026-11-19: Aufbau nach 3 Vorbild-Clips (100k+ Likes, gemessen: Text-Teil 17–28 s mit wenigen Schnitten, danach Kills im Beat ohne Text; Text-Teil oft schwarz-weiß, Text farbig). `memeclip.story_drop`: Drop an einem Schnitt zwischen 25 und 75 % des Videos, wo der Bass am stärksten anzieht (sonst Schnitt nahe 45 %). Bis zum Drop jedes Wort, danach keins (ersetzt die Schlüsselwort-Regel, die nur noch ohne Drop gilt); Text-Teil Sättigung 0,3 + Kontrast 1,08, am Drop 0,07 s weißer Blitz (`DROP_SAT`, `DROP_FLASH_S`, `STORY_DROP`). Auch beim Nachjustieren kein Text nach dem Drop. Anzeige im Auftrag. Sicherungsstand davor: Branch `stand-2026-11-19-vor-proficlip`.

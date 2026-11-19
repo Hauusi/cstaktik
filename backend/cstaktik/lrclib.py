@@ -392,41 +392,97 @@ LOCAL_WINDOW_S = 30.0  # Songtext so weit vor/nach dem geschätzten Ausschnitt m
 LOCAL_SHIFT_S = 20.0   # so weit darf eine Zeile in der Musikdatei anders liegen als die eine geschätzte Verschiebung
 
 
-def _anchors(win: list[tuple[float, float, str]], rec: list[tuple[float, float, str]]) -> list[tuple[int, float, float]]:
-    """Anker (LRCLIB-Wort, Korrektur, Ende im Gesang) in zwei Durchgängen. 1) grob: unscharf bis LOCAL_SHIFT_S
-    daneben, nur Wörter ab 3 Buchstaben; Ausreißer gegen den Median der Anker in ±6 s Songzeit raus (ein Refrain
-    wiederholt dieselben Wörter: grob zugeordnet landet ein Wort sonst bei der falschen Wiederholung, die Wörter
-    dazwischen laufen dann asynchron). 2) fein: mit der daraus geglätteten Verschiebung je Stelle nur noch bis 1,2 s
-    daneben zuordnen."""
-    def run(est, shift, minlen):
-        pairs = fuzzy_align([(e, _norm(w.rstrip(EOL))) for e, (_, _, w) in zip(est, win)], [(r[0], r[2]) for r in rec],
-                            shift)
-        return sorted((i, rec[j][0] - win[i][0], rec[j][1]) for i, j in pairs.items()
-                      if len(_norm(win[i][2])) >= minlen)
+CHAIN_LAMBDA = 1.5   # Strafe je Sekunde, um die sich die Verschiebung zwischen zwei Ankern derselben Zeile ändert
+JUMP_COST = 3.0      # Sprung zwischen Zeilen über 2,5 s (Datei anders geschnitten): fester Preis, lohnt ab ~4 Wörtern
+LINE_LAMBDA = 0.25   # dasselbe zwischen zwei Zeilen: LRCLIB setzt jede Zeile von Hand, jede liegt anders daneben
+COLLAPSE_S = 0.03    # erkannte Wörter mit (fast) gleicher Startzeit: Zeitstempel der Erkennung kaputt, nicht verwenden
+REPLACE_MIN = 4      # so viele erkannte Wörter am Stück ohne passende LRCLIB-Wörter: dort steht anderer Text im Song
 
-    def clean(anc, span):
-        out = []
-        for i, c, e in anc:
-            nb = sorted(x[1] for x in anc if abs(win[x[0]][0] - win[i][0]) <= span)
-            if abs(c - nb[len(nb) // 2]) <= 1.0:
-                out.append((i, c, e))
-        return out
 
-    coarse = clean(run([a for a, _, _ in win], LOCAL_SHIFT_S, 3), 6.0)
-    if len(coarse) < MIN_MATCH:
-        return coarse
-    ca = [win[i][0] for i, _, _ in coarse]
-    cc = [c for _, c, _ in coarse]
-    est = [a + float(np.interp(a, ca, cc)) for a, _, _ in win]
-    return clean(run(est, 1.2, 2), 4.0)
+def _collapsed(rec: list[tuple]) -> set[int]:
+    """Erkannte Wörter, deren Startzeit mit dem Nachbarn zusammenfällt (Nutzer-Daten "Cannibal": vier Wörter bei
+    15,78 s). Solche Zeiten sind geraten."""
+    bad = set()
+    for j in range(1, len(rec)):
+        if abs(rec[j][0] - rec[j - 1][0]) < COLLAPSE_S:
+            bad.update((j - 1, j))
+    return bad
+
+
+def _anchors(win: list[tuple[float, float, str]], rec: list[tuple]) -> list[tuple[int, float, float, int]]:
+    """Anker (LRCLIB-Wort i, Korrektur, Ende im Gesang, erkanntes Wort j) als beste Kette: Reihenfolge in beiden
+    Listen steigend, Summe der Ähnlichkeiten (lange Wörter zählen mehr) minus CHAIN_LAMBDA je Sekunde Änderung der
+    Verschiebung. So folgt die Kette einer Verschiebung, die sich im Lied langsam ändert (LRCLIB-Zeiten sind von Hand
+    gesetzt und teils über 1 s daneben), einzelne falsch erkannte Wörter fallen raus. Vorher: feste Ausreißer-Grenze
+    gegen den Median; die verwarf bei "Cannibal" die richtigen Wörter ab 9 s, der Text lag dann 1,4 s zu spät."""
+    bad = _collapsed(rec)
+    line = _lines(win)
+    cand = []
+    for i, (a, _, w) in enumerate(win):
+        nw = _norm(w.rstrip(EOL))
+        if len(nw) < 2:
+            continue
+        for j, r in enumerate(rec):
+            if j in bad or not r[2] or abs(r[0] - a) > LOCAL_SHIFT_S:
+                continue
+            sim = difflib.SequenceMatcher(None, nw, r[2]).ratio()
+            if sim >= FUZZY_MIN:
+                # weit weg von der Schätzung: etwas weniger wert (bei gleichen Wörtern gewinnt die nahe Stelle)
+                cand.append((i, j, sim * (0.5 + min(len(nw), 8) / 8) - 0.05 * abs(r[0] - a), r[0] - a))
+    if not cand:
+        return []
+    cand.sort()
+    best = [c[2] for c in cand]
+    prev = [-1] * len(cand)
+    for k, (i, j, w, c) in enumerate(cand):
+        for m in range(k):
+            im, jm, _, cm = cand[m]
+            if im < i and jm < j:
+                d = abs(c - cm)
+                # gleiche Zeile: streng; neue Zeile: bis 2,5 s billig (Handarbeit-Fehler je Zeile), darüber teuer
+                # (sonst springt die Kette bei wiederholten Wörtern zu einer ganz anderen Zeile)
+                pen = CHAIN_LAMBDA * d if line[im] == line[i] else LINE_LAMBDA * min(d, 2.5) + (JUMP_COST if d > 2.5
+                                                                                                else 0.0)
+                v = best[m] + w - pen
+                if v > best[k]:
+                    best[k], prev[k] = v, m
+    k = max(range(len(cand)), key=lambda x: best[x])
+    chain = []
+    while k >= 0:
+        i, j, _, c = cand[k]
+        chain.append((i, c, rec[j][1], j))
+        k = prev[k]
+    return chain[::-1]
+
+
+def _lines(win: list[tuple[float, float, str]]) -> list[int]:
+    """Zeilennummer je Wort (Zeilenende = EOL-Marke am letzten Wort)."""
+    out, n = [], 0
+    for _, _, w in win:
+        out.append(n)
+        if w.endswith(EOL):
+            n += 1
+    return out
+
+
+def _paren_flags(win: list[tuple[float, float, str]]) -> list[int]:
+    """Gruppennummer (ab 1) für Wörter in Klammern (Hintergrund-Gesang, z. B. "(cannibal, cannibal)"), sonst 0."""
+    out, g, inside = [], 0, False
+    for _, _, w in win:
+        if w.startswith("("):
+            inside, g = True, g + 1
+        out.append(g if inside else 0)
+        if w.rstrip(EOL).rstrip(",.!?").endswith(")"):
+            inside = False
+    return out
 
 
 def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: float, total: float,
                 sung: list[str] | None) -> tuple[list[str], int]:
-    """LRCLIB-Wörter abschnittsweise auf den Gesang legen. Eine einzige Verschiebung für den ganzen Ausschnitt reicht
-    nicht, wenn die Musikdatei anders geschnitten ist als die LRCLIB-Version (Nutzer: Gesang ab Sekunde 2, Text erst ab
-    Sekunde 15). Die erkannten Wörter werden den Songtext-Wörtern in Reihenfolge zugeordnet (unscharf, bis
-    ``LOCAL_SHIFT_S`` neben der Schätzung); Ausreißer fallen weg; jedes Wort bekommt die Korrektur seiner Nachbarn.
+    """LRCLIB-Wörter auf den Gesang legen. LRCLIB liefert Text und ungefähre Zeiten, die Spracherkennung die echten
+    Zeiten. Anker als beste Kette (``_anchors``), jedes Wort bekommt die Korrektur seiner Nachbarn. Hintergrund-Gesang
+    in Klammern nur, wenn er auch erkannt wurde. Singt der Sänger an einer Stelle anderen Text als LRCLIB (andere
+    Version, Nutzer: "Can you buy me a book" statt "(I'll eat you up)"), steht dort der erkannte Text.
     Rückgabe (Wörter "a-e:WORT" im Video, Zahl der Anker). Unter MIN_MATCH Ankern: ([], n)."""
     if not sung:
         return [], 0
@@ -435,44 +491,116 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
     rec = []
     for w in sung:
         tm, txt = w.split(":", 1)
-        parts = [float(x) for x in tm.split("-")]
-        rec.append((parts[0], parts[-1], _norm(txt)))
+        parts = [float(x) for x in tm.split("-") if x]
+        if parts:
+            rec.append((parts[0], parts[-1], _norm(txt), txt.strip("-")))
     good = _anchors(win, rec)
     if len(good) < MIN_MATCH:
         return [], len(good)
     idx = [g[0] for g in good]
     corr = {g[0]: g[1] for g in good}
     ends = {g[0]: g[2] for g in good}
-    out, last = [], -1e9
+    used_rec = {g[3] for g in good}
+    paren = _paren_flags(win)
+    heard = {paren[g[0]] for g in good if paren[g[0]]}  # Klammer-Gruppen mit mindestens einem erkannten Wort
+    line = _lines(win)
+    bad = _collapsed(rec)
     rec_t = np.array([r[0] for r in rec])
 
-    def speech_near(t: float) -> bool:  # gibt es dort überhaupt erkannten Gesang?
-        return bool(len(rec_t)) and float(np.min(np.abs(rec_t - t))) <= 1.0
+    def speech_near(t: float, r: float = 1.0) -> bool:  # gibt es dort überhaupt erkannten Gesang?
+        return bool(len(rec_t)) and float(np.min(np.abs(rec_t - t))) <= r
 
+    placed = []  # (Start, Ende, Text, Anker?)
     for i, (a, e, w) in enumerate(win):
         if i in corr:
             c = corr[i]
         else:
-            lo = max((k for k in idx if k < i), default=None)
-            hi = min((k for k in idx if k > i), default=None)
+            if paren[i] and paren[i] not in heard:  # Hintergrund-Gesang, den die Erkennung nicht hört: weglassen
+                continue
+            same = [k for k in idx if line[k] == line[i]]
+            if same:  # Zeile hat erkannte Wörter: deren Verschiebung (jede LRCLIB-Zeile liegt anders daneben)
+                lo = max((k for k in same if k < i), default=None)
+                hi = min((k for k in same if k > i), default=None)
+            else:
+                lo = max((k for k in idx if k < i), default=None)
+                hi = min((k for k in idx if k > i), default=None)
             if lo is not None and hi is not None and abs(corr[hi] - corr[lo]) <= 1.0:
                 f = (a - win[lo][0]) / max(win[hi][0] - win[lo][0], 1e-6)
                 c = corr[lo] + (corr[hi] - corr[lo]) * f
+                # lange Strecke zwischen zwei erkannten Wörtern ohne jeden erkannten Gesang: Instrumental-Pause,
+                # dort kein Text (sonst stand dort Text aus einer Refrain-Wiederholung)
+                if (win[hi][0] + corr[hi]) - (win[lo][0] + corr[lo]) > 4.0 and not speech_near(a + c, 0.5):
+                    continue
             elif lo is not None and hi is not None:
-                # Sprung zwischen den Nachbarn (Datei anders geschnitten): nicht über die Lücke verteilen (stand sonst
-                # Text, wo nichts gesungen wird). Die Verschiebung der Seite nehmen, auf der an dieser Stelle Gesang
-                # erkannt wurde; auf keiner Seite Gesang: dort ist die Pause, Wort weglassen.
+                # Sprung zwischen den Nachbarn (Datei anders geschnitten): nicht über die Lücke verteilen. Die
+                # Verschiebung der Seite, auf der dort Gesang erkannt wurde; auf keiner Seite Gesang: weglassen.
                 cands = [(abs(a - win[k][0]), corr[k]) for k in (lo, hi) if speech_near(a + corr[k])]
                 if not cands:
                     continue
                 c = min(cands)[1]
-            else:
-                # vor dem ersten / nach dem letzten erkannten Wort: Verschiebung des nächsten Ankers weiterführen.
-                # Kein Weglassen: Erkennt die Spracherkennung später nichts mehr (laute Musik), soll der Text trotzdem
-                # weiterlaufen (Nutzer: nach 3 s kein Text mehr, weil hier vorher nur nahe Zeilen blieben)
+            else:  # Rand: Verschiebung des nächsten Ankers weiterführen (Text läuft weiter, auch ohne Erkennung)
                 c = corr[lo if lo is not None else hi]
-        va, ve = a + c, ends.get(i, e + c)
-        if -EARLY_S <= va < 0 and ve > 0.05:
+        placed.append((a + c, ends.get(i, e + c), w, i in corr))
+    # nicht verankerte Wörter: gleich geschriebenes erkanntes Wort bis 1 s daneben, noch frei -> dessen Zeit
+    # (Nutzer-Daten: "you" bei 0,00 erkannt, über die Nachbarn geschätzt 0,67)
+    fixed = [p[3] for p in placed]
+    for k, (va, ve, w, anc) in enumerate(placed):
+        if anc:
+            continue
+        nw = _norm(w.rstrip(EOL))
+        js = [j for j, r in enumerate(rec) if j not in used_rec and j not in bad and abs(r[0] - va) <= 1.0
+              and r[2] and difflib.SequenceMatcher(None, nw, r[2]).ratio() >= 0.8]
+        # Reihenfolge gegenüber den festen (erkannten) Nachbarn bleibt
+        lo_t = max((placed[m][0] for m in range(k) if fixed[m]), default=-1e9)
+        hi_t = min((placed[m][0] for m in range(k + 1, len(placed)) if fixed[m]), default=1e9)
+        js = [j for j in js if lo_t < rec[j][0] < hi_t]
+        if js:
+            j = min(js, key=lambda j: abs(rec[j][0] - va))
+            placed[k] = (rec[j][0], rec[j][1], w, True)
+            fixed[k] = True
+            used_rec.add(j)
+    # Reihenfolge: ein geschätztes Wort darf nicht nach einem späteren festen Wort liegen; sonst davor rücken
+    nxt_t = None
+    for k in range(len(placed) - 1, -1, -1):
+        va, ve, w, anc = placed[k]
+        if fixed[k]:
+            nxt_t = va
+        elif nxt_t is not None and va > nxt_t - 0.1:
+            placed[k] = (nxt_t - 0.25, nxt_t - 0.05, w, False)
+            nxt_t = nxt_t - 0.25
+    last_t = None  # und nicht vor einem früheren festen Wort
+    for k, (va, ve, w, anc) in enumerate(placed):
+        if fixed[k]:
+            last_t = va
+        elif last_t is not None and va < last_t + 0.1:
+            placed[k] = (last_t + 0.25, max(ve, last_t + 0.45), w, False)
+            last_t = last_t + 0.25
+    # anderer Text im Song: erkannte Wörter am Stück ohne Gegenstück in LRCLIB ersetzen die LRCLIB-Wörter dort
+    # (frei = nicht verankert, oder nur an Hintergrund-Gesang in Klammern verankert)
+    paren_rec = {g[3] for g in good if paren[g[0]]}
+    runs, cur = [], []
+    for j, r in enumerate(rec):
+        free = (j not in used_rec or j in paren_rec) and j not in bad and r[2]
+        if free and (not cur or r[0] - rec[cur[-1]][0] <= 1.0):
+            cur.append(j)
+        else:
+            if len(cur) >= REPLACE_MIN:
+                runs.append(cur)
+            cur = [j] if free else []
+    if len(cur) >= REPLACE_MIN:
+        runs.append(cur)
+    for run in runs:
+        t0, t1 = rec[run[0]][0] - 0.2, rec[run[-1]][0] + 0.2
+        inside = [p for p in placed if t0 <= p[0] <= t1]
+        if sum(1 for p in inside if p[3] and not p[2].startswith("(") and not p[2].rstrip(EOL).endswith(")")) \
+                > 0.3 * len(run):
+            continue  # dort passt LRCLIB doch: nichts ersetzen
+        placed = [p for p in placed if not t0 <= p[0] <= t1]
+        placed += [(rec[j][0], rec[j][1], rec[j][3] + (EOL if j == run[-1] else ""), True) for j in run]
+    placed.sort(key=lambda p: p[0])
+    out, last = [], -1e9
+    for va, ve, w, _ in placed:
+        if -EARLY_S <= va < 0 and ve > 0.3:
             va = 0.0
         if not 0 <= va < total:
             continue
