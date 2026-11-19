@@ -2238,7 +2238,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         except Exception:  # noqa: BLE001 - ohne Feinabstimmung bleibt die bisherige Zuordnung
             pass
     if lrc_note:
-        SUNG_NOTE = lrc_note
+        # beides anzeigen: was LRCLIB/Forced Alignment gemacht hat und was die Erkennung lieferte (Whisper-Stufe)
+        SUNG_NOTE = lrc_note + (f" · Erkennung: {SUNG_NOTE}" if SUNG_NOTE and SUNG_NOTE not in lrc_note else "")
     if lyrics_shift and words:  # vom Nutzer eingestellt: alle Wörter früher (−) oder später (+)
         words = shift_words(words, lyrics_shift)
     with tempfile.TemporaryDirectory() as td:
