@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 501 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 504 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -268,6 +268,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-20: Hook-Wahl (Nutzer-Clip "Cannibal": Deezer-Weg griff nicht, Rückfall LRCLIB nahm "Oh, oh, whoa, oh, whoa" — 8x hintereinander — als Hook, ab 125,5 s): `lrclib.hook_start` ignoriert Zeilen aus Füll-Lauten (`FILLER`: oh, whoa, yeah, la, na …), verlangt mind. 2 echte Wörter, bei Gleichstand mehr verschiedene Wörter. Auch die LRCLIB-Hook startet jetzt 8 s davor mit Drop auf der Hook (wie Deezer). Grund für fehlende Deezer-Hörprobe wird im Auftrag angezeigt ("Deezer-Hörprobe: …"); Deezer-Suche auch ohne YouTube-Zusätze ("Official Lyric Video", Klammern).
 - 2026-11-20: Killfeed-Einblendung zeigte selten einen halben grauen Balken (Nutzer-Screenshot): ausgeschnitten wurde an der Lage aus der Erkennung, der Killfeed kann bis dahin nach oben rutschen (älterer Eintrag verschwindet). Jetzt `memeclip.feed_box_at`: Eintrag im Bild neu suchen (rot umrandet, gleicher rechter Rand ±12 px, ähnliche Breite, ±60 px Höhe), Zeitpunkte 0,2 / 0,45 / 0,1 / 0,7 s nach dem Erscheinen, sonst alte Lage. An den 3 Kills eines Nutzer-Clips geprüft (saubere Ausschnitte).
 - 2026-11-20: Hinweis unter dem Songnamen ergänzt: an Deezer geht der Songname auch für die 30-s-Hörprobe (Hook-Suche).
 - 2026-11-20: Hook über Deezer-Hörprobe (`preview.py`, Nutzer: "das muss doch herausfindbar sein, welcher Part der beste ist"): Musik startet 8 s vor der Stelle der Hörprobe, Drop auf der Hook. Wiederfinden getestet mit echten Ausschnitten (Nutzer-Clip "Cannibal" bei 12,3 s, music40 bei 9,7 s, andere Kodierung/Lautstärke: exakt; falscher Song: nicht gefunden). Deezer in der Cloud-Sitzung gesperrt, Abruf selbst hier nicht prüfbar.

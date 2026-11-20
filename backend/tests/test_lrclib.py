@@ -308,3 +308,11 @@ def test_align_local_collapsed_pair_keeps_last_and_no_early_word():
     t = {w.split(":", 1)[1].rstrip(E): float(w.split("-")[0]) for w in words}
     assert t["you"] == 0.0 and t["run"] == 0.80 and t["better"] < t["run"]
     assert min(float(w.split("-")[0]) for w in words if "cannibal" in w) > 1.0  # kein "cannibal" am Anfang
+
+
+def test_hook_ignores_filler_lines():
+    """Nutzer-Song "Cannibal": "Oh, oh, whoa, oh, whoa" kommt 8x hintereinander, der Refrain "I am cannibal" seltener."""
+    lines = [(10.0, "I am cannibal"), (12.0, "(Cannibal, cannibal, I am)"), (30.0, "I am cannibal")]
+    lines += [(120.0 + 4 * k, "Oh, oh, whoa, oh, whoa") for k in range(8)]
+    lines += [(160.0, "I am cannibal"), (162.0, "(Cannibal, cannibal, I am)")]
+    assert lrclib.hook_start(lines) == 10.0

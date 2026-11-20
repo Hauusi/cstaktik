@@ -167,3 +167,29 @@ def test_song_without_text_starts_before_deezer_hook(monkeypatch):
     assert "Hook laut Deezer" in c.get("/clips").text
     for x in clips.jobs("Hausi"):
         c.post(f"/clips/{x['id']}/delete", headers=O)
+
+
+def test_lrclib_hook_without_deezer_starts_before_and_drops_on_hook(monkeypatch):
+    from cstaktik import lrclib, preview
+
+    calls = {}
+
+    def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
+                  drop_at=None):
+        calls.update(music_ss=music_ss, drop_at=drop_at)
+        open(out, "wb").write(b"video")
+        return {"kills": [1], "seconds": 9.5, "bpm": 120.0}
+
+    monkeypatch.setattr(memeclip, "make_beat", fake_beat)
+    monkeypatch.setattr(clips, "start", lambda d, user=None: clips.render(d, user))
+    monkeypatch.setattr(preview, "best_part", lambda music, q, tmp: (None, "keine Deezer-Hörprobe gefunden"))
+    monkeypatch.setattr(clips, "find_start", lambda m, ly, so: (60.0 - lrclib.LEAD_S, "Cannibal Kesha",
+                                                               "Cannibal: Hook (am häufigsten wiederholte Zeile)"))
+    c = _client()
+    c.post("/clips", files={"video": ("a.mp4", b"x" * 10, "video/mp4"), "music": ("m.mp3", b"y", "audio/mpeg")},
+           data={"music_ss": "", "song": "Kesha Cannibal"}, headers=O, follow_redirects=False)
+    assert calls == {"music_ss": 60.0 - preview.INTRO_S, "drop_at": 60.0}
+    page = c.get("/clips").text
+    assert "Deezer-Hörprobe: keine Deezer-Hörprobe gefunden" in page
+    for x in clips.jobs("Hausi"):
+        c.post(f"/clips/{x['id']}/delete", headers=O)

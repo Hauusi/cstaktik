@@ -22,20 +22,29 @@ MIN_SCORE = 6.0   # Treffer muss so viele Streuungen über dem Durchschnitt alle
 INTRO_S = 8.0     # Musik startet so viel vor der Hook (Text-Teil als Aufbau), Drop auf die Hook
 
 
-def deezer_preview_url(query: str, timeout: float = 6.0) -> str | None:
+def _queries(query: str) -> list[str]:
+    """Suchtexte: wie eingegeben, dann ohne Klammern und Zusätze wie "Official Lyric Video" (YouTube-Titel)."""
+    import re
+
     q = " ".join((query or "").split())[:120]
-    if not q:
-        return None
-    req = urllib.request.Request(f"{DEEZER}?{urllib.parse.urlencode({'q': q, 'limit': 5})}",
-                                 headers={"User-Agent": UA, "Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = json.loads(r.read().decode("utf-8"))
-    except Exception:  # noqa: BLE001 - kein Netz: ohne Hörprobe weiter
-        return None
-    for x in (data or {}).get("data") or []:
-        if isinstance(x, dict) and str(x.get("preview") or "").startswith("https://"):
-            return x["preview"]
+    clean = re.sub(r"[\(\[][^\)\]]*[\)\]]", " ", q)
+    clean = re.sub(r"(?i)\b(official|lyrics?|video|audio|music|visuali[sz]er|hd|4k|remaster(ed)?)\b", " ", clean)
+    clean = " ".join(clean.replace("–", " ").replace(" - ", " ").split())
+    return [x for x in dict.fromkeys([q, clean]) if x]
+
+
+def deezer_preview_url(query: str, timeout: float = 6.0) -> str | None:
+    for q in _queries(query):
+        req = urllib.request.Request(f"{DEEZER}?{urllib.parse.urlencode({'q': q, 'limit': 5})}",
+                                     headers={"User-Agent": UA, "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = json.loads(r.read().decode("utf-8"))
+        except Exception:  # noqa: BLE001 - kein Netz: ohne Hörprobe weiter
+            return None
+        for x in (data or {}).get("data") or []:
+            if isinstance(x, dict) and str(x.get("preview") or "").startswith("https://"):
+                return x["preview"]
     return None
 
 

@@ -30,3 +30,8 @@ def test_locate_excerpt_other_encoding(tmp_path):
 
 def test_no_preview_without_network(tmp_path):
     assert preview.best_part(str(tmp_path / "x.mp3"), "Kesha Cannibal", str(tmp_path)) == (None, "keine Deezer-Hörprobe gefunden")
+
+
+def test_queries_strip_youtube_title_parts():
+    qs = preview._queries("Kesha - Cannibal (Official Lyric Video) – kesha")
+    assert qs[0].startswith("Kesha - Cannibal") and qs[-1] == "Kesha Cannibal kesha"

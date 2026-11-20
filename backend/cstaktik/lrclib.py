@@ -363,16 +363,24 @@ def find_passage(lines: list[tuple[float, str]], text: str, n: int = 8) -> float
     return tw[best_i][0]
 
 
+FILLER = {"oh", "ohh", "ooh", "oooh", "whoa", "woah", "yeah", "yea", "yeh", "la", "na", "nah", "ah", "ahh", "hey",
+          "ha", "uh", "huh", "mm", "mmm", "hmm", "eh", "ay", "ayy", "yo", "da", "doo", "ba", "woo", "wooh", "ohoh"}
+
+
 def hook_start(lines: list[tuple[float, str]]) -> float | None:
-    """Beginn der Hook: die Zeile (ab 3 Wörtern), die im Song am häufigsten vorkommt (mind. 2x); ihr erstes
-    Vorkommen. Bei gleicher Häufigkeit die frühere. None ohne Wiederholung."""
+    """Beginn der Hook: die Zeile mit echten Wörtern (mindestens 2 verschiedene, keine reinen Füll-Laute wie "oh,
+    whoa"), die im Song am häufigsten vorkommt (mind. 2x); ihr erstes Vorkommen. Bei gleicher Häufigkeit die mit mehr
+    verschiedenen Wörtern, dann die frühere. Nutzer-Song "Cannibal": "Oh, oh, whoa, oh, whoa" kam 8x hintereinander
+    und wurde als Hook genommen (langweiliger Teil); Refrain ist "I am cannibal". None ohne Wiederholung."""
     seen: dict[str, list[float]] = {}
     for t, txt in lines:
-        key = " ".join(_norm(w) for w in txt.split())
-        if len(key.split()) >= 3:
-            seen.setdefault(key, []).append(t)
-    rep = [(len(ts), -ts[0], ts[0]) for ts in seen.values() if len(ts) >= 2]
-    return max(rep)[2] if rep else None
+        words = [_norm(w) for w in txt.replace("(", " ").replace(")", " ").split()]
+        words = [w for w in words if w]
+        real = {w for w in words if w not in FILLER}
+        if len(words) >= 3 and len(real) >= 2:
+            seen.setdefault(" ".join(words), []).append(t)
+    rep = [(len(ts), len(set(k.split()) - FILLER), -ts[0], ts[0]) for k, ts in seen.items() if len(ts) >= 2]
+    return max(rep)[3] if rep else None
 
 
 def music_start(lines: list[tuple[float, str]], text: str | None) -> tuple[float | None, str]:

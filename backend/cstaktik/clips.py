@@ -161,6 +161,15 @@ def render(d: Path, user: str | None = None) -> None:
                     # Songtext eingefügt oder Song gewählt: Stelle im Song suchen (Nutzer: "ich will die Hook nehmen")
                     set_state(d, step="Stelle im Song suchen")
                     ss, song, why = find_start(music, st.get("lyrics") or "", song)
+                    if ss is not None and not (st.get("lyrics") or "").strip() and "Hook" in why:
+                        # Hook aus LRCLIB: wie bei Deezer davor starten (Text-Teil als Aufbau), Drop auf die Hook
+                        from cstaktik import lrclib, preview
+
+                        hook_t = ss + lrclib.LEAD_S
+                        ss = max(hook_t - preview.INTRO_S, 0.0)
+                        if drop_at is None:
+                            drop_at = hook_t
+                        why += f", Musik ab {ss:.1f}, Drop auf der Hook"
                     if ss is not None:
                         words = []  # Zeiten je Zeile kommen von LRCLIB (echte Einsätze statt ein Wort je Schlag)
                         set_state(d, music_auto=False, music_used=round(ss, 2), music_found=why)
