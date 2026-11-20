@@ -140,6 +140,23 @@ def render(d: Path, user: str | None = None) -> None:
                 words = typed_words(st.get("lyrics") or "")
                 song = st.get("song") or None
                 ss = float(st.get("music_ss") or 0)
+                drop_at = float(st["drop_at"]) if (st.get("drop_at") if st.get("drop_at") is not None else -1) >= 0 \
+                    else None
+                hook = None
+                if ss < 0 and song and not words:
+                    # Song gewählt, kein Text: Hook über die Deezer-Hörprobe (Nutzer: "welcher Part der beste ist");
+                    # Musik startet INTRO_S davor (Text-Teil als Aufbau), der Drop kommt auf die Hook
+                    from cstaktik import preview
+
+                    set_state(d, step="Beste Stelle im Song suchen")
+                    hook, why_hook = preview.best_part(music, song, str(d))
+                    set_state(d, music_hook=why_hook)
+                    if hook is not None:
+                        ss = max(hook - preview.INTRO_S, 0.0)
+                        if drop_at is None:
+                            drop_at = hook
+                        set_state(d, music_auto=False, music_used=round(ss, 2),
+                                  music_found=f"{why_hook}, Musik ab {ss:.1f}, Drop auf der Hook".replace(".", ","))
                 if ss < 0 and (words or song):
                     # Songtext eingefügt oder Song gewählt: Stelle im Song suchen (Nutzer: "ich will die Hook nehmen")
                     set_state(d, step="Stelle im Song suchen")
@@ -161,7 +178,7 @@ def render(d: Path, user: str | None = None) -> None:
                                        words=words or None, progress=prog, song=song,
                                        fmt="quer" if st.get("fmt") == "quer" else "hoch",
                                        lyrics_shift=float(st.get("lyrics_shift") or 0.0),
-                                       drop_at=float(st["drop_at"]) if (st.get("drop_at") or -1) >= 0 else None)
+                                       drop_at=drop_at)
             else:
                 r = memeclip.make(src, str(d / "out.mp4"), progress=prog)
             set_state(d, status="fertig", step=None, kills=r.get("kills_used", len(r["kills"])), seconds=r["seconds"],

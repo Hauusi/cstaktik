@@ -89,3 +89,11 @@ def _no_ctc_model(monkeypatch):
     from cstaktik import forced
 
     monkeypatch.setattr(forced, "_SESS", {"s": None})
+
+
+@pytest.fixture(autouse=True)
+def _no_deezer_preview(monkeypatch):
+    """Tests holen nie eine Deezer-Hörprobe aus dem Netz."""
+    from cstaktik import preview
+
+    monkeypatch.setattr(preview, "deezer_preview_url", lambda q, timeout=6.0: None)

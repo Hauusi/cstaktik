@@ -144,3 +144,26 @@ def test_drop_second_from_form(monkeypatch):
     assert calls == {"drop_at": 47.5}
     for x in clips.jobs("Hausi"):
         c.post(f"/clips/{x['id']}/delete", headers=O)
+
+
+def test_song_without_text_starts_before_deezer_hook(monkeypatch):
+    from cstaktik import preview
+
+    calls = {}
+
+    def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
+                  drop_at=None):
+        calls.update(music_ss=music_ss, drop_at=drop_at)
+        open(out, "wb").write(b"video")
+        return {"kills": [1], "seconds": 9.5, "bpm": 120.0}
+
+    monkeypatch.setattr(memeclip, "make_beat", fake_beat)
+    monkeypatch.setattr(clips, "start", lambda d, user=None: clips.render(d, user))
+    monkeypatch.setattr(preview, "best_part", lambda music, q, tmp: (40.0, "Hook laut Deezer-Hörprobe bei Sekunde 40.0"))
+    c = _client()
+    c.post("/clips", files={"video": ("a.mp4", b"x" * 10, "video/mp4"), "music": ("m.mp3", b"y", "audio/mpeg")},
+           data={"music_ss": "", "song": "Kesha Cannibal"}, headers=O, follow_redirects=False)
+    assert calls == {"music_ss": 40.0 - preview.INTRO_S, "drop_at": 40.0}
+    assert "Hook laut Deezer" in c.get("/clips").text
+    for x in clips.jobs("Hausi"):
+        c.post(f"/clips/{x['id']}/delete", headers=O)
