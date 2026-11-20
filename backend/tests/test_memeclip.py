@@ -535,3 +535,16 @@ def test_feed_box_at_follows_shifted_entry():
     b = memeclip.feed_box_at(fr, (1000, 60, 1240, 86))  # alte Lage aus der Erkennung
     assert b is not None and abs(b[1] - y0) <= 2 and abs(b[2] - x1) <= 2
     assert memeclip.feed_box_at(fr, (600, 60, 800, 86)) is None  # anderer Eintrag (anderer rechter Rand): nicht nehmen
+
+
+def test_emph_after_drop_one_strong_word_per_line():
+    def w(t, a, eol=False, held=0.1):
+        return {"txt": t, "a": a, "b": a + 0.3, "sung": a + held, "next": a + 0.3, "eol": eol}
+
+    ws = [w("hope", 1.0), w("you", 1.3, True),  # vor dem Drop: nicht betroffen
+          w("I", 9.0), w("am", 9.3), w("cannibal", 9.6, True, 0.6),
+          w("whenever", 12.0), w("you", 12.4), w("tell", 12.6), w("me", 12.8), w("I'm", 13.0), w("pretty", 13.2, True),
+          w("oh", 15.0), w("oh", 15.3, True)]
+    e = memeclip.emph_after_drop(ws, 8.0)
+    assert {ws[j]["txt"] for j in e} == {"cannibal", "whenever"} or {ws[j]["txt"] for j in e} == {"cannibal", "pretty"}
+    assert all(r == 0 and need == 1 for _, r, need in e.values())

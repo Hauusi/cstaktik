@@ -1106,6 +1106,42 @@ LINE_INTRO_MAX = 3      # so viele ganze Zeilen höchstens am Anfang
 LINE_INTRO_WORDS = 7    # längere Zeilen nicht als ganze Zeile (zu klein zu lesen)
 
 
+def emph_after_drop(ws: list[dict], t_drop: float) -> dict[int, tuple[int, int, int]]:
+    """Nach dem Drop je Songzeile nur das stärkste Wort (gezogen, Inhaltswort, Länge, Zeilenende; keine Füllwörter),
+    als Kandidat für ein Wand-Schild (Gruppe ab 1000, damit sie nicht mit text_plan kollidiert)."""
+    out: dict[int, tuple[int, int, int]] = {}
+    line: list[int] = []
+    g = 1000
+
+    def flush():
+        nonlocal g
+        if not line:
+            return
+
+        def score(j):
+            x = ws[j]
+            w = "".join(c for c in x["txt"].lower() if c.isalnum() or c == "'")
+            held = max((x.get("sung") or x["a"]) - x["a"], 0.0)
+            return held + min(len(w), 8) * 0.06 + (0.2 if x.get("eol") else 0.0)
+
+        cands = [j for j in line
+                 if (w := "".join(c for c in ws[j]["txt"].lower() if c.isalnum() or c == "'")) not in STOPWORDS
+                 and len(w) >= 3]
+        if cands:
+            out[max(cands, key=score)] = (g, 0, 1)
+            g += 1
+        line.clear()
+
+    for j, x in enumerate(ws):
+        if x["a"] < t_drop - 0.15 or not x["txt"].strip():
+            continue
+        line.append(j)
+        if x.get("eol"):
+            flush()
+    flush()
+    return out
+
+
 def text_plan(ws: list[dict], first_kill: float | None, t_drop: float) -> tuple[dict, dict]:
     """Was im Text-Teil gezeigt wird (Nutzer + Kollege, Vorbild 1 und 2): am Anfang ganze Zeilen, die sich Wort für
     Wort aufbauen, solange es ruhig ist (Zeilen, die vor dem ersten Kill beginnen, höchstens LINE_INTRO_MAX, mindestens
@@ -2062,10 +2098,6 @@ def apply_lyrics(base: str, lyr: dict, out: str, sh: float = 0.0, progress=None)
     total = lyr["total"]
     flat = _shifted(lyr["flat"], sh, total)
     walls = _shifted(lyr["walls"], sh, total)
-    if lyr.get("drop"):  # verschoben: trotzdem kein Text nach dem Drop
-        dr = lyr["drop"]
-        flat = [dict(x, b=min(x["b"], dr), stop=min(x.get("stop", dr), dr)) for x in flat if x["a"] < dr - 0.1]
-        walls = [dict(x, b=min(x["b"], dr)) for x in walls if x["a"] < dr - 0.1]
     # Wand-Wörter nur dort, wo zu Wortbeginn wirklich eine Wand im Bild ist; sonst in die normale Textspur
     walls, moved = split_walls(base, walls, lyr)
     if moved:
@@ -2360,14 +2392,18 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             flat_items: list[dict] = []
             # wie eine Story (Vorbild): bis zum ersten Kill jedes Wort, danach nur die Schlüsselwörter
             first_kill = min((mk["shot"] for mk in marks if mk.get("shot") is not None), default=None)
-            text_end = t_drop or total
+            text_end = total
             line_words: dict = {}
             emph_of: dict = {}
-            if t_drop:  # Aufbau wie die Vorbilder: ganze Zeilen am Anfang, dann betonte Wörter, ab dem Drop keins
+            if t_drop:  # Aufbau: ganze Zeilen am Anfang, jedes Wort bis zum Drop, danach nur betonte Wörter
                 line_words, emph = text_plan(wl, first_kill, t_drop)
                 # jedes Wort wird gezeigt (Nutzer: nur "CANNIBAL" stand da, gesungen wurde die ganze Zeile); die
                 # betonten Wörter kommen, wenn eine Wand da ist, als Schild an die Wand, sonst normal
                 keep = {j for j, x in enumerate(wl) if x["a"] < t_drop - 0.15}
+                # nach dem Drop: je Zeile nur das stärkste Wort (Nutzer-Wahl "nur betonte Wörter"), Wand oder normal
+                after = emph_after_drop(wl, t_drop)
+                keep |= set(after)
+                emph = {**emph, **after}
                 picks = set(emph)
                 emph_of = emph
             else:
