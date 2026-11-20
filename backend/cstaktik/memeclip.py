@@ -2106,13 +2106,16 @@ DROP_FLASH_S = 0.07    # kurzer weißer Blitz am Drop
 
 
 def drop_cut(t: float, total: float, segs: list[dict]) -> float | None:
-    """Vom Nutzer gewählter Drop (Sekunde im Video): der letzte Schnitt bis 0,3 s danach, damit die Kills mit dem Drop
-    losgehen. Nicht in der ersten Sekunde und nicht in den letzten 2 s."""
+    """Gewünschter Drop (Sekunde im Video, Nutzer-Feld oder Hook): der Schnitt, der am nächsten liegt; ein Schnitt bis
+    1,5 s danach wird einem früheren vorgezogen (Nutzer-Clip: Hook bei 8 s, der Schnitt davor lag bei 5,07 s, der
+    Text-Teil war nur 5 s lang). Nicht in der ersten Sekunde und nicht in den letzten 2 s."""
     cuts = [x["o0"] for x in segs[1:] if 1.0 <= x["o0"] <= total - 2.0]
     if not cuts:
         return None
-    before = [c for c in cuts if c <= t + 0.3]
-    return round(max(before) if before else min(cuts), 3)
+    after = [c for c in cuts if t - 0.3 <= c <= t + 1.5]
+    if after:
+        return round(min(after), 3)
+    return round(min(cuts, key=lambda c: abs(c - t)), 3)
 
 
 def story_drop(music: str, music_ss: float, total: float, segs: list[dict]) -> float | None:

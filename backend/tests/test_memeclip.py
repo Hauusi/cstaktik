@@ -505,8 +505,10 @@ def test_whisper_skips_medium_when_memory_low(monkeypatch):
 def test_drop_cut_user_second():
     segs = [{"o0": x} for x in (0.0, 3.0, 7.0, 11.0, 14.0, 17.0)]
     assert memeclip.drop_cut(11.2, 20.0, segs) == 11.0  # Schnitt kurz vor der gewünschten Stelle
-    assert memeclip.drop_cut(6.8, 20.0, segs) == 7.0  # bis 0,3 s danach zählt noch
+    assert memeclip.drop_cut(6.8, 20.0, segs) == 7.0  # kurz danach
     assert memeclip.drop_cut(0.2, 20.0, segs) == 3.0  # zu früh: erster möglicher Schnitt
+    assert memeclip.drop_cut(8.0, 20.0, [{"o0": x} for x in (0.0, 5.07, 9.2, 13.0)]) == 9.2  # Nutzer-Clip: nicht 5,07
+    assert memeclip.drop_cut(8.0, 20.0, [{"o0": x} for x in (0.0, 5.07, 12.0)]) == 5.07  # nächster liegt näher davor
 
 
 def test_story_drop_without_bass_uses_loudness(tmp_path):
