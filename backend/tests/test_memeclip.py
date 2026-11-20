@@ -421,13 +421,12 @@ def test_text_plan_lines_first_then_emphasis():
           w("two-step", 5.0), w("to", 5.4), w("the", 5.6), w("bedroom", 5.9, True, 0.5),
           w("after", 12.5), w("drop", 12.8, True)]
     lines, emph = memeclip.text_plan(ws, first_kill=1.5, t_drop=12.0)
-    assert set(lines) == {0, 1, 2} and lines[1] == (["hope", "you", "know"], 1)
+    assert lines == {}  # ganze Zeilen aus (Nutzer: "wie ein Gedicht"), überall Wort für Wort
     best = {j for j, (g, r, need) in emph.items() if r == 0}
-    assert best == {7, 11} and all(wd < 12 for wd in emph)  # je Zeile das betonte Wort zuerst, nichts nach dem Drop
-    assert {g for g, _, _ in emph.values()} == {0, 1} and max(r for _, r, _ in emph.values()) >= 1  # Ersatz-Kandidaten
+    assert best == {2, 7, 11} and all(wd < 12 for wd in emph)  # je Zeile das betonte Wort zuerst, nichts nach dem Drop
+    assert {g for g, _, _ in emph.values()} == {0, 1, 2} and max(r for _, r, _ in emph.values()) >= 1  # Ersatz-Kandidaten
     assert not {ws[j]["txt"] for j in emph} & {"to", "the", "you", "me", "let"}  # Füllwörter nie betont
-    lines2, _ = memeclip.text_plan(ws, first_kill=4.0, t_drop=12.0)
-    assert set(lines2) == {0, 1, 2, 3, 4, 5, 6, 7}  # beide Zeilen beginnen vor dem Kill
+
 
 
 def test_line_layout_and_frame_no_jump():

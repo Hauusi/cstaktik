@@ -1102,7 +1102,7 @@ def story_keep(ws: list[dict], first_kill: float | None) -> set[int]:
     return set(keep)
 
 
-LINE_INTRO_MAX = 3      # so viele ganze Zeilen höchstens am Anfang
+LINE_INTRO_MAX = 0      # ganze Zeilen am Anfang: aus (Nutzer: "wirkt wie ein Gedicht", lieber Wort für Wort)
 LINE_INTRO_WORDS = 7    # längere Zeilen nicht als ganze Zeile (zu klein zu lesen)
 
 
