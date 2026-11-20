@@ -56,7 +56,10 @@
       <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>
       <label for="cs">Start in der Musik (Sekunde)</label>
       <input id="cs" type="text" name="music_ss" inputmode="decimal" placeholder="leer = automatisch: Stelle deines Texts bzw. Hook">
-      <small>Leer lassen: Das Tool sucht den Drop (die Stelle, an der der Bass einsetzt) und legt den ersten Kill darauf. Den Songtext dann für die Stelle ab dem Drop einfügen.</small>
+      <small>Leer lassen: Das Tool startet an der Stelle deines eingefügten Texts, ohne Text an der Hook (Song auswählen). Oder selbst die Sekunde im Song eintragen.</small>
+      <label for="cd">Drop bei Sekunde (im Song, optional)</label>
+      <input id="cd" type="text" name="drop_at" inputmode="decimal" placeholder="leer = automatisch">
+      <small>Ab hier wird es farbig und die Kills laufen ohne Text: die Sekunde im Song, an der es richtig abgeht. Der Wechsel kommt auf den Schnitt davor. Leer: das Tool sucht die Stelle, an der die Musik am stärksten anzieht.</small>
       <label for="cg">Songname und Künstler (für den Songtext)</label>
       <div class="sg"><input id="cg" type="text" name="song" maxlength="120" placeholder="z. B. Paparazzi Lady Gaga" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="cgl">
         <ul id="cgl" role="listbox" hidden></ul></div>
@@ -303,7 +306,7 @@
     var total = vs.reduce(function (a, x) { return a + x.size; }, 0) + (m ? m.size : 0);
     if (vs.some(function (x) { return !x.size; }) || (m && !m.size)) total = 0;  // Größe unbekannt: nur MB anzeigen
     sent = 0;
-    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value, lyrics_shift: f.lyrics_shift.value}), true)
+    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, drop_at: f.drop_at.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value, lyrics_shift: f.lyrics_shift.value}), true)
       .then(function (j) {
         var chain = Promise.resolve();
         vs.forEach(function (v, i) { chain = chain.then(function () { return send(j.id, "video&n=" + i, v, total); }).then(function (n) {

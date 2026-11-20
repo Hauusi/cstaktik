@@ -1054,7 +1054,8 @@ async def _save_upload(up: UploadFile, target: Path, limit: int) -> None:
 @app.post("/clips")
 async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | None = File(None),
                        music_ss: str = Form(""), lyrics: str = Form(""),
-                       song: str = Form(""), fmt: str = Form("hoch"), lyrics_shift: str = Form("")) -> RedirectResponse:
+                       song: str = Form(""), fmt: str = Form("hoch"), lyrics_shift: str = Form(""),
+                       drop_at: str = Form("")) -> RedirectResponse:
     from cstaktik import clips
 
     video = video[:clips.MAX_CLIPS]
@@ -1075,7 +1076,7 @@ async def clips_upload(video: list[UploadFile] = File(...), music: UploadFile | 
     clips.set_state(d, status="wartet", name=_clip_name([v.filename or "Clip" for v in video]), music=has_music, music_ss=ss,
                     lyrics=clips.lyrics_text(lyrics), song=" ".join(song.split())[:120],
                     fmt="quer" if fmt == "quer" else "hoch", lyrics_shift=_shift(lyrics_shift),
-                    created=pipeline.coaching_now())
+                    drop_at=_music_start(drop_at), created=pipeline.coaching_now())
     clips.start(d, _USER.get())
     return RedirectResponse("/clips", status_code=303)
 
@@ -1126,6 +1127,7 @@ async def clips_new(request: Request) -> JSONResponse:
                     lyrics=clips.lyrics_text(str(body.get("lyrics") or "")),
                     song=" ".join(str(body.get("song") or "").split())[:120],
                     fmt="quer" if body.get("fmt") == "quer" else "hoch", lyrics_shift=_shift(body.get("lyrics_shift")),
+                    drop_at=_music_start(body.get("drop_at")),
                     created=pipeline.coaching_now(),
                     video_exts=exts, music_ext=mext)
     return JSONResponse({"id": d.name})

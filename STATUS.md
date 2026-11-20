@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 494 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 497 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -267,6 +267,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-20: Drop-Wahl (Nutzer: automatischer Drop kam an einer langweiligen Stelle): (1) neues Formularfeld "Drop bei Sekunde (im Song)" (`drop_at`, Formular + /clips/new), `memeclip.drop_cut`: letzter Schnitt bis 0,3 s nach der gewünschten Stelle; (2) `story_drop` bewertet Bass UND Gesamtlautstärke (je 2 s danach gegen davor) im Bereich 20-80 % statt nur Bass in 25-75 %. Hinweistext beim Musikstart aktualisiert.
 - 2026-11-19: Anfang des Nutzer-Clips verrutscht (Diagnose: Whisper setzte "better" und "run" beide auf 0,80 s; beide wurden verworfen, die erste Zeile rutschte auf 1,13-2,87 s, ein "cannibal" aus der Zeile vor dem Videostart stand bei 0,00). Jetzt: bei zusammengeklebten Zeiten zählt das letzte Wort der Gruppe (stimmte in beiden Nutzer-Daten); Wörter kurz vor dem Videostart nur, wenn gehört. Neu: korrigiertes Wort stößt nicht mit Echo-Wörtern zusammen, die rücken auf das nächste gehörte gleiche Wort ("cannibal" 5,32, Echo 6,36/7,28, "I am" 8,34/8,70). Nachgerechnet mit den Diagnose-Daten: Anfang 0,00/0,27/0,80.
 - 2026-11-19: Doppelt bestätigte Wörter (`forced.confirm`): Nutzer-Clip mit Whisper medium: "cannibal" gezeigt 3,25 s, Whisper hörte 5,36, das CTC-Modell auf der getrennten Stimme 5,32 (Ausschlag −0,2) — LRCLIB lag dort fast 4 s daneben, Zuordnung hielt Whisper für einen Ausreißer, Forced Alignment suchte nur ±1 s. Jetzt: Wort ab 5 Buchstaben mit sehr deutlichem Modell-Ausschlag (≥ −2) UND Whisper-Treffer desselben Worts ≤ 0,3 s daneben, bis 3,5 s von der Schätzung → diese Zeit, folgende Wörter der Zeile rücken mit. Nachgerechnet: dieser Clip 3,31 → 5,32; voriger Clip unverändert (bestätigter Anfang bleibt).
 - 2026-11-19: Auftrag zeigt bei LRCLIB-Songtext zusätzlich die Erkennungs-Zeile (Whisper-Stufe, Stimmtrennung); vorher überschrieb der LRCLIB-Hinweis sie.

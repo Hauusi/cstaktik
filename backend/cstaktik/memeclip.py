@@ -2073,30 +2073,48 @@ DROP_SAT = 0.3         # Sättigung im Text-Teil (Vorbilder: fast schwarz-weiß,
 DROP_FLASH_S = 0.07    # kurzer weißer Blitz am Drop
 
 
+def drop_cut(t: float, total: float, segs: list[dict]) -> float | None:
+    """Vom Nutzer gewählter Drop (Sekunde im Video): der letzte Schnitt bis 0,3 s danach, damit die Kills mit dem Drop
+    losgehen. Nicht in der ersten Sekunde und nicht in den letzten 2 s."""
+    cuts = [x["o0"] for x in segs[1:] if 1.0 <= x["o0"] <= total - 2.0]
+    if not cuts:
+        return None
+    before = [c for c in cuts if c <= t + 0.3]
+    return round(max(before) if before else min(cuts), 3)
+
+
 def story_drop(music: str, music_ss: float, total: float, segs: list[dict]) -> float | None:
-    """Wo der Text-Teil endet und die Kills ohne Text beginnen: an einem Schnitt zwischen 25 und 75 % des Videos, dort
-    wo die Musik (Bass) am stärksten anzieht (2 s danach gegen 2 s davor). Ohne deutlichen Anstieg: der Schnitt nahe
-    45 %. None bei unter 10 s oder weniger als 3 Stücken (dann wie bisher)."""
+    """Wo der Text-Teil endet und die Kills ohne Text beginnen: an einem Schnitt zwischen 20 und 80 % des Videos, dort
+    wo die Musik am stärksten anzieht. Bewertet werden Bass (Kick, Bass) UND Gesamtlautstärke, je 2 s danach gegen
+    2 s davor (Nutzer: nur Bass traf bei Songs ohne Bass-Drop eine langweilige Stelle). Ohne deutlichen Anstieg: der
+    Schnitt nahe 45 %. None bei unter 10 s oder weniger als 3 Stücken."""
     import numpy as np
 
-    cuts = [x["o0"] for x in segs[1:] if 0.25 * total <= x["o0"] <= 0.75 * total]
+    cuts = [x["o0"] for x in segs[1:] if 0.2 * total <= x["o0"] <= 0.8 * total]
     if total < 10 or len(segs) < 3 or not cuts:
         return None
     try:
-        raw = _run(["ffmpeg", "-v", "error", "-ss", f"{music_ss:.3f}", "-t", f"{total:.3f}", "-i", music, "-vn", "-ac", "1",
-                    "-ar", "8000", "-af", "lowpass=f=150", "-f", "f32le", "-"])
-        x = np.frombuffer(raw, np.float32)
-        hop = 400  # 50 ms
-        e = np.sqrt((x[: len(x) // hop * hop].reshape(-1, hop) ** 2).mean(axis=1))
-        ref = float(np.percentile(e, 90)) or 1e-9
+        curves = []
+        for af in ("lowpass=f=150", "highpass=f=40"):
+            raw = _run(["ffmpeg", "-v", "error", "-ss", f"{music_ss:.3f}", "-t", f"{total:.3f}", "-i", music, "-vn",
+                        "-ac", "1", "-ar", "8000", "-af", af, "-f", "f32le", "-"])
+            x = np.frombuffer(raw, np.float32)
+            hop = 400  # 50 ms
+            e = np.sqrt((x[: len(x) // hop * hop].reshape(-1, hop) ** 2).mean(axis=1))
+            curves.append(e / (float(np.percentile(e, 90)) or 1e-9))
 
         def score(t):
             k = int(t / 0.05)
-            a, b = e[max(k - 40, 0):k], e[k:k + 40]
-            return (float(b.mean()) - float(a.mean())) / ref if len(a) and len(b) else -1.0
+            s = 0.0
+            for e in curves:
+                a, b = e[max(k - 40, 0):k], e[k:k + 40]
+                if not len(a) or not len(b):
+                    return -1.0
+                s += float(b.mean()) - float(a.mean())
+            return s / len(curves)
 
         best = max(cuts, key=score)
-        if score(best) >= 0.15:
+        if score(best) >= 0.12:
             return round(best, 3)
     except Exception:  # noqa: BLE001 - ohne Musik-Analyse: Schnitt nahe 45 %
         pass
@@ -2134,7 +2152,7 @@ def _lyrics_debug(dbg: dict, words, sung) -> dict | None:
 
 def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float | None = None,
               words: list[str] | None = None, progress=None, song: str | None = None, fmt: str = "hoch",
-              lyrics_shift: float = 0.0) -> dict:
+              lyrics_shift: float = 0.0, drop_at: float | None = None) -> dict:
     """Beat-Edit aus einem oder mehreren Clips: Musik gibt den Takt vor, Kills fallen auf die Schläge, Songtext Wort
     für Wort. ``words``: Wörter in Reihenfolge (ein Wort je Schlag) oder "Sekunde:WORT" für feste Zeiten."""
     from cstaktik import beats as beatmod
@@ -2281,7 +2299,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         fc += "".join(f"[{i}:v]setsar=1[sv{i}];" for i in range(n))
         fc += "".join(f"[sv{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[vc0];"
         tcuts = [] if CLEAN_EDIT else transition_cuts(pl["segments"])  # einfacher Schnitt: harte Schnitte
-        t_drop = story_drop(music, music_ss, total, pl["segments"]) if (STORY_DROP and CLEAN_EDIT) else None
+        if STORY_DROP and CLEAN_EDIT and drop_at is not None:  # vom Nutzer: Sekunde im Song -> Schnitt davor
+            t_drop = drop_cut(drop_at - music_ss, total, pl["segments"])
+        else:
+            t_drop = story_drop(music, music_ss, total, pl["segments"]) if (STORY_DROP and CLEAN_EDIT) else None
         if t_drop:  # Text-Teil fast schwarz-weiß und etwas mehr Kontrast, am Drop kurzer Blitz, danach volle Farbe
             d0 = f"{t_drop:.3f}"
             grade = (f"hue=s={DROP_SAT}:enable='lt(t,{d0})',eq=contrast=1.08:enable='lt(t,{d0})',"

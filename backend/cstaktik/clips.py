@@ -160,7 +160,8 @@ def render(d: Path, user: str | None = None) -> None:
                 r = memeclip.make_beat(src, music, str(d / "out.mp4"), music_ss=ss,
                                        words=words or None, progress=prog, song=song,
                                        fmt="quer" if st.get("fmt") == "quer" else "hoch",
-                                       lyrics_shift=float(st.get("lyrics_shift") or 0.0))
+                                       lyrics_shift=float(st.get("lyrics_shift") or 0.0),
+                                       drop_at=float(st["drop_at"]) if (st.get("drop_at") or -1) >= 0 else None)
             else:
                 r = memeclip.make(src, str(d / "out.mp4"), progress=prog)
             set_state(d, status="fertig", step=None, kills=r.get("kills_used", len(r["kills"])), seconds=r["seconds"],

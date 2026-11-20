@@ -500,3 +500,21 @@ def test_whisper_skips_medium_when_memory_low(monkeypatch):
     monkeypatch.setattr(memeclip, "_mem_available_gb", lambda: 1.5)
     memeclip._whisper(Fake)
     assert tried == ["small"]
+
+
+def test_drop_cut_user_second():
+    segs = [{"o0": x} for x in (0.0, 3.0, 7.0, 11.0, 14.0, 17.0)]
+    assert memeclip.drop_cut(11.2, 20.0, segs) == 11.0  # Schnitt kurz vor der gewünschten Stelle
+    assert memeclip.drop_cut(6.8, 20.0, segs) == 7.0  # bis 0,3 s danach zählt noch
+    assert memeclip.drop_cut(0.2, 20.0, segs) == 3.0  # zu früh: erster möglicher Schnitt
+
+
+def test_story_drop_without_bass_uses_loudness(tmp_path):
+    """Song ohne Bass-Drop: es wird bei 14 s laut (Synth/Gesang), der Drop soll dort liegen, nicht bei 45 %."""
+    import subprocess
+
+    m = tmp_path / "m.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i",
+                    "aevalsrc='(0.05+gte(t,14)*0.6)*sin(2*PI*880*t)':d=20:s=8000", str(m)], check=True)
+    segs = [{"o0": x} for x in (0.0, 3.0, 7.0, 11.0, 14.0, 17.0)]
+    assert memeclip.story_drop(str(m), 0.0, 20.0, segs) == 14.0

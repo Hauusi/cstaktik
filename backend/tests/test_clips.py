@@ -17,8 +17,11 @@ def _client(name="Hausi"):
 def test_upload_render_view_delete(monkeypatch):
     calls = {}
 
-    def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0):
+    def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
+                  drop_at=None):
         calls.update(music_ss=music_ss, words=words)
+        if drop_at is not None:
+            calls["drop_at"] = drop_at
         if song:
             calls["song"] = song
         open(out, "wb").write(b"video")
@@ -122,3 +125,22 @@ def test_find_start_uses_lrclib_passage(monkeypatch):
     monkeypatch.setattr(memeclip, "duration", lambda p: 30.0)  # nur ein Ausschnitt: Stelle nicht bestimmbar
     t, song, why = clips.find_start("m.mp3", "Let me take you dancing", "Derulo")
     assert t is None and song == "Derulo" and "nicht der ganze Song" in why
+
+
+def test_drop_second_from_form(monkeypatch):
+    calls = {}
+
+    def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
+                  drop_at=None):
+        calls.update(drop_at=drop_at)
+        open(out, "wb").write(b"video")
+        return {"kills": [1], "seconds": 9.5, "bpm": 120.0}
+
+    monkeypatch.setattr(memeclip, "make_beat", fake_beat)
+    monkeypatch.setattr(clips, "start", lambda d, user=None: clips.render(d, user))
+    c = _client()
+    c.post("/clips", files={"video": ("a.mp4", b"x" * 10, "video/mp4"), "music": ("m.mp3", b"y", "audio/mpeg")},
+           data={"music_ss": "30", "drop_at": "47,5"}, headers=O, follow_redirects=False)
+    assert calls == {"drop_at": 47.5}
+    for x in clips.jobs("Hausi"):
+        c.post(f"/clips/{x['id']}/delete", headers=O)
