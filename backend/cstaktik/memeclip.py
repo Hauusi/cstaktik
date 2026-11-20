@@ -402,9 +402,41 @@ ENC = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17", "-pix_fmt", "yuv4
 BOOM = "0.95*sin(2*PI*(48+60*exp(-t*22))*t)*exp(-t*5.5)+0.25*(random(0)*2-1)*exp(-t*60)"
 
 
+def feed_box_at(frame, box) -> tuple | None:
+    """Den eigenen Eintrag im Bild (1280x720, RGB) neu suchen: rot umrandet, gleicher rechter Rand (±12 px), ähnliche
+    Breite, höchstens 60 px höher/tiefer als ``box``. Der Killfeed rutscht nach oben, wenn ein älterer Eintrag
+    verschwindet; mit der alten Lage wurde dann ein halber grauer Balken ausgeschnitten (Nutzer-Screenshot)."""
+    x0, y0, x1, y1 = box
+    crop = frame[:CH, W - CW:]
+    best = None
+    for bx in _boxes(crop):
+        b = (bx[0] + W - CW, bx[1], bx[2] + W - CW, bx[3])
+        if abs(b[2] - x1) > 12 or abs((b[2] - b[0]) - (x1 - x0)) > 40 or abs(b[1] - y0) > 60:
+            continue
+        if best is None or abs(b[1] - y0) < abs(best[1] - y0):
+            best = b
+    return best
+
+
 def _feed_png(src: str, seg: dict, tmp: Path, stem: str) -> Path:
-    """Der eigene Killfeed-Eintrag als kleines Bild (steht ruhig oben, ohne Bewegung)."""
-    x0, y0, x1, y1 = seg["box"]
+    """Der eigene Killfeed-Eintrag als kleines Bild (steht ruhig oben, ohne Bewegung). Der Eintrag wird im Bild neu
+    gesucht (er kann seit der Erkennung verrutscht sein); gefunden zuerst 0,2 s nach dem Erscheinen, sonst etwas
+    später oder früher."""
+    import numpy as np
+
+    box, at = seg["box"], seg["feed_at"]
+    for dt in (0.0, 0.25, -0.1, 0.5):
+        t = max(at + dt, 0.0)
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", src, "-frames:v", "1", "-vf",
+                              f"scale={W}:{H}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+        if len(raw) != W * H * 3:
+            continue
+        b = feed_box_at(np.frombuffer(raw, np.uint8).reshape(H, W, 3).astype(np.int16), seg["box"])
+        if b is not None:
+            box, at = b, t
+            break
+    seg = dict(seg, feed_at=at)
+    x0, y0, x1, y1 = box
     pad = 3
     out = tmp / f"{stem}_kf.png"
     _run(["ffmpeg", "-v", "error", "-y", "-ss", str(seg["feed_at"]), "-i", src, "-frames:v", "1", "-vf",

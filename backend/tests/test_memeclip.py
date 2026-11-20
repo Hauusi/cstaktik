@@ -518,3 +518,18 @@ def test_story_drop_without_bass_uses_loudness(tmp_path):
                     "aevalsrc='(0.05+gte(t,14)*0.6)*sin(2*PI*880*t)':d=20:s=8000", str(m)], check=True)
     segs = [{"o0": x} for x in (0.0, 3.0, 7.0, 11.0, 14.0, 17.0)]
     assert memeclip.story_drop(str(m), 0.0, 20.0, segs) == 14.0
+
+
+def test_feed_box_at_follows_shifted_entry():
+    """Eintrag ist seit der Erkennung 34 px nach oben gerutscht (älterer Eintrag darüber verschwand)."""
+    import numpy as np
+
+    fr = np.zeros((720, 1280, 3), np.int16) + 120
+    x0, x1, y0, y1 = 1000, 1240, 26, 52  # neue Lage
+    fr[y0 + 2:y1 - 1, x0:x1] = 30  # dunkler Grund
+    fr[y0 + 8:y0 + 14, x0 + 20:x0 + 120] = 250  # helle Schrift
+    for y in (y0, y0 + 1, y1 - 1, y1):
+        fr[y, x0:x1] = (230, 30, 30)  # rote Kante oben und unten
+    b = memeclip.feed_box_at(fr, (1000, 60, 1240, 86))  # alte Lage aus der Erkennung
+    assert b is not None and abs(b[1] - y0) <= 2 and abs(b[2] - x1) <= 2
+    assert memeclip.feed_box_at(fr, (600, 60, 800, 86)) is None  # anderer Eintrag (anderer rechter Rand): nicht nehmen
