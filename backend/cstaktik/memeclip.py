@@ -820,7 +820,10 @@ def _place_run(groups: list[list[dict]], gi: int, run: list[float], o: float, pr
             L = min(kl["t"] + RUN_LAST_POST, dur - 0.05) - start
         if L <= 0.1 or start + L > dur - 0.02:
             return None
-        mk = {"shot": round(o_k + (kl["ks"] + KILL_PRE - start), 3), "feed": round(o_k + (kl["t"] - start), 3),
+        shot_v = o_k + (kl["ks"] + KILL_PRE - start)
+        # kurze Stücke: Killfeed-Eintrag spätestens 0,25 s vor dem Schnitt einblenden, sonst ist er nie zu sehen
+        feed_v = min(o_k + (kl["t"] - start), max(o_k + L - 0.25, shot_v + 0.03))
+        mk = {"shot": round(shot_v, 3), "feed": round(feed_v, 3),
               "box": kl["box"], "feed_at": round(min(kl["t"] + 0.2, dur - 0.05), 3)}
         out.append(({"kind": "clip", "ss": round(start, 3), "d": round(L, 3), "out": round(L, 3), "o0": round(o_k, 3),
                      "src": src, "kills": [mk], "run": True}, [kl]))
