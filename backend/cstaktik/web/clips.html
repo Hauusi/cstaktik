@@ -51,6 +51,9 @@
     <div style="display:grid;gap:10px;margin-top:10px">
       <label for="cf">Format</label>
       <select id="cf" name="fmt"><option value="quer">Querformat 16:9, ganzes Spielbild (wie die Vorbild-Edits)</option><option value="hoch">Hochformat 9:16 (Spielbild als Quadrat)</option></select>
+      <label for="cl">Länge</label>
+      <select id="cl" name="length"><option value="abschnitt">passend zum Song-Abschnitt (endet sauber, mehr Kills = schnellere Schnitte)</option><option value="kills">so lang wie die Kills (alle Kills, Ende offen)</option></select>
+      <small>Song-Abschnitt: Nach dem Drop läuft eine feste Zahl Takte (meist 8, etwa 16 s), die Kills teilen sich diese Zeit. Bei sehr vielen Kills fallen die schwächsten weg (unter etwa 1 s je Kill sieht man nichts mehr), bei wenigen wird der Abschnitt kürzer. Braucht mind. 3 Kill-Momente, sonst wie "so lang wie die Kills".</small>
       <label for="cm">Musik</label>
       <input id="cm" type="file" name="music" accept="audio/*">
       <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>
@@ -308,7 +311,7 @@
     var total = vs.reduce(function (a, x) { return a + x.size; }, 0) + (m ? m.size : 0);
     if (vs.some(function (x) { return !x.size; }) || (m && !m.size)) total = 0;  // Größe unbekannt: nur MB anzeigen
     sent = 0;
-    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, drop_at: f.drop_at.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value, lyrics_shift: f.lyrics_shift.value}), true)
+    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, drop_at: f.drop_at.value, length: f.length.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value, lyrics_shift: f.lyrics_shift.value}), true)
       .then(function (j) {
         var chain = Promise.resolve();
         vs.forEach(function (v, i) { chain = chain.then(function () { return send(j.id, "video&n=" + i, v, total); }).then(function (n) {

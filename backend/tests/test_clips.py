@@ -18,7 +18,7 @@ def test_upload_render_view_delete(monkeypatch):
     calls = {}
 
     def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
-                  drop_at=None):
+                  drop_at=None, length="abschnitt"):
         calls.update(music_ss=music_ss, words=words)
         if drop_at is not None:
             calls["drop_at"] = drop_at
@@ -131,7 +131,7 @@ def test_drop_second_from_form(monkeypatch):
     calls = {}
 
     def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
-                  drop_at=None):
+                  drop_at=None, length="abschnitt"):
         calls.update(drop_at=drop_at)
         open(out, "wb").write(b"video")
         return {"kills": [1], "seconds": 9.5, "bpm": 120.0}
@@ -152,7 +152,7 @@ def test_song_without_text_starts_before_deezer_hook(monkeypatch):
     calls = {}
 
     def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
-                  drop_at=None):
+                  drop_at=None, length="abschnitt"):
         calls.update(music_ss=music_ss, drop_at=drop_at)
         open(out, "wb").write(b"video")
         return {"kills": [1], "seconds": 9.5, "bpm": 120.0}
@@ -175,7 +175,7 @@ def test_lrclib_hook_without_deezer_starts_before_and_drops_on_hook(monkeypatch)
     calls = {}
 
     def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
-                  drop_at=None):
+                  drop_at=None, length="abschnitt"):
         calls.update(music_ss=music_ss, drop_at=drop_at)
         open(out, "wb").write(b"video")
         return {"kills": [1], "seconds": 9.5, "bpm": 120.0}
@@ -191,5 +191,25 @@ def test_lrclib_hook_without_deezer_starts_before_and_drops_on_hook(monkeypatch)
     assert calls == {"music_ss": 60.0 - preview.INTRO_S, "drop_at": 60.0}
     page = c.get("/clips").text
     assert "Deezer-Hörprobe: keine Deezer-Hörprobe gefunden" in page
+    for x in clips.jobs("Hausi"):
+        c.post(f"/clips/{x['id']}/delete", headers=O)
+
+
+def test_length_choice_from_form(monkeypatch):
+    calls = []
+
+    def fake_beat(src, music, out, music_ss=0.0, words=None, progress=None, song=None, fmt="hoch", lyrics_shift=0.0,
+                  drop_at=None, length="abschnitt"):
+        calls.append(length)
+        open(out, "wb").write(b"video")
+        return {"kills": [1], "seconds": 9.5, "bpm": 120.0}
+
+    monkeypatch.setattr(memeclip, "make_beat", fake_beat)
+    monkeypatch.setattr(clips, "start", lambda d, user=None: clips.render(d, user))
+    c = _client()
+    for data in ({"music_ss": "30"}, {"music_ss": "30", "length": "kills"}, {"music_ss": "30", "length": "x"}):
+        c.post("/clips", files={"video": ("a.mp4", b"x" * 10, "video/mp4"), "music": ("m.mp3", b"y", "audio/mpeg")},
+               data=data, headers=O, follow_redirects=False)
+    assert calls == ["abschnitt", "kills", "abschnitt"]  # Standard: Song-Abschnitt
     for x in clips.jobs("Hausi"):
         c.post(f"/clips/{x['id']}/delete", headers=O)

@@ -670,3 +670,25 @@ def test_story_order_only_when_it_makes_sense():
     assert memeclip.plan_clean(two, beats, drop_t=8.0)["story"] is None  # zu wenige Momente: der Reihe nach
     assert memeclip.plan_clean(_story_kills(), beats, drop_t=None)["story"] is None  # ohne Drop: wie bisher
     assert memeclip.plan_clean(_story_kills(), beats, drop_t=1.5)["story"] is None  # Drop zu früh für einen Aufbau
+
+
+def test_section_length_more_kills_faster_cuts_exact_end():
+    """Länge nach Song-Abschnitt (Nutzer): Video endet genau nach ganzen Takten ab dem Drop, mehr Kills = kürzere
+    Stücke, bei zu vielen fallen die schwächsten weg (Drop-Moment und Finale bleiben)."""
+    box = (0, 0, 10, 10)
+    beats = [round(0.5 * i, 3) for i in range(160)]
+    acc = [(b, 1.0 if i % 2 == 0 else 0.6) for i, b in enumerate(beats)]
+    avgs = []
+    for extra in (0, 8, 20):
+        kills = _story_kills() + [{"t": 16.0 + 1.7 * i, "src": "d", "dur": 60.0, "box": box} for i in range(extra)]
+        pl = memeclip.plan_clean(kills, beats, acc=acc, drop_t=9.0, section=True)
+        end = pl["story"]["end"]
+        assert abs(pl["seconds"] - end) < 1e-6 and ((end - 9.0) / 2.0) in (4, 8, 16)  # ganze Takte (1 Takt = 2 s)
+        post = [sg for sg in pl["segments"] if sg["o0"] >= 9.0 - 1e-6]
+        assert len(post[0]["kills"]) == 3 and post[-1]["src"] == "c"  # Drop-Moment und Finale bleiben
+        assert all(sg["out"] >= memeclip.PIECE_MIN - 1e-6 for sg in post)
+        avgs.append((end - 9.0) / len(post))
+    assert avgs[0] > avgs[1] > avgs[2]  # mehr Kills: schnellere Schnitte
+    assert avgs[-1] < 2.0
+    old = memeclip.plan_clean(_story_kills(), beats, acc=acc, drop_t=9.0)  # "so lang wie die Kills": wie bisher
+    assert "end" not in old["story"]
