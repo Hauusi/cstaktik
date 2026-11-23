@@ -207,7 +207,7 @@ def test_length_choice_from_form(monkeypatch):
     monkeypatch.setattr(memeclip, "make_beat", fake_beat)
     monkeypatch.setattr(clips, "start", lambda d, user=None: clips.render(d, user))
     c = _client()
-    for data in ({"music_ss": "30"}, {"music_ss": "30", "length": "kills"}, {"music_ss": "30", "length": "x"}):
+    for data in ({"music_ss": "30"}, {"music_ss": "30", "vlen": "kills"}, {"music_ss": "30", "vlen": "x"}):
         c.post("/clips", files={"video": ("a.mp4", b"x" * 10, "video/mp4"), "music": ("m.mp3", b"y", "audio/mpeg")},
                data=data, headers=O, follow_redirects=False)
     assert calls == ["abschnitt", "kills", "abschnitt"]  # Standard: Song-Abschnitt

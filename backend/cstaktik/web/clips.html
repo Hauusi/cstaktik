@@ -10,6 +10,17 @@
 .cf input[type=file], .cf input[type=text], .cf textarea { width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; }
 .cf button { height: 50px; border: 0; border-radius: 14px; background: var(--orange); color: #111; font: inherit; font-weight: 800; font-size: 16px; cursor: pointer; }
 .cf details summary { cursor: pointer; color: var(--orange); font-weight: 700; font-size: 14px; list-style: none; }
+.cf > *, .cf .grp > * { min-width: 0; } .cf select { width: 100%; max-width: 100%; }
+.cf .lb { font-size: 13px; font-weight: 700; color: var(--muted); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cf .seg label { position: relative; display: grid; align-content: start; gap: 3px; min-width: 0; padding: 11px 12px;
+  border-radius: 12px; cursor: pointer; font-size: inherit; font-weight: 400; color: var(--text); }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg i { position: absolute; inset: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); }
+.seg input:checked + i { border: 2px solid var(--orange); background: rgba(255,159,28,.10); }
+.seg input:focus-visible + i { outline: 2px solid var(--orange); outline-offset: 2px; }
+.seg b, .seg span { position: relative; } .seg b { font-size: 14px; line-height: 1.25; }
+.seg span { font-size: 12px; color: var(--muted); line-height: 1.35; }
 .up .upb { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; } .up .upb i { display: block; height: 100%; width: 0; background: var(--orange); }
 .sg { position: relative; } .sg ul { list-style: none; margin: 6px 0 0; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); display: grid; gap: 2px; }
 .sg ul[hidden] { display: none; }
@@ -48,12 +59,18 @@
   <button type="button" id="cadd" style="height:40px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);font-size:14px">+ Weiteren Clip hinzufügen</button>
   <small>Der Killfeed oben rechts muss im Bild sein: Daran erkennt das Tool deine Kills. Mehrere Clips ergeben ein längeres Video, in der Reihenfolge von oben nach unten. Je Clip höchstens 400 MB.</small>
   <details><summary>Mit Musik (Kills auf den Beat)</summary>
-    <div style="display:grid;gap:10px;margin-top:10px">
-      <label for="cf">Format</label>
-      <select id="cf" name="fmt"><option value="quer">Querformat 16:9, ganzes Spielbild (wie die Vorbild-Edits)</option><option value="hoch">Hochformat 9:16 (Spielbild als Quadrat)</option></select>
-      <label for="cl">Länge</label>
-      <select id="cl" name="length"><option value="abschnitt">passend zum Song-Abschnitt (endet sauber, mehr Kills = schnellere Schnitte)</option><option value="kills">so lang wie die Kills (alle Kills, Ende offen)</option></select>
-      <small>Song-Abschnitt: Nach dem Drop läuft eine feste Zahl Takte (meist 8, etwa 16 s), die Kills teilen sich diese Zeit. Bei sehr vielen Kills fallen die schwächsten weg (unter etwa 1 s je Kill sieht man nichts mehr), bei wenigen wird der Abschnitt kürzer. Braucht mind. 3 Kill-Momente, sonst wie "so lang wie die Kills".</small>
+    <div class="grp" style="display:grid;gap:10px;margin-top:10px">
+      <span class="lb" id="lf">Format</span>
+      <div class="seg" role="radiogroup" aria-labelledby="lf">
+        <label><input type="radio" name="fmt" value="quer" checked><i></i><b>Quer 16:9</b><span>ganzes Spielbild, wie die Vorbilder</span></label>
+        <label><input type="radio" name="fmt" value="hoch"><i></i><b>Hoch 9:16</b><span>Spielbild als Quadrat</span></label>
+      </div>
+      <span class="lb" id="ll">Länge</span>
+      <div class="seg" role="radiogroup" aria-labelledby="ll">
+        <label><input type="radio" name="vlen" value="abschnitt" checked><i></i><b>Song-Abschnitt</b><span>endet sauber, mehr Kills = schnellere Schnitte</span></label>
+        <label><input type="radio" name="vlen" value="kills"><i></i><b>Alle Kills</b><span>so lang wie die Kills, Ende offen</span></label>
+      </div>
+      <small>Song-Abschnitt: Nach dem Drop läuft eine feste Zahl Takte (meist 8, etwa 16 s), die Kills teilen sich diese Zeit. Bei sehr vielen Kills fallen die schwächsten weg (unter etwa 1 s je Kill sieht man nichts mehr), bei wenigen wird der Abschnitt kürzer. Braucht mind. 3 Kill-Momente, sonst wie „Alle Kills“.</small>
       <label for="cm">Musik</label>
       <input id="cm" type="file" name="music" accept="audio/*">
       <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>
@@ -62,7 +79,7 @@
       <small>Leer lassen: Das Tool startet an der Stelle deines eingefügten Texts, ohne Text an der Hook (Song auswählen). Oder selbst die Sekunde im Song eintragen.</small>
       <label for="cd">Drop bei Sekunde (im Song, optional)</label>
       <input id="cd" type="text" name="drop_at" inputmode="decimal" placeholder="leer = automatisch">
-      <small>Ab hier wird es farbig und die Kills laufen ohne Text: die Sekunde im Song, an der es richtig abgeht. Der Wechsel kommt auf den Schnitt davor. Leer: das Tool sucht die Stelle, an der die Musik am stärksten anzieht.</small>
+      <small>Ab hier wird es farbig, der stärkste Kill-Moment beginnt genau hier, danach nur noch betonte Wörter: die Sekunde im Song, an der es richtig abgeht. Leer: das Tool sucht die Stelle, an der die Musik am stärksten anzieht.</small>
       <label for="cg">Songname und Künstler (für den Songtext)</label>
       <div class="sg"><input id="cg" type="text" name="song" maxlength="120" placeholder="z. B. Paparazzi Lady Gaga" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="cgl">
         <ul id="cgl" role="listbox" hidden></ul></div>
@@ -311,7 +328,7 @@
     var total = vs.reduce(function (a, x) { return a + x.size; }, 0) + (m ? m.size : 0);
     if (vs.some(function (x) { return !x.size; }) || (m && !m.size)) total = 0;  // Größe unbekannt: nur MB anzeigen
     sent = 0;
-    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, drop_at: f.drop_at.value, length: f.length.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value, lyrics_shift: f.lyrics_shift.value}), true)
+    post("/clips/new", JSON.stringify({v: 4, videos: vs.map(function (x) { return x.name; }), music: m ? m.name : "", music_ss: f.music_ss.value, drop_at: f.drop_at.value, vlen: f.vlen.value, lyrics: f.lyrics.value, song: f.song.value, fmt: f.fmt.value, lyrics_shift: f.lyrics_shift.value}), true)
       .then(function (j) {
         var chain = Promise.resolve();
         vs.forEach(function (v, i) { chain = chain.then(function () { return send(j.id, "video&n=" + i, v, total); }).then(function (n) {
