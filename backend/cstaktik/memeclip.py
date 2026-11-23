@@ -719,8 +719,117 @@ def accents(music: str, ss: float, d: float | None, beat_times: list[float]) -> 
     return out
 
 
+def _median_rows(a, k: int, axis: int):
+    """Gleitender Median über ``k`` Werte entlang ``axis`` (nur numpy, für die Ton-/Schlag-Trennung)."""
+    import numpy as np
+
+    pad = [(0, 0), (0, 0)]
+    pad[axis] = (k // 2, k // 2)
+    ap = np.pad(a, pad, mode="edge")
+    win = np.lib.stride_tricks.sliding_window_view(ap, k, axis=axis)
+    return np.median(win, axis=-1)
+
+
+RUN_MIN = 4               # so viele gleichmäßige Töne mindestens für eine Schnellfeuer-Stelle
+RUN_GAP = (0.25, 0.8)     # Abstand der Töne (s)
+
+
+def melody_runs(music: str, ss: float, d: float | None) -> list[list[float]]:
+    """Melodie-Serien wie "dü dü dü dü düüü" (Nutzer, "Last Christmas"): mindestens RUN_MIN deutliche Ton-Einsätze
+    hintereinander, gleichmäßiger Abstand (±20 % um den Median, 0,25-0,8 s) und gleiche Tonhöhe (±7 %). Töne = Einsätze
+    im harmonischen Anteil (Schlagzeug per Median-Filter abgetrennt) zwischen 350 und 2500 Hz. Zeiten ab ``ss``."""
+    import numpy as np
+
+    cmd = ["ffmpeg", "-v", "error", "-ss", f"{ss:.3f}"] + (["-t", f"{d:.3f}"] if d else []) + \
+          ["-i", music, "-vn", "-ac", "1", "-ar", "22050", "-f", "f32le", "-"]
+    x = np.frombuffer(_run(cmd), np.float32)
+    N, H = 4096, 256
+    n = (len(x) - N) // H
+    if n < 40:
+        return []
+    f = np.fft.rfftfreq(N, 1 / 22050)
+    band = (f > 300) & (f < 3000)
+    S = np.abs(np.fft.rfft(x[np.arange(n)[:, None] * H + np.arange(N)[None, :]] * np.hanning(N), axis=1))[:, band]
+    harm, perc = _median_rows(S, 17, 0), _median_rows(S, 17, 1)
+    SH = S * harm ** 2 / (harm ** 2 + perc ** 2 + 1e-9)
+    fb = f[band]
+    sel = (fb > 350) & (fb < 2500)
+    L = np.log1p(10 * SH[:, sel])
+    flux = np.concatenate([[0.0], np.maximum(np.diff(L, axis=0), 0).sum(axis=1)])
+    flux = flux - np.convolve(flux, np.ones(80) / 80, mode="same")
+    fps = 22050 / H
+    top = float(np.percentile(flux, 99)) or 1e-9
+    notes = []
+    for i in range(4, len(flux) - 4):
+        if flux[i] >= flux[i - 4:i + 5].max() and flux[i] > 0.35 * top:
+            spec = SH[min(i + 4, len(SH) - 1), sel]
+            notes.append((i / fps, flux[i] / top, float(fb[sel][int(np.argmax(spec))])))
+    runs, i = [], 0
+    while i < len(notes):
+        best = None
+        for j in range(i + RUN_MIN - 1, len(notes)):
+            cand = notes[i:j + 1]
+            gaps = np.diff([c[0] for c in cand])
+            mg = float(np.median(gaps))
+            mp = float(np.median([c[2] for c in cand]))
+            ok = (RUN_GAP[0] <= mg <= RUN_GAP[1] and np.all(np.abs(gaps - mg) <= 0.2 * mg)
+                  and all(abs(c[2] - mp) <= 0.07 * mp for c in cand) and all(c[1] >= 0.35 for c in cand))
+            if ok:
+                best = j
+            elif best is not None:
+                break
+        if best is not None:
+            runs.append([round(c[0], 3) for c in notes[i:best + 1]])
+            i = best + 1
+        else:
+            i += 1
+    return runs
+
+
+RUN_PRE = 0.3            # Schnellfeuer: so viel vor dem Kill-Schuss beginnt das Stück
+RUN_LAST_POST = 0.8      # letzter Kill der Serie: so lange nach dem Killfeed-Eintrag
+
+
+def _place_run(groups: list[list[dict]], gi: int, run: list[float], o: float, prev_end: dict):
+    """Kills nacheinander auf die Töne einer Melodie-Serie legen: Stück k beginnt RUN_PRE vor seinem Kill-Schuss, der
+    genau auf Ton k fällt, und endet, wo das nächste beginnt; das letzte Stück läuft bis kurz nach seinem Killfeed-
+    Eintrag. Nur Einzel-Kills (Mehrfach-Kills würden abgeschnitten); jede Stelle eines Clips höchstens einmal.
+    Rückgabe ([(Stück, Gruppe)], Ende in der Musik) oder None (weniger als 2 Kills passen)."""
+    picks = []
+    prev = dict(prev_end)
+    flat = [kl for g in groups[gi:] for kl in g]  # jeder Kill einzeln, auch aus Mehrfach-Kills
+    for k, note in enumerate(run):
+        if k >= len(flat):
+            break
+        kl = flat[k]
+        src, dur = kl.get("src"), kl.get("dur", 1e9)
+        shot = kl["ks"] + KILL_PRE
+        pre = (note - o) if k == 0 else RUN_PRE
+        start = shot - pre
+        if start < prev.get(src, 0.0) - 1e-6 or start < 0:
+            break
+        picks.append((kl, src, dur, start, note - pre if k else o))
+        prev[src] = shot + 0.05
+    if len(picks) < 2:
+        return None
+    out = []
+    for k, (kl, src, dur, start, o_k) in enumerate(picks):
+        if k + 1 < len(picks):
+            L = picks[k + 1][4] - o_k
+        else:
+            L = min(kl["t"] + RUN_LAST_POST, dur - 0.05) - start
+        if L <= 0.1 or start + L > dur - 0.02:
+            return None
+        mk = {"shot": round(o_k + (kl["ks"] + KILL_PRE - start), 3), "feed": round(o_k + (kl["t"] - start), 3),
+              "box": kl["box"], "feed_at": round(min(kl["t"] + 0.2, dur - 0.05), 3)}
+        out.append(({"kind": "clip", "ss": round(start, 3), "d": round(L, 3), "out": round(L, 3), "o0": round(o_k, 3),
+                     "src": src, "kills": [mk], "run": True}, [kl]))
+    last_sg = out[-1][0]
+    return out, last_sg["o0"] + last_sg["out"]
+
+
 def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | None = None,
-               acc: list[tuple[float, float]] | None = None) -> dict:
+               acc: list[tuple[float, float]] | None = None, runs: list[list[float]] | None = None) -> dict:
     """Einfacher Schnitt mit festen Regeln (Nutzer: Zeitlupe/Vor- und Zurückspringen/doppelte Szenen "to much"):
     1. nur echtes Tempo; 2. jede Stelle eines Clips höchstens einmal, in zeitlicher Reihenfolge; 3. je Kill ein
     durchgehendes Stück von CLEAN_PRE vor dem Kill-Schuss bis CLEAN_POST nach dem Killfeed-Eintrag, nahe Kills
@@ -746,7 +855,33 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             groups.append([k])
     segs, o, used, prev_end = [], beat_times[0], 0, {}
     first_beat = beat_times[0]
-    for g in groups:
+    gi = 0
+    while gi < len(groups):
+        # Schnellfeuer: liegt der erste Ton einer Melodie-Serie im möglichen Vorlauf, bekommt jeder Ton einen eigenen
+        # Kill (Nutzer: "dü dü dü dü düüü" in "Last Christmas", bei jedem Ton ein Kill)
+        run = next((r for r in (runs or []) if o + DYN_LEAD[0] <= r[0] <= o + DYN_LEAD[1]), None)
+        if run and len(groups) - gi >= 2:
+            placed = _place_run(groups, gi, run, o, prev_end)
+            if placed:
+                new, o_end = placed
+                if o_end <= music_end + 1e-6:
+                    for sg, g in new:
+                        segs.append(sg)
+                        prev_end[sg["src"]] = sg["ss"] + sg["out"]
+                        used += len(g)
+                    # verbrauchte Kills aus den Gruppen nehmen (eine angebrochene Gruppe behält ihren Rest)
+                    left = len(new)
+                    while left and gi < len(groups):
+                        if len(groups[gi]) <= left:
+                            left -= len(groups[gi])
+                            gi += 1
+                        else:
+                            groups[gi] = groups[gi][left:]
+                            left = 0
+                    o = o_end
+                    continue
+        g = groups[gi]
+        gi += 1
         src, dur = g[0].get("src"), g[0].get("dur", 1e9)
         ks0 = g[0]["ks"] + KILL_PRE  # der Schuss selbst (ks liegt KILL_PRE davor)
         lo = prev_end.get(src, 0.0)
@@ -2303,7 +2438,13 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 acc = accents(music, music_ss, music_d, bt["beats"])
             except Exception:  # noqa: BLE001 - ohne Einsätze wie bisher aufs Raster
                 acc = None
-        pl = plan_clean(kills, bt["beats"], shot_times, acc)
+        runs = None
+        if DYNAMIC_SYNC:
+            try:
+                runs = melody_runs(music, music_ss, music_d)
+            except Exception:  # noqa: BLE001 - ohne Melodie-Serien wie bisher
+                runs = None
+        pl = plan_clean(kills, bt["beats"], shot_times, acc, runs)
         # Video beginnt am ersten Schlag: Musik ab dort, Raster entsprechend verschieben (sonst liegt alles um diesen
         # Versatz neben der hörbaren Musik)
         sh = pl.get("music_shift", 0.0)

@@ -568,3 +568,19 @@ def test_sync_report_counts_accents():
     r = memeclip.sync_report([1.19], [0.0, 0.5, 1.0, 1.5], 0.5, extra=[1.19])
     assert r["on"] == 1
     assert memeclip.sync_report([1.19], [0.0, 0.5, 1.0, 1.5], 0.5)["on"] == 0
+
+
+def test_plan_clean_run_one_kill_per_note():
+    """Melodie-Serie: jeder Ton bekommt einen eigenen Kill, auch Kills aus einem Mehrfach-Kill (Nutzer: Last Christmas)."""
+    beats = [0.5 + 0.56 * k for k in range(60)]
+    kills = [{"t": 3.0 + 0.8 * i, "box": (0, 0, 1, 1), "src": "a.mp4", "dur": 60.0} for i in range(3)]  # Mehrfach-Kill
+    kills += [{"t": 12.0 + 4 * i, "box": (0, 0, 1, 1), "src": "a.mp4", "dur": 60.0} for i in range(3)]
+    shots = {"a.mp4": [k["t"] - 0.3 for k in kills]}
+    run = [1.70, 2.26, 2.82, 3.38]
+    pl = memeclip.plan_clean(kills, beats, shots, [(1.7, 1.0)], [run])
+    sh = pl["music_shift"]
+    shots_song = [round(mk["shot"] + sh, 2) for sg in pl["segments"] if sg.get("run") for mk in sg["kills"]]
+    assert shots_song == run  # je Ton ein Kill-Schuss
+    segs = pl["segments"]
+    assert all(abs(a["o0"] + a["out"] - b["o0"]) < 1e-3 for a, b in zip(segs, segs[1:]))  # lückenlos
+    assert pl["kills_used"] == 6  # danach normal weiter, kein Kill verloren
