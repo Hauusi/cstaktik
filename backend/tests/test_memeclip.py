@@ -618,6 +618,26 @@ def test_plan_clean_run_one_kill_per_note():
     assert pl["kills_used"] == 6  # danach normal weiter, kein Kill verloren
 
 
+def test_run_pieces_show_the_kill_before_the_cut():
+    """Nutzer-Clip: Töne 0,28 s auseinander, Stück begann 0,3 s vor dem Schuss -> Schuss auf dem Schnitt, Kill nie zu
+    sehen. Jetzt: der Kill (bis zum Killfeed-Eintrag) ist im Stück, erst dann wird geschnitten."""
+    for gap in (0.28, 0.56):
+        beats = [0.5 + 0.56 * k for k in range(60)]
+        kills = [{"t": 3.0 + 4 * i, "box": (0, 0, 1, 1), "src": f"{'ab'[i % 2]}.mp4", "dur": 60.0} for i in range(6)]
+        shots = {x: [k["t"] - 0.25 for k in kills if k["src"] == x] for x in ("a.mp4", "b.mp4")}
+        run = [round(1.7 + gap * i, 3) for i in range(4)]
+        pl = memeclip.plan_clean(kills, beats, shots, [(1.7, 1.0)], [run])
+        rs = [sg for sg in pl["segments"] if sg.get("run")]
+        assert len(rs) == 4
+        for sg in rs[:-1]:
+            mk = sg["kills"][0]
+            after = sg["o0"] + sg["out"] - mk["shot"]
+            assert after >= memeclip.RUN_POST_MIN - 1e-3, (gap, after)  # Kill sichtbar vor dem Schnitt
+            if gap > 0.5:
+                assert after >= 0.25 + 0.05 - 1e-3  # bei Platz: bis der Killfeed-Eintrag erscheint
+            assert mk["shot"] - sg["o0"] >= memeclip.RUN_PRE_MIN - 1e-3
+
+
 def _story_kills():
     box = (0, 0, 10, 10)
     k = lambda t, src: {"t": t, "src": src, "dur": 30.0, "box": box}  # noqa: E731

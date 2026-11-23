@@ -794,7 +794,12 @@ def melody_runs(music: str, ss: float, d: float | None) -> list[list[float]]:
     return runs
 
 
-RUN_PRE = 0.3            # Schnellfeuer: so viel vor dem Kill-Schuss beginnt das Stück
+RUN_PRE = 0.3            # Schnellfeuer: so viel vor dem Kill-Schuss beginnt das Stück (höchstens)
+RUN_PRE_MIN = 0.05       # mindestens (bei sehr dichten Tönen)
+# Nach dem Kill-Schuss mindestens so lange zeigen, bis der Killfeed-Eintrag erscheint (+0,05 s), wenigstens 0,22 s:
+# der Kill soll den Schnitt auslösen (Nutzer-Clip: Töne 0,28 s auseinander, Stück begann 0,3 s vor dem Schuss, der
+# Schuss lag damit auf dem Schnitt, man sah nie den Kill)
+RUN_POST_MIN = 0.22
 RUN_LAST_POST = 0.8      # letzter Kill der Serie: so lange nach dem Killfeed-Eintrag
 
 
@@ -812,12 +817,19 @@ def _place_run(groups: list[list[dict]], gi: int, run: list[float], o: float, pr
         kl = flat[k]
         src, dur = kl.get("src"), kl.get("dur", 1e9)
         shot = kl["ks"] + KILL_PRE
-        pre = (note - o) if k == 0 else RUN_PRE
+        if k == 0:
+            pre = note - o
+        else:  # Vorlauf so kurz, dass das Stück davor den Kill (bis zum Killfeed-Eintrag) noch ganz zeigt
+            pk = flat[k - 1]
+            need = max(RUN_POST_MIN, pk["t"] - (pk["ks"] + KILL_PRE) + 0.05)
+            pre = max(RUN_PRE_MIN, min(RUN_PRE, (note - run[k - 1]) - need))
+            # das Stück davor läuft im eigenen Clip bis hierher weiter (jede Stelle nur einmal)
+            p_kl, p_src = picks[-1][0], picks[-1][1]
+            prev[p_src] = p_kl["ks"] + KILL_PRE + (note - run[k - 1]) - pre
         start = shot - pre
         if start < prev.get(src, 0.0) - 1e-6 or start < 0:
             break
         picks.append((kl, src, dur, start, note - pre if k else o))
-        prev[src] = shot + 0.05
     if len(picks) < 2:
         return None
     out = []
