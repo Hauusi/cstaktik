@@ -681,13 +681,21 @@ def kill_start(t: float, shot_times: list[float] | None) -> float:
 
 CLEAN_EDIT = True  # einfacher Schnitt mit festen Regeln (siehe plan_clean); False = alter Effekt-Schnitt (plan_beat)
 CLEAN_PRE, CLEAN_POST = 1.2, 1.0  # so viel vor dem Kill-Schuss / nach dem Killfeed-Eintrag
-CLEAN_MERGE = 3.0  # Kills, deren Schüsse näher beieinander liegen, bleiben ein durchgehendes Stück (Mehrfach-Kill)
+# Kills, deren Schüsse näher beieinander liegen, bleiben ein durchgehendes Stück (Mehrfach-Kill). Weiter
+# auseinander: eigene Stücke, die Leerlauf dazwischen fällt weg (Vorbild: Einstellungen meist 0,5-1,5 s; vorher 3 s,
+# dadurch Nutzer-Clip mit einem 7-s-Stück am Stück)
+CLEAN_MERGE = 1.5
 FEED_SHOW_S = 1.8  # so lange steht der eigene Killfeed-Eintrag oben (ab dem Moment, in dem er im Spiel erscheint)
 
 
 DYNAMIC_SYNC = True       # Kill-Schuss und Schnitt auf die stärksten Einsätze im Song statt aufs feste Raster
-DYN_LEAD = (0.5, 1.8)     # Vorlauf vor dem Kill-Schuss (s), innerhalb dessen der stärkste Einsatz gesucht wird
-DYN_POST = (0.6, 1.6)     # Nachlauf nach dem Killfeed-Eintrag (s), innerhalb dessen der Schnitt gesucht wird
+# Vorlauf vor dem Kill-Schuss / Nachlauf nach dem Killfeed-Eintrag (s), innerhalb dessen der stärkste Einsatz
+# gesucht wird. Kürzer als vorher (0,5-1,8 / 0,6-1,6): Vorbild schneidet schneller, Ø Stück vorher 2,6 s
+DYN_LEAD = (0.45, 1.4)
+DYN_POST = (0.45, 1.1)
+DYN_LEAD_PREF = 0.7       # bevorzugter Vorlauf (leichte Strafe weg davon)
+DYN_POST_PEN = 0.25       # Strafe je Sekunde späterer Schnitt im Nachlauf
+RUN_LEAD_MAX = 1.8        # Schnellfeuer-Serie: erster Ton darf so weit nach dem Stückbeginn liegen
 
 
 def accents(music: str, ss: float, d: float | None, beat_times: list[float]) -> list[tuple[float, float]]:
@@ -862,7 +870,7 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
     while gi < len(groups):
         # Schnellfeuer: liegt der erste Ton einer Melodie-Serie im möglichen Vorlauf, bekommt jeder Ton einen eigenen
         # Kill (Nutzer: "dü dü dü dü düüü" in "Last Christmas", bei jedem Ton ein Kill)
-        run = next((r for r in (runs or []) if o + DYN_LEAD[0] <= r[0] <= o + DYN_LEAD[1]), None)
+        run = next((r for r in (runs or []) if o + DYN_LEAD[0] <= r[0] <= o + RUN_LEAD_MAX), None)
         if run and len(groups) - gi >= 2:
             placed = _place_run(groups, gi, run, o, prev_end)
             if placed:
@@ -893,14 +901,16 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             # dynamisch: Kill-Schuss auf den stärksten Einsatz im möglichen Vorlauf, Schnitt auf den stärksten
             # Einsatz im möglichen Nachlauf (Kill und Killfeed bleiben ganz drin)
             lmax = min(DYN_LEAD[1], ks0 - lo)
-            hits = [(w - 0.15 * abs((t - o) - 1.0), t) for t, w in acc if o + DYN_LEAD[0] <= t <= o + lmax]
+            hits = [(w - 0.15 * abs((t - o) - DYN_LEAD_PREF), t) for t, w in acc if o + DYN_LEAD[0] <= t <= o + lmax]
             if hits:
                 h = max(hits)[1]
                 st = ks0 - (h - o)
                 tmax = max(k["t"] for k in g)
                 e_lo, e_hi = tmax + DYN_POST[0], min(tmax + DYN_POST[1], dur - 0.05)
                 if e_hi > e_lo:
-                    cuts = [(w, t) for t, w in acc if o + (e_lo - st) <= t <= o + (e_hi - st)]
+                    # früher Schnitt leicht bevorzugt (Vorbild: Einstellungen meist 0,5-1,5 s)
+                    cuts = [(w - DYN_POST_PEN * (t - (o + e_lo - st)), t) for t, w in acc
+                            if o + (e_lo - st) <= t <= o + (e_hi - st)]
                     c = max(cuts)[1] if cuts else o + (min(tmax + CLEAN_POST, e_hi) - st)
                     dyn = (st, c - o)
         if dyn:
@@ -1636,7 +1646,14 @@ LYRIC_FONT = Path(__file__).parent / "static" / "fonts" / "Montserrat-ExtraBold.
 TYPE_S = 0.22  # so lange dauert es, bis alle Buchstaben eines Worts erschienen sind (Buchstabe für Buchstabe)
 LINE_HOLD_S = 1.2  # letztes Wort einer Zeile bleibt mindestens so lange stehen
 FADE_OUT_S = 0.3  # dann blendet es aus
-LYRIC_MAX_PX = 170  # Schriftgröße (fester Platz, gleiche Größe; nur zu lange Wörter kleiner)
+LYRIC_MAX_PX = 240  # Schriftgröße höchstens (sonst 58 % der Spurhöhe); nur zu lange Wörter kleiner
+POP_S = 0.12  # Wort erscheint ganz auf einmal; in dieser Zeit springt das Farb-Echo an seinen Platz (Glitch)
+POP_Z = 0.0  # Vergrößern beim Erscheinen: aus (Vorbild hat keins, Nutzer mochte Aufploppen am 2026-11-17 nicht)
+ECHO_PX = 5  # farbiges Echo hinter dem Wort (Vorbild: grüner/pinker Versatz), beim Erscheinen weit versetzt
+ECHO_IN_PX = 22
+ECHO_COLS = [(0, 230, 118), (255, 46, 170), (40, 120, 255)]  # grün, pink, blau (je Wort im Wechsel)
+EMPH_FILL = (255, 214, 10)  # betonte Wörter gelb mit Leuchten (Vorbild "WHOA-OH")
+FLICKER = (0.55, 0.3)  # lang stehendes Zeilenende: ab 0,55 s für 0,3 s Farbwechsel (Vorbild "CAREFULLY")
 FADE_IN_S = 0.08  # Wort blendet so schnell ein (statt hart zu erscheinen)
 BLUR_OUT_PX = 10  # so verschwommen wird ein Wort beim Ausblenden am Zeilenende
 LYRIC_FPS = 30  # Textspur mit 30 Bildern/s (reicht für Text, halbiert die Rechenzeit)
@@ -1720,18 +1737,53 @@ def _line_frame(lay: dict, k: int, p: float, dark: bool, width: int, height: int
     return img
 
 
+def _word_frame(t: str, font, width: int, height: int, fill: tuple, glow: tuple, echo: tuple | None,
+                echo_px: float, split: bool = False, scale: float = 1.0):
+    """Ein Wort, mittig in der Spur: weicher Schein/Schatten, farbiges Echo (versetzte Kopie), Schrift. ``split``:
+    beim Erscheinen zwei Echos (links pink, rechts grün) wie ein Farb-Glitch. ``scale``: Vergrößerung."""
+    from PIL import Image, ImageDraw, ImageFilter
+
+    size = font.size
+    l, tp, r, b = font.getbbox(t)
+    pad = int(size * 0.35 + abs(echo_px) + 4)
+    cw, ch = int(r - l + 2 * pad), int(b - tp + 2 * pad)
+    x, y = pad - l, pad - tp
+    im = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
+    sh = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).text((x, y + size * 0.04), t, font=font, fill=glow)
+    im.alpha_composite(sh.filter(ImageFilter.GaussianBlur(max(size // 14, 3))))
+    d = ImageDraw.Draw(im)
+    if split and echo_px:
+        d.text((x - echo_px, y), t, font=font, fill=ECHO_COLS[1] + (210,))
+        d.text((x + echo_px, y + echo_px * 0.25), t, font=font, fill=ECHO_COLS[0] + (210,))
+    elif echo and echo_px:
+        d.text((x + echo_px, y + echo_px * 0.6), t, font=font, fill=echo + (235,))
+    d.text((x, y), t, font=font, fill=fill + (255,))
+    if abs(scale - 1.0) > 1e-3:
+        im = im.resize((max(1, int(cw * scale)), max(1, int(ch * scale))), Image.LANCZOS)
+    fr = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    # Mitte des Worts (nicht der Schrift-Metrik) auf die Mitte der Spur
+    cx, cy = (pad + (r - l) / 2) * scale, (pad + (b - tp) / 2) * scale
+    ox, oy = int(round(width / 2 - cx)), int(round(height / 2 - cy))
+    sx, sy = max(0, -ox), max(0, -oy)
+    crop = im.crop((sx, sy, min(im.width, width - ox), min(im.height, height - oy)))
+    fr.paste(crop, (ox + sx, oy + sy))
+    return fr
+
+
 def render_lyric_track(items: list[dict], total: float, path: Path, width: int, height: int,
                        fps: int = OUT_FPS) -> None:
-    """Songtext als eigene, durchsichtige Videospur (RGBA, qtrle): fester Platz, gleiche Größe, Buchstaben
-    erscheinen nacheinander, Wort steht bis zum nächsten, Zeilenende blendet weich aus. Weiße Schrift mit weichem
-    Schatten, ohne Umrandung, ohne Drehung (Vorbild)."""
+    """Songtext als eigene, durchsichtige Videospur (RGBA, qtrle), Vorbild-Look: großes Wort in der Bildmitte,
+    erscheint ganz auf einmal (mit kurzem Farb-Glitch), dahinter ein farbiges Echo, steht bis zum
+    nächsten, Zeilenende blendet verschwommen aus (lange stehend vorher kurzer Farbwechsel). Schwarz auf hellem,
+    weiß auf dunklem Hintergrund, betonte Wörter gelb."""
     import math
 
     from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
     font_file = str(LYRIC_FONT if LYRIC_FONT.exists() else FONT_FILE)
     sched = lyric_schedule(items, total)
-    # gleiche Größe für alle Wörter; nur Wörter, die nicht in 86 % der Breite passen, werden kleiner
+    # gleiche Größe für alle Wörter; nur Wörter, die nicht in 90 % der Breite passen, werden kleiner
     texts = [printable(x["txt"], font_file) for x in sched]
     fonts: dict[int, "ImageFont.FreeTypeFont"] = {}
     words = []
@@ -1742,25 +1794,19 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
                 line_dark = x.get("dark", False)
             words.append((dict(x, dark=line_dark), _line_layout(x["line"], font_file, width, height), None, 0))
             continue
-        size = LYRIC_MAX_PX
-        while size > 50 and ImageFont.truetype(font_file, size).getlength(t) > width * 0.86:
+        size = min(LYRIC_MAX_PX, int(height * 0.58))
+        while size > 50 and ImageFont.truetype(font_file, size).getlength(t) > width * 0.9:
             size -= 6
         font = fonts.setdefault(size, ImageFont.truetype(font_file, size))
-        asc, desc = font.getmetrics()
-        y0 = (height - (asc + desc)) // 2
-        img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        x0 = (width - font.getlength(t)) / 2
-        # Farbe wie im Vorbild: auf hellem Hintergrund schwarz (mit leichtem hellem Schein), auf dunklem weiß
-        # (mit weichem Schatten)
+        # Farbe wie im Vorbild: auf hellem Hintergrund schwarz (heller Schein), auf dunklem weiß (Schatten);
+        # betonte Wörter gelb mit Leuchten; dahinter ein farbiges Echo, Farbe je Wort im Wechsel
         dark = x.get("dark", False)
-        sh = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        glow = (255, 255, 255, 70) if dark else (0, 0, 0, 170)
-        ImageDraw.Draw(sh).text((x0, y0 + (0 if dark else size * 0.05)), t, font=font, fill=glow)
-        sh = sh.filter(ImageFilter.GaussianBlur(max(size // 18, 3)))
-        img.alpha_composite(sh)
-        ImageDraw.Draw(img).text((x0, y0), t, font=font, fill=(17, 17, 17, 255) if dark else (255, 255, 255, 255))
-        edges = [x0 + font.getlength(t[:k]) for k in range(len(t) + 1)]  # rechte Kante nach k Buchstaben
-        words.append((x, img, edges, size))
+        if x.get("emph"):
+            fill, glow = EMPH_FILL, (255, 190, 0, 150)
+        else:
+            fill, glow = ((17, 17, 17), (255, 255, 255, 80)) if dark else ((255, 255, 255), (0, 0, 0, 170))
+        style = {"t": t, "font": font, "fill": fill, "glow": glow, "echo": ECHO_COLS[len(words) % len(ECHO_COLS)]}
+        words.append((x, style, None, size))
     proc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{width}x{height}",
                              "-r", str(fps), "-i", "-", "-c:v", "qtrle", str(path)], stdin=subprocess.PIPE)
     blank = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -1773,7 +1819,7 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
                 proc.stdin.write(blank.tobytes())
                 continue
             x, img, edges, size = cur
-            if edges is None:  # ganze Zeile
+            if x.get("line"):  # ganze Zeile
                 sung = (x["sung"] - x["a"]) if x.get("sung") else TYPE_S
                 reveal = min(max(0.8 * sung, 0.12), 0.6, 0.6 * (x["end"] - x["a"]))
                 p = 1.0 if reveal <= 0 else min(max((t - x["a"]) / reveal, 0.0), 1.0)
@@ -1796,28 +1842,31 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
                         cache.clear()
                 proc.stdin.write(cache[key])
                 continue
-            letters = len(edges) - 1
-            # Buchstaben im Tempo des Gesangs: über die Zeit, in der das Wort gesungen wird (0,12-0,6 s)
-            sung = (x["sung"] - x["a"]) if x.get("sung") else TYPE_S
-            reveal = min(max(0.8 * sung, 0.12), 0.6, 0.6 * (x["end"] - x["a"]))
-            p = 1.0 if reveal <= 0 else min(max((t - x["a"]) / reveal, 0.0), 1.0)
-            k = min(letters, int(math.floor(p * letters)) + 1)  # sichtbare Buchstaben (der nächste blendet ein)
-            alpha = min(1.0, max(0.0, (t - x["a"]) / FADE_IN_S))  # weich einblenden
+            st = img
+            tau = t - x["a"]
+            # ganzes Wort auf einmal, Farb-Echo springt dabei von weit versetzt an seinen Platz (Glitch)
+            pin = min(1.0, max(0.0, tau / POP_S))
+            scale = round(1.0 + POP_Z * (1.0 - pin) ** 2, 3)
+            split = pin < 1.0
+            echo_px = round(ECHO_IN_PX * (1.0 - pin) + ECHO_PX * pin) if split else ECHO_PX
+            fill = st["fill"]
+            if x["fade"] and x["end"] - x["a"] >= FLICKER[0] + FLICKER[1] + FADE_OUT_S and \
+                    FLICKER[0] <= tau < FLICKER[0] + FLICKER[1]:  # Zeilenende steht lange: kurzer Farbwechsel
+                fill = ECHO_COLS[int((tau - FLICKER[0]) / 0.07) % len(ECHO_COLS)]
+            alpha = min(1.0, max(0.0, tau / FADE_IN_S))
             blur = 0.0
             if x["fade"]:
                 out = min(1.0, max(0.0, (x["end"] - t) / FADE_OUT_S))
                 alpha = min(alpha, out)
                 blur = round((1.0 - out) * BLUR_OUT_PX, 1)  # verschwommen auflösen (Vorbild)
-            key = (id(img), k, round(alpha, 2), blur)
+            key = (id(st), scale, echo_px, split, fill, round(alpha, 2), blur)
             if key not in cache:
-                cut = int(round(edges[k])) + 1 if k < letters else width  # genau an der Buchstabenkante
-                fr = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-                fr.paste(img.crop((0, 0, cut, height)), (0, 0))
+                fr = _word_frame(st["t"], st["font"], width, height, fill, st["glow"], st["echo"], echo_px, split,
+                                 scale)
                 if blur > 0:
                     fr = fr.filter(ImageFilter.GaussianBlur(blur))
                 if alpha < 1.0:
-                    a = fr.getchannel("A").point(lambda v, f=alpha: int(v * f))
-                    fr.putalpha(a)
+                    fr.putalpha(fr.getchannel("A").point(lambda v, f=alpha: int(v * f)))
                 cache[key] = fr.tobytes()
                 if len(cache) > 400:
                     cache.clear()
@@ -1849,12 +1898,20 @@ def mark_dark_text(items: list[dict], files, segs: list[dict], y0: int, band: in
             x["dark"] = float(np.frombuffer(raw, np.uint8).mean()) > DARK_TEXT_LUMA
 
 
+LYRIC_Y = 0.40  # Mitte des Songtexts in Höhe des Spielbilds (Vorbild: groß in der Bildmitte, knapp über dem Fadenkreuz)
+
+
 def lyric_pos(j: int, during_kill: bool) -> tuple[int, float]:
-    """Mitte (y) eines flachen Songtext-Worts: im Spielbild, oberes Viertel (wie im Vorbild im Bild statt als
-    Untertitel daneben), deutlich über dem Fadenkreuz in der Mitte, damit der Kill frei bleibt."""
+    """Mitte (y) eines flachen Songtext-Worts: groß in der Bildmitte wie im Vorbild (Wort 16 % der Bildhöhe,
+    Mitte auf 50 %), etwas höher, damit das Fadenkreuz frei bleibt."""
     if LANDSCAPE:
-        return int(OUT_H * 0.28), 1.0
-    return BOX_Y + int(BOX * 0.24), 1.0
+        return int(OUT_H * LYRIC_Y), 1.0
+    return BOX_Y + int(BOX * LYRIC_Y), 1.0
+
+
+def lyric_band() -> int:
+    """Höhe der Songtext-Spur (Platz für das große Wort, Aufploppen und Farb-Echo)."""
+    return 420 if LANDSCAPE else 380
 
 
 def one_scene(a: float, b: float, cuts: list[float]) -> tuple[float, float]:
@@ -1975,6 +2032,38 @@ def transition_vf(cuts: list[float]) -> str:
     bumps = "+".join(f"gte(t\\,{c})*pow(max(0\\,1-(t-{c})/{TR_OUT})\\,2)" for c in cuts)
     z = f"(1+{TR_Z}*min(1\\,{bumps}))"
     return f"scale=w='2*trunc({OUT_W}*{z}/2)':h=-2:eval=frame:flags=lanczos,crop={OUT_W}:{OUT_H},"
+
+
+WHIP = True  # Wisch-Übergang an Schnitten (Vorbild: waagrechte Bewegungsunschärfe über wenige Bilder am Schnitt)
+WHIP_S = (0.1, 0.05)  # leichte / starke Unschärfe so weit vor und nach dem Schnitt (s)
+WHIP_SIGMA = (10, 34)  # Stärke (Pixel bei 1920 Breite), beide zusammen in der Mitte
+
+
+def whip_cuts(segs: list[dict], t_drop: float | None = None) -> list[float]:
+    """Schnitte mit Wisch-Übergang: alle Wechsel zwischen Stücken außer dem Drop (dort weißer Blitz), innerhalb einer
+    Schnellfeuer-Serie (harte Schnitte auf den Tönen) und Schnitten ohne Sprung (gleicher Clip läuft nahtlos weiter)."""
+    out = []
+    for a, b in zip(segs, segs[1:]):
+        c = b["o0"]
+        if c < 0.2 or (t_drop is not None and abs(c - t_drop) < 0.02) or (a.get("run") and b.get("run")):
+            continue
+        if a.get("src") == b.get("src") and abs(b.get("ss", 0) - (a.get("ss", 0) + a.get("d", 0))) < 0.05:
+            continue
+        out.append(round(c, 3))
+    return out
+
+
+def whip_vf(cuts: list[float]) -> str:
+    """Filter für die Wisch-Übergänge: waagrechte Unschärfe um jeden Schnitt (leicht ±0,1 s, stark ±0,05 s), nur
+    an diesen Bildern; Kill und Killfeed liegen nie so nah am Schnitt."""
+    if not cuts:
+        return ""
+    k = OUT_W / 1920
+    vf = ""
+    for w, sig in zip(WHIP_S, WHIP_SIGMA):
+        en = "+".join(f"between(t,{c - w:.3f},{c + w - 0.001:.3f})" for c in cuts)
+        vf += f"gblur=sigma={sig * k:.1f}:sigmaV=0:enable='{en}',"
+    return vf
 
 
 def sfx_expr(segs: list[dict], beat: float, cuts: list[float]) -> str:
@@ -2241,7 +2330,11 @@ def split_walls(base: str, walls: list[dict], lyr: dict) -> tuple[list[dict], li
 
     def to_flat(w, arr):
         f = {k: w[k] for k in ("a", "b", "txt") if k in w}
-        f.update(eol=w.get("eol", False), stop=w.get("stop", w["b"]), sung=w.get("sung"))
+        # gelb nur für betonte Wörter nach dem Drop (Testclip: vorher 9 von 15 Wörtern gelb, Vorbild: fast alle
+        # schwarz/weiß, gelb sticht nur einzeln heraus)
+        drop = lyr.get("drop")
+        f.update(eol=w.get("eol", False), stop=w.get("stop", w["b"]), sung=w.get("sung"),
+                 emph="group" in w and drop is not None and w["a"] >= drop - 0.05)
         if w.get("flat_b"):
             f["b"] = w["flat_b"]
         if arr is not None:
@@ -2571,11 +2664,12 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         # concat ab (Fehler beim Nutzer)
         fc += "".join(f"[{i}:v]setsar=1[sv{i}];" for i in range(n))
         fc += "".join(f"[sv{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[vc0];"
-        tcuts = [] if CLEAN_EDIT else transition_cuts(pl["segments"])  # einfacher Schnitt: harte Schnitte
+        tcuts = [] if CLEAN_EDIT else transition_cuts(pl["segments"])  # einfacher Schnitt: kein Zoom-Übergang
         if STORY_DROP and CLEAN_EDIT and drop_at is not None:  # vom Nutzer: Sekunde im Song -> Schnitt davor
             t_drop = drop_cut(drop_at - music_ss, total, pl["segments"])
         else:
             t_drop = story_drop(music, music_ss, total, pl["segments"]) if (STORY_DROP and CLEAN_EDIT) else None
+        wcuts = whip_cuts(pl["segments"], t_drop) if (WHIP and CLEAN_EDIT) else []
         if t_drop:  # Text-Teil fast schwarz-weiß und etwas mehr Kontrast, am Drop kurzer Blitz, danach volle Farbe
             d0 = f"{t_drop:.3f}"
             grade = (f"hue=s={DROP_SAT}:enable='lt(t,{d0})',eq=contrast=1.08:enable='lt(t,{d0})',"
@@ -2583,7 +2677,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                      f"enable='between(t,{d0},{t_drop + DROP_FLASH_S:.3f})',")
         else:
             grade = ""
-        fc += f"[vc0]{transition_vf(tcuts)}{grade}null[vc];"
+        fc += f"[vc0]{transition_vf(tcuts)}{whip_vf(wcuts)}{grade}null[vc];"
         lp = max(total - LOOP_S, 0)
         fc += (f"[LOOPIN]format=rgba,fade=t=in:st={lp:.3f}:d={LOOP_S}:alpha=1[lp];"
                f"[vc][lp]overlay=0:0:enable='gte(t,{lp:.3f})'[v0];")
@@ -2666,7 +2760,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             if flat_items:
                 # nie in der Bildmitte (Fadenkreuz = Kill); Farbe je Wort nach Hintergrund
                 cy = lyric_pos(0, False)[0]
-                band = 360 if not LANDSCAPE else 300
+                band = lyric_band()
                 mark_dark_text(flat_items, files, pl["segments"], cy - band // 2, band)
         fc += f"[{last}]null[v]"
         mix = tmp / "mix.wav"
@@ -2693,7 +2787,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         lyr = {"flat": flat_items if (font and words) else [], "walls": [
                    {k2: v for k2, v in w.items() if k2 != "png"} for w in wall_words],
                "total": total, "out_w": OUT_W, "out_h": OUT_H, "box": BOX, "box_y": BOX_Y, "box_x": BOX_X,
-               "fps": OUT_FPS, "y_mid": lyric_pos(0, False)[0], "band": 360 if not LANDSCAPE else 300,
+               "fps": OUT_FPS, "y_mid": lyric_pos(0, False)[0], "band": lyric_band(),
                "font": font, "shift": 0.0, "drop": t_drop}
         save_lyrics(out, lyr)
         wall_stats = apply_lyrics(str(base_path(out)), lyr, out, 0.0)

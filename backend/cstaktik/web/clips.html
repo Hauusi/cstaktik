@@ -37,7 +37,7 @@
 {% endblock %}
 {% block hero %}
 <h1>Clips</h1>
-<p>Lade einen CS2-Clip hoch. Das Tool findet deine Kills und schneidet daraus ein Hochformat-Video. Mit Musik fallen die Kills auf den Beat.</p>
+<p>Lade einen CS2-Clip hoch. Das Tool findet deine Kills und schneidet daraus ein Video (Quer- oder Hochformat). Mit Musik fallen die Kills auf den Beat.</p>
 {% endblock %}
 {% block content %}
 <a class="back" href="/">‹ Zurück zum Coach</a>
@@ -50,7 +50,7 @@
   <details><summary>Mit Musik (Kills auf den Beat)</summary>
     <div style="display:grid;gap:10px;margin-top:10px">
       <label for="cf">Format</label>
-      <select id="cf" name="fmt"><option value="hoch">Hochformat 9:16 (TikTok, Shorts, Reels)</option><option value="quer">Querformat 16:9 (YouTube), ganzes Spielbild</option></select>
+      <select id="cf" name="fmt"><option value="quer">Querformat 16:9, ganzes Spielbild (wie die Vorbild-Edits)</option><option value="hoch">Hochformat 9:16 (Spielbild als Quadrat)</option></select>
       <label for="cm">Musik</label>
       <input id="cm" type="file" name="music" accept="audio/*">
       <small>Für die Rechte an der Musik bist du selbst verantwortlich. Geschützte Songs können auf YouTube und TikTok stummgeschaltet werden.</small>

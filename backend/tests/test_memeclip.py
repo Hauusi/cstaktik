@@ -157,6 +157,38 @@ def test_transitions_and_sfx_only_at_scene_changes():
     assert e.count("*pow((t-") == 2 and "sin(2*PI*(220" not in e and e.count("exp(-pow(") == 1 and "(t-1.000)" in e and "(t-3.000)" in e  # je Kill ein Riser und ein Impact
 
 
+def test_whip_cuts_skip_drop_runs_and_seamless():
+    segs = [{"o0": 0.0, "ss": 1.0, "d": 2.0, "src": "a"},
+            {"o0": 2.0, "ss": 3.0, "d": 1.0, "src": "a"},          # nahtlos weiter im selben Clip: kein Wischen
+            {"o0": 3.0, "ss": 9.0, "d": 1.0, "src": "a"},          # Sprung im selben Clip: Wischen
+            {"o0": 4.0, "ss": 0.5, "d": 0.6, "src": "b", "run": True},
+            {"o0": 4.6, "ss": 2.0, "d": 0.6, "src": "b", "run": True},  # innerhalb der Serie: hart
+            {"o0": 5.2, "ss": 0.0, "d": 1.0, "src": "c"},          # Drop: weißer Blitz statt Wischen
+            {"o0": 6.2, "ss": 4.0, "d": 1.0, "src": "a"}]
+    assert memeclip.whip_cuts(segs, t_drop=5.2) == [3.0, 4.0, 6.2]
+    assert memeclip.whip_vf([]) == ""
+    vf = memeclip.whip_vf([3.0])
+    assert vf.count("gblur") == 2 and "sigmaV=0" in vf and "between(t,2.950,3.049)" in vf
+
+
+def test_word_frame_centered_pop_and_echo():
+    import numpy as np
+    from PIL import ImageFont
+
+    font = ImageFont.truetype(str(memeclip.LYRIC_FONT), 60)
+    fr = memeclip._word_frame("HEY", font, 400, 120, (17, 17, 17), (255, 255, 255, 80), (0, 230, 118), 5)
+    a = np.array(fr)
+    ys, xs = np.nonzero(a[:, :, 3] > 200)
+    assert abs((xs.min() + xs.max()) / 2 - 200) < 8 and abs((ys.min() + ys.max()) / 2 - 60) < 8  # mittig
+    green = (a[:, :, 1] > 180) & (a[:, :, 0] < 60) & (a[:, :, 3] > 150)
+    assert green.sum() > 50  # farbiges Echo hinter dem Wort
+    def solid(scale):
+        im = memeclip._word_frame("HEY", font, 400, 120, (17, 17, 17), (255, 255, 255, 80), None, 0, scale=scale)
+        return (np.array(im)[:, :, 3] > 200).sum()
+
+    assert solid(1.2) > solid(1.0) * 1.3  # Aufploppen: größer
+
+
 def test_drop_found_where_bass_starts():
     import numpy as np
     from cstaktik import beats

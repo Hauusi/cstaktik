@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 509 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 511 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -243,6 +243,9 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
 
 ## 10. Offen
 
+- Clips, Abstand zum Vorbild (ssstik-Clip, 2026-11-23) noch offen: Wort hinter der Waffe (Freistellen), Zoom-Unschärfe
+  auf einzelnen Wörtern ("GO"), kleine Untertitel-Zeilen im Schwarz-Weiß-Teil, Echo-Wiederholung eines Worts
+  ("WHOA-OH"). Urteil des Nutzers zum neuen Look (großer Text, Wisch-Übergänge, schnellere Schnitte) abwarten.
 - Meme-Clip Beat-Edit: `sung_words` (faster-whisper) ist ungetestet, bis der Nutzer es auf dem Server installiert; Text perspektivisch auf Wänden, Farbeffekte, mehrere Clips, Upload-Seite fehlen.
   Musik-Rechte liegen beim Nutzer. Test-Musik war der Ton aus der TikTok-Aufnahme des Nutzers (nicht im Repo).
 - Meme-Clip: Urteil des Nutzers zum ersten Edit abwarten; danach ggf. Upload-Seite, weitere Vorlagen, eigene Sounds,
@@ -268,6 +271,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-23: Look nach neuem Vorbild-Clip des Nutzers ("wirkt wie von einem Anfänger geschnitten"; Vorbild Bild für Bild: 16:9, großes Wort in der Bildmitte, farbiges Echo/Glitch, Farbwechsel am Zeilenende, Wisch-Übergänge mit Bewegungsunschärfe, Einstellungen meist 0,5-1,5 s). (1) Songtext: ganzes Wort auf einmal statt Buchstabe für Buchstabe, Größe bis 240 px (58 % der Spur, Spur 420/380 px, `lyric_band`), Mitte auf 40 % der Spielbildhöhe (`LYRIC_Y`), farbiges Echo dahinter (grün/pink/blau je Wort, `ECHO_COLS`), beim Erscheinen 0,12 s Farb-Glitch (zwei versetzte Echos), lang stehendes Zeilenende kurzer Farbwechsel (`FLICKER`), betonte Wörter nach dem Drop gelb mit Leuchten (`EMPH_FILL`); kein Vergrößern (`POP_Z` 0, Nutzer mochte Aufploppen nicht). Neu `_word_frame`. (2) Wisch-Übergang an Schnitten (`WHIP`, `whip_cuts`/`whip_vf`: waagrechte Unschärfe ±0,1 s leicht, ±0,05 s stark), nicht am Drop, nicht innerhalb einer Schnellfeuer-Serie, nicht bei nahtlosem Weiterlaufen. (3) Schnellere Schnitte: `CLEAN_MERGE` 3 → 1,5 s (Leerlauf zwischen Kills fällt weg), `DYN_LEAD` 0,45-1,4 s, `DYN_POST` 0,45-1,1 s mit leichter Bevorzugung früher Schnitte (`DYN_POST_PEN`), Schnellfeuer sucht weiter bis 1,8 s (`RUN_LEAD_MAX`). (4) Formular: Querformat zuerst (3 von 4 Vorbildern sind 16:9). Testrender 3 Nutzer-Clips + Last Christmas ab 17 s, Querformat: Stücke Ø 1,82 s (vorher 2,6 s), 16 Wörter, 3 Wand-Schilder, Rechenzeit 280 s.
 - 2026-11-23: Schnellfeuer-Stücke: Killfeed-Eintrag spätestens 0,25 s vor dem Schnitt einblenden (Testclip: beim ersten Kill der Serie wurde vor dem Eintrag geschnitten). Render mit Nutzer-Song ab 12 s: 4 Stücke 1,93/0,55/0,57/1,38 s, je Kill der Eintrag sichtbar.
 - 2026-11-23: Schnellfeuer auf Melodie-Serien (Nutzer: "dü dü dü dü düüü" am Anfang von Last Christmas, bei jedem Ton ein Kill): `memeclip.melody_runs` findet Serien von mind. 4 Ton-Einsätzen (harmonischer Anteil per Median-Filter, 350-2500 Hz) mit gleichmäßigem Abstand (0,25-0,8 s, ±20 %) und gleicher Tonhöhe (±7 %); Nutzer-MP3: 0,85/1,41/1,96/2,52 und 13,75/14,30/14,87/15,44 s, stabil für verschiedene Ausschnitte; Cannibal und music40: keine. `plan_clean(runs=…)`/`_place_run`: liegt der erste Ton im möglichen Vorlauf, bekommt jeder Ton einen eigenen Kill (Stück beginnt 0,3 s vor dem Schuss, endet beim nächsten; auch Kills aus Mehrfach-Kills einzeln; letzter läuft 0,8 s nach dem Killfeed-Eintrag), danach normal weiter. Mit 3 Nutzer-Clips + Song ab 12 s: 4 Kill-Schüsse exakt auf 13,74/14,31/14,87/15,44 s.
 - 2026-11-23: Songtext "Last Christmas" (Nutzer-Diagnose: Erkennung hörte jedes Wort richtig, gezeigt wurde Zeile 1 auf 1,2 s gequetscht und "to save me from tears" doppelt/falsch sortiert; LRCLIB-Zeilen bis 2 s daneben und überlappend). Neu `lrclib._line_rematch`: eindeutige Zeilen (ab 5 Wörtern, 2 lange) direkt im Gesang suchen (gleiche Reihenfolge, bis 5 s daneben, ≥ 60 % gehört) → deren Zeiten; Ausreißer-Prüfung je Zeile gegen eine robuste Gerade (gestaucht/gedehnt erlaubt) statt fester Verschiebung, direkt gefundene Zeilen ungeprüft; nicht erkanntes Wort zwischen zwei nahen festen Wörtern in die Mitte. Nachgerechnet: alle Wörter auf ±0,06 s der Erkennung, jedes genau einmal; Cannibal-Tests unverändert grün.
