@@ -547,3 +547,24 @@ def test_emph_after_drop_one_strong_word_per_line():
     e = memeclip.emph_after_drop(ws, 8.0)
     assert {ws[j]["txt"] for j in e} == {"cannibal", "whenever"} or {ws[j]["txt"] for j in e} == {"cannibal", "pretty"}
     assert all(r == 0 and need == 1 for _, r, need in e.values())
+
+
+def test_plan_clean_dynamic_kill_on_strongest_accent():
+    """Kill-Schuss landet auf dem stärksten Einsatz im möglichen Vorlauf, nicht auf dem nächsten Rasterschlag."""
+    beats = [0.5 + 0.5 * k for k in range(60)]  # 120 BPM
+    kills = [{"t": 3.0, "box": (0, 0, 1, 1), "src": "a.mp4", "dur": 20.0}]
+    shots = {"a.mp4": [2.7]}
+    grid = memeclip.plan_clean(kills, beats, shots)
+    acc = [(1.25, 0.3), (1.80, 1.3), (2.00, 0.4), (3.6, 1.2), (4.3, 0.5)]
+    dyn = memeclip.plan_clean(kills, beats, shots, acc)
+    shot = dyn["marks"][0]["o0"] + dyn["music_shift"]
+    assert abs(shot - 1.80) < 0.02  # stärkster Einsatz (1,3) statt Raster
+    seg = dyn["segments"][0]
+    assert seg["ss"] < 2.7 < seg["ss"] + seg["out"] and seg["ss"] + seg["out"] >= 3.0 + memeclip.DYN_POST[0] - 1e-6
+    assert grid["marks"][0]["o0"] != dyn["marks"][0]["o0"]
+
+
+def test_sync_report_counts_accents():
+    r = memeclip.sync_report([1.19], [0.0, 0.5, 1.0, 1.5], 0.5, extra=[1.19])
+    assert r["on"] == 1
+    assert memeclip.sync_report([1.19], [0.0, 0.5, 1.0, 1.5], 0.5)["on"] == 0

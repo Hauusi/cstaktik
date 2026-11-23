@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 505 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 507 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -268,6 +268,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-23: Dynamischer Takt (Nutzer: "Schüsse nicht starr im Achtel, dynamisch am Song"): `memeclip.accents` = Spitzen der Onset-Stärke (Snare, Kick, betonte Silben) mit Gewicht, +0,3 auf Schlag/halbem Schlag; `plan_clean(acc=…)` legt den Kill-Schuss auf den stärksten Einsatz im möglichen Vorlauf (0,5-1,8 s, leichte Strafe weg von 1 s) und den Schnitt auf den stärksten Einsatz im Nachlauf (0,6-1,6 s nach dem Killfeed-Eintrag); Kill und Killfeed bleiben ganz drin; ohne Einsätze wie bisher aufs Raster (`DYNAMIC_SYNC`). Gemessen mit 3 Nutzer-Clips + music40: Einsatz-Stärke am Kill-Schuss Ø 1,14 statt 0,47, am Schnitt 0,99 statt 0,75, Stücklänge gleich (Ø 2,6 s). Nachmessung zählt Einsätze mit (`sync_report(extra=…)`).
 - 2026-11-20: Ganze Zeilen am Anfang abgeschaltet (Nutzer-Screenshot: "I AM CANNIBAL / CANNIBAL, / CANNIBAL, I AM" untereinander "wirkt wie ein Gedicht", nicht geil): `LINE_INTRO_MAX` 0, überall Wort für Wort (Code für Zeilen bleibt, falls gewünscht).
 - 2026-11-20: Nach dem Drop wieder Text, aber nur betonte Wörter (Nutzer-Wahl): `memeclip.emph_after_drop` je Songzeile das stärkste Wort (keine Füllwörter), als Wand-Schild-Kandidat (`split_walls`), ohne Wand normal. Vor dem Drop weiter jedes Wort. `apply_lyrics` schneidet beim Nachjustieren nicht mehr alles nach dem Drop ab.
 - 2026-11-20: Drop-Schnitt näher an der Hook (Nutzer-Clip: Deezer-Hook bei 8 s Video, Drop kam schon beim Schnitt 5,07 s, Text-Teil nur 3 Wörter): `drop_cut` nimmt einen Schnitt bis 1,5 s nach der Wunschstelle vor einem früheren, sonst den nächsten.

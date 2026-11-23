@@ -685,7 +685,42 @@ CLEAN_MERGE = 3.0  # Kills, deren Schüsse näher beieinander liegen, bleiben ei
 FEED_SHOW_S = 1.8  # so lange steht der eigene Killfeed-Eintrag oben (ab dem Moment, in dem er im Spiel erscheint)
 
 
-def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | None = None) -> dict:
+DYNAMIC_SYNC = True       # Kill-Schuss und Schnitt auf die stärksten Einsätze im Song statt aufs feste Raster
+DYN_LEAD = (0.5, 1.8)     # Vorlauf vor dem Kill-Schuss (s), innerhalb dessen der stärkste Einsatz gesucht wird
+DYN_POST = (0.6, 1.6)     # Nachlauf nach dem Killfeed-Eintrag (s), innerhalb dessen der Schnitt gesucht wird
+
+
+def accents(music: str, ss: float, d: float | None, beat_times: list[float]) -> list[tuple[float, float]]:
+    """Markante Einsätze im Musik-Ausschnitt (Sekunden ab ``ss``) mit Gewicht 0..1,3: Spitzen der Onset-Stärke
+    (Snare, Kick, betonte Silben), stärker je deutlicher; liegt ein Einsatz auf einem Schlag oder halben Schlag,
+    zählt er etwas mehr (Nutzer: Schüsse dynamisch an den Song anpassen statt starr aufs Raster)."""
+    import numpy as np
+
+    from cstaktik import beats as beatmod
+
+    env = np.maximum(beatmod.onset_envelope(music, ss, d), 0.0)
+    fps = beatmod.SR / beatmod.HOP
+    if not len(env):
+        return []
+    top = float(np.percentile(env, 99)) or 1e-9
+    thr = float(np.percentile(env[env > 0], 70)) if (env > 0).any() else 0.0
+    bt = np.asarray(beat_times, float)
+    grid = np.sort(np.concatenate([bt, bt[:-1] + np.diff(bt) / 2])) if len(bt) > 1 else bt
+    out = []
+    for i in range(3, len(env) - 3):
+        v = env[i]
+        if v < thr or v < env[i - 3:i + 4].max():
+            continue
+        t = i / fps
+        w = min(v / top, 1.0)
+        if len(grid) and np.min(np.abs(grid - t)) <= 0.05:
+            w += 0.3
+        out.append((round(t, 3), round(float(w), 3)))
+    return out
+
+
+def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | None = None,
+               acc: list[tuple[float, float]] | None = None) -> dict:
     """Einfacher Schnitt mit festen Regeln (Nutzer: Zeitlupe/Vor- und Zurückspringen/doppelte Szenen "to much"):
     1. nur echtes Tempo; 2. jede Stelle eines Clips höchstens einmal, in zeitlicher Reihenfolge; 3. je Kill ein
     durchgehendes Stück von CLEAN_PRE vor dem Kill-Schuss bis CLEAN_POST nach dem Killfeed-Eintrag, nahe Kills
@@ -714,18 +749,36 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
     for g in groups:
         src, dur = g[0].get("src"), g[0].get("dur", 1e9)
         ks0 = g[0]["ks"] + KILL_PRE  # der Schuss selbst (ks liegt KILL_PRE davor)
-        lead = max(1, round(CLEAN_PRE / beat)) * beat  # erster Kill-Schuss genau auf einem Schlag
         lo = prev_end.get(src, 0.0)
-        while ks0 - lead < lo and lead > beat - 1e-6:  # nicht in schon gezeigtes Material zurück
-            lead -= beat
-        start = ks0 - lead
-        if start < lo - 1e-6:  # nicht einmal ein Schlag Vorlauf frei: direkt am Kill-Schuss beginnen
-            start = max(lo, ks0 - 0.15)
-        end = min(max(k["t"] for k in g) + CLEAN_POST, dur - 0.05)
-        n = max(1, math.ceil((end - start) / beat - 0.25))
-        if start + n * beat > dur - 0.05:
-            n = max(1, int((dur - 0.05 - start) / beat))
-        L = n * beat
+        dyn = None
+        if acc:
+            # dynamisch: Kill-Schuss auf den stärksten Einsatz im möglichen Vorlauf, Schnitt auf den stärksten
+            # Einsatz im möglichen Nachlauf (Kill und Killfeed bleiben ganz drin)
+            lmax = min(DYN_LEAD[1], ks0 - lo)
+            hits = [(w - 0.15 * abs((t - o) - 1.0), t) for t, w in acc if o + DYN_LEAD[0] <= t <= o + lmax]
+            if hits:
+                h = max(hits)[1]
+                st = ks0 - (h - o)
+                tmax = max(k["t"] for k in g)
+                e_lo, e_hi = tmax + DYN_POST[0], min(tmax + DYN_POST[1], dur - 0.05)
+                if e_hi > e_lo:
+                    cuts = [(w, t) for t, w in acc if o + (e_lo - st) <= t <= o + (e_hi - st)]
+                    c = max(cuts)[1] if cuts else o + (min(tmax + CLEAN_POST, e_hi) - st)
+                    dyn = (st, c - o)
+        if dyn:
+            start, L = dyn
+        else:
+            lead = max(1, round(CLEAN_PRE / beat)) * beat  # erster Kill-Schuss genau auf einem Schlag
+            while ks0 - lead < lo and lead > beat - 1e-6:  # nicht in schon gezeigtes Material zurück
+                lead -= beat
+            start = ks0 - lead
+            if start < lo - 1e-6:  # nicht einmal ein Schlag Vorlauf frei: direkt am Kill-Schuss beginnen
+                start = max(lo, ks0 - 0.15)
+            end = min(max(k["t"] for k in g) + CLEAN_POST, dur - 0.05)
+            n = max(1, math.ceil((end - start) / beat - 0.25))
+            if start + n * beat > dur - 0.05:
+                n = max(1, int((dur - 0.05 - start) / beat))
+            L = n * beat
         if o + L > music_end + 1e-6:  # Musik zu Ende
             break
         marks = [{"shot": round(o + (k["ks"] + KILL_PRE - start), 3), "feed": round(o + (k["t"] - start), 3),
@@ -1812,15 +1865,17 @@ def sfx_expr(segs: list[dict], beat: float, cuts: list[float]) -> str:
 SYNC_TOL_MS = 45  # so weit darf ein Schuss vom Raster weg sein und gilt noch als "auf dem Beat"
 
 
-def sync_report(shot_times: list[float], beat_times: list[float], beat: float) -> dict:
-    """Wie viele Schüsse im fertigen Spielton auf dem Raster der Musik liegen (Achtel oder Sechzehntel, ±45 ms).
-    Gemessen, nicht geplant: die Schüsse werden im zusammengesetzten Spielton neu erkannt."""
+def sync_report(shot_times: list[float], beat_times: list[float], beat: float,
+                extra: list[float] | None = None) -> dict:
+    """Wie viele Schüsse im fertigen Spielton auf dem Raster der Musik liegen (Achtel oder Sechzehntel, ±45 ms) oder,
+    bei dynamischem Schnitt, auf einem markanten Einsatz im Song (``extra``). Gemessen, nicht geplant: die Schüsse
+    werden im zusammengesetzten Spielton neu erkannt."""
     import numpy as np
 
     if not shot_times or not beat_times:
         return {"on": 0, "total": len(shot_times), "worst_ms": None}
     g = np.asarray(beat_times, float)
-    grid = np.sort(np.concatenate([g + k * beat / 4 for k in range(4)]))
+    grid = np.sort(np.concatenate([g + k * beat / 4 for k in range(4)] + ([np.asarray(extra, float)] if extra else [])))
     offs = [abs(t - grid[int(np.argmin(np.abs(grid - t)))]) * 1000 for t in shot_times]
     on = [o for o in offs if o <= SYNC_TOL_MS]
     return {"on": len(on), "total": len(offs), "worst_ms": round(max(on)) if on else None}
@@ -2242,7 +2297,13 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         mots = None
     shot_times = {x: shots(x) for x in srcs}
     if CLEAN_EDIT:
-        pl = plan_clean(kills, bt["beats"], shot_times)
+        acc = None
+        if DYNAMIC_SYNC:
+            try:
+                acc = accents(music, music_ss, music_d, bt["beats"])
+            except Exception:  # noqa: BLE001 - ohne Einsätze wie bisher aufs Raster
+                acc = None
+        pl = plan_clean(kills, bt["beats"], shot_times, acc)
         # Video beginnt am ersten Schlag: Musik ab dort, Raster entsprechend verschieben (sonst liegt alles um diesen
         # Versatz neben der hörbaren Musik)
         sh = pl.get("music_shift", 0.0)
@@ -2354,7 +2415,8 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
             # wiedergefunden, höchstens 0,12 s neben der geplanten Stelle)
             ks_meas = ([x for x in game_shots if any(abs(x - mk["shot"]) <= 0.12 for mk in marks)] if CLEAN_EDIT
                        else game_shots)
-            measured = sync_report(ks_meas, bt["beats"], pl["beat"])
+            measured = sync_report(ks_meas, bt["beats"], pl["beat"],
+                                   [t - pl.get("music_shift", 0.0) for t, _ in acc] if (CLEAN_EDIT and acc) else None)
         except Exception:  # noqa: BLE001 - die Messung ist nur eine Anzeige
             measured, game_shots = None, []
         # an jedem Schnitt den Spielton 6 ms ein- und ausblenden: sonst knackt es hörbar (eigener Ton-Graph)
