@@ -316,3 +316,27 @@ def test_hook_ignores_filler_lines():
     lines += [(120.0 + 4 * k, "Oh, oh, whoa, oh, whoa") for k in range(8)]
     lines += [(160.0, "I am cannibal"), (162.0, "(Cannibal, cannibal, I am)")]
     assert lrclib.hook_start(lines) == 10.0
+
+
+def test_align_local_real_user_data_last_christmas():
+    """Nutzer-Clip "Last Christmas": Erkennung hört jedes Wort richtig, LRCLIB-Zeilen bis 2 s daneben und überlappend.
+    Vorher: Zeile 1 auf 1,2 s zusammengequetscht, "to save me from tears" doppelt und falsch sortiert."""
+    E = lrclib.EOL
+
+    def lst(s):
+        return [(float(x.split(" ", 1)[0]), x.split(" ", 1)[1]) for x in s.split(" · ")]
+
+    lrc = lst("2.02 But · 2.14 the · 2.26 very · 2.50 next · 2.62 day · 2.74 you · 2.86 gave · 3.10 it · 3.22 away · "
+              "2.86 This · 3.11 year, · 3.36 to · 3.60 save · 4.10 me · 4.35 from · 4.59 tears · 8.31 I'll · 8.55 give · "
+              "9.03 it · 9.27 to · 9.51 someone · 10.23 special")
+    rec = lst("0.00 But · 0.46 the · 0.70 very · 0.70 next · 1.20 day · 1.90 you · 2.40 gave · 2.74 it · 3.18 away · "
+              "4.46 This · 5.40 year · 6.68 to · 6.92 save · 7.14 me · 7.52 from · 7.82 tears · 8.94 I'll · 9.22 give · "
+              "9.50 it · 9.74 to · 10.22 someone · 10.76 special")
+    tw = [(a, a + 0.2, w + (E if w in ("away", "tears", "special") else "")) for a, w in lrc]
+    out, n = lrclib.align_local(tw, 0.0, 0.0, 12.0, [f"{t:.2f}-{t + 0.3:.2f}:{w}" for t, w in rec])
+    got = [(float(w.split("-")[0]), w.split(":", 1)[1].rstrip(E).rstrip(",")) for w in out]
+    assert [w for _, w in got] == [w.rstrip(",") for _, w in lrc]  # jedes Wort genau einmal, richtige Reihenfolge
+    want = {w: t for t, w in rec if w != "very"}
+    for t, w in got:
+        if w in want and w not in ("it", "to"):
+            assert abs(t - want[w]) < 0.06, (w, t, want[w])

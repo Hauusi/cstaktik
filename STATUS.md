@@ -3,7 +3,7 @@
 Diese Datei ist die Quelle für den Stand des Projekts. Vor jeder Änderung zuerst hier lesen, nicht den Chat-Verlauf.
 Nach jeder Änderung im selben Commit aktualisieren (Abschnitte "Funktionen", "Offen", "Änderungsprotokoll").
 
-Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 507 grün (`cd backend && python -m pytest -q`)
+Stand: 2026-11-04 · Branches `ccr-cd3bec95-38h7uj` und `ccr-b08d5abb-e1pzde` (Server) gleich · Tests: 508 grün (`cd backend && python -m pytest -q`)
 
 ## 1. Was das Projekt ist
 
@@ -268,6 +268,7 @@ eigene Shell), stattdessen neuen Port nehmen. Der Scratchpad überlebt eine neue
   Prüfpunkte (16–46 s, alle 6 s) gemeinsam sind (Cluster-Abstand 700 Units).
 
 ## 12. Änderungsprotokoll (neueste oben)
+- 2026-11-23: Songtext "Last Christmas" (Nutzer-Diagnose: Erkennung hörte jedes Wort richtig, gezeigt wurde Zeile 1 auf 1,2 s gequetscht und "to save me from tears" doppelt/falsch sortiert; LRCLIB-Zeilen bis 2 s daneben und überlappend). Neu `lrclib._line_rematch`: eindeutige Zeilen (ab 5 Wörtern, 2 lange) direkt im Gesang suchen (gleiche Reihenfolge, bis 5 s daneben, ≥ 60 % gehört) → deren Zeiten; Ausreißer-Prüfung je Zeile gegen eine robuste Gerade (gestaucht/gedehnt erlaubt) statt fester Verschiebung, direkt gefundene Zeilen ungeprüft; nicht erkanntes Wort zwischen zwei nahen festen Wörtern in die Mitte. Nachgerechnet: alle Wörter auf ±0,06 s der Erkennung, jedes genau einmal; Cannibal-Tests unverändert grün.
 - 2026-11-23: Dynamischer Takt (Nutzer: "Schüsse nicht starr im Achtel, dynamisch am Song"): `memeclip.accents` = Spitzen der Onset-Stärke (Snare, Kick, betonte Silben) mit Gewicht, +0,3 auf Schlag/halbem Schlag; `plan_clean(acc=…)` legt den Kill-Schuss auf den stärksten Einsatz im möglichen Vorlauf (0,5-1,8 s, leichte Strafe weg von 1 s) und den Schnitt auf den stärksten Einsatz im Nachlauf (0,6-1,6 s nach dem Killfeed-Eintrag); Kill und Killfeed bleiben ganz drin; ohne Einsätze wie bisher aufs Raster (`DYNAMIC_SYNC`). Gemessen mit 3 Nutzer-Clips + music40: Einsatz-Stärke am Kill-Schuss Ø 1,14 statt 0,47, am Schnitt 0,99 statt 0,75, Stücklänge gleich (Ø 2,6 s). Nachmessung zählt Einsätze mit (`sync_report(extra=…)`).
 - 2026-11-20: Ganze Zeilen am Anfang abgeschaltet (Nutzer-Screenshot: "I AM CANNIBAL / CANNIBAL, / CANNIBAL, I AM" untereinander "wirkt wie ein Gedicht", nicht geil): `LINE_INTRO_MAX` 0, überall Wort für Wort (Code für Zeilen bleibt, falls gewünscht).
 - 2026-11-20: Nach dem Drop wieder Text, aber nur betonte Wörter (Nutzer-Wahl): `memeclip.emph_after_drop` je Songzeile das stärkste Wort (keine Füllwörter), als Wand-Schild-Kandidat (`split_walls`), ohne Wand normal. Vor dem Drop weiter jedes Wort. `apply_lyrics` schneidet beim Nachjustieren nicht mehr alles nach dem Drop ab.

@@ -478,6 +478,49 @@ def _lines(win: list[tuple[float, float, str]]) -> list[int]:
     return out
 
 
+LINE_MATCH_S = 5.0   # so weit darf eine Zeile im Gesang von der LRCLIB-Schätzung liegen
+LINE_MATCH_MIN = 0.6  # Anteil der Wörter einer Zeile, die in derselben Reihenfolge gehört sein müssen
+
+
+def _line_rematch(win: list[tuple[float, float, str]], rec: list[tuple], good: list[tuple]) -> tuple[list[tuple], set]:
+    """Zeilen, die die Kette kaum verankert hat, direkt im Gesang suchen: die Wörter der Zeile in derselben
+    Reihenfolge unter den erkannten Wörtern bis LINE_MATCH_S daneben. Hört die Erkennung mindestens 60 % davon, gelten
+    deren Zeiten (Nutzer-Song "Last Christmas": jedes Wort richtig erkannt, LRCLIB-Zeilen bis 2 s daneben und
+    überlappend, gezeigt wurde zusammengequetscht und doppelt). Rückgabe (Anker wie ``_anchors``, so gefundene Zeilen)."""
+    line = _lines(win)
+    bad = _collapsed(rec)
+    anchored = {g[0] for g in good}
+    used = {g[3] for g in good}
+    out = list(good)
+    direct: set = set()
+    for ln in sorted(set(line)):
+        idx = [i for i in range(len(win)) if line[i] == ln]
+        words = [_norm(win[i][2].rstrip(EOL)) for i in idx]
+        win_pos = {i: p for p, i in enumerate(idx)}
+        # nur eindeutige Zeilen: ab 5 Wörtern, davon mindestens 2 lange (kurze Refrain-Zeilen wie "I am cannibal"
+        # wiederholen sich ständig, dort trifft die Suche leicht die falsche Wiederholung)
+        if len(idx) < 5 or sum(len(w) >= 4 for w in words) < 2:
+            continue
+        t0, t1 = win[idx[0]][0] - LINE_MATCH_S, win[idx[-1]][0] + LINE_MATCH_S
+        own = {g[3] for g in out if line[g[0]] == ln}  # Wörter, die schon an dieser Zeile hängen, zählen mit
+        cand = [j for j, r in enumerate(rec) if t0 <= r[0] <= t1 and (j not in used or j in own) and r[2]]
+        if not cand:
+            continue
+        sm = difflib.SequenceMatcher(a=words, b=[rec[j][2] for j in cand], autojunk=False)
+        pairs = [(idx[b.a + k], cand[b.b + k]) for b in sm.get_matching_blocks() for k in range(b.size)]
+        if len(pairs) < LINE_MATCH_MIN * len(idx) or sum(len(words[win_pos[i]]) >= 4 for i, _ in pairs) < 2:
+            continue
+        # die bisherigen Anker dieser Zeile ersetzen
+        out = [g for g in out if line[g[0]] != ln]
+        direct.add(ln)
+        for i, j in pairs:
+            if j in bad:
+                continue
+            out.append((i, rec[j][0] - win[i][0], rec[j][1], j))
+            used.add(j)
+    return sorted(out), direct
+
+
 def _paren_flags(win: list[tuple[float, float, str]]) -> list[int]:
     """Gruppennummer (ab 1) für Wörter in Klammern (Hintergrund-Gesang, z. B. "(cannibal, cannibal)"), sonst 0."""
     out, g, inside = [], 0, False
@@ -508,14 +551,28 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
         if parts:
             rec.append((parts[0], parts[-1], _norm(txt), txt.strip("-")))
     good = _anchors(win, rec)
+    good, direct = _line_rematch(win, rec, good)
     # Ausreißer in der eigenen Zeile: hat eine Zeile mindestens 3 Anker, zählt keiner, der mehr als 0,35 s von ihrem
     # Median abweicht (Nutzer-Daten: "I'll" 0,5 s zu früh erkannt, "eat you up" derselben Zeile richtig)
     ln_of = _lines(win)
     by_line: dict = {}
     for g in good:
-        by_line.setdefault(ln_of[g[0]], []).append(g[1])
-    med = {k: sorted(v)[len(v) // 2] for k, v in by_line.items() if len(v) >= 3}
-    outliers = {g[3] for g in good if ln_of[g[0]] in med and abs(g[1] - med[ln_of[g[0]]]) > 0.35}
+        by_line.setdefault(ln_of[g[0]], []).append(g)
+    # Ausreißer je Zeile gegen eine robust angepasste Gerade (gesungene Zeit = a * LRCLIB-Zeit + b): LRCLIB verteilt
+    # die Wörter einer Zeile nur geschätzt, gesungen kann die Zeile gedehnt oder gestaucht sein (Nutzer-Song "Last
+    # Christmas": LRCLIB 1,2 s, gesungen 3 s; eine feste Verschiebung warf dort die richtigen Wörter raus). Zeilen, die
+    # direkt im Gesang gefunden wurden, nicht prüfen.
+    outliers = set()
+    for k, gs in by_line.items():
+        if len(gs) < 3 or k in direct:
+            continue
+        xs = [win[g[0]][0] for g in gs]
+        ys = [win[g[0]][0] + g[1] for g in gs]
+        slopes = sorted((ys[j] - ys[i]) / (xs[j] - xs[i]) for i in range(len(gs)) for j in range(i + 1, len(gs))
+                        if abs(xs[j] - xs[i]) > 1e-6)
+        a_ = min(max(slopes[len(slopes) // 2], 0.3), 4.0) if slopes else 1.0
+        b_ = sorted(y - a_ * x for x, y in zip(xs, ys))[len(gs) // 2]
+        outliers |= {g[3] for g, x, y in zip(gs, xs, ys) if abs(y - (a_ * x + b_)) > 0.35}
     good = [g for g in good if g[3] not in outliers]
     if len(good) < MIN_MATCH:
         return [], len(good)
@@ -598,8 +655,11 @@ def align_local(words: list[tuple[float, float, str]], offset: float, music_ss: 
         if fixed[k]:
             last_t = va
         elif last_t is not None and va < last_t + 0.1:
-            placed[k] = (last_t + 0.25, max(ve, last_t + 0.45), w, False)
-            last_t = last_t + 0.25
+            # nächstes festes Wort: dazwischen bleiben (Nutzer-Daten: "very" landete hinter "next")
+            nxt = next((placed[m][0] for m in range(k + 1, len(placed)) if fixed[m]), None)
+            step = 0.25 if nxt is None else max(min(0.25, (nxt - last_t) / 2), 0.0)
+            placed[k] = (last_t + step, max(ve, last_t + step + 0.2), w, False)
+            last_t = last_t + step
     # anderer Text im Song: erkannte Wörter am Stück ohne Gegenstück in LRCLIB ersetzen die LRCLIB-Wörter dort
     # (frei = nicht verankert, oder nur an Hintergrund-Gesang in Klammern verankert)
     paren_rec = {g[3] for g in good if paren[g[0]]}
