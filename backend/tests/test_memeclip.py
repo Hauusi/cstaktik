@@ -616,3 +616,37 @@ def test_plan_clean_run_one_kill_per_note():
     segs = pl["segments"]
     assert all(abs(a["o0"] + a["out"] - b["o0"]) < 1e-3 for a, b in zip(segs, segs[1:]))  # lückenlos
     assert pl["kills_used"] == 6  # danach normal weiter, kein Kill verloren
+
+
+def _story_kills():
+    box = (0, 0, 10, 10)
+    k = lambda t, src: {"t": t, "src": src, "dur": 30.0, "box": box}  # noqa: E731
+    return [k(6.0, "a"), k(14.0, "a"),                       # Clip a: zwei Einzel-Kills (ruhiger Anfang 0-5 s)
+            k(4.0, "b"), k(12.0, "b"), k(12.4, "b"), k(12.8, "b"),  # Clip b: Einzel-Kill, dann Dreifach-Kill
+            k(8.0, "c"), k(8.5, "c")]                        # Clip c: Doppel-Kill
+
+
+def test_story_order_drop_best_final_second_and_no_backjumps():
+    beats = [round(0.5 * i, 3) for i in range(120)]
+    pl = memeclip.plan_clean(_story_kills(), beats, drop_t=9.0)
+    segs = pl["segments"]
+    assert pl["story"] and segs[0].get("intro") and segs[0]["kills"] == []  # ruhiger Einstieg ohne Kill
+    drop = next(sg for sg in segs if sg.get("drop"))
+    assert len(drop["kills"]) == 3 and drop["src"] == "b"  # stärkster Moment auf dem Drop
+    assert abs(drop["o0"] - 9.0) < 1e-6  # genau auf dem Drop (Schläge beginnen bei 0)
+    assert len(segs[-1]["kills"]) == 2 and segs[-1]["src"] == "c"  # Finale: zweitbester Moment
+    before = [sg for sg in segs if sg["o0"] < drop["o0"] and not sg.get("intro")]
+    assert any(sg["src"] == "b" and len(sg["kills"]) == 1 for sg in before)  # Kill davor im selben Clip: Aufbau
+    for src in "abc":  # innerhalb eines Clips nie zurück
+        mine = [sg for sg in segs if sg["src"] == src]
+        assert all(x["ss"] + x["d"] <= y["ss"] + 1e-6 for x, y in zip(mine, mine[1:]))
+    assert "Drop" in pl["story"]["note"] and "Finale" in pl["story"]["note"]
+
+
+def test_story_order_only_when_it_makes_sense():
+    box = (0, 0, 10, 10)
+    two = [{"t": 5.0, "src": "a", "dur": 20.0, "box": box}, {"t": 9.0, "src": "a", "dur": 20.0, "box": box}]
+    beats = [round(0.5 * i, 3) for i in range(80)]
+    assert memeclip.plan_clean(two, beats, drop_t=8.0)["story"] is None  # zu wenige Momente: der Reihe nach
+    assert memeclip.plan_clean(_story_kills(), beats, drop_t=None)["story"] is None  # ohne Drop: wie bisher
+    assert memeclip.plan_clean(_story_kills(), beats, drop_t=1.5)["story"] is None  # Drop zu früh für einen Aufbau

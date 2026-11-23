@@ -839,22 +839,29 @@ def _place_run(groups: list[list[dict]], gi: int, run: list[float], o: float, pr
     return out, last_sg["o0"] + last_sg["out"]
 
 
-def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | None = None,
-               acc: list[tuple[float, float]] | None = None, runs: list[list[float]] | None = None) -> dict:
-    """Einfacher Schnitt mit festen Regeln (Nutzer: Zeitlupe/Vor- und Zurückspringen/doppelte Szenen "to much"):
-    1. nur echtes Tempo; 2. jede Stelle eines Clips höchstens einmal, in zeitlicher Reihenfolge; 3. je Kill ein
-    durchgehendes Stück von CLEAN_PRE vor dem Kill-Schuss bis CLEAN_POST nach dem Killfeed-Eintrag, nahe Kills
-    (Mehrfach-Kill) als ein Stück; 4. Schnitte nur zwischen den Stücken, auf dem Beat: jedes Stück beginnt so, dass
-    sein erster Kill-Schuss auf einem Schlag liegt, und ist eine ganze Zahl Schläge lang; 5. Killfeed-Eintrag ab dem
-    Moment, in dem er im Spiel erscheint. Passt nicht alles in die Musik, fallen die letzten Stücke weg."""
-    import math
+# Spannungskurve (Nutzer: "soll wie eine Story wirken, aber nur wenn das Sinn macht"): ruhiger Einstieg ohne Kill,
+# Aufbau mit schwächeren Momenten, der stärkste Moment genau auf dem Drop, danach steigend, am Ende der zweitbeste.
+# Innerhalb eines Clips bleibt die Reihenfolge (kein Zurückspringen), Clips werden gemischt.
+STORY = True
+STORY_MIN_GROUPS = 3      # weniger Momente: keine Kurve (wie bisher der Reihe nach)
+INTRO_MIN, INTRO_MAX = 3.0, 8.0  # ruhige Einstellung am Anfang (Vorbild: 8 s ein durchgehender Gang mit Text)
+INTRO_LEAD = 1.0          # Einstieg endet so viel vor dem ersten gezeigten Kill-Schuss seines Clips
 
-    nb = len(beat_times)
-    if nb < 4:
-        raise ValueError("Zu wenige Schläge im Musik-Ausschnitt.")
-    beat = (beat_times[-1] - beat_times[0]) / (nb - 1)
-    music_end = beat_times[-1] + beat * 0.5
-    # Gruppen: aufeinanderfolgende Kills im selben Clip mit nahen Schüssen
+
+def _gscore(g: list[dict]) -> float:
+    """Stärke eines Moments aus dem, was messbar ist: Anzahl Kills, schnelle Folge (unter 0,8 s je Kill) +0,5."""
+    n = len(g)
+    fast = n >= 2 and (g[-1]["t"] - g[0]["t"]) / (n - 1) < 0.8
+    return n + (0.5 if fast else 0.0)
+
+
+def _gest(g: list[dict]) -> float:
+    """Geschätzte Stücklänge eines Moments (Vorlauf + Kills + Nachlauf)."""
+    return 0.8 + max(k["t"] for k in g) - (g[0]["ks"] + KILL_PRE) + 0.75
+
+
+def _group_kills(kills: list[dict], shot_times: dict | None) -> list[list[dict]]:
+    """Aufeinanderfolgende Kills im selben Clip mit nahen Schüssen (Mehrfach-Kill) zu einem Moment."""
     groups: list[list[dict]] = []
     for k in kills:
         ks = kill_start(k["t"], (shot_times or {}).get(k.get("src")))
@@ -864,15 +871,185 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             g.append(k)
         else:
             groups.append([k])
+    return groups
+
+
+def story_length(kills: list[dict], shot_times: dict | None = None) -> float:
+    """Ungefähre Länge des fertigen Videos mit Spannungskurve (für die Suche nach dem Drop in der Musik)."""
+    return INTRO_MAX + sum(_gest(g) for g in _group_kills(kills, shot_times))
+
+
+def story_order(groups: list[list[dict]], drop_t: float | None, o0: float) -> dict | None:
+    """Reihenfolge als Geschichte. ``drop_t``: Drop in der Musik (s, wie die Schläge), ``o0``: Videobeginn.
+    Rückgabe {"order": Gruppen-Indizes, "n_pre": wie viele vor dem Drop, "intro": (Clip, Ende im Clip, Länge) oder
+    None, "final": letzter ist das Finale, "skipped": weggelassene} oder None, wenn eine Kurve keinen Sinn macht
+    (zu wenig Momente, kein Drop, oder vor dem Drop wäre nichts zu zeigen)."""
+    if not STORY or drop_t is None or len(groups) < STORY_MIN_GROUPS or drop_t - o0 < INTRO_MIN:
+        return None
+    src = [g[0].get("src") for g in groups]
+    sc = [_gscore(g) for g in groups]
+    by: dict = {}
+    for i, x in enumerate(src):
+        by.setdefault(x, []).append(i)
+    b = max(range(len(groups)), key=lambda i: (sc[i], i))  # stärkster Moment (bei Gleichstand der spätere)
+    pre = [i for i in by[src[b]] if i < b]  # aus demselben Clip davor: muss vor den Drop (keine Rücksprünge)
+    rest = [i for i in range(len(groups)) if i != b and i not in pre]
+    lasts = [q[-1] for q in by.values() if q[-1] in rest]
+    fin = max(lasts, key=lambda i: (sc[i], i)) if lasts else None  # Finale: bester, der als letzter seines Clips kommt
+    queues = {x: [i for i in q if i in rest] for x, q in by.items()}
+    need = drop_t - o0
+
+    def first_shot(x):  # erster gezeigter Kill-Schuss eines Clips
+        q = pre if x == src[b] else queues[x]
+        i = q[0] if q else (b if x == src[b] else None)
+        return None if i is None else groups[i][0]["ks"] + KILL_PRE
+
+    calm = {}
+    for x in by:
+        fs = first_shot(x)
+        if fs is not None and fs - INTRO_LEAD >= INTRO_MIN:
+            calm[x] = fs - INTRO_LEAD
+    ix = src[b] if src[b] in calm else (max(calm, key=calm.get) if calm else None)
+    est_pre = sum(_gest(groups[i]) for i in pre)
+    skipped = []
+    # Aufbau mit den schwächsten ersten Momenten anderer Clips auffüllen, wenn Einstieg + Clip-Vorlauf nicht reichen
+    room = min(calm.get(ix, 0.0), INTRO_MAX) if ix else 0.0
+    build = []
+    while need - est_pre - sum(_gest(groups[i]) for i in build) > room + 0.5:
+        heads = [q[0] for x, q in queues.items() if q and q[0] != fin and x != src[b]]
+        if not heads:
+            break
+        prev = src[build[-1]] if build else None
+        h = min(heads, key=lambda i: (sc[i] + (0.6 if src[i] == prev else 0.0), i))  # Clips abwechselnd
+        build.append(h)
+        queues[src[h]].pop(0)
+    est = est_pre + sum(_gest(groups[i]) for i in build)
+    # zu viel vor dem Drop: älteste Momente aus dem Clip des Drops weglassen (Einstieg soll ruhig bleiben)
+    while pre and est > need - (INTRO_MIN if ix else 0.0) + 0.5:
+        i = pre.pop(0)
+        skipped.append(i)
+        est -= _gest(groups[i])
+    if ix == src[b]:  # Einstieg endet vor dem ersten gezeigten Kill des Clips (kann sich durch Weglassen verschieben)
+        fs = first_shot(ix)
+        calm[ix] = fs - INTRO_LEAD
+    intro = None
+    if ix and calm.get(ix, 0) >= INTRO_MIN:
+        L = min(max(need - est, INTRO_MIN), calm[ix], INTRO_MAX)
+        if need - est >= INTRO_MIN - 0.5:
+            intro = (ix, round(calm[ix], 3), round(L, 3))
+    if not intro and not pre and not build:
+        return None  # vor dem Drop gäbe es nichts zu zeigen
+    order_pre = build + pre
+    post = []
+    last = src[b]
+    while True:
+        heads = [q[0] for q in queues.values() if q and q[0] != fin]
+        if not heads:
+            break
+        h = min(heads, key=lambda i: (sc[i] + (0.6 if src[i] == last else 0.0), i))  # steigend, Clips abwechselnd
+        post.append(h)
+        queues[src[h]].pop(0)
+        last = src[h]
+    if fin is not None:
+        post.append(fin)
+    return {"order": order_pre + [b] + post, "n_pre": len(order_pre), "intro": intro, "final": fin is not None,
+            "skipped": skipped}
+
+
+def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | None = None,
+               acc: list[tuple[float, float]] | None = None, runs: list[list[float]] | None = None,
+               drop_t: float | None = None) -> dict:
+    """Einfacher Schnitt mit festen Regeln (Nutzer: Zeitlupe/Vor- und Zurückspringen/doppelte Szenen "to much"):
+    1. nur echtes Tempo; 2. jede Stelle eines Clips höchstens einmal, in zeitlicher Reihenfolge; 3. je Kill ein
+    durchgehendes Stück von CLEAN_PRE vor dem Kill-Schuss bis CLEAN_POST nach dem Killfeed-Eintrag, nahe Kills
+    (Mehrfach-Kill) als ein Stück; 4. Schnitte nur zwischen den Stücken, auf dem Beat: jedes Stück beginnt so, dass
+    sein erster Kill-Schuss auf einem Schlag liegt, und ist eine ganze Zahl Schläge lang; 5. Killfeed-Eintrag ab dem
+    Moment, in dem er im Spiel erscheint. Passt nicht alles in die Musik, fallen die letzten Stücke weg.
+    Mit ``drop_t`` (Drop in der Musik) Spannungskurve (`story_order`): ruhiger Einstieg, Aufbau, stärkster Moment
+    beginnt genau auf dem Drop, danach steigend, Finale zuletzt (fällt nie wegen Musikende weg)."""
+    import math
+
+    nb = len(beat_times)
+    if nb < 4:
+        raise ValueError("Zu wenige Schläge im Musik-Ausschnitt.")
+    beat = (beat_times[-1] - beat_times[0]) / (nb - 1)
+    music_end = beat_times[-1] + beat * 0.5
+    groups = _group_kills(kills, shot_times)
     segs, o, used, prev_end = [], beat_times[0], 0, {}
     first_beat = beat_times[0]
+    story = story_order(groups, drop_t, first_beat)
+    n_pre, final = 0, False
+    if story:
+        groups = [groups[i] for i in story["order"]]
+        n_pre, final = story["n_pre"], story["final"]
+        if story["intro"]:  # ruhige Einstellung ohne Kill, endet vor dem ersten Kill ihres Clips
+            x, e, L = story["intro"]
+            if n_pre == 0:
+                L = min(drop_t - o, e)  # direkt danach kommt der Drop: genau dort schneiden
+            elif acc:  # Schnitt auf den stärksten Einsatz in der Nähe
+                near = [(w, t) for t, w in acc if o + max(INTRO_MIN, L - 0.4) <= t <= o + min(e, L + 0.4)]
+                if near:
+                    L = max(near)[1] - o
+            segs.append({"kind": "clip", "ss": round(e - L, 3), "d": round(L, 3), "out": round(L, 3),
+                         "o0": round(o, 3), "src": x, "kills": [], "intro": True})
+            prev_end[x] = e
+            o += L
+
+    def place(g, o, cut_at=None):
+        """Stück für Gruppe ``g`` ab ``o``: (Start im Clip, Länge). ``cut_at``: Schnitt muss dort liegen (Drop)."""
+        src, dur = g[0].get("src"), g[0].get("dur", 1e9)
+        ks0 = g[0]["ks"] + KILL_PRE  # der Schuss selbst (ks liegt KILL_PRE davor)
+        lo = prev_end.get(src, 0.0)
+        tmax = max(k["t"] for k in g)
+        if cut_at is not None:  # Vorlauf und Nachlauf so wählen, dass der Schnitt genau auf dem Drop liegt
+            L = cut_at - o
+            for (l0, l1), (p0, p1) in ((DYN_LEAD, DYN_POST), ((0.3, 2.0), (0.3, 2.5))):
+                s_lo = max(ks0 - l1, tmax + p0 - L, lo)
+                s_hi = min(ks0 - l0, tmax + p1 - L, dur - 0.05 - L)
+                if s_hi >= s_lo:
+                    # Kill-Schuss auf den stärksten Einsatz im möglichen Bereich
+                    hits = [(w, t) for t, w in (acc or []) if o + ks0 - s_hi <= t <= o + ks0 - s_lo]
+                    st = ks0 - (max(hits)[1] - o) if hits else (s_lo + s_hi) / 2
+                    return st, L
+        dyn = None
+        if acc:
+            # dynamisch: Kill-Schuss auf den stärksten Einsatz im möglichen Vorlauf, Schnitt auf den stärksten
+            # Einsatz im möglichen Nachlauf (Kill und Killfeed bleiben ganz drin)
+            lmax = min(DYN_LEAD[1], ks0 - lo)
+            hits = [(w - 0.15 * abs((t - o) - DYN_LEAD_PREF), t) for t, w in acc if o + DYN_LEAD[0] <= t <= o + lmax]
+            if hits:
+                h = max(hits)[1]
+                st = ks0 - (h - o)
+                e_lo, e_hi = tmax + DYN_POST[0], min(tmax + DYN_POST[1], dur - 0.05)
+                if e_hi > e_lo:
+                    # früher Schnitt leicht bevorzugt (Vorbild: Einstellungen meist 0,5-1,5 s)
+                    cuts = [(w - DYN_POST_PEN * (t - (o + e_lo - st)), t) for t, w in acc
+                            if o + (e_lo - st) <= t <= o + (e_hi - st)]
+                    c = max(cuts)[1] if cuts else o + (min(tmax + CLEAN_POST, e_hi) - st)
+                    dyn = (st, c - o)
+        if dyn:
+            return dyn
+        lead = max(1, round(CLEAN_PRE / beat)) * beat  # erster Kill-Schuss genau auf einem Schlag
+        while ks0 - lead < lo and lead > beat - 1e-6:  # nicht in schon gezeigtes Material zurück
+            lead -= beat
+        start = ks0 - lead
+        if start < lo - 1e-6:  # nicht einmal ein Schlag Vorlauf frei: direkt am Kill-Schuss beginnen
+            start = max(lo, ks0 - 0.15)
+        end = min(tmax + CLEAN_POST, dur - 0.05)
+        n = max(1, math.ceil((end - start) / beat - 0.25))
+        if start + n * beat > dur - 0.05:
+            n = max(1, int((dur - 0.05 - start) / beat))
+        return start, n * beat
+
     gi = 0
     while gi < len(groups):
         # Schnellfeuer: liegt der erste Ton einer Melodie-Serie im möglichen Vorlauf, bekommt jeder Ton einen eigenen
-        # Kill (Nutzer: "dü dü dü dü düüü" in "Last Christmas", bei jedem Ton ein Kill)
+        # Kill (Nutzer: "dü dü dü dü düüü" in "Last Christmas", bei jedem Ton ein Kill). Mit Spannungskurve erst
+        # nach dem Drop und ohne das Finale.
+        pool = groups[:-1] if final else groups
         run = next((r for r in (runs or []) if o + DYN_LEAD[0] <= r[0] <= o + RUN_LEAD_MAX), None)
-        if run and len(groups) - gi >= 2:
-            placed = _place_run(groups, gi, run, o, prev_end)
+        if run and len(pool) - gi >= 2 and (not story or gi > n_pre):
+            placed = _place_run(pool, gi, run, o, prev_end)
             if placed:
                 new, o_end = placed
                 if o_end <= music_end + 1e-6:
@@ -892,52 +1069,47 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
                     o = o_end
                     continue
         g = groups[gi]
+        is_drop = bool(story) and gi == n_pre
+        start, L = place(g, o, drop_t if (story and gi == n_pre - 1) else None)
         gi += 1
         src, dur = g[0].get("src"), g[0].get("dur", 1e9)
-        ks0 = g[0]["ks"] + KILL_PRE  # der Schuss selbst (ks liegt KILL_PRE davor)
-        lo = prev_end.get(src, 0.0)
-        dyn = None
-        if acc:
-            # dynamisch: Kill-Schuss auf den stärksten Einsatz im möglichen Vorlauf, Schnitt auf den stärksten
-            # Einsatz im möglichen Nachlauf (Kill und Killfeed bleiben ganz drin)
-            lmax = min(DYN_LEAD[1], ks0 - lo)
-            hits = [(w - 0.15 * abs((t - o) - DYN_LEAD_PREF), t) for t, w in acc if o + DYN_LEAD[0] <= t <= o + lmax]
-            if hits:
-                h = max(hits)[1]
-                st = ks0 - (h - o)
-                tmax = max(k["t"] for k in g)
-                e_lo, e_hi = tmax + DYN_POST[0], min(tmax + DYN_POST[1], dur - 0.05)
-                if e_hi > e_lo:
-                    # früher Schnitt leicht bevorzugt (Vorbild: Einstellungen meist 0,5-1,5 s)
-                    cuts = [(w - DYN_POST_PEN * (t - (o + e_lo - st)), t) for t, w in acc
-                            if o + (e_lo - st) <= t <= o + (e_hi - st)]
-                    c = max(cuts)[1] if cuts else o + (min(tmax + CLEAN_POST, e_hi) - st)
-                    dyn = (st, c - o)
-        if dyn:
-            start, L = dyn
-        else:
-            lead = max(1, round(CLEAN_PRE / beat)) * beat  # erster Kill-Schuss genau auf einem Schlag
-            while ks0 - lead < lo and lead > beat - 1e-6:  # nicht in schon gezeigtes Material zurück
-                lead -= beat
-            start = ks0 - lead
-            if start < lo - 1e-6:  # nicht einmal ein Schlag Vorlauf frei: direkt am Kill-Schuss beginnen
-                start = max(lo, ks0 - 0.15)
-            end = min(max(k["t"] for k in g) + CLEAN_POST, dur - 0.05)
-            n = max(1, math.ceil((end - start) / beat - 0.25))
-            if start + n * beat > dur - 0.05:
-                n = max(1, int((dur - 0.05 - start) / beat))
-            L = n * beat
-        if o + L > music_end + 1e-6:  # Musik zu Ende
+        reserve = _gest(groups[-1]) if (final and gi < len(groups)) else 0.0  # Platz fürs Finale lassen
+        if o + L + reserve > music_end + 1e-6:  # Musik zu Ende (mit Finale: dieses Stück auslassen, weiter)
+            if reserve and not is_drop:
+                continue
             break
         marks = [{"shot": round(o + (k["ks"] + KILL_PRE - start), 3), "feed": round(o + (k["t"] - start), 3),
                   "box": k["box"], "feed_at": round(min(k["t"] + 0.2, dur - 0.05), 3)} for k in g]
-        segs.append({"kind": "clip", "ss": round(start, 3), "d": round(L, 3), "out": round(L, 3), "o0": round(o, 3),
-                     "src": src, "kills": marks})
+        sg = {"kind": "clip", "ss": round(start, 3), "d": round(L, 3), "out": round(L, 3), "o0": round(o, 3),
+              "src": src, "kills": marks}
+        if is_drop:
+            sg["drop"] = True
+        segs.append(sg)
         prev_end[src] = start + L
         o += L
         used += len(g)
     if not segs:
         raise ValueError("Die Musik ist zu kurz für ein Kill-Stück.")
+    if story:  # Anzeige im Auftrag: wie die Geschichte gebaut wurde
+        parts = []
+        intro = next((x for x in segs if x.get("intro")), None)
+        if intro:
+            parts.append(f"ruhiger Einstieg {intro['out']:.1f} s".replace(".", ","))
+        n_build = sum(1 for x in segs if not x.get("intro") and x["o0"] < (next((y["o0"] for y in segs
+                                                                               if y.get("drop")), 1e9)))
+        if n_build:
+            parts.append(f"Aufbau mit {n_build} {'Moment' if n_build == 1 else 'Momenten'}")
+        dseg = next((x for x in segs if x.get("drop")), None)
+        if dseg:
+            n = len(dseg["kills"])
+            parts.append(f"stärkster Moment ({n} {'Kill' if n == 1 else 'Kills'}) genau auf dem Drop")
+        if final and segs[-1] is not dseg:
+            n = len(segs[-1]["kills"])
+            parts.append(f"Finale mit {n} {'Kill' if n == 1 else 'Kills'}")
+        if story["skipped"]:
+            parts.append(f"{len(story['skipped'])} schwächere Momente vor dem Drop weggelassen, damit der Einstieg "
+                         "ruhig bleibt")
+        story["note"] = ", ".join(parts)
     shift = first_beat  # Video beginnt bei 0: alles um den ersten Schlag nach vorn
     for sg in segs:
         sg["o0"] = round(sg["o0"] - shift, 3)
@@ -945,7 +1117,8 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             mk["shot"], mk["feed"] = round(mk["shot"] - shift, 3), round(mk["feed"] - shift, 3)
     last = segs[-1]
     return {"segments": segs, "seconds": round(last["o0"] + last["out"], 3), "beat": round(beat, 4),
-            "kills_used": used, "music_shift": round(shift, 3), "marks": [dict(mk, o0=mk["shot"], out=1.0, kind="hit") for sg in segs for mk in sg["kills"]]}
+            "kills_used": used, "music_shift": round(shift, 3), "story": story,
+            "marks": [dict(mk, o0=mk["shot"], out=1.0, kind="hit") for sg in segs for mk in sg["kills"]]}
 
 
 def _render_clip(src: str, seg: dict, out: Path, tmp: Path, font: str, b: float = 0.0) -> None:
@@ -2655,7 +2828,17 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
                 runs = melody_runs(music, music_ss, music_d)
             except Exception:  # noqa: BLE001 - ohne Melodie-Serien wie bisher
                 runs = None
-        pl = plan_clean(kills, bt["beats"], shot_times, acc, runs)
+        drop_t = None  # Drop in der Musik (vor der Planung, für die Spannungskurve)
+        if STORY_DROP and STORY:
+            if drop_at is not None:
+                drop_t = drop_at - music_ss
+            else:
+                try:
+                    drop_t = story_drop(music, music_ss, story_length(kills, shot_times),
+                                        [{"o0": 0.0}] + [{"o0": t} for t in bt["beats"]])
+                except Exception:  # noqa: BLE001 - ohne Drop: der Reihe nach wie bisher
+                    drop_t = None
+        pl = plan_clean(kills, bt["beats"], shot_times, acc, runs, drop_t)
         # Video beginnt am ersten Schlag: Musik ab dort, Raster entsprechend verschieben (sonst liegt alles um diesen
         # Versatz neben der hörbaren Musik)
         sh = pl.get("music_shift", 0.0)
@@ -2780,7 +2963,10 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         fc += "".join(f"[{i}:v]setsar=1[sv{i}];" for i in range(n))
         fc += "".join(f"[sv{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[vc0];"
         tcuts = [] if CLEAN_EDIT else transition_cuts(pl["segments"])  # einfacher Schnitt: kein Zoom-Übergang
-        if STORY_DROP and CLEAN_EDIT and drop_at is not None:  # vom Nutzer: Sekunde im Song -> Schnitt davor
+        story_drop_seg = next((sg for sg in pl["segments"] if sg.get("drop")), None)
+        if STORY_DROP and CLEAN_EDIT and story_drop_seg:  # Spannungskurve: stärkster Moment beginnt auf dem Drop
+            t_drop = story_drop_seg["o0"]
+        elif STORY_DROP and CLEAN_EDIT and drop_at is not None:  # vom Nutzer: Sekunde im Song -> Schnitt davor
             t_drop = drop_cut(drop_at - music_ss, total, pl["segments"])
         else:
             t_drop = story_drop(music, music_ss, total, pl["segments"]) if (STORY_DROP and CLEAN_EDIT) else None
@@ -2911,6 +3097,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
     return {"kills": kills, "bpm": bt["bpm"], "seconds": round(duration(out), 2), "kills_used": pl["kills_used"],
             "lyrics_debug": _safe_debug(dbg, words or [], sung),
             "segments": pl["segments"], "words": shown, "drop": t_drop, "clips": len(srcs), "lyrics_source": source,
+            "story_note": (pl.get("story") or {}).get("note"),
             "lyrics_note": SUNG_NOTE, "wall": wall_stats,
             "synced_shots": sum(len(x["anchors"]) - 2 for x in pl["segments"] if x.get("anchors")),
             "sync_measured": measured, "audio_note": AUDIO_NOTE}
