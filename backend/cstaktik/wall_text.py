@@ -785,3 +785,64 @@ def depth_regions(d: np.ndarray, rgb: np.ndarray | None = None) -> list[dict]:
                     vxp = float(-b_ / a_)
             out.append({"cells": c, "mask": lab == k, "vx": vxp, "k": k})
     return [r for r in out if r is not None]
+
+
+# Waffe vor dem Text (Vorbild: Messer schwingt vor dem Wort durch). Die Waffe in der Hand ist im Bild das nächste
+# Objekt: in der Tiefenkarte ganz vorn, scharf abgesetzt gegen alles daneben, und hängt immer am unteren Bildrand.
+VIEW_NEAR = 0.78   # so nah mindestens (0 = fernster, 1 = nächster Bildpunkt, robust normiert)
+VIEW_STEP = 0.25   # so viel näher als der Rest derselben Bildzeile (Boden und Wände steigen sanft an)
+VIEW_BOTTOM = 0.06  # Waffe reicht bis in die unteren 6 % des Bilds
+
+
+def depth_raw(rgb: np.ndarray) -> np.ndarray | None:
+    """Disparität 518 x 518 (Modellauflösung) des ganzen Bilds, robust auf 0..1 normiert (nah = 1). None ohne
+    Tiefenmodell."""
+    from PIL import Image
+
+    s = _depth_session()
+    if s is None:
+        return None
+    im = Image.fromarray(np.ascontiguousarray(rgb)).convert("RGB")
+    if im.size != (518, 518):
+        im = im.resize((518, 518), Image.BICUBIC)
+    x = (np.asarray(im, np.float32) / 255.0 - [0.485, 0.456, 0.406]) / [0.229, 0.224, 0.225]
+    d = np.squeeze(s.run(None, {s.get_inputs()[0].name: x.transpose(2, 0, 1)[None].astype(np.float32)})[0])
+    lo, hi = np.percentile(d, 2), np.percentile(d, 99.7)
+    return np.clip((d - lo) / max(hi - lo, 1e-6), 0, 1).astype(np.float32)
+
+
+def _reach_bottom(m: np.ndarray, rows: int) -> np.ndarray:
+    """Teile der Maske, die zusammenhängend (4er-Nachbarschaft) bis in die unteren ``rows`` Zeilen reichen."""
+    seed = np.zeros_like(m)
+    seed[-rows:] = m[-rows:]
+    for _ in range(4 * max(m.shape)):
+        g = seed.copy()
+        g[1:] |= seed[:-1]
+        g[:-1] |= seed[1:]
+        g[:, 1:] |= seed[:, :-1]
+        g[:, :-1] |= seed[:, 1:]
+        g &= m
+        if np.array_equal(g, seed):
+            break
+        seed = g
+    return seed
+
+
+def viewmodel_mask(d: np.ndarray, r0: int = 0, r1: int | None = None) -> np.ndarray:
+    """Weiche Maske (0..1) der Waffe/Hände in den Zeilen r0..r1 der Tiefenkarte ``d`` (0..1, nah = 1): sehr nah,
+    deutlich näher als der Rest der Zeile und am unteren Bildrand hängend (Boden ist zwar unten nah, steigt aber
+    sanft an und liegt unter dem Text; nahe Wände füllen die Zeile und fallen über den Zeilen-Median raus)."""
+    r1 = d.shape[0] if r1 is None else r1
+    k = 4  # Zusammenhang auf einem Viertel der Auflösung prüfen (schnell genug)
+    small = d[::k, ::k] > VIEW_NEAR - 0.04
+    comp = _reach_bottom(small, max(1, int(small.shape[0] * VIEW_BOTTOM)))
+    grow = comp.copy()  # eine Zelle Rand dazu, sonst schneidet das grobe Raster feine Klingenkanten ab
+    grow[1:] |= comp[:-1]
+    grow[:-1] |= comp[1:]
+    grow[:, 1:] |= comp[:, :-1]
+    grow[:, :-1] |= comp[:, 1:]
+    comp = np.repeat(np.repeat(grow, k, 0), k, 1)[: d.shape[0], : d.shape[1]]
+    band = d[r0:r1]
+    med = np.median(band, axis=1, keepdims=True)
+    soft = np.clip((band - VIEW_NEAR) / 0.06, 0, 1) * np.clip((band - med - VIEW_STEP + 0.05) / 0.1, 0, 1)
+    return (soft * comp[r0:r1]).astype(np.float32)

@@ -1771,8 +1771,114 @@ def _word_frame(t: str, font, width: int, height: int, fill: tuple, glow: tuple,
     return fr
 
 
+WEAPON_FRONT = True  # Waffe/Hände vor dem Songtext (Vorbild: Messer schwingt vor dem Wort durch), über Tiefenkarte
+WEAPON_SCAN = 3  # Tiefe erst für jedes 3. Textbild; wo die Waffe in den Textbereich ragt, auch für die dazwischen
+
+
+def _game_frames(base: str, lyr: dict, fps: int, want: set):
+    """Spielbild der Bilder ``want`` (Nummer bei ``fps``) als 518 x 518 RGB, der Reihe nach (Querformat: ganzes
+    Bild, Hochformat: das Quadrat)."""
+    import numpy as np
+
+    w, h = lyr["out_w"], lyr["out_h"]
+    crop = "" if w > h else f"crop={w}:{lyr['box']}:0:{lyr['box_y']},"
+    p = subprocess.Popen(["ffmpeg", "-v", "error", "-i", base, "-vf", f"fps={fps},{crop}scale=518:518",
+                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL)  # vorzeitiges Ende meldet sonst "Broken pipe"
+    sz, n, last = 518 * 518 * 3, 0, max(want)
+    try:
+        while n <= last:
+            buf = p.stdout.read(sz)
+            if len(buf) < sz:
+                break
+            if n in want:
+                yield n, np.frombuffer(buf, np.uint8).reshape(518, 518, 3)
+            n += 1
+    finally:
+        p.stdout.close()
+        p.kill()
+        p.wait()
+
+
+def weapon_masks(base: str, lyr: dict, items: list[dict], total: float, fps: int, cache: Path | None = None) -> dict:
+    """Je Textbild (Nummer bei ``fps``) die Maske der Waffe im Textbereich (uint8, Zeilen des Textbereichs x 518),
+    nur wo eine da ist. Ohne Tiefenmodell leer. Ergebnis wird in ``cache`` gemerkt (Nachjustieren rechnet nicht neu)."""
+    import math
+
+    import numpy as np
+
+    from cstaktik import wall_text
+
+    if not WEAPON_FRONT or not items or wall_text._depth_session() is None:
+        return {}
+    w, h = lyr["out_w"], lyr["out_h"]
+    gy0, gh = (0, h) if w > h else (lyr["box_y"], lyr["box"])
+    y0 = lyr["y_mid"] - lyr["band"] // 2
+    r0 = max(0, int((y0 - gy0) / gh * 518))
+    r1 = min(518, int(math.ceil((y0 + lyr["band"] - gy0) / gh * 518)))
+    if r1 - r0 < 4:
+        return {}
+    need = sorted({n for x in lyric_schedule(items, total)
+                   for n in range(int(math.ceil(x["a"] * fps)), int(math.ceil(min(x["end"], total) * fps)))})
+    if not need:
+        return {}
+    st = Path(base).stat()
+    key = np.array([r0, r1, fps, st.st_size, int(st.st_mtime)])
+    masks: dict = {}
+    done: set = set()
+    if cache and cache.exists():
+        try:
+            z = np.load(cache)
+            if np.array_equal(z["key"], key):
+                done = set(int(n) for n in z["done"])
+                masks = {int(k[1:]): z[k] for k in z.files if k.startswith("m")}
+        except Exception:  # noqa: BLE001 - kaputter Zwischenstand: neu rechnen
+            masks, done = {}, set()
+
+    def run(frames):
+        todo = {n for n in frames if n not in done}
+        if not todo:
+            return
+        for n, rgb in _game_frames(base, lyr, fps, todo):
+            d = wall_text.depth_raw(rgb)
+            done.add(n)
+            if d is None:
+                continue
+            m = wall_text.viewmodel_mask(d, r0, r1)
+            if m.max() > 0.05:
+                masks[n] = (m * 255).astype(np.uint8)
+
+    scan = sorted(set(need[::WEAPON_SCAN] + [need[-1]]))
+    run(scan)
+    pos = {n: i for i, n in enumerate(need)}
+    fill = []
+    for s0, s1 in zip(scan, scan[1:]):  # Waffe an einem Ende im Textbereich: alle Bilder dazwischen genau
+        if s0 in masks or s1 in masks:
+            fill += need[pos[s0] + 1: pos[s1]]
+    run(fill)
+    if cache:
+        try:
+            with open(cache, "wb") as fh:
+                np.savez_compressed(fh, key=key, done=np.array(sorted(done), np.int32),
+                                    **{f"m{n}": m for n, m in masks.items()})
+        except OSError:
+            pass
+    return masks
+
+
+def _behind(data: bytes, mask, width: int, height: int) -> bytes:
+    """Textbild (RGBA-Bytes) dort durchsichtig machen, wo die Waffe ist (Maske auf Spurgröße gezogen)."""
+    import numpy as np
+    from PIL import Image
+
+    a = np.frombuffer(data, np.uint8).reshape(height, width, 4).copy()
+    m = np.asarray(Image.fromarray(mask).resize((width, height), Image.BILINEAR), np.float32) / 255.0
+    a[:, :, 3] = (a[:, :, 3] * (1.0 - m)).astype(np.uint8)
+    return a.tobytes()
+
+
 def render_lyric_track(items: list[dict], total: float, path: Path, width: int, height: int,
-                       fps: int = OUT_FPS) -> None:
+                       fps: int = OUT_FPS, masks: dict | None = None) -> None:
     """Songtext als eigene, durchsichtige Videospur (RGBA, qtrle), Vorbild-Look: großes Wort in der Bildmitte,
     erscheint ganz auf einmal (mit kurzem Farb-Glitch), dahinter ein farbiges Echo, steht bis zum
     nächsten, Zeilenende blendet verschwommen aus (lange stehend vorher kurzer Farbwechsel). Schwarz auf hellem,
@@ -1840,7 +1946,8 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
                     cache[key] = fr.tobytes()
                     if len(cache) > 400:
                         cache.clear()
-                proc.stdin.write(cache[key])
+                data = cache[key]
+                proc.stdin.write(_behind(data, masks[n], width, height) if masks and n in masks else data)
                 continue
             st = img
             tau = t - x["a"]
@@ -1870,7 +1977,9 @@ def render_lyric_track(items: list[dict], total: float, path: Path, width: int, 
                 cache[key] = fr.tobytes()
                 if len(cache) > 400:
                     cache.clear()
-            proc.stdin.write(cache[key])
+            data = cache[key]
+            # Waffe vor dem Wort: dort ist das Wort durchsichtig
+            proc.stdin.write(_behind(data, masks[n], width, height) if masks and n in masks else data)
     finally:
         proc.stdin.close()
         proc.wait()
@@ -1898,12 +2007,14 @@ def mark_dark_text(items: list[dict], files, segs: list[dict], y0: int, band: in
             x["dark"] = float(np.frombuffer(raw, np.uint8).mean()) > DARK_TEXT_LUMA
 
 
-LYRIC_Y = 0.40  # Mitte des Songtexts in Höhe des Spielbilds (Vorbild: groß in der Bildmitte, knapp über dem Fadenkreuz)
+# Mitte des Songtexts in Höhe des Spielbilds. Vorbild: groß in der Bildmitte; 0,40 verdeckte Gegner über dem
+# Fadenkreuz (Nutzer: "etwas höher, sonst werden einige Kills behindert")
+LYRIC_Y = 0.30
 
 
 def lyric_pos(j: int, during_kill: bool) -> tuple[int, float]:
-    """Mitte (y) eines flachen Songtext-Worts: groß in der Bildmitte wie im Vorbild (Wort 16 % der Bildhöhe,
-    Mitte auf 50 %), etwas höher, damit das Fadenkreuz frei bleibt."""
+    """Mitte (y) eines flachen Songtext-Worts: groß wie im Vorbild (Wort 16 % der Bildhöhe), im oberen Teil des
+    Spielbilds, damit Fadenkreuz und Gegner frei bleiben."""
     if LANDSCAPE:
         return int(OUT_H * LYRIC_Y), 1.0
     return BOX_Y + int(BOX * LYRIC_Y), 1.0
@@ -2394,7 +2505,11 @@ def apply_lyrics(base: str, lyr: dict, out: str, sh: float = 0.0, progress=None)
         if flat:
             y0 = lyr["y_mid"] - lyr["band"] // 2
             track = tmp / "lyrics.mov"
-            render_lyric_track(flat, total, track, lyr["out_w"], lyr["band"], LYRIC_FPS)
+            try:  # Waffe vor dem Text (Tiefenkarte); geht das nicht, liegt der Text wie bisher oben drauf
+                masks = weapon_masks(base, lyr, flat, total, LYRIC_FPS, Path(str(out)).with_suffix(".weapon.npz"))
+            except Exception:  # noqa: BLE001
+                masks = {}
+            render_lyric_track(flat, total, track, lyr["out_w"], lyr["band"], LYRIC_FPS, masks)
             _run(["ffmpeg", "-v", "error", "-y", "-i", base, "-i", str(track), "-filter_complex",
                   f"[1:v]format=rgba[lt];[0:v][lt]overlay=0:{y0}:format=auto[v]", "-map", "[v]", "-map", "0:a",
                   "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-r", str(lyr["fps"]),

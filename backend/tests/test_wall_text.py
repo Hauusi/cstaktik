@@ -117,3 +117,20 @@ def test_place_on_wall_uses_depth_when_available(monkeypatch):
     assert pl is not None
     q = pl["quad"]
     assert q[:, 0].max() <= 115 and q[1, 1] > q[0, 1] and q[2, 1] < q[3, 1]  # auf der Wand, rechts kleiner
+
+
+def test_viewmodel_mask_blade_not_floor_or_wall():
+    """Waffe vor dem Text: Klinge von unten bis in den Textbereich wird erkannt; naher Boden unten und eine nahe
+    Wand, die die ganze Zeile füllt, nicht."""
+    n = 128
+    y = np.arange(n)[:, None] / n
+    d = np.clip((y - 0.5) * 1.8, 0, 1) * np.ones((1, n))  # Boden: unten nah, steigt sanft an
+    d[:30, :] = np.maximum(d[:30, :], 0.0)
+    d[20:30, :] = 0.85  # nahe Wand/Decke füllt die Zeilen 20-29
+    d[25:, 90:100] = 0.97  # Klinge: ganz nah, reicht bis zum unteren Rand
+    m = wt.viewmodel_mask(d.astype(np.float32), 10, 60)
+    assert m[30 - 10:60 - 10, 92:98].min() > 0.9  # Klinge im Textbereich (unterhalb der Wand)
+    assert m[:, :80].max() == 0  # Boden/Wand links davon nicht
+    assert m[0:10, :].max() == 0  # über der Klinge nichts
+    flo = np.clip((y - 0.5) * 1.8, 0, 1) * np.ones((1, n))
+    assert wt.viewmodel_mask(flo.astype(np.float32), 0, n).max() == 0  # nur Boden: keine Waffe
