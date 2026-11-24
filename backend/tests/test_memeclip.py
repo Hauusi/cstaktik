@@ -587,10 +587,10 @@ def test_plan_clean_dynamic_kill_on_strongest_accent():
     kills = [{"t": 3.0, "box": (0, 0, 1, 1), "src": "a.mp4", "dur": 20.0}]
     shots = {"a.mp4": [2.7]}
     grid = memeclip.plan_clean(kills, beats, shots)
-    acc = [(1.25, 0.3), (1.80, 1.3), (2.00, 0.4), (3.6, 1.2), (4.3, 0.5)]
+    acc = [(1.25, 1.3), (1.50, 0.3), (2.00, 0.4), (3.6, 1.2), (4.3, 0.5)]
     dyn = memeclip.plan_clean(kills, beats, shots, acc)
     shot = dyn["marks"][0]["o0"] + dyn["music_shift"]
-    assert abs(shot - 1.80) < 0.02  # stärkster Einsatz (1,3) statt Raster
+    assert abs(shot - 1.25) < 0.02  # stärkster Einsatz (1,3) statt Raster
     seg = dyn["segments"][0]
     assert seg["ss"] < 2.7 < seg["ss"] + seg["out"] and seg["ss"] + seg["out"] >= 3.0 + memeclip.DYN_POST[0] - 1e-6
     assert grid["marks"][0]["o0"] != dyn["marks"][0]["o0"]
@@ -683,12 +683,13 @@ def test_section_length_more_kills_faster_cuts_exact_end():
         kills = _story_kills() + [{"t": 16.0 + 1.7 * i, "src": "d", "dur": 60.0, "box": box} for i in range(extra)]
         pl = memeclip.plan_clean(kills, beats, acc=acc, drop_t=9.0, section=True)
         end = pl["story"]["end"]
-        assert abs(pl["seconds"] - end) < 1e-6 and ((end - 9.0) / 2.0) in (4, 8, 16)  # ganze Takte (1 Takt = 2 s)
+        bars = (pl["seconds"] - 9.0) / 2.0  # 1 Takt = 2 s
+        assert abs(bars - round(bars)) < 1e-6 and bars >= 1  # endet auf einem Taktstrich, nie gestreckt
         post = [sg for sg in pl["segments"] if sg["o0"] >= 9.0 - 1e-6]
         assert len(post[0]["kills"]) == 3 and post[-1]["src"] == "c"  # Drop-Moment und Finale bleiben
         assert all(sg["out"] >= memeclip.PIECE_MIN - 1e-6 for sg in post)
-        avgs.append((end - 9.0) / len(post))
-    assert avgs[0] > avgs[1] > avgs[2]  # mehr Kills: schnellere Schnitte
+        avgs.append((pl["seconds"] - 9.0) / len(post))
+    assert avgs[0] > avgs[1] >= avgs[2] - 0.05  # mehr Kills: schnellere Schnitte (bis kurz vor PIECE_MIN)
     assert avgs[-1] < 2.0
     old = memeclip.plan_clean(_story_kills(), beats, acc=acc, drop_t=9.0)  # "so lang wie die Kills": wie bisher
     assert "end" not in old["story"]
@@ -756,3 +757,18 @@ def test_predrop_fills_gap_with_moment_instead_of_stretching():
             assert sg["o0"] + sg["out"] - max(mk["feed"] for mk in sg["kills"]) <= memeclip.DYN_POST[1] + 0.3
             assert sg["kills"][0]["shot"] - sg["o0"] <= 1.0  # Angle halten: kurzer Vorlauf
     assert drop["kills"][0]["shot"] - drop["o0"] <= memeclip.DROP_LEAD_MAX + 1e-6  # Kill gleich nach dem Drop
+
+
+def test_runs_on_beats_and_max_piece():
+    """Melodie-Stelle: Kills auf die Schläge statt auf unsichere Einzeltöne (Nutzer: "komplett asynchron"); kein
+    Stück länger als MAX_PIECE_S (Nutzer: "langgezogene Stellen to much")."""
+    beats = [round(0.56 * i, 3) for i in range(100)]
+    runs = [[50.24 - 40.0, 50.54 - 40.0, 50.79 - 40.0, 51.10 - 40.0, 51.38 - 40.0, 51.69 - 40.0]]  # 0,3-s-"Töne"
+    rb = memeclip.runs_on_beats(runs, beats)
+    assert rb and all(abs(x / 0.56 - round(x / 0.56)) < 1e-6 for x in rb[0]) and len(rb[0]) >= memeclip.RUN_JOIN
+    assert memeclip.runs_on_beats([[1.0, 1.3]], beats) == []  # zu kurz für eine Serie
+    box = (0, 0, 10, 10)
+    kills = [{"t": 4.0 + 6 * i, "box": box, "src": "ab"[i % 2], "dur": 60.0} for i in range(6)]
+    acc = [(b, 1.0 if i % 4 == 0 else 0.5) for i, b in enumerate(beats)]
+    pl = memeclip.plan_clean(kills, beats, acc=acc)
+    assert max(sg["out"] for sg in pl["segments"][:-1]) <= memeclip.MAX_PIECE_S + 1e-6

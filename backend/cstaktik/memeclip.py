@@ -585,6 +585,7 @@ STILL_PEN = 1.2  # Strafe je Sekunde solcher Szene im Vor- und Nachlauf (Nutzer:
 STILL_LEAD = 0.25  # Vorlauf bei gehaltenem Angle: so kurz vor dem Kill-Schuss einsteigen
 TARGET_LEAD_MAX = 0.9  # Länge nach Song-Abschnitt: Vorlauf höchstens so lang bevorzugt, Zeit kommt nach dem Kill dazu
 DROP_LEAD_MAX = 1.0    # Drop-Stück: Kill-Schuss spätestens so lange nach dem Drop
+MAX_PIECE_S = 1.8      # kein Stück länger (Nutzer: "langgezogene Stellen to much"), außer ein Mehrfach-Kill braucht es
 
 
 def cam_motion(src: str, fps: int = 10):
@@ -840,6 +841,19 @@ def melody_runs(music: str, ss: float, d: float | None) -> list[list[float]]:
     return runs
 
 
+def runs_on_beats(runs: list[list[float]], beat_times: list[float]) -> list[list[float]]:
+    """Melodie-Stellen auf die Schläge legen: die erkannten Einzeltöne sind unzuverlässig (dieselbe Stelle in "Last
+    Christmas" ergab je nach Analyse-Start Abstände von 0,56 oder 0,3 s, Nutzer: "Melodie-Kills komplett
+    asynchron"), der Takt ist stabil. Je Stelle die Schläge vom ersten bis kurz nach dem letzten erkannten Ton, je
+    Schlag ein Kill; mindestens RUN_JOIN Schläge."""
+    out = []
+    for r in runs or []:
+        bs = [b for b in beat_times if r[0] - 0.12 <= b <= r[-1] + 0.12]
+        if len(bs) >= RUN_JOIN and (not out or bs[0] > out[-1][-1] + 1e-6):
+            out.append([round(b, 3) for b in bs])
+    return out
+
+
 RUN_JOIN = 3             # Einstieg in eine laufende Melodie-Serie: so viele Töne müssen noch kommen
 RUN_PRE = 0.3            # Schnellfeuer: so viel vor dem Kill-Schuss beginnt das Stück (höchstens)
 RUN_PRE_MIN = 0.05       # mindestens (bei sehr dichten Tönen)
@@ -903,7 +917,8 @@ def _place_run(groups: list[list[dict]], gi: int, run: list[float], o: float, pr
 # Innerhalb eines Clips bleibt die Reihenfolge (kein Zurückspringen), Clips werden gemischt.
 STORY = True
 STORY_MIN_GROUPS = 3      # weniger Momente: keine Kurve (wie bisher der Reihe nach)
-INTRO_MIN, INTRO_MAX = 3.0, 8.0  # ruhige Einstellung am Anfang (Vorbild: 8 s ein durchgehender Gang mit Text)
+# ruhige Einstellung am Anfang (Vorbild: 8 s ein durchgehender Gang mit Text; Nutzer: lange Stellen "to much" -> 4 s)
+INTRO_MIN, INTRO_MAX = 3.0, 4.0
 INTRO_LEAD = 1.0          # Einstieg endet so viel vor dem ersten gezeigten Kill-Schuss seines Clips
 # Länge nach Song-Abschnitt (Nutzer: Länge bestimmt die Musik, je mehr Kills, desto schneller die Schnitte): nach
 # dem Drop eine ganze Zahl Takte (4/8/16, die nächste an SECTION_S), die Kills teilen sich diese Zeit. Stücke im
@@ -1145,6 +1160,8 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             post_hi = max(DYN_POST[1], min(2.5, free - lead_pref + 0.5))
         if drop_piece:  # Drop: der Kill kommt gleich danach
             lead_pref, lead_hi = DYN_LEAD[0], min(lead_hi, DROP_LEAD_MAX)
+        # Vorlauf nie so lang, dass das Stück über MAX_PIECE_S muss
+        lead_hi = min(lead_hi, max(DYN_LEAD[0], MAX_PIECE_S - (tmax - ks0) - DYN_POST[0]))
         lead_lo = DYN_LEAD[0]
         if cam is not None and still_s(cam, ks0 - DYN_LEAD[0], ks0 - 0.1) >= 0.25:
             # vor dem Schuss nur Angle halten: spät einsteigen (Vorbild: Schnitt kurz vor dem Schuss)
@@ -1189,6 +1206,8 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
         if dyn:
             return dyn
         lead = max(1, round((lead_pref if target else CLEAN_PRE) / beat)) * beat  # Kill-Schuss auf einem Schlag
+        while lead - beat >= DYN_LEAD[0] - 1e-6 and lead > lead_hi + 1e-6:  # Obergrenze wie im dynamischen Fall
+            lead -= beat
         while lead - beat >= DYN_LEAD[0] and still_s(cam, ks0 - lead, ks0 - lead + beat) >= 0.8 * beat:
             lead -= beat  # vorne nur Angle halten: später einsteigen
         while ks0 - lead < lo and lead > beat - 1e-6:  # nicht in schon gezeigtes Material zurück
@@ -1245,7 +1264,7 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             # so viel kann das Stück ohne Stillstand füllen (Angle halten davor/danach zählt kurz)
             lead_ok = 0.6 if still_s(cam_x, ks_x - 1.2, ks_x - 0.1) > 0.6 else DYN_LEAD[1]
             post_ok = 0.7 if still_s(cam_x, t_x + DYN_POST[0], t_x + DYN_POST[1]) > 0.4 else DYN_POST[1]
-            fill = lead_ok + (t_x - ks_x) + post_ok + 0.2
+            fill = min(lead_ok + (t_x - ks_x) + post_ok, max(MAX_PIECE_S, (t_x - ks_x) + 0.9)) + 0.2
             if drop_t - o > fill:
                 later = groups[n_pre + 1:len(groups) - (1 if final else 0)]
                 seen, firsts = set(), []
@@ -1342,6 +1361,16 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
                 prev_end[src_g] = old_end
             if best is not None:
                 L = best[1] - o
+        if cut_at is None:  # feste Obergrenze: früher schneiden (auf einen Einsatz), Kill + Killfeed bleiben drin
+            need = max(k["t"] for k in g) - start + DYN_POST[0]
+            allowed = max(MAX_PIECE_S, need)
+            if L > allowed + 1e-6:
+                if acc:
+                    cands = [t - o for t, _ in acc if need <= t - o <= allowed]
+                    L = max(cands) if cands else allowed
+                else:  # ohne Einsätze: ganze Schläge wie im Raster
+                    n_b = int(allowed / beat + 1e-6)
+                    L = max(n_b, math.ceil(need / beat - 1e-6)) * beat
         gi += 1
         src, dur = g[0].get("src"), g[0].get("dur", 1e9)
         reserve = _gest(groups[-1]) if (final and gi < len(groups)) else 0.0  # Platz fürs Finale lassen
@@ -3108,7 +3137,7 @@ def make_beat(src, music: str, out: str, music_ss: float = 0.0, music_d: float |
         runs = None
         if DYNAMIC_SYNC:
             try:
-                runs = melody_runs(music, music_ss, music_d)
+                runs = runs_on_beats(melody_runs(music, music_ss, music_d), bt["beats"])
             except Exception:  # noqa: BLE001 - ohne Melodie-Serien wie bisher
                 runs = None
         drop_t = None  # Drop in der Musik (vor der Planung, für die Spannungskurve)
