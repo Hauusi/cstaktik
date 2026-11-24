@@ -692,3 +692,44 @@ def test_section_length_more_kills_faster_cuts_exact_end():
     assert avgs[-1] < 2.0
     old = memeclip.plan_clean(_story_kills(), beats, acc=acc, drop_t=9.0)  # "so lang wie die Kills": wie bisher
     assert "end" not in old["story"]
+
+
+def test_still_angle_short_lead_and_no_static_intro():
+    """Nutzer: "Szenen wo ich einen Angle halte, das will keiner sehen". Ohne Kamera-Drehung vor dem Schuss beginnt
+    das Stück kurz davor, und ein Einstieg aus Angle-Halten wird nicht genommen."""
+    import numpy as np
+
+    box = (0, 0, 10, 10)
+    beats = [round(0.25 * i, 3) for i in range(400)]
+    acc = [(b, 1.0) for b in beats]
+    kills = [{"t": 20.0, "box": box, "src": "a", "dur": 40.0}, {"t": 30.0, "box": box, "src": "a", "dur": 40.0}]
+    still = (10, np.zeros(400))  # Kamera steht die ganze Zeit
+    moving = (10, np.full(400, 5.0))  # Kamera dreht sich ständig
+    p_still = memeclip.plan_clean(kills, beats, acc=acc, cams={"a": still})
+    p_move = memeclip.plan_clean(kills, beats, acc=acc, cams={"a": moving})
+    lead = lambda pl: pl["segments"][0]["kills"][0]["shot"] - pl["segments"][0]["o0"]  # noqa: E731
+    assert lead(p_still) <= memeclip.STILL_LEAD + 0.13 < lead(p_move)
+    # Einstieg: gleiche Momente, einmal mit Drehung, einmal Angle-Halten am Clip-Anfang
+    beats2 = [round(0.5 * i, 3) for i in range(160)]
+    mv = memeclip.plan_clean(_story_kills(), beats2, drop_t=9.0,
+                             cams={x: moving for x in "abc"})
+    st = memeclip.plan_clean(_story_kills(), beats2, drop_t=9.0,
+                             cams={x: still for x in "abc"})
+    assert mv["segments"][0].get("intro") and not st["segments"][0].get("intro")
+
+
+def test_run_gets_priority_over_running_piece():
+    """Nutzer-Clip: das Drop-Stück lief über die Melodie-Serie, die Serie fiel weg. Jetzt endet das Stück davor,
+    sobald sein Kill zu sehen war, und die Töne bekommen ihre Kills."""
+    box = (0, 0, 10, 10)
+    beats = [round(0.25 * i, 3) for i in range(200)]
+    acc = [(b, (0.5 * b if 1.0 < b < 2.3 else 1.0)) for b in beats]  # später Schnitt wäre der stärkste
+    kills = [{"t": 1.0, "box": box, "src": "a", "dur": 60.0}]
+    kills += [{"t": 10.0 + 4 * i, "box": box, "src": "bcde"[i], "dur": 60.0} for i in range(4)]
+    run = [2.0, 2.56, 3.12, 3.68]
+    pl = memeclip.plan_clean(kills, beats, acc=acc, runs=[run])
+    first = pl["segments"][0]
+    assert not first.get("run") and first["o0"] + first["out"] <= run[0] - memeclip.DYN_LEAD[0] + 1e-6
+    assert first["o0"] + first["out"] - first["kills"][0]["feed"] >= memeclip.RUN_POST_MIN  # Kill war zu sehen
+    shots = [round(mk["shot"] + pl["music_shift"], 2) for sg in pl["segments"] if sg.get("run") for mk in sg["kills"]]
+    assert shots == run
