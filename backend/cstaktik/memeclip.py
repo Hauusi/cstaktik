@@ -583,6 +583,8 @@ STILL_PX = 2.0   # Kamera dreht sich weniger als das (Pixel je 0,1 s bei 160 px 
 STILL_PEN = 1.2  # Strafe je Sekunde solcher Szene im Vor- und Nachlauf (Nutzer: "Szenen wo ich einen Angle halte,
                  # das will keiner sehen")
 STILL_LEAD = 0.25  # Vorlauf bei gehaltenem Angle: so kurz vor dem Kill-Schuss einsteigen
+TARGET_LEAD_MAX = 0.9  # Länge nach Song-Abschnitt: Vorlauf höchstens so lang bevorzugt, Zeit kommt nach dem Kill dazu
+DROP_LEAD_MAX = 1.0    # Drop-Stück: Kill-Schuss spätestens so lange nach dem Drop
 
 
 def cam_motion(src: str, fps: int = 10):
@@ -1120,7 +1122,7 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             prev_end[x] = e
             o += L
 
-    def place(g, o, cut_at=None, target=None, max_len=None):
+    def place(g, o, cut_at=None, target=None, max_len=None, drop_piece=False):
         """Stück für Gruppe ``g`` ab ``o``: (Start im Clip, Länge). ``cut_at``: Schnitt muss dort liegen (Drop,
         Abschnittsende). ``target``: gewünschte Länge (Song-Abschnitt: verbleibende Zeit je verbleibendem Moment)."""
         src, dur = g[0].get("src"), g[0].get("dur", 1e9)
@@ -1136,11 +1138,13 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             return STILL_PEN * still_s(cam, tmax + DYN_POST[0], st + (c_v - o))
 
         lead_pref, lead_hi, post_hi, free = DYN_LEAD_PREF, DYN_LEAD[1], DYN_POST[1], None
-        if target:  # Vor- und Nachlauf so wählen, dass das Stück etwa ``target`` lang wird
+        if target:  # Stück etwa ``target`` lang: Vorlauf kurz lassen, Rest nach dem Kill (Nutzer-Clip: 2 s Vorlauf
+            # mit Granate in der Hand vor dem Drop-Kill)
             free = max(target - (tmax - ks0), DYN_LEAD[0] + DYN_POST[0])
-            lead_pref = min(max(free * 0.45, DYN_LEAD[0]), 2.0)
-            lead_hi = max(DYN_LEAD[1], min(2.0, lead_pref + 0.4))
+            lead_pref = min(max(free * 0.4, DYN_LEAD[0]), TARGET_LEAD_MAX)
             post_hi = max(DYN_POST[1], min(2.5, free - lead_pref + 0.5))
+        if drop_piece:  # Drop: der Kill kommt gleich danach
+            lead_pref, lead_hi = DYN_LEAD[0], min(lead_hi, DROP_LEAD_MAX)
         lead_lo = DYN_LEAD[0]
         if cam is not None and still_s(cam, ks0 - DYN_LEAD[0], ks0 - 0.1) >= 0.25:
             # vor dem Schuss nur Angle halten: spät einsteigen (Vorbild: Schnitt kurz vor dem Schuss)
@@ -1203,6 +1207,7 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
     # Melodie-Serien auch ab einem späteren Ton (mind. RUN_JOIN Töne übrig): liegt der Anfang noch im laufenden
     # Stück, steigt der Schnitt beim nächsten Ton ein (Nutzer: Kills nicht synchron zur Melodie)
     run_opts = [r[j:] for r in (runs or []) for j in range(len(r)) if len(r) - j >= RUN_JOIN]
+    ins_fit = None
     gi = 0
     while gi < len(groups):
         # Schnellfeuer: liegt der erste Ton einer Melodie-Serie im möglichen Vorlauf, bekommt jeder Ton einen eigenen
@@ -1230,6 +1235,35 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
                             left = 0
                     o = o_end
                     continue
+        if story and gi == n_pre - 1:
+            # letztes Stück vor dem Drop müsste sich stark strecken (Nutzer-Clip: fast 2 s nach dem Kill bis zum
+            # Drop): lieber einen weiteren Moment davor zeigen, sofern einer frei ist (erster seines Clips danach)
+            gx = groups[gi]
+            ks_x = gx[0]["ks"] + KILL_PRE
+            t_x = max(k["t"] for k in gx)
+            cam_x = (cams or {}).get(gx[0].get("src"))
+            # so viel kann das Stück ohne Stillstand füllen (Angle halten davor/danach zählt kurz)
+            lead_ok = 0.6 if still_s(cam_x, ks_x - 1.2, ks_x - 0.1) > 0.6 else DYN_LEAD[1]
+            post_ok = 0.7 if still_s(cam_x, t_x + DYN_POST[0], t_x + DYN_POST[1]) > 0.4 else DYN_POST[1]
+            fill = lead_ok + (t_x - ks_x) + post_ok + 0.2
+            if drop_t - o > fill:
+                later = groups[n_pre + 1:len(groups) - (1 if final else 0)]
+                seen, firsts = set(), []
+                for j, x in enumerate(later):
+                    sx = x[0].get("src")
+                    if sx not in seen:
+                        seen.add(sx)
+                        if sx != groups[n_pre][0].get("src") and sx != gx[0].get("src"):
+                            firsts.append((n_pre + 1 + j, x))
+                room_ins = drop_t - o - least(gx) - 0.05  # danach muss das letzte Stück noch passen
+                firsts = [(j, x) for j, x in firsts if least(x) <= room_ins]
+                if firsts:
+                    j, x = min(firsts, key=lambda p: (_gscore(p[1]), p[0]))
+                    groups.pop(j)
+                    groups.insert(gi, x)
+                    n_pre += 1
+                    story["n_pre"] = n_pre
+                    ins_fit = (room_ins, drop_t - o - (fill - 0.2))  # (höchstens, Ziel) für das eingeschobene Stück
         g = groups[gi]
         is_drop = bool(story) and gi == n_pre
         cut_at, target = (drop_t if (story and gi == n_pre - 1) else None), None
@@ -1247,8 +1281,11 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
                 nat = o + l0
                 bar = 4 * beat
                 lo_end = o + least(g)
-                ends = [drop_t + k * bar for k in range(1, 65) if lo_end - 1e-6 <= drop_t + k * bar <= nat + 1.6]
-                if end_t <= nat + 1.6 and end_t >= lo_end - 1e-6:
+                # länger als natürlich nur, wenn danach noch Bewegung im Bild ist (sonst 3 s Angle-Halten am Ende)
+                cam_f = (cams or {}).get(g[0].get("src"))
+                ext = 1.6 if still_s(cam_f, s0 + l0, s0 + l0 + 1.6) < 0.6 else 0.6
+                ends = [drop_t + k * bar for k in range(1, 65) if lo_end - 1e-6 <= drop_t + k * bar <= nat + ext]
+                if end_t <= nat + ext and end_t >= lo_end - 1e-6:
                     cut_at = end_t
                 elif ends:
                     cut_at = min(ends, key=lambda e: (abs(e - nat) - (0.4 if round((e - drop_t) / bar) % 4 == 0
@@ -1256,7 +1293,10 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
                     story["end"] = round(cut_at, 3)
                 target = None
         cap = (end_t - o - sum(least(x) for x in groups[gi + 1:])) if (target and gi < len(groups) - 1) else None
-        start, L = place(g, o, cut_at, target, cap)
+        if ins_fit is not None:  # eingeschobenes Aufbau-Stück: so lang, dass das letzte vor dem Drop normal passt
+            cap, target = ins_fit[0], max(ins_fit[1], least(g))
+            ins_fit = None
+        start, L = place(g, o, cut_at, target, cap, drop_piece=is_drop)
         # Melodie-Serie kommt, während dieses Stück noch läuft (Nutzer-Clip: Drop-Stück lief über das "dü dü dü", die
         # Serie fiel weg): Stück vorher beenden, sobald sein Kill zu sehen war, damit die Serie ihre Töne bekommt
         if runs and cut_at is None and gi < len(groups) - 1 and (not story or gi >= n_pre) and \
@@ -1271,6 +1311,37 @@ def plan_clean(kills: list[dict], beat_times: list[float], shot_times: dict | No
             if L > cap + 1e-6 and need_min <= cap:
                 cands = [t - o for t, _ in (acc or []) if need_min <= t - o <= cap]
                 L = max(cands) if cands else cap
+        if end_t is not None and final and gi == len(groups) - 2 and cut_at is None:
+            # vorletztes Stück: Schnitt so wählen, dass das Finale ohne Strecken auf einem Taktstrich endet
+            # (Testlauf: Ende lag sonst oft zwischen zwei Taktstrichen)
+            src_g = g[0].get("src")
+            t_g = max(k["t"] for k in g)
+            bar = 4 * beat
+            old_end = prev_end.get(src_g)
+            best = None
+            c = o + (t_g - start) + DYN_POST[0]
+            gf = groups[-1]
+            cam_fin = (cams or {}).get(gf[0].get("src"))
+            while c <= o + (t_g - start) + DYN_POST[1] + 1e-6 and start + (c - o) <= g[0].get("dur", 1e9) - 0.05:
+                prev_end[src_g] = start + (c - o)
+                sf, lf = place(gf, c)
+                e = c + lf  # natürliches Ende des Finales; es darf bis zum Taktstrich wie beim Finale selbst
+                ext_f = 1.6 if still_s(cam_fin, sf + lf, sf + lf + 1.6) < 0.6 else 0.6
+                bars_in = [drop_t + k * bar for k in range(1, 65)
+                           if c + least(gf) - 1e-6 <= drop_t + k * bar <= e + ext_f]
+                if bars_in:
+                    stretch = min(abs(b - e) for b in bars_in)
+                    d = 0.3 * stretch + 0.1 * abs((c - o) - L) + STILL_PEN * still_s(
+                        (cams or {}).get(src_g), t_g + DYN_POST[0], start + (c - o))
+                    if best is None or d < best[0]:
+                        best = (d, c)
+                c += 0.02
+            if old_end is None:
+                prev_end.pop(src_g, None)
+            else:
+                prev_end[src_g] = old_end
+            if best is not None:
+                L = best[1] - o
         gi += 1
         src, dur = g[0].get("src"), g[0].get("dur", 1e9)
         reserve = _gest(groups[-1]) if (final and gi < len(groups)) else 0.0  # Platz fürs Finale lassen

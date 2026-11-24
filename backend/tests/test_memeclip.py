@@ -733,3 +733,26 @@ def test_run_gets_priority_over_running_piece():
     assert first["o0"] + first["out"] - first["kills"][0]["feed"] >= memeclip.RUN_POST_MIN  # Kill war zu sehen
     shots = [round(mk["shot"] + pl["music_shift"], 2) for sg in pl["segments"] if sg.get("run") for mk in sg["kills"]]
     assert shots == run
+
+
+def test_predrop_fills_gap_with_moment_instead_of_stretching():
+    """Nutzer-Clip: Stück vor dem Drop lief fast 2 s nach dem Kill weiter, nur damit es genau am Drop endet. Jetzt
+    kommt ein weiterer Moment davor; der Drop bleibt exakt, kein Stück vor dem Drop hat lange Stillstand."""
+    import numpy as np
+
+    box = (0, 0, 10, 10)
+    beats = [round(0.25 * i, 3) for i in range(400)]
+    acc = [(b, 1.0) for b in beats]
+    k = lambda t, src: {"t": t, "src": src, "dur": 40.0, "box": box}  # noqa: E731
+    kills = [k(5.0, "b"), k(12.0, "b"), k(12.4, "b"), k(12.8, "b"), k(6.0, "c"), k(9.0, "c"), k(7.0, "d"),
+             k(11.0, "d"), k(4.0, "e"), k(15.0, "e")]
+    still = (10, np.zeros(500))
+    pl = memeclip.plan_clean(kills, beats, acc=acc, drop_t=7.0, cams={x: still for x in "bcde"})
+    segs = pl["segments"]
+    drop = next(sg for sg in segs if sg.get("drop"))
+    assert abs(drop["o0"] - 7.0) < 1e-6 and len(drop["kills"]) == 3
+    for sg in segs:
+        if sg["o0"] < drop["o0"] and sg["kills"]:
+            assert sg["o0"] + sg["out"] - max(mk["feed"] for mk in sg["kills"]) <= memeclip.DYN_POST[1] + 0.3
+            assert sg["kills"][0]["shot"] - sg["o0"] <= 1.0  # Angle halten: kurzer Vorlauf
+    assert drop["kills"][0]["shot"] - drop["o0"] <= memeclip.DROP_LEAD_MAX + 1e-6  # Kill gleich nach dem Drop
